@@ -25,3 +25,25 @@ button {
   padding: 0;
   cursor: pointer;
 }
+
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-1);
+  font-size: 0.92rem;
+}
+.task-row[data-done="true"] .task-title { color: var(--c-text-subtle); text-decoration: line-through; }
+.task-pri   { width: 3px; height: 18px; border-radius: 2px; flex-shrink: 0; }
+.task-title { flex: 1; word-break: break-word; }
+.task-tag   { font-size: 0.7rem; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+.task-when  { color: var(--c-text-muted); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+.task-when.late { color: var(--c-danger); font-weight: 600; }
+.task-delete { color: var(--c-text-subtle); font-size: 1.2rem; padding: 0 var(--space-1); }
+.task-delete:hover { color: var(--c-danger); background: transparent; }
+
+.task-empty { color: var(--c-text-subtle); text-align: center; padding: var(--space-6) 0; }
