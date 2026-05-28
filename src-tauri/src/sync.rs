@@ -3,9 +3,8 @@ use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
-use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 const DEBOUNCE_MS: u64 = 250;
@@ -27,27 +26,19 @@ pub fn start(app: AppHandle, data_path: PathBuf) -> notify::Result<SyncHandle> {
 
     let app_for_thread   = app.clone();
     let path_for_thread  = data_path.clone();
-    let last_event_at    = Arc::new(Mutex::new(None::<Instant>));
-    let pending          = Arc::clone(&last_event_at);
 
     let handle = thread::spawn(move || {
         loop {
-            match rx.recv() {
-                Ok(_event_result) => {
-                    *pending.lock().unwrap() = Some(Instant::now());
-                    thread::sleep(Duration::from_millis(DEBOUNCE_MS));
-
-                    let due = match *pending.lock().unwrap() {
-                        Some(t) => t.elapsed() >= Duration::from_millis(DEBOUNCE_MS),
-                        None => false,
-                    };
-                    if !due { continue; }
-                    *pending.lock().unwrap() = None;
-
-                    process_change(&app_for_thread, &path_for_thread);
+            // Block for the first event of a burst.
+            if rx.recv().is_err() { break; }
+            // Drain any follow-up events in a DEBOUNCE_MS quiet window.
+            loop {
+                match rx.recv_timeout(Duration::from_millis(DEBOUNCE_MS)) {
+                    Ok(_)  => continue, // burst still happening; keep draining
+                    Err(_) => break,    // quiet for DEBOUNCE_MS — burst is over
                 }
-                Err(_) => break,
             }
+            process_change(&app_for_thread, &path_for_thread);
         }
     });
 

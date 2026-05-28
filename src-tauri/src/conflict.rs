@@ -70,8 +70,11 @@ pub fn apply_decisions(
             Some(Decision::KeepTheirs { .. }) => {
                 if let Some(theirs_t) = theirs_by_id.get(id) {
                     out.push((*theirs_t).clone());
-                    already.insert(t.id.clone());
+                } else {
+                    // KeepTheirs on a task with no theirs version → fall back to keeping mine.
+                    out.push(t.clone());
                 }
+                already.insert(t.id.clone());
             }
             Some(Decision::KeepBoth { .. }) => {
                 out.push(t.clone());
@@ -88,13 +91,12 @@ pub fn apply_decisions(
 
     for t in &theirs.tasks {
         if already.contains(&t.id) { continue; }
-        if let Some(d) = decided.get(t.id.as_str()) {
-            match d {
-                Decision::KeepTheirs { .. } | Decision::KeepBoth { .. } => {
-                    out.push(t.clone());
-                }
-                _ => {}
-            }
+        match decided.get(t.id.as_str()) {
+            None => { out.push(t.clone()); }   // default: keep theirs-only tasks
+            Some(Decision::KeepTheirs { .. }) |
+            Some(Decision::KeepBoth   { .. }) => { out.push(t.clone()); }
+            Some(Decision::Drop       { .. }) => { /* skip */ }
+            Some(Decision::KeepMine   { .. }) => { /* skip — "keep mine" on theirs-only = drop */ }
         }
     }
 

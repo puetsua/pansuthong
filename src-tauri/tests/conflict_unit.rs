@@ -108,11 +108,13 @@ fn apply_only_theirs_keep_theirs_imports() {
 }
 
 #[test]
-fn unmentioned_tasks_default_to_keep_mine() {
-    let mine   = doc(vec![mk("a", "A", false), mk("b", "B", false)]);
-    let theirs = doc(vec![mk("a", "A2", false)]);
+fn unmentioned_tasks_default_to_keep_both_sides() {
+    // Differs default to "keep mine"; OnlyMine kept; OnlyTheirs ALSO kept.
+    let mine   = doc(vec![mk("a", "A",  false), mk("b", "B", false)]);
+    let theirs = doc(vec![mk("a", "A2", false), mk("c", "C", false)]);
     let merged = apply_decisions(&mine, &theirs, &[]);
-    assert_eq!(merged.len(), 2);
-    assert!(merged.iter().any(|t| t.id == "a" && t.title == "A"));
+    assert_eq!(merged.len(), 3);
+    assert!(merged.iter().any(|t| t.id == "a" && t.title == "A")); // mine wins on Differs
     assert!(merged.iter().any(|t| t.id == "b" && t.title == "B"));
+    assert!(merged.iter().any(|t| t.id == "c" && t.title == "C")); // theirs-only kept
 }
