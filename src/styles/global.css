@@ -47,3 +47,26 @@ button {
 .task-delete:hover { color: var(--c-danger); background: transparent; }
 
 .task-empty { color: var(--c-text-subtle); text-align: center; padding: var(--space-6) 0; }
+
+.composer {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.composer input {
+  flex: 1;
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  outline: none;
+}
+.composer input:focus { border-color: var(--c-accent); box-shadow: 0 0 0 2px var(--c-accent-bg); }
+.composer button {
+  background: var(--c-accent);
+  color: white;
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+}
+.composer-error { color: var(--c-danger); margin: var(--space-1) 0 0; font-size: 0.85rem; flex-basis: 100%; }
