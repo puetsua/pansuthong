@@ -49,4 +49,17 @@ export const api = {
   addTag:        (name: string, color: string, project_id?: string) =>
                                                 invoke<Tag>("add_tag", { input: { name, color, project_id } }),
   deleteTag:     (id: string)                => invoke<void>("delete_tag", { id }),
+  parseComposer:   (input: string) => invoke<{
+    title: string;
+    tag_names: string[];
+    due_date?: string;
+    scheduled_date?: string;
+    priority?: Priority;
+  }>("parse_composer", { input }),
+  searchTasks:     (query: string) => invoke<Task[]>("search_tasks", { query }),
+  updateProject:   (input: { id: string; name?: string; color?: string }) =>
+                                     invoke<Project>("update_project", { input }),
+  updateTag:       (input: { id: string; name?: string; color?: string; project_id?: string }) =>
+                                     invoke<Tag>("update_tag", { input }),
+  clearTagProject: (id: string)   => invoke<Tag>("clear_tag_project", { id }),
 };
