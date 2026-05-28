@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "settings": { "data_file": null, "theme": "auto", "device_id": "d_test00000000" },
+  "projects": [
+    { "id": "p_work",     "name": "Work",       "color": "#4338ca" },
+    { "id": "p_reno",     "name": "Renovation", "color": "#ef4444" }
+  ],
+  "tags": [
+    { "id": "t_work",     "name": "work",       "color": "#4338ca", "project_id": "p_work" },
+    { "id": "t_reno",     "name": "renovation", "color": "#f59e0b", "project_id": "p_reno" },
+    { "id": "t_urgent",   "name": "urgent",     "color": "#dc2626" },
+    { "id": "t_errand",   "name": "errand",     "color": "#10b981" }
+  ],
+  "tasks": [
+    {
+      "id": "k_overdue1", "title": "Reply to Anna", "done": false,
+      "due_date": "2026-05-26", "scheduled_date": null, "priority": "high",
+      "notes": "", "tag_ids": ["t_work", "t_urgent"],
+      "created_at": 1748390000000, "completed_at": null
+    },
+    {
+      "id": "k_today1", "title": "Pick up dry cleaning", "done": false,
+      "due_date": null, "scheduled_date": "2026-05-28", "priority": "med",
+      "notes": "", "tag_ids": ["t_errand"],
+      "created_at": 1748390100000, "completed_at": null
+    },
+    {
+      "id": "k_today2", "title": "Review PR #248", "done": false,
+      "due_date": "2026-05-28", "scheduled_date": null, "priority": "high",
+      "notes": "", "tag_ids": ["t_work"],
+      "created_at": 1748390200000, "completed_at": null
+    },
+    {
+      "id": "k_reno1",  "title": "Call electrician", "done": false,
+      "due_date": "2026-05-30", "scheduled_date": "2026-05-28", "priority": "low",
+      "notes": "Three-way switch.", "tag_ids": ["t_reno"],
+      "created_at": 1748390300000, "completed_at": null
+    },
+    {
+      "id": "k_future1", "title": "Plan vacation", "done": false,
+      "due_date": "2026-06-10", "scheduled_date": "2026-06-05", "priority": null,
+      "notes": "", "tag_ids": [],
+      "created_at": 1748390400000, "completed_at": null
+    }
+  ]
+}

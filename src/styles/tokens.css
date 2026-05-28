@@ -1,0 +1,52 @@
+:root {
+  /* Type */
+  --font-body: -apple-system, "Segoe UI", Inter, Avenir, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Menlo, monospace;
+
+  /* Spacing scale (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* Light theme */
+  --c-bg:           #f9fafb;
+  --c-surface:      #ffffff;
+  --c-surface-2:    #f3f4f6;
+  --c-border:       #e5e7eb;
+  --c-text:         #1f2937;
+  --c-text-muted:   #6b7280;
+  --c-text-subtle:  #9ca3af;
+  --c-accent:       #4338ca;
+  --c-accent-bg:    #eef2ff;
+  --c-danger:       #dc2626;
+  --c-success:      #047857;
+
+  /* Priority stripe */
+  --c-pri-high: #ef4444;
+  --c-pri-med:  #f59e0b;
+  --c-pri-low:  #d1d5db;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-bg:           #0f172a;
+    --c-surface:      #1e293b;
+    --c-surface-2:    #243044;
+    --c-border:       #334155;
+    --c-text:         #e2e8f0;
+    --c-text-muted:   #94a3b8;
+    --c-text-subtle:  #64748b;
+    --c-accent:       #818cf8;
+    --c-accent-bg:    #312e81;
+    --c-danger:       #fca5a5;
+    --c-success:      #6ee7b7;
+  }
+}
