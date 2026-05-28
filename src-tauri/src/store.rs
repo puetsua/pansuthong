@@ -55,6 +55,17 @@ impl AppState {
         Ok(value)
     }
 
+    /// Replace the in-memory document with a freshly parsed one and update the
+    /// hash to match what's now on disk. Called by sync.rs after detecting an
+    /// external write.
+    pub fn reload_from_bytes(&self, bytes: Vec<u8>) -> Result<()> {
+        let doc: Document = serde_json::from_slice(&bytes)?;
+        let mut g = self.inner.lock().unwrap();
+        g.doc = doc;
+        g.last_written_hash = sha256(&bytes);
+        Ok(())
+    }
+
     pub fn path(&self) -> PathBuf {
         self.inner.lock().unwrap().path.clone()
     }

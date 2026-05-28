@@ -38,6 +38,17 @@ export type Document = {
   tasks: Task[];
 };
 
+export type TaskDiff =
+  | { kind: "differs";     id: string; mine: Task;   theirs: Task }
+  | { kind: "only_mine";   id: string; mine: Task }
+  | { kind: "only_theirs"; id: string; theirs: Task };
+
+export type Decision =
+  | { action: "keep_mine";   id: string }
+  | { action: "keep_theirs"; id: string }
+  | { action: "keep_both";   id: string }
+  | { action: "drop";        id: string };
+
 export const api = {
   getDocument:   ()                          => invoke<Document>("get_document"),
   addTask:       (input: Partial<Task> & { title: string }) => invoke<Task>("add_task", { input }),
@@ -64,4 +75,10 @@ export const api = {
   clearTagProject: (id: string)   => invoke<Tag>("clear_tag_project", { id }),
   updateSettings: (input: { theme?: "auto" | "light" | "dark" }) =>
                                    invoke<void>("update_settings", { input }),
+  listConflicts:    ()             => invoke<string[]>("list_conflicts"),
+  readConflict:     (path: string) => invoke<TaskDiff[]>("read_conflict", { conflictPath: path }),
+  resolveConflict:  (path: string, decisions: Decision[]) =>
+                                      invoke<void>("resolve_conflict",
+                                        { input: { conflict_path: path, decisions } }),
+  dismissConflict:  (path: string) => invoke<void>("dismiss_conflict", { conflictPath: path }),
 };
