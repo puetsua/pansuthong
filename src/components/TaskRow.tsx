@@ -36,8 +36,16 @@ export function TaskRow({ task, tags, todayIso }: Props) {
   const w = whenLabel(task, todayIso);
   const firstTag = task.tag_ids.length ? tags.get(task.tag_ids[0]) : undefined;
 
-  const toggle = () => { void api.setTaskDone(task.id, !task.done); };
-  const remove = () => { void api.deleteTask(task.id); };
+  const toggle = () => {
+    api.setTaskDone(task.id, !task.done).catch(err => {
+      console.error("setTaskDone failed:", err);
+    });
+  };
+  const remove = () => {
+    api.deleteTask(task.id).catch(err => {
+      console.error("deleteTask failed:", err);
+    });
+  };
 
   return (
     <div className="task-row" data-done={task.done}>

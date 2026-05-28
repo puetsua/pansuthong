@@ -73,15 +73,20 @@ fn sha256(bytes: &[u8]) -> [u8; 32] {
 
 fn atomic_write(target: &Path, bytes: &[u8]) -> Result<()> {
     let tmp = target.with_extension("json.tmp");
-    {
+    let result: std::io::Result<()> = (|| {
         let mut f = fs::File::create(&tmp)?;
         f.write_all(bytes)?;
         f.sync_all()?;
+        drop(f);
+        // On Windows, std::fs::rename replaces atomically since Rust 1.50.
+        fs::rename(&tmp, target)?;
+        Ok(())
+    })();
+    match result {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            let _ = fs::remove_file(&tmp);
+            Err(AppError::Io(e))
+        }
     }
-    // On Windows, std::fs::rename replaces atomically since Rust 1.50.
-    fs::rename(&tmp, target).map_err(|e| {
-        // Clean up tmp on failure; ignore secondary errors.
-        let _ = fs::remove_file(&tmp);
-        AppError::Io(e)
-    })
 }

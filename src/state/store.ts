@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import { api, Document } from "../lib/tauri";
 import { buildIndexes, Indexes } from "./indexes";
 
@@ -11,7 +11,6 @@ export function useDocument(): DocState {
 
   useEffect(() => {
     let mounted = true;
-    let unlisten: UnlistenFn | undefined;
 
     const load = async () => {
       try {
@@ -22,12 +21,12 @@ export function useDocument(): DocState {
       }
     };
 
+    const unlistenPromise = listen("store-changed", () => { void load(); });
     void load();
-    void listen("store-changed", () => { void load(); }).then(fn => { unlisten = fn; });
 
     return () => {
       mounted = false;
-      unlisten?.();
+      void unlistenPromise.then(fn => fn());
     };
   }, []);
 
