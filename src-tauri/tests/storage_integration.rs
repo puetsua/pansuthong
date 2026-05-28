@@ -1,4 +1,4 @@
-use pansutong_lib::model::{Document, new_task_id, Task};
+use pansutong_lib::model::{new_task_id, Task};
 use pansutong_lib::store::AppState;
 use std::fs;
 use tempfile::tempdir;
