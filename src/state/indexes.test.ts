@@ -24,4 +24,9 @@ describe("buildIndexes", () => {
   it("byTag for t_urgent returns one task", () => {
     expect(ix.byTag.get("t_urgent")?.map(t => t.id)).toEqual(["k_overdue1"]);
   });
+
+  it("tagsByName maps lowercase name to tag", () => {
+    expect(ix.tagsByName.get("work")?.id).toBe("t_work");
+    expect(ix.tagsByName.get("WORK".toLowerCase())?.id).toBe("t_work");
+  });
 });
