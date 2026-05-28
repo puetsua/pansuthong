@@ -14,7 +14,7 @@ export function InboxView({ indexes }: Props) {
         <h1>Inbox</h1>
         <p className="view-sub">Tasks without a project</p>
       </header>
-      <Composer />
+      <Composer tagsByName={indexes.tagsByName} />
       <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={todayIso()}
                 emptyText="Inbox is empty." />
     </section>

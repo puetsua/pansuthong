@@ -1,7 +1,9 @@
 use crate::error::{AppError, Result};
 use crate::model::{new_project_id, new_tag_id, new_task_id, Document, Priority, Project, Tag, Task};
+use crate::parse::{parse as parse_input, ParsedInput};
+use crate::search::search as search_doc;
 use crate::store::AppState;
-use chrono::NaiveDate;
+use chrono::{Local, NaiveDate};
 use serde::Deserialize;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, State};
@@ -176,6 +178,103 @@ pub fn delete_tag(id: String, state: State<'_, AppState>, app: AppHandle) -> Res
         }
         for task in d.tasks.iter_mut() {
             task.tag_ids.retain(|tid| tid != &id);
+        }
+        Ok(())
+    })?;
+    emit_changed(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn parse_composer(input: String) -> ParsedInput {
+    let today = Local::now().date_naive();
+    parse_input(&input, today)
+}
+
+#[tauri::command]
+pub fn search_tasks(query: String, state: State<'_, AppState>) -> Vec<crate::model::Task> {
+    state.read(|d| search_doc(d, &query).into_iter().cloned().collect())
+}
+
+#[derive(Deserialize)]
+pub struct UpdateProjectInput {
+    pub id:    String,
+    #[serde(default)] pub name:  Option<String>,
+    #[serde(default)] pub color: Option<String>,
+}
+
+#[tauri::command]
+pub fn update_project(input: UpdateProjectInput, state: State<'_, AppState>, app: AppHandle) -> Result<crate::model::Project> {
+    let updated = state.write(|d| {
+        let p = d.projects.iter_mut().find(|p| p.id == input.id)
+            .ok_or_else(|| AppError::NotFound(format!("project {}", input.id)))?;
+        if let Some(v) = input.name {
+            let t = v.trim().to_string();
+            if t.is_empty() { return Err(AppError::Invalid("name is empty".into())); }
+            p.name = t;
+        }
+        if let Some(v) = input.color { p.color = v; }
+        Ok(p.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
+}
+
+#[derive(Deserialize)]
+pub struct UpdateTagInput {
+    pub id:    String,
+    #[serde(default)] pub name:       Option<String>,
+    #[serde(default)] pub color:      Option<String>,
+    /// Same Option<Option<T>> serde caveat as UpdateTaskInput — Phase 2 UI
+    /// uses the explicit clear_tag_project command to clear instead of sending null.
+    #[serde(default)] pub project_id: Option<String>,
+}
+
+#[tauri::command]
+pub fn update_tag(input: UpdateTagInput, state: State<'_, AppState>, app: AppHandle) -> Result<crate::model::Tag> {
+    let updated = state.write(|d| {
+        let t = d.tags.iter_mut().find(|t| t.id == input.id)
+            .ok_or_else(|| AppError::NotFound(format!("tag {}", input.id)))?;
+        if let Some(v) = input.name {
+            let trimmed = v.trim().to_string();
+            if trimmed.is_empty() { return Err(AppError::Invalid("name is empty".into())); }
+            t.name = trimmed;
+        }
+        if let Some(v) = input.color      { t.color = v; }
+        if let Some(v) = input.project_id { t.project_id = Some(v); }
+        Ok(t.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
+}
+
+/// Explicit "clear the tag's project_id" command — workaround for the serde
+/// Option<Option<T>> limitation. Use this instead of trying to send null.
+#[tauri::command]
+pub fn clear_tag_project(id: String, state: State<'_, AppState>, app: AppHandle) -> Result<crate::model::Tag> {
+    let updated = state.write(|d| {
+        let t = d.tags.iter_mut().find(|t| t.id == id)
+            .ok_or_else(|| AppError::NotFound(format!("tag {id}")))?;
+        t.project_id = None;
+        Ok(t.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
+}
+
+#[derive(Deserialize)]
+pub struct UpdateSettingsInput {
+    #[serde(default)] pub theme: Option<String>,
+}
+
+#[tauri::command]
+pub fn update_settings(input: UpdateSettingsInput, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
+    state.write(|d| {
+        if let Some(t) = input.theme {
+            if !matches!(t.as_str(), "auto" | "light" | "dark") {
+                return Err(AppError::Invalid(format!("invalid theme: {t}")));
+            }
+            d.settings.theme = t;
         }
         Ok(())
     })?;

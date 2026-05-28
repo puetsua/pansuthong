@@ -1,6 +1,8 @@
 pub mod commands;
 pub mod error;
 pub mod model;
+pub mod parse;
+pub mod search;
 pub mod store;
 
 use crate::store::AppState;
@@ -30,6 +32,12 @@ pub fn run() {
             commands::delete_project,
             commands::add_tag,
             commands::delete_tag,
+            commands::clear_tag_project,
+            commands::parse_composer,
+            commands::search_tasks,
+            commands::update_project,
+            commands::update_tag,
+            commands::update_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

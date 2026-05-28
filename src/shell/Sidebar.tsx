@@ -23,6 +23,16 @@ export function Sidebar({ doc, indexes }: Props) {
             Inbox <span className="sidebar-count">{inboxCount}</span>
           </NavLink>
         </li>
+        <li>
+          <NavLink to="/upcoming" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+            Upcoming
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/search" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+            Search
+          </NavLink>
+        </li>
       </ul>
 
       {doc.projects.length > 0 && (
@@ -56,6 +66,16 @@ export function Sidebar({ doc, indexes }: Props) {
           </ul>
         </>
       )}
+
+      <div style={{ marginTop: "auto" }}>
+        <ul className="sidebar-list">
+          <li>
+            <NavLink to="/settings" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+              Settings
+            </NavLink>
+          </li>
+        </ul>
+      </div>
     </nav>
   );
 }

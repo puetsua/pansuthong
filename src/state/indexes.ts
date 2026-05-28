@@ -9,6 +9,8 @@ export type Indexes = {
   inbox:     Task[];
   projectsById: Map<string, Project>;
   tagsById:     Map<string, Tag>;
+  tagsByName:   Map<string, Tag>;
+  tasks:        Task[];
 };
 
 export function buildIndexes(doc: Document): Indexes {
@@ -37,6 +39,9 @@ export function buildIndexes(doc: Document): Indexes {
   const projectsById = new Map(doc.projects.map(p => [p.id, p]));
   const tagsById     = new Map(doc.tags.map(t => [t.id, t]));
 
+  const tagsByName = new Map<string, Tag>();
+  for (const t of doc.tags) tagsByName.set(t.name.toLowerCase(), t);
+
   const today = (todayIso: string): Task[] => doc.tasks.filter(t => {
     if (t.scheduled_date === todayIso) return true;
     if (t.due_date) {
@@ -46,5 +51,5 @@ export function buildIndexes(doc: Document): Indexes {
     return false;
   });
 
-  return { byProject, byTag, tagToProject, today, inbox, projectsById, tagsById };
+  return { byProject, byTag, tagToProject, today, inbox, projectsById, tagsById, tagsByName, tasks: doc.tasks };
 }

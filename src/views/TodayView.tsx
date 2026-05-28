@@ -15,7 +15,7 @@ export function TodayView({ indexes }: Props) {
         <h1>Today</h1>
         <p className="view-sub">{today} · {tasks.length} task{tasks.length === 1 ? "" : "s"}</p>
       </header>
-      <Composer scheduledDate={today} />
+      <Composer scheduledDate={today} tagsByName={indexes.tagsByName} />
       <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={today}
                 emptyText="No tasks scheduled or due today." />
     </section>

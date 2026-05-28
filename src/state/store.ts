@@ -30,6 +30,12 @@ export function useDocument(): DocState {
     };
   }, []);
 
+  useEffect(() => {
+    const theme = doc?.settings.theme ?? "auto";
+    if (theme === "auto") document.documentElement.removeAttribute("data-theme");
+    else                  document.documentElement.setAttribute("data-theme", theme);
+  }, [doc?.settings.theme]);
+
   const indexes = useMemo(() => (doc ? buildIndexes(doc) : null), [doc]);
   return { doc, indexes, error };
 }
