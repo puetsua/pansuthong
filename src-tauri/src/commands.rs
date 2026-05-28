@@ -54,6 +54,13 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
     Ok(saved)
 }
 
+// NOTE (Phase 2): The double-Option fields (due_date, scheduled_date, priority) are
+// intended to distinguish "field absent (don't change)" from "field is null (clear it)".
+// With default serde_json, this does NOT work — `{}` and `{"due_date": null}` both
+// deserialize to None. Phase 1 UI never exercises the "clear an existing optional
+// field" path (it only adds/toggles/deletes), so the bug is latent. When the Phase 2
+// task-edit UI lands, fix this by adding `serde_with` and using `#[serde_as]` with
+// `Option<Option<_>>`, or by switching to explicit `clear_<field>: bool` fields.
 #[derive(Deserialize)]
 pub struct UpdateTaskInput {
     pub id: String,
@@ -70,7 +77,13 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
     let updated = state.write(|d| {
         let t = d.tasks.iter_mut().find(|t| t.id == input.id)
             .ok_or_else(|| AppError::NotFound(format!("task {}", input.id)))?;
-        if let Some(v) = input.title          { t.title = v; }
+        if let Some(v) = input.title {
+            let trimmed = v.trim().to_string();
+            if trimmed.is_empty() {
+                return Err(AppError::Invalid("title is empty".into()));
+            }
+            t.title = trimmed;
+        }
         if let Some(v) = input.due_date       { t.due_date = v; }
         if let Some(v) = input.scheduled_date { t.scheduled_date = v; }
         if let Some(v) = input.priority       { t.priority = v; }
