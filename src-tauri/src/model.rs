@@ -99,3 +99,50 @@ impl Default for Document {
         }
     }
 }
+
+use std::collections::HashMap;
+
+impl Document {
+    /// Tag id → its (optional) project id.
+    pub fn tag_to_project(&self) -> HashMap<&str, &str> {
+        self.tags.iter()
+            .filter_map(|t| t.project_id.as_deref().map(|p| (t.id.as_str(), p)))
+            .collect()
+    }
+
+    /// True if the task should appear in project P.
+    pub fn task_in_project(&self, task: &Task, project_id: &str) -> bool {
+        let m = self.tag_to_project();
+        task.tag_ids.iter().any(|tid| m.get(tid.as_str()) == Some(&project_id))
+    }
+
+    /// True if the task is in Inbox (no project-linked tag).
+    pub fn task_in_inbox(&self, task: &Task) -> bool {
+        let m = self.tag_to_project();
+        task.tag_ids.iter().all(|tid| !m.contains_key(tid.as_str()))
+    }
+
+    /// Today: scheduled today, OR (due < today AND !done), OR due == today.
+    pub fn tasks_today(&self, today: NaiveDate) -> Vec<&Task> {
+        self.tasks.iter().filter(|t| {
+            if t.scheduled_date == Some(today) { return true; }
+            if let Some(due) = t.due_date {
+                if due == today { return true; }
+                if due < today && !t.done { return true; }
+            }
+            false
+        }).collect()
+    }
+
+    pub fn tasks_inbox(&self) -> Vec<&Task> {
+        self.tasks.iter().filter(|t| self.task_in_inbox(t)).collect()
+    }
+
+    pub fn tasks_for_project(&self, project_id: &str) -> Vec<&Task> {
+        self.tasks.iter().filter(|t| self.task_in_project(t, project_id)).collect()
+    }
+
+    pub fn tasks_for_tag(&self, tag_id: &str) -> Vec<&Task> {
+        self.tasks.iter().filter(|t| t.tag_ids.iter().any(|id| id == tag_id)).collect()
+    }
+}
