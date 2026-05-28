@@ -1,10 +1,13 @@
+use crate::conflict::{apply_decisions, diff_tasks, Decision, TaskDiff};
 use crate::error::{AppError, Result};
 use crate::model::{new_project_id, new_tag_id, new_task_id, Document, Priority, Project, Tag, Task};
 use crate::parse::{parse as parse_input, ParsedInput};
 use crate::search::search as search_doc;
 use crate::store::AppState;
+use crate::sync::scan_conflict_files;
 use chrono::{Local, NaiveDate};
 use serde::Deserialize;
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, State};
 
@@ -279,5 +282,52 @@ pub fn update_settings(input: UpdateSettingsInput, state: State<'_, AppState>, a
         Ok(())
     })?;
     emit_changed(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_conflicts(state: State<'_, AppState>) -> Vec<String> {
+    let path = state.path();
+    scan_conflict_files(&path)
+}
+
+#[tauri::command]
+pub fn read_conflict(conflict_path: String, state: State<'_, AppState>) -> Result<Vec<TaskDiff>> {
+    let bytes = std::fs::read(&conflict_path)?;
+    let theirs: crate::model::Document = serde_json::from_slice(&bytes)?;
+    let diffs = state.read(|d| diff_tasks(d, &theirs));
+    Ok(diffs)
+}
+
+#[derive(Deserialize)]
+pub struct ResolveConflictInput {
+    pub conflict_path: String,
+    pub decisions: Vec<Decision>,
+}
+
+#[tauri::command]
+pub fn resolve_conflict(
+    input: ResolveConflictInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<()> {
+    let bytes = std::fs::read(&input.conflict_path)?;
+    let theirs: crate::model::Document = serde_json::from_slice(&bytes)?;
+    state.write(|d| {
+        d.tasks = apply_decisions(d, &theirs, &input.decisions);
+        Ok(())
+    })?;
+    let _ = std::fs::remove_file(&input.conflict_path);
+    emit_changed(&app);
+    let path: PathBuf = state.path();
+    let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
+    Ok(())
+}
+
+#[tauri::command]
+pub fn dismiss_conflict(conflict_path: String, app: AppHandle, state: State<'_, AppState>) -> Result<()> {
+    let _ = std::fs::remove_file(&conflict_path);
+    let path: PathBuf = state.path();
+    let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
     Ok(())
 }

@@ -40,6 +40,10 @@ pub fn run() {
             commands::update_project,
             commands::update_tag,
             commands::update_settings,
+            commands::list_conflicts,
+            commands::read_conflict,
+            commands::resolve_conflict,
+            commands::dismiss_conflict,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
