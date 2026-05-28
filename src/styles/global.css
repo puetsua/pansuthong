@@ -119,3 +119,31 @@ button {
   color: var(--c-text-muted);
 }
 .app-error { color: var(--c-danger); }
+
+.composer-preview {
+  display: flex; flex-wrap: wrap; gap: var(--space-1);
+  margin: -4px 0 var(--space-3);
+  min-height: 1.4em;
+}
+.composer-chip {
+  background: var(--c-surface-2);
+  color: var(--c-text-muted);
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.composer-chip.pri-high { background: var(--c-pri-high); color: white; }
+.composer-chip.pri-med  { background: var(--c-pri-med);  color: white; }
+.composer-chip.pri-low  { background: var(--c-pri-low);  color: var(--c-text); }
+.composer-new {
+  background: var(--c-accent);
+  color: white;
+  font-size: 0.6rem;
+  padding: 1px 5px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+button[disabled] { opacity: 0.5; cursor: not-allowed; }
