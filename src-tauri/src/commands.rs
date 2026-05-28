@@ -261,3 +261,23 @@ pub fn clear_tag_project(id: String, state: State<'_, AppState>, app: AppHandle)
     emit_changed(&app);
     Ok(updated)
 }
+
+#[derive(Deserialize)]
+pub struct UpdateSettingsInput {
+    #[serde(default)] pub theme: Option<String>,
+}
+
+#[tauri::command]
+pub fn update_settings(input: UpdateSettingsInput, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
+    state.write(|d| {
+        if let Some(t) = input.theme {
+            if !matches!(t.as_str(), "auto" | "light" | "dark") {
+                return Err(AppError::Invalid(format!("invalid theme: {t}")));
+            }
+            d.settings.theme = t;
+        }
+        Ok(())
+    })?;
+    emit_changed(&app);
+    Ok(())
+}

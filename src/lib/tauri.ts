@@ -62,4 +62,6 @@ export const api = {
   updateTag:       (input: { id: string; name?: string; color?: string; project_id?: string }) =>
                                      invoke<Tag>("update_tag", { input }),
   clearTagProject: (id: string)   => invoke<Tag>("clear_tag_project", { id }),
+  updateSettings: (input: { theme?: "auto" | "light" | "dark" }) =>
+                                   invoke<void>("update_settings", { input }),
 };
