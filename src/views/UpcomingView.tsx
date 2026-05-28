@@ -11,7 +11,7 @@ const HORIZON_DAYS = 14;
 export function UpcomingView({ indexes }: Props) {
   const today = todayIso();
   const groups = buildGroups(indexes, today);
-  const totalCount = groups.reduce((n, g) => n + g.tasks.length, 0);
+  const totalCount = new Set(groups.flatMap(g => g.tasks.map(t => t.id))).size;
 
   return (
     <section>

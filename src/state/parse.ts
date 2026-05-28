@@ -78,7 +78,11 @@ function parseDateWord(word: string, todayIso: string): string | undefined {
   }
   const md = w.match(/^(\d{1,2})\/(\d{1,2})$/);
   if (md) {
-    const candidate = today.month(parseInt(md[1], 10) - 1).date(parseInt(md[2], 10));
+    const m = parseInt(md[1], 10);
+    const d = parseInt(md[2], 10);
+    if (m < 1 || m > 12 || d < 1 || d > 31) return undefined;
+    const candidate = today.month(m - 1).date(d);
+    if (candidate.month() !== m - 1 || candidate.date() !== d) return undefined;
     if (candidate.isValid()) return candidate.format("YYYY-MM-DD");
   }
   return undefined;

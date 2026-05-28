@@ -60,4 +60,21 @@ describe("parseComposer", () => {
     expect(p.priority).toBe("med");
     expect(p.due_date).toBe("2026-05-29");
   });
+
+  it("rejects out-of-range MM/DD", () => {
+    // 13 is not a valid month
+    expect(parseComposer("Task due 13/5", TODAY).due_date).toBeUndefined();
+    expect(parseComposer("Task due 13/5", TODAY).title).toBe("Task due 13/5");
+  });
+
+  it("rejects invalid day-of-month overflow", () => {
+    // Feb 30 doesn't exist
+    expect(parseComposer("Task due 2/30", TODAY).due_date).toBeUndefined();
+    expect(parseComposer("Task due 2/30", TODAY).title).toBe("Task due 2/30");
+  });
+
+  it("accepts valid MM/DD edges", () => {
+    expect(parseComposer("Task due 12/31", TODAY).due_date).toBe("2026-12-31");
+    expect(parseComposer("Task due 1/1",   TODAY).due_date).toBe("2026-01-01");
+  });
 });
