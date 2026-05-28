@@ -28,6 +28,11 @@ export function Sidebar({ doc, indexes }: Props) {
             Upcoming
           </NavLink>
         </li>
+        <li>
+          <NavLink to="/search" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+            Search
+          </NavLink>
+        </li>
       </ul>
 
       {doc.projects.length > 0 && (
