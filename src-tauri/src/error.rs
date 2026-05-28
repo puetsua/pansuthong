@@ -32,7 +32,7 @@ impl From<serde_json::Error> for AppError {
 
 // Tauri commands need errors that serialize.
 impl Serialize for AppError {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+    fn serialize<S: Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
         s.serialize_str(&self.to_string())
     }
 }
