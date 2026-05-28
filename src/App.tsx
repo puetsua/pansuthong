@@ -4,6 +4,7 @@ import { TodayView } from "./views/TodayView";
 import { InboxView } from "./views/InboxView";
 import { ProjectView } from "./views/ProjectView";
 import { TagView } from "./views/TagView";
+import { UpcomingView } from "./views/UpcomingView";
 import { useDocument } from "./state/store";
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/inbox" element={<InboxView doc={doc} indexes={indexes} />} />
           <Route path="/project/:id" element={<ProjectView indexes={indexes} />} />
           <Route path="/tag/:id"     element={<TagView indexes={indexes} />} />
+          <Route path="/upcoming" element={<UpcomingView indexes={indexes} />} />
           <Route path="*"      element={<p>Not built yet — comes in Phase 2.</p>} />
         </Routes>
       </DesktopShell>

@@ -10,6 +10,7 @@ export type Indexes = {
   projectsById: Map<string, Project>;
   tagsById:     Map<string, Tag>;
   tagsByName:   Map<string, Tag>;
+  tasks:        Task[];
 };
 
 export function buildIndexes(doc: Document): Indexes {
@@ -50,5 +51,5 @@ export function buildIndexes(doc: Document): Indexes {
     return false;
   });
 
-  return { byProject, byTag, tagToProject, today, inbox, projectsById, tagsById, tagsByName };
+  return { byProject, byTag, tagToProject, today, inbox, projectsById, tagsById, tagsByName, tasks: doc.tasks };
 }

@@ -23,6 +23,11 @@ export function Sidebar({ doc, indexes }: Props) {
             Inbox <span className="sidebar-count">{inboxCount}</span>
           </NavLink>
         </li>
+        <li>
+          <NavLink to="/upcoming" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+            Upcoming
+          </NavLink>
+        </li>
       </ul>
 
       {doc.projects.length > 0 && (

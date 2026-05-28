@@ -29,4 +29,10 @@ describe("buildIndexes", () => {
     expect(ix.tagsByName.get("work")?.id).toBe("t_work");
     expect(ix.tagsByName.get("WORK".toLowerCase())?.id).toBe("t_work");
   });
+
+  it("tasks contains the full set in original order", () => {
+    expect(ix.tasks.map(t => t.id)).toEqual([
+      "k_overdue1", "k_today1", "k_today2", "k_reno1", "k_future1"
+    ]);
+  });
 });
