@@ -20,8 +20,15 @@ pub fn run() {
                 .expect("app_data_dir resolvable");
             std::fs::create_dir_all(&data_dir).expect("create app data dir");
             let path = data_dir.join("tasks.json");
-            let state = AppState::open(path).expect("open store");
+            let state = AppState::open(path.clone()).expect("open store");
             app.manage(state);
+
+            let handle = app.handle().clone();
+            match crate::sync::start(handle, path) {
+                Ok(sync_handle) => { app.manage(sync_handle); }
+                Err(e) => { eprintln!("warning: filesystem watcher failed to start: {e}"); }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
