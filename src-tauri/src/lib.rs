@@ -4,6 +4,7 @@ pub mod model;
 pub mod parse;
 pub mod search;
 pub mod store;
+pub mod sync;
 
 use crate::store::AppState;
 use tauri::Manager;
