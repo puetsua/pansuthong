@@ -2,6 +2,7 @@ pub mod commands;
 pub mod error;
 pub mod model;
 pub mod parse;
+pub mod search;
 pub mod store;
 
 use crate::store::AppState;
