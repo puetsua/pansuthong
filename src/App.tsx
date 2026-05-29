@@ -1,5 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { DesktopShell } from "./shell/DesktopShell";
+import { MobileShell } from "./shell/MobileShell";
+import { useIsMobile } from "./lib/viewport";
 import { TodayView } from "./views/TodayView";
 import { InboxView } from "./views/InboxView";
 import { ProjectView } from "./views/ProjectView";
@@ -12,13 +14,16 @@ import { useDocument } from "./state/store";
 
 export default function App() {
   const { doc, indexes, error } = useDocument();
+  const isMobile = useIsMobile();
 
   if (error) return <p className="app-error">Failed to load: {error}</p>;
   if (!doc || !indexes) return <p className="app-loading">Loading…</p>;
 
+  const Shell = isMobile ? MobileShell : DesktopShell;
+
   return (
     <BrowserRouter>
-      <DesktopShell doc={doc} indexes={indexes}>
+      <Shell doc={doc} indexes={indexes}>
         <Routes>
           <Route path="/" element={<Navigate to="/today" replace />} />
           <Route path="/today" element={<TodayView doc={doc} indexes={indexes} />} />
@@ -31,7 +36,7 @@ export default function App() {
           <Route path="/conflicts/:filename" element={<ConflictsView />} />
           <Route path="*"      element={<p>Not built yet — comes in Phase 2.</p>} />
         </Routes>
-      </DesktopShell>
+      </Shell>
     </BrowserRouter>
   );
 }
