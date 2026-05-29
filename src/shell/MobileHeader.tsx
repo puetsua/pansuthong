@@ -1,0 +1,40 @@
+import { Link, useLocation } from "react-router-dom";
+import { Document } from "../lib/tauri";
+import { Indexes } from "../state/indexes";
+
+type Props = { doc: Document; indexes: Indexes };
+
+const ROUTE_TITLES: Record<string, string> = {
+  "/today":    "Today",
+  "/inbox":    "Inbox",
+  "/upcoming": "Upcoming",
+  "/search":   "Search",
+  "/settings": "Settings",
+};
+
+export function MobileHeader({ doc, indexes }: Props) {
+  const loc = useLocation();
+  const title = pickTitle(loc.pathname, doc, indexes);
+
+  return (
+    <header className="mobile-header">
+      <h1 className="mobile-title">{title}</h1>
+      <Link to="/settings" className="mobile-header-icon" aria-label="Settings">
+        ⚙
+      </Link>
+    </header>
+  );
+}
+
+function pickTitle(pathname: string, _doc: Document, indexes: Indexes): string {
+  if (ROUTE_TITLES[pathname]) return ROUTE_TITLES[pathname];
+  const projMatch = pathname.match(/^\/project\/(.+)$/);
+  if (projMatch) return indexes.projectsById.get(projMatch[1])?.name ?? "Project";
+  const tagMatch = pathname.match(/^\/tag\/(.+)$/);
+  if (tagMatch) {
+    const tag = indexes.tagsById.get(tagMatch[1]);
+    return tag ? `#${tag.name}` : "Tag";
+  }
+  if (pathname.startsWith("/conflicts/")) return "Conflict";
+  return "Pansutong";
+}
