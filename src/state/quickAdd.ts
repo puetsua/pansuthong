@@ -1,0 +1,39 @@
+import { Tag } from "../lib/tauri";
+
+/** Built-in palette for auto-created tags. */
+export const TAG_PALETTE = [
+  "#4338ca", "#10b981", "#f59e0b", "#ef4444",
+  "#06b6d4", "#a855f7", "#ec4899", "#84cc16",
+];
+
+/** Deterministic palette color from a seed string (stable per tag name). */
+export function pickPaletteColor(seed: string): string {
+  let h = 0;
+  for (const ch of seed) h = ((h << 5) - h + ch.charCodeAt(0)) | 0;
+  return TAG_PALETTE[Math.abs(h) % TAG_PALETTE.length];
+}
+
+/**
+ * Resolve parsed #tag names to tag IDs, creating any that don't exist yet.
+ * Tag matching is case-insensitive; created tags are stored lowercased.
+ * `addTag` is injected (pass `api.addTag`) so this stays unit-testable
+ * without the Tauri bridge.
+ */
+export async function resolveTagIds(
+  tagNames: string[],
+  tagsByName: Map<string, Tag>,
+  addTag: (name: string, color: string) => Promise<Tag>,
+): Promise<string[]> {
+  const ids: string[] = [];
+  for (const name of tagNames) {
+    const key = name.toLowerCase();
+    const existing = tagsByName.get(key);
+    if (existing) {
+      ids.push(existing.id);
+    } else {
+      const created = await addTag(key, pickPaletteColor(key));
+      ids.push(created.id);
+    }
+  }
+  return ids;
+}

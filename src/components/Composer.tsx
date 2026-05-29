@@ -3,6 +3,7 @@ import { api, Tag } from "../lib/tauri";
 import { parseComposer } from "../state/parse";
 import { todayIso } from "../lib/dates";
 import { ComposerPreview } from "./ComposerPreview";
+import { resolveTagIds } from "../state/quickAdd";
 
 type Props = {
   scheduledDate?: string;
@@ -20,16 +21,7 @@ export function Composer({ scheduledDate, tagsByName }: Props) {
     if (!parsed.title) return;
 
     try {
-      const resolvedTagIds: string[] = [];
-      for (const name of parsed.tag_names) {
-        const existing = tagsByName.get(name.toLowerCase());
-        if (existing) {
-          resolvedTagIds.push(existing.id);
-        } else {
-          const created = await api.addTag(name.toLowerCase(), pickPaletteColor(name));
-          resolvedTagIds.push(created.id);
-        }
-      }
+      const resolvedTagIds = await resolveTagIds(parsed.tag_names, tagsByName, api.addTag);
 
       await api.addTask({
         title: parsed.title,
@@ -60,11 +52,4 @@ export function Composer({ scheduledDate, tagsByName }: Props) {
       <ComposerPreview parsed={parsed} tagsByName={tagsByName} />
     </div>
   );
-}
-
-const PALETTE = ["#4338ca", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7", "#ec4899", "#84cc16"];
-function pickPaletteColor(seed: string): string {
-  let h = 0;
-  for (const ch of seed) h = ((h << 5) - h + ch.charCodeAt(0)) | 0;
-  return PALETTE[Math.abs(h) % PALETTE.length];
 }
