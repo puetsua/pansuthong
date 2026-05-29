@@ -1,8 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
-import { Document } from "../lib/tauri";
 import { Indexes } from "../state/indexes";
 
-type Props = { doc: Document; indexes: Indexes };
+type Props = { indexes: Indexes };
 
 const ROUTE_TITLES: Record<string, string> = {
   "/today":    "Today",
@@ -12,9 +11,9 @@ const ROUTE_TITLES: Record<string, string> = {
   "/settings": "Settings",
 };
 
-export function MobileHeader({ doc, indexes }: Props) {
+export function MobileHeader({ indexes }: Props) {
   const loc = useLocation();
-  const title = pickTitle(loc.pathname, doc, indexes);
+  const title = pickTitle(loc.pathname, indexes);
 
   return (
     <header className="mobile-header">
@@ -26,7 +25,7 @@ export function MobileHeader({ doc, indexes }: Props) {
   );
 }
 
-function pickTitle(pathname: string, _doc: Document, indexes: Indexes): string {
+function pickTitle(pathname: string, indexes: Indexes): string {
   if (ROUTE_TITLES[pathname]) return ROUTE_TITLES[pathname];
   const projMatch = pathname.match(/^\/project\/(.+)$/);
   if (projMatch) return indexes.projectsById.get(projMatch[1])?.name ?? "Project";
