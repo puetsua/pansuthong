@@ -14,6 +14,15 @@ export default defineConfig(async () => ({
     environment: "jsdom",
   },
 
+  build: {
+    rollupOptions: {
+      input: {
+        main: "index.html",
+        "quick-capture": "quick-capture.html",
+      },
+    },
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors
