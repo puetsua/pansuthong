@@ -8,15 +8,36 @@ pub mod store;
 pub mod sync;
 
 use crate::store::AppState;
+#[cfg(desktop)]
+use tauri::Emitter;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_os::init());
+
+    #[cfg(desktop)]
+    let builder = builder.plugin(
+        tauri_plugin_global_shortcut::Builder::new()
+            .with_handler(|app, _shortcut, event| {
+                use tauri_plugin_global_shortcut::ShortcutState;
+                if event.state() == ShortcutState::Pressed {
+                    if let Some(win) = app.get_webview_window("quick-capture") {
+                        let _ = win.show();
+                        let _ = win.set_focus();
+                        let _ = win.emit("capture-focus", ());
+                    }
+                }
+            })
+            .build(),
+    );
+
+    builder
         .setup(|app| {
-            let data_dir = app.path()
+            let data_dir = app
+                .path()
                 .app_data_dir()
                 .expect("app_data_dir resolvable");
             std::fs::create_dir_all(&data_dir).expect("create app data dir");
@@ -26,8 +47,39 @@ pub fn run() {
 
             let handle = app.handle().clone();
             match crate::sync::start(handle, path) {
-                Ok(sync_handle) => { app.manage(sync_handle); }
-                Err(e) => { eprintln!("warning: filesystem watcher failed to start: {e}"); }
+                Ok(sync_handle) => {
+                    app.manage(sync_handle);
+                }
+                Err(e) => {
+                    eprintln!("warning: filesystem watcher failed to start: {e}");
+                }
+            }
+
+            // Desktop quick-capture: a hidden, always-on-top window the global
+            // shortcut shows. Created here (not in tauri.conf.json) so it never
+            // exists on Android.
+            #[cfg(desktop)]
+            {
+                use tauri::{WebviewUrl, WebviewWindowBuilder};
+                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+
+                WebviewWindowBuilder::new(
+                    app,
+                    "quick-capture",
+                    WebviewUrl::App("quick-capture.html".into()),
+                )
+                .title("Quick Capture")
+                .inner_size(480.0, 140.0)
+                .decorations(false)
+                .always_on_top(true)
+                .visible(false)
+                .skip_taskbar(true)
+                .resizable(false)
+                .center()
+                .build()?;
+
+                let hotkey = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyN);
+                app.global_shortcut().register(hotkey)?;
             }
 
             Ok(())

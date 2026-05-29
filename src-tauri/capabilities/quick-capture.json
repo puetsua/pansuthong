@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "quick-capture",
+  "description": "Quick-capture window (desktop only)",
+  "platforms": ["windows", "macOS", "linux"],
+  "windows": ["quick-capture"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide"
+  ]
+}
