@@ -345,3 +345,91 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-4);
 }
+
+.mobile-shell {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+}
+.mobile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(var(--space-3), env(safe-area-inset-top)) var(--space-4) var(--space-2);
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+}
+.mobile-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.mobile-header-icon {
+  font-size: 1.4rem;
+  color: var(--c-text-muted);
+  padding: var(--space-2);
+  text-decoration: none;
+}
+.mobile-main {
+  padding: var(--space-3) var(--space-4) var(--space-3);
+  overflow-y: auto;
+  background: var(--c-bg);
+}
+.bottom-tabs {
+  display: flex;
+  justify-content: space-around;
+  padding: var(--space-1) 0 max(var(--space-1), env(safe-area-inset-bottom));
+  background: var(--c-surface);
+  border-top: 1px solid var(--c-border);
+}
+.bottom-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-2) var(--space-1);
+  color: var(--c-text-muted);
+  font-size: 0.65rem;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  position: relative;
+}
+.bottom-tab.active { color: var(--c-accent); font-weight: 600; }
+.bottom-tab-icon  { font-size: 1.1rem; line-height: 1; }
+.bottom-tab-badge {
+  position: absolute;
+  top: 4px;
+  right: 25%;
+  background: var(--c-danger);
+  color: white;
+  border-radius: 999px;
+  padding: 1px 5px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  min-width: 14px;
+  text-align: center;
+}
+
+/* Touch-friendly tap targets at narrow widths. */
+@media (max-width: 720px) {
+  .task-row {
+    padding: var(--space-3);
+    gap: var(--space-3);
+    font-size: 1rem;
+  }
+  .task-row input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+  }
+  .task-delete {
+    padding: var(--space-1) var(--space-2);
+    font-size: 1.5rem;
+  }
+  .composer input,
+  .search-input {
+    font-size: 16px;  /* prevents iOS/Android auto-zoom */
+  }
+}

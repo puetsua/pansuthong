@@ -23,12 +23,16 @@ Pansutong is a cross-platform task tracker built with **Tauri 2**, targeting **W
 
 Use `npm run tauri <subcommand>` rather than calling `tauri` directly — the CLI is a devDependency, not a global.
 
-## Prerequisites (currently missing on this machine — flag before suggesting a build)
+## Toolchain status (configured 2026-05-29)
 
-- **Rust toolchain** is **NOT installed** (`cargo`/`rustc` missing). Required for any Tauri build. Install via https://rustup.rs/ — pick the MSVC toolchain on Windows.
-- **Android targets not yet added.** After installing Rust, add: `rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android`.
-- **Android env vars not set** (`ANDROID_HOME`, `NDK_HOME`, `JAVA_HOME` are all empty). Tauri's Android tooling requires all three. `JAVA_HOME` should point at the existing Eclipse Adoptium JDK at `C:\Program Files\Eclipse Adoptium\jdk-25.0.1.8-hotspot\` (note: Tauri/Gradle typically wants JDK 17 or 21 — verify JDK 25 works or install 21).
-- **`tauri android init` has not been run.** Run it once after Rust + Android SDK/NDK are set up; it generates `src-tauri/gen/android/`.
+Both the desktop and Android build toolchains are set up on this machine. Env vars below are set **persistently at User scope** — a running Claude Code session keeps its original environment, so **restart Claude Code after any env change** for child shells to inherit it.
+
+- **Rust** installed; all four Android targets added (`aarch64-linux-android`, `armv7-linux-androideabi`, `i686-linux-android`, `x86_64-linux-android`) alongside `x86_64-pc-windows-msvc`.
+- **`JAVA_HOME`** = `C:\Program Files\Android\Android Studio1\jbr` — bundled OpenJDK **21.0.8** (Gradle-compatible). The standalone JDK 25 / 11 / 8 installs are unsuitable; do not point JAVA_HOME at them. Note the install dir is `Android Studio1`, not `Android Studio` (the latter's `jre` is broken).
+- **`ANDROID_HOME`** = `C:\Data\Android` — platforms `android-34/35/36`, build-tools `35.0.0`/`36.1.0`, `platform-tools` (adb), `emulator`, cmake `3.22.1`.
+- **`NDK_HOME`** = `C:\Data\Android\ndk\28.2.13676358` — must be the **versioned** subdir, not the parent `ndk\`.
+- **`tauri android init` has been run** — `src-tauri/gen/android/` exists (initially untracked; commit it as part of Phase 4).
+- **No CLI `sdkmanager`/`avdmanager`** (`cmdline-tools` is empty). Manage SDK packages and AVDs via **Android Studio's GUI**. A no-CLI consequence: there is no installed system image — create/launch an emulator from Android Studio's Device Manager. A running emulator shows up as `emulator-5554` via `C:\Data\Android\platform-tools\adb.exe devices`; `tauri android dev` targets it automatically.
 
 See https://tauri.app/start/prerequisites/ and https://v2.tauri.app/develop/#mobile for current setup.
 
