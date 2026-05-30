@@ -38,6 +38,8 @@ gh issue create --repo puetsua/pansutong \
   --body "<body from template>"
 ```
 
+Always **identify the filer** in the issue body so a human reading the tracker knows it was filed by an automated agent, not hand-written. Append the attribution footer (see template) naming the app (Claude Code) and the model. Use the model ID from your environment context.
+
 After it's created, report the issue number and URL back to the user.
 
 ## Issue body template
@@ -64,6 +66,9 @@ Desktop (Windows)  <!-- or Android -->
 
 ## Notes
 <relevant code references, tasks.json state, or anything that helps whoever fixes it. Omit if none.>
+
+---
+🤖 Filed by Claude Code (model: <model-id, e.g. claude-opus-4-8>) on behalf of @<github-user>.
 ```
 
 ## Don't
