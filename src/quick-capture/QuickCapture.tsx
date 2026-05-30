@@ -2,6 +2,7 @@ import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { api, Tag } from "../lib/tauri";
+import { errorMessage } from "../lib/errors";
 import { parseComposer } from "../state/parse";
 import { resolveTagIds } from "../state/quickAdd";
 import { todayIso } from "../lib/dates";
@@ -24,7 +25,7 @@ export function QuickCapture() {
         for (const t of doc.tags) m.set(t.name.toLowerCase(), t);
         setTagsByName(m);
       } catch (err) {
-        setError(String(err));
+        setError(errorMessage(err));
       }
     };
     void loadTags();
@@ -59,7 +60,7 @@ export function QuickCapture() {
       setError(null);
       if (closeAfter) await getCurrentWindow().hide();
     } catch (err) {
-      setError(String(err));
+      setError(errorMessage(err));
     }
   };
 
