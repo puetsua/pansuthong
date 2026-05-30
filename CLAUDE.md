@@ -6,6 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Pansutong is a cross-platform task tracker built with **Tauri 2**, targeting **Windows desktop and Android** from a single codebase. The Rust crate is named `pansutong` (lib: `pansutong_lib`); the app bundle identifier is `net.puetsua.pansutong`.
 
+## Data model
+
+**Tasks and tags are the core data — every other feature is built around them.** When designing or changing functionality, treat the task/tag model as primary and make new features serve it; do not introduce data that competes with or sits beside this center. **Projects were removed in favor of tags** (resolves #5, #7) — express any grouping through tags; do not reintroduce a parallel grouping concept.
+
+The persisted root is a single `Document` (`src-tauri/src/model.rs`, mirrored as a TS `type` in `src/lib/tauri.ts`) holding just `tasks`, `tags`, and `settings`.
+
+- A **task** carries its own fields (title, done, dates, priority, notes) plus `tag_ids: string[]` — tasks reference tags, never the reverse.
+- A **tag** is flat (`id`, `name`, `color`) — no hierarchy or parent grouping.
+- Views are **queries over tasks + tags** computed in `Document` helpers, not separate stored collections — e.g. `tasks_today` (date-based), `tasks_inbox` (`task_in_inbox` = task has no tags), and `tasks_for_tag`.
+- Keep model changes additive and backward-compatible: use `#[serde(default)]` / optional TS keys so older data files still load.
+
 ## Stack
 
 - **Tauri 2** (Rust core in `src-tauri/`)
