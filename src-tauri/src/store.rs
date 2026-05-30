@@ -74,6 +74,26 @@ impl AppState {
     pub fn last_written_hash(&self) -> [u8; 32] {
         self.inner.lock().unwrap().last_written_hash
     }
+
+    /// Relocate the master data file to `new_path`. If `new_path` already exists,
+    /// adopt its contents (last-write-wins); otherwise seed it from the current
+    /// in-memory document. Updates the stored path and the loop-suppression hash.
+    pub fn repoint(&self, new_path: std::path::PathBuf) -> Result<()> {
+        let mut g = self.inner.lock().unwrap();
+        if new_path.exists() {
+            let bytes = std::fs::read(&new_path)?;
+            let doc: Document = serde_json::from_slice(&bytes)?;
+            g.doc = doc;
+            g.last_written_hash = sha256(&bytes);
+            g.path = new_path;
+        } else {
+            let bytes = serde_json::to_vec_pretty(&g.doc)?;
+            atomic_write(&new_path, &bytes)?;
+            g.last_written_hash = sha256(&bytes);
+            g.path = new_path;
+        }
+        Ok(())
+    }
 }
 
 fn sha256(bytes: &[u8]) -> [u8; 32] {
@@ -99,5 +119,58 @@ fn atomic_write(target: &Path, bytes: &[u8]) -> Result<()> {
             let _ = fs::remove_file(&tmp);
             Err(AppError::Io(e))
         }
+    }
+}
+
+#[cfg(test)]
+mod repoint_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn repoint_seeds_when_target_absent() {
+        let dir = tempdir().unwrap();
+        let state = AppState::open(dir.path().join("tasks.json")).unwrap();
+        // mutate so the seeded copy is observable
+        state.write(|d| { d.settings.theme = "dark".into(); Ok(()) }).unwrap();
+
+        let target_dir = tempdir().unwrap();
+        let new_path = target_dir.path().join("tasks.json");
+        assert!(!new_path.exists());
+        state.repoint(new_path.clone()).unwrap();
+
+        assert!(new_path.exists(), "seeded file should be created");
+        assert_eq!(state.path(), new_path);
+        let bytes = std::fs::read(&new_path).unwrap();
+        let doc: crate::model::Document = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(doc.settings.theme, "dark");
+    }
+
+    #[test]
+    fn repoint_adopts_existing_target() {
+        let dir = tempdir().unwrap();
+        let state = AppState::open(dir.path().join("tasks.json")).unwrap();
+
+        // Build a different doc and write it to the target.
+        let target_dir = tempdir().unwrap();
+        let new_path = target_dir.path().join("tasks.json");
+        let mut other = state.read(|d| d.clone());
+        other.settings.theme = "light".into();
+        std::fs::write(&new_path, serde_json::to_vec_pretty(&other).unwrap()).unwrap();
+
+        state.repoint(new_path.clone()).unwrap();
+
+        assert_eq!(state.path(), new_path);
+        // In-memory doc adopted the target's content.
+        assert_eq!(state.read(|d| d.settings.theme.clone()), "light");
+        // Hash now matches the adopted bytes, so the watcher won't re-import.
+        let h = {
+            use sha2::{Digest, Sha256};
+            let mut hh = Sha256::new();
+            hh.update(std::fs::read(&new_path).unwrap());
+            let out: [u8; 32] = hh.finalize().into();
+            out
+        };
+        assert_eq!(state.last_written_hash(), h);
     }
 }
