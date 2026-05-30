@@ -7,13 +7,10 @@ export type Settings = {
   theme: "auto" | "light" | "dark";
 };
 
-export type Project = { id: string; name: string; color: string };
-
 export type Tag = {
   id: string;
   name: string;
   color: string;
-  project_id?: string;
 };
 
 export type Task = {
@@ -34,7 +31,6 @@ export type Document = {
   version: number;
   last_modified: number; // epoch ms of last edit to the document (0 if never)
   settings: Settings;
-  projects: Project[];
   tags: Tag[];
   tasks: Task[];
 };
@@ -71,10 +67,8 @@ export const api = {
   updateTask:    (input: TaskUpdate)                         => invoke<Task>("update_task", { input }),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
   deleteTask:    (id: string)                => invoke<void>("delete_task", { id }),
-  addProject:    (name: string, color: string) => invoke<Project>("add_project", { input: { name, color } }),
-  deleteProject: (id: string)                => invoke<void>("delete_project", { id }),
-  addTag:        (name: string, color: string, project_id?: string) =>
-                                                invoke<Tag>("add_tag", { input: { name, color, project_id } }),
+  addTag:        (name: string, color: string) =>
+                                                invoke<Tag>("add_tag", { input: { name, color } }),
   deleteTag:     (id: string)                => invoke<void>("delete_tag", { id }),
   parseComposer:   (input: string) => invoke<{
     title: string;
@@ -84,11 +78,8 @@ export const api = {
     priority?: Priority;
   }>("parse_composer", { input }),
   searchTasks:     (query: string) => invoke<Task[]>("search_tasks", { query }),
-  updateProject:   (input: { id: string; name?: string; color?: string }) =>
-                                     invoke<Project>("update_project", { input }),
-  updateTag:       (input: { id: string; name?: string; color?: string; project_id?: string }) =>
+  updateTag:       (input: { id: string; name?: string; color?: string }) =>
                                      invoke<Tag>("update_tag", { input }),
-  clearTagProject: (id: string)   => invoke<Tag>("clear_tag_project", { id }),
   updateSettings: (input: { theme?: "auto" | "light" | "dark" }) =>
                                    invoke<void>("update_settings", { input }),
   listConflicts:    ()             => invoke<string[]>("list_conflicts"),

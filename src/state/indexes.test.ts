@@ -13,12 +13,8 @@ describe("buildIndexes", () => {
     expect(ids).toEqual(["k_overdue1", "k_today1", "k_today2", "k_reno1"]);
   });
 
-  it("inbox contains only tasks with no project-linked tags", () => {
-    expect(ix.inbox.map(t => t.id)).toEqual(["k_today1", "k_future1"]);
-  });
-
-  it("byProject for p_work returns the two work tasks", () => {
-    expect(ix.byProject.get("p_work")?.map(t => t.id)).toEqual(["k_overdue1", "k_today2"]);
+  it("inbox contains only untagged tasks", () => {
+    expect(ix.inbox.map(t => t.id)).toEqual(["k_future1"]);
   });
 
   it("byTag for t_urgent returns one task", () => {
