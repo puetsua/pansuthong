@@ -109,6 +109,9 @@ pub fn run() {
             commands::read_conflict,
             commands::resolve_conflict,
             commands::dismiss_conflict,
+            commands::get_data_location,
+            commands::set_data_folder,
+            commands::clear_data_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
