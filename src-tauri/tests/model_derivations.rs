@@ -25,19 +25,10 @@ fn today_view_excludes_future_tasks() {
 }
 
 #[test]
-fn inbox_contains_only_tagless_or_unprojected_tasks() {
+fn inbox_contains_only_untagged_tasks() {
     let doc = load("sample");
     let ids: Vec<&str> = doc.tasks_inbox().iter().map(|t| t.id.as_str()).collect();
-    assert_eq!(ids, vec!["k_today1", "k_future1"]);
-}
-
-#[test]
-fn project_membership_follows_tag_link() {
-    let doc = load("sample");
-    let work: Vec<&str> = doc.tasks_for_project("p_work").iter().map(|t| t.id.as_str()).collect();
-    assert_eq!(work, vec!["k_overdue1", "k_today2"]);
-    let reno: Vec<&str> = doc.tasks_for_project("p_reno").iter().map(|t| t.id.as_str()).collect();
-    assert_eq!(reno, vec!["k_reno1"]);
+    assert_eq!(ids, vec!["k_future1"]);
 }
 
 #[test]
@@ -52,5 +43,4 @@ fn empty_document_has_empty_derivations() {
     let doc = load("empty");
     assert!(doc.tasks_today(today()).is_empty());
     assert!(doc.tasks_inbox().is_empty());
-    assert!(doc.tasks_for_project("p_anything").is_empty());
 }

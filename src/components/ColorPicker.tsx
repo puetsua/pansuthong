@@ -7,7 +7,7 @@ const SWATCHES = [
 
 type Props = { value: string; onChange: (color: string) => void };
 
-export function ProjectColorPicker({ value, onChange }: Props) {
+export function ColorPicker({ value, onChange }: Props) {
   return (
     <div className="color-picker">
       {SWATCHES.map(c => (

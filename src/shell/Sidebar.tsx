@@ -36,31 +36,16 @@ export function Sidebar({ doc, indexes }: Props) {
         </li>
       </ul>
 
-      {doc.projects.length > 0 && (
-        <>
-          <div className="sidebar-section">Projects</div>
-          <ul className="sidebar-list">
-            {doc.projects.map(p => (
-              <li key={p.id}>
-                <NavLink to={`/project/${p.id}`} className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-                  <span className="sidebar-dot" style={{ background: p.color }} />
-                  {p.name}
-                  <span className="sidebar-count">{indexes.byProject.get(p.id)?.length ?? 0}</span>
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
       {doc.tags.length > 0 && (
         <>
           <div className="sidebar-section">Tags</div>
           <ul className="sidebar-list">
-            {doc.tags.filter(t => !t.project_id).map(t => (
+            {doc.tags.map(t => (
               <li key={t.id}>
                 <NavLink to={`/tag/${t.id}`} className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+                  <span className="sidebar-dot" style={{ background: t.color }} />
                   #{t.name}
+                  <span className="sidebar-count">{indexes.byTag.get(t.id)?.length ?? 0}</span>
                 </NavLink>
               </li>
             ))}

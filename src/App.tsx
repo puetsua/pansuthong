@@ -4,7 +4,6 @@ import { MobileShell } from "./shell/MobileShell";
 import { useIsMobile } from "./lib/viewport";
 import { TodayView } from "./views/TodayView";
 import { InboxView } from "./views/InboxView";
-import { ProjectView } from "./views/ProjectView";
 import { TagView } from "./views/TagView";
 import { UpcomingView } from "./views/UpcomingView";
 import { SearchView } from "./views/SearchView";
@@ -28,7 +27,6 @@ export default function App() {
           <Route path="/" element={<Navigate to="/today" replace />} />
           <Route path="/today" element={<TodayView doc={doc} indexes={indexes} />} />
           <Route path="/inbox" element={<InboxView doc={doc} indexes={indexes} />} />
-          <Route path="/project/:id" element={<ProjectView indexes={indexes} />} />
           <Route path="/tag/:id"     element={<TagView indexes={indexes} />} />
           <Route path="/upcoming" element={<UpcomingView indexes={indexes} />} />
           <Route path="/search" element={<SearchView indexes={indexes} />} />

@@ -1,6 +1,6 @@
 use crate::conflict::{apply_decisions, diff_tasks, Decision, TaskDiff};
 use crate::error::{AppError, Result};
-use crate::model::{new_project_id, new_tag_id, new_task_id, now_ms, Document, Priority, Project, Tag, Task};
+use crate::model::{new_tag_id, new_task_id, now_ms, Document, Priority, Tag, Task};
 use crate::parse::{parse as parse_input, ParsedInput};
 use crate::search::search as search_doc;
 use crate::store::AppState;
@@ -147,44 +147,14 @@ pub fn delete_task(id: String, state: State<'_, AppState>, app: AppHandle) -> Re
 }
 
 #[derive(Deserialize)]
-pub struct NewProjectInput { pub name: String, pub color: String }
-
-#[tauri::command]
-pub fn add_project(input: NewProjectInput, state: State<'_, AppState>, app: AppHandle) -> Result<Project> {
-    let p = Project { id: new_project_id(), name: input.name, color: input.color };
-    let saved = state.write(|d| { d.projects.push(p.clone()); Ok(p) })?;
-    emit_changed(&app);
-    Ok(saved)
-}
-
-#[tauri::command]
-pub fn delete_project(id: String, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
-    state.write(|d| {
-        let before = d.projects.len();
-        d.projects.retain(|p| p.id != id);
-        if d.projects.len() == before {
-            return Err(AppError::NotFound(format!("project {id}")));
-        }
-        // Cascade: tags pointing at this project become free-floating.
-        for t in d.tags.iter_mut() {
-            if t.project_id.as_deref() == Some(&id) { t.project_id = None; }
-        }
-        Ok(())
-    })?;
-    emit_changed(&app);
-    Ok(())
-}
-
-#[derive(Deserialize)]
 pub struct NewTagInput {
     pub name: String,
     pub color: String,
-    #[serde(default)] pub project_id: Option<String>,
 }
 
 #[tauri::command]
 pub fn add_tag(input: NewTagInput, state: State<'_, AppState>, app: AppHandle) -> Result<Tag> {
-    let t = Tag { id: new_tag_id(), name: input.name, color: input.color, project_id: input.project_id };
+    let t = Tag { id: new_tag_id(), name: input.name, color: input.color };
     let saved = state.write(|d| { d.tags.push(t.clone()); Ok(t) })?;
     emit_changed(&app);
     Ok(saved)
@@ -219,37 +189,10 @@ pub fn search_tasks(query: String, state: State<'_, AppState>) -> Vec<crate::mod
 }
 
 #[derive(Deserialize)]
-pub struct UpdateProjectInput {
+pub struct UpdateTagInput {
     pub id:    String,
     #[serde(default)] pub name:  Option<String>,
     #[serde(default)] pub color: Option<String>,
-}
-
-#[tauri::command]
-pub fn update_project(input: UpdateProjectInput, state: State<'_, AppState>, app: AppHandle) -> Result<crate::model::Project> {
-    let updated = state.write(|d| {
-        let p = d.projects.iter_mut().find(|p| p.id == input.id)
-            .ok_or_else(|| AppError::NotFound(format!("project {}", input.id)))?;
-        if let Some(v) = input.name {
-            let t = v.trim().to_string();
-            if t.is_empty() { return Err(AppError::Invalid("name is empty".into())); }
-            p.name = t;
-        }
-        if let Some(v) = input.color { p.color = v; }
-        Ok(p.clone())
-    })?;
-    emit_changed(&app);
-    Ok(updated)
-}
-
-#[derive(Deserialize)]
-pub struct UpdateTagInput {
-    pub id:    String,
-    #[serde(default)] pub name:       Option<String>,
-    #[serde(default)] pub color:      Option<String>,
-    /// Same Option<Option<T>> serde caveat as UpdateTaskInput — Phase 2 UI
-    /// uses the explicit clear_tag_project command to clear instead of sending null.
-    #[serde(default)] pub project_id: Option<String>,
 }
 
 #[tauri::command]
@@ -262,22 +205,7 @@ pub fn update_tag(input: UpdateTagInput, state: State<'_, AppState>, app: AppHan
             if trimmed.is_empty() { return Err(AppError::Invalid("name is empty".into())); }
             t.name = trimmed;
         }
-        if let Some(v) = input.color      { t.color = v; }
-        if let Some(v) = input.project_id { t.project_id = Some(v); }
-        Ok(t.clone())
-    })?;
-    emit_changed(&app);
-    Ok(updated)
-}
-
-/// Explicit "clear the tag's project_id" command — workaround for the serde
-/// Option<Option<T>> limitation. Use this instead of trying to send null.
-#[tauri::command]
-pub fn clear_tag_project(id: String, state: State<'_, AppState>, app: AppHandle) -> Result<crate::model::Tag> {
-    let updated = state.write(|d| {
-        let t = d.tags.iter_mut().find(|t| t.id == id)
-            .ok_or_else(|| AppError::NotFound(format!("tag {id}")))?;
-        t.project_id = None;
+        if let Some(v) = input.color { t.color = v; }
         Ok(t.clone())
     })?;
     emit_changed(&app);

@@ -70,7 +70,7 @@ export function ConflictsView() {
       </div>
 
       {diffs.length === 0
-        ? <p className="view-empty">No task differences. (Project/tag differences are ignored in v1.)</p>
+        ? <p className="view-empty">No task differences. (Tag differences are ignored in v1.)</p>
         : diffs.map(d => (
           <ConflictRow
             key={d.id}

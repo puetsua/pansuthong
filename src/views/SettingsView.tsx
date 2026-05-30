@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { api, DataLocation, Document } from "../lib/tauri";
 import { isAndroid } from "../lib/platform";
 import { Indexes } from "../state/indexes";
-import { ProjectManager } from "./settings/ProjectManager";
 import { TagManager } from "./settings/TagManager";
 
 type Props = { doc: Document; indexes: Indexes };
@@ -55,8 +54,7 @@ export function SettingsView({ doc, indexes: _indexes }: Props) {
         </div>
       </section>
 
-      <ProjectManager projects={doc.projects} />
-      <TagManager tags={doc.tags} projects={doc.projects} />
+      <TagManager tags={doc.tags} />
 
       <section className="settings-section">
         <h2>Data file</h2>

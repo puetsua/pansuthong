@@ -17,7 +17,6 @@ fn short_id(prefix: &str) -> String {
 }
 
 pub fn new_task_id()    -> String { short_id("k") }
-pub fn new_project_id() -> String { short_id("p") }
 pub fn new_tag_id()     -> String { short_id("t") }
 
 /// Epoch milliseconds. Used for created_at/updated_at/last_modified. UTC-based,
@@ -41,19 +40,10 @@ impl Default for Settings {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Project {
-    pub id:    String,
-    pub name:  String,
-    pub color: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tag {
     pub id:    String,
     pub name:  String,
     pub color: String,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub project_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,15 +75,13 @@ const CURRENT_VERSION: u32 = 1;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Document {
     pub version:  u32,
-    /// Epoch millis of the last edit to the document (any task/project/tag/setting
+    /// Epoch millis of the last edit to the document (any task/tag/setting
     /// change). Bumped by `AppState::write`. Shown as "Last synced"; identical on
     /// all devices when in sync. `#[serde(default)]` = 0 for pre-existing files.
     #[serde(default)]
     pub last_modified: i64,
     #[serde(default)]
     pub settings: Settings,
-    #[serde(default)]
-    pub projects: Vec<Project>,
     #[serde(default)]
     pub tags:     Vec<Tag>,
     #[serde(default)]
@@ -106,33 +94,16 @@ impl Default for Document {
             version:  CURRENT_VERSION,
             last_modified: 0,
             settings: Settings::default(),
-            projects: Vec::new(),
             tags:     Vec::new(),
             tasks:    Vec::new(),
         }
     }
 }
 
-use std::collections::HashMap;
-
 impl Document {
-    /// Tag id → its (optional) project id.
-    pub fn tag_to_project(&self) -> HashMap<&str, &str> {
-        self.tags.iter()
-            .filter_map(|t| t.project_id.as_deref().map(|p| (t.id.as_str(), p)))
-            .collect()
-    }
-
-    /// True if the task should appear in project P.
-    pub fn task_in_project(&self, task: &Task, project_id: &str) -> bool {
-        let m = self.tag_to_project();
-        task.tag_ids.iter().any(|tid| m.get(tid.as_str()) == Some(&project_id))
-    }
-
-    /// True if the task is in Inbox (no project-linked tag).
+    /// True if the task is in Inbox (has no tags).
     pub fn task_in_inbox(&self, task: &Task) -> bool {
-        let m = self.tag_to_project();
-        task.tag_ids.iter().all(|tid| !m.contains_key(tid.as_str()))
+        task.tag_ids.is_empty()
     }
 
     /// Today: scheduled today, OR (due < today AND !done), OR due == today.
@@ -149,10 +120,6 @@ impl Document {
 
     pub fn tasks_inbox(&self) -> Vec<&Task> {
         self.tasks.iter().filter(|t| self.task_in_inbox(t)).collect()
-    }
-
-    pub fn tasks_for_project(&self, project_id: &str) -> Vec<&Task> {
-        self.tasks.iter().filter(|t| self.task_in_project(t, project_id)).collect()
     }
 
     pub fn tasks_for_tag(&self, tag_id: &str) -> Vec<&Task> {
