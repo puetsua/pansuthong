@@ -36,9 +36,17 @@ button {
   padding: var(--space-2) var(--space-3);
   margin-bottom: var(--space-1);
   font-size: 0.92rem;
-  cursor: pointer;
 }
-.task-row:hover { border-color: var(--c-accent); }
+.task-row:hover,
+.task-row:focus-within { border-color: var(--c-accent); }
+.task-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: left;
+}
 .task-row[data-done="true"] .task-title { color: var(--c-text-subtle); text-decoration: line-through; }
 .task-pri   { width: 3px; height: 18px; border-radius: 2px; flex-shrink: 0; }
 .task-title { flex: 1; word-break: break-word; }

@@ -1,4 +1,4 @@
-import { KeyboardEvent, useState } from "react";
+import { useState } from "react";
 import { Task, Tag } from "../lib/tauri";
 import { api } from "../lib/tauri";
 import { TaskEditor } from "./TaskEditor";
@@ -46,26 +46,21 @@ export function TaskRow({ task, tags, todayIso }: Props) {
   };
 
   const open = () => setEditing(true);
-  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget) return; // ignore keys from the checkbox
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
-  };
 
   return (
     <>
-      <div className="task-row" data-done={task.done}
-           role="button" tabIndex={0} aria-label={`Edit ${task.title}`}
-           onClick={open} onKeyDown={onKey}>
-        <span className="task-pri" style={{ background: priColor(task.priority) }} />
-        <span className="task-title">{task.title}</span>
-        {firstTag && (
-          <span className="task-tag" style={{ background: firstTag.color + "22", color: firstTag.color }}>
-            {firstTag.name}
-          </span>
-        )}
-        {w.text && <span className={w.late ? "task-when late" : "task-when"}>{w.text}</span>}
+      <div className="task-row" data-done={task.done}>
+        <button type="button" className="task-main" onClick={open} aria-label={`Edit ${task.title}`}>
+          <span className="task-pri" style={{ background: priColor(task.priority) }} />
+          <span className="task-title">{task.title}</span>
+          {firstTag && (
+            <span className="task-tag" style={{ background: firstTag.color + "22", color: firstTag.color }}>
+              {firstTag.name}
+            </span>
+          )}
+          {w.text && <span className={w.late ? "task-when late" : "task-when"}>{w.text}</span>}
+        </button>
         <input type="checkbox" checked={task.done} onChange={toggle}
-               onClick={e => e.stopPropagation()}
                aria-label={`Toggle ${task.title}`} />
       </div>
       {editing && <TaskEditor task={task} allTags={tags} onClose={() => setEditing(false)} />}
