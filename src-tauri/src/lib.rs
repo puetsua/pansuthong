@@ -91,6 +91,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_document,
+            commands::sync_now,
             commands::add_task,
             commands::update_task,
             commands::set_task_done,
