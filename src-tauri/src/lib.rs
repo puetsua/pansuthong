@@ -34,6 +34,9 @@ pub fn run() {
             .build(),
     );
 
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_dialog::init());
+
     builder
         .setup(|app| {
             let data_dir = app
