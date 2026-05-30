@@ -1,4 +1,4 @@
-use crate::conflict::{apply_decisions, diff_tasks, Decision, TaskDiff};
+use crate::conflict::{apply_decisions, diff_tasks, tags_to_merge, Decision, TaskDiff};
 use crate::error::{AppError, Result};
 use crate::model::{new_tag_id, new_task_id, now_ms, Document, Tag, Task};
 use crate::parse::{parse as parse_input, ParsedInput};
@@ -42,6 +42,13 @@ pub struct NewTaskInput {
     #[serde(default)] pub tag_ids: Vec<String>,
 }
 
+/// Drop tag ids that don't exist in the document so tasks never persist dangling
+/// tag references (which silently behave as untagged, landing in Inbox at
+/// priority 0) (#40).
+fn retain_known_tags(ids: Vec<String>, tags: &[Tag]) -> Vec<String> {
+    ids.into_iter().filter(|id| tags.iter().any(|t| &t.id == id)).collect()
+}
+
 #[tauri::command]
 pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
     let title = input.title.trim().to_string();
@@ -49,19 +56,22 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
         return Err(AppError::Invalid("title is empty".into()));
     }
     let ts = now_ms();
-    let task = Task {
-        id: new_task_id(),
-        title,
-        done: false,
-        due_date: input.due_date,
-        scheduled_date: input.scheduled_date,
-        notes: input.notes,
-        tag_ids: input.tag_ids,
-        created_at: ts,
-        completed_at: None,
-        updated_at: ts,
-    };
-    let saved = state.write(|d| { d.tasks.push(task.clone()); Ok(task) })?;
+    let saved = state.write(|d| {
+        let task = Task {
+            id: new_task_id(),
+            title,
+            done: false,
+            due_date: input.due_date,
+            scheduled_date: input.scheduled_date,
+            notes: input.notes,
+            tag_ids: retain_known_tags(input.tag_ids, &d.tags),
+            created_at: ts,
+            completed_at: None,
+            updated_at: ts,
+        };
+        d.tasks.push(task.clone());
+        Ok(task)
+    })?;
     emit_changed(&app);
     Ok(saved)
 }
@@ -93,6 +103,10 @@ pub struct UpdateTaskInput {
 #[tauri::command]
 pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
     let updated = state.write(|d| {
+        // Snapshot known tag ids before the mutable task borrow so dangling
+        // references can be stripped (#40).
+        let known: std::collections::HashSet<String> =
+            d.tags.iter().map(|t| t.id.clone()).collect();
         let t = d.tasks.iter_mut().find(|t| t.id == input.id)
             .ok_or_else(|| AppError::NotFound(format!("task {}", input.id)))?;
         if let Some(v) = input.title {
@@ -105,7 +119,9 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
         if let Some(v) = input.due_date       { t.due_date = v; }
         if let Some(v) = input.scheduled_date { t.scheduled_date = v; }
         if let Some(v) = input.notes          { t.notes = v; }
-        if let Some(v) = input.tag_ids        { t.tag_ids = v; }
+        if let Some(v) = input.tag_ids        {
+            t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
+        }
         t.updated_at = now_ms();
         Ok(t.clone())
     })?;
@@ -267,7 +283,11 @@ pub fn resolve_conflict(
     let bytes = std::fs::read(&input.conflict_path)?;
     let theirs: crate::model::Document = serde_json::from_slice(&bytes)?;
     state.write(|d| {
-        d.tasks = apply_decisions(d, &theirs, &input.decisions);
+        let new_tasks = apply_decisions(d, &theirs, &input.decisions);
+        // Keep tags referenced by merged-in tasks so they don't dangle (#30).
+        let added_tags = tags_to_merge(&new_tasks, d, &theirs);
+        d.tasks = new_tasks;
+        d.tags.extend(added_tags);
         Ok(())
     })?;
     let _ = std::fs::remove_file(&input.conflict_path);
@@ -385,6 +405,24 @@ mod tests {
     fn new_tag_input_priority_defaults_zero() {
         let v: NewTagInput = serde_json::from_str(r##"{"name":"x","color":"#fff"}"##).unwrap();
         assert_eq!(v.priority, 0);
+    }
+
+    #[test]
+    fn retain_known_tags_strips_unknown_ids() {
+        let tags = vec![
+            Tag { id: "t_known".into(), name: "k".into(), color: "#000".into(), priority: 0 },
+        ];
+        let out = retain_known_tags(
+            vec!["t_known".into(), "t_unknown".into(), "t_known".into()],
+            &tags,
+        );
+        assert_eq!(out, vec!["t_known".to_string(), "t_known".to_string()]);
+    }
+
+    #[test]
+    fn retain_known_tags_empty_when_no_tags_exist() {
+        let out = retain_known_tags(vec!["t_x".into(), "t_y".into()], &[]);
+        assert!(out.is_empty());
     }
 
     #[test]

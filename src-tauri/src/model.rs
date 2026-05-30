@@ -74,10 +74,19 @@ pub struct Task {
     pub updated_at:   i64,
 }
 
-const CURRENT_VERSION: u32 = 2;
+pub const CURRENT_VERSION: u32 = 2;
+
+/// Files written before `version` existed are assumed compatible with the
+/// current schema (the model is additive/backward-compatible), so an absent
+/// key loads as `CURRENT_VERSION` rather than 0 (which would downgrade the file
+/// on the next write).
+fn default_version() -> u32 {
+    CURRENT_VERSION
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Document {
+    #[serde(default = "default_version")]
     pub version:  u32,
     /// Epoch millis of the last edit to the document (any task/tag/setting
     /// change). Bumped by `AppState::write`. Shown as "Last synced"; identical on
