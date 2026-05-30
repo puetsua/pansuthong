@@ -1,15 +1,28 @@
-import { NavLink } from "react-router-dom";
-import { Document } from "../lib/tauri";
+import { useState } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Document, Tag } from "../lib/tauri";
 import { Indexes } from "../state/indexes";
 import { todayIso } from "../lib/dates";
 import { SyncStatus } from "../components/SyncStatus";
+import { TagEditor } from "../components/TagEditor";
 
 type Props = { doc: Document; indexes: Indexes };
+
+// `null` = closed; `{ tag: null }` = add a new tag; `{ tag }` = edit that tag.
+type EditorState = { tag: Tag | null } | null;
 
 export function Sidebar({ doc, indexes }: Props) {
   const today = todayIso();
   const todayCount = indexes.today(today).length;
   const inboxCount = indexes.inbox.length;
+
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [editor, setEditor] = useState<EditorState>(null);
+
+  const tags = [...doc.tags].sort(
+    (a, b) => b.priority - a.priority || a.name.localeCompare(b.name),
+  );
 
   return (
     <nav className="sidebar">
@@ -36,22 +49,24 @@ export function Sidebar({ doc, indexes }: Props) {
         </li>
       </ul>
 
-      {doc.tags.length > 0 && (
-        <>
-          <div className="sidebar-section">Tags</div>
-          <ul className="sidebar-list">
-            {[...doc.tags].sort((a, b) => b.priority - a.priority || a.name.localeCompare(b.name)).map(t => (
-              <li key={t.id}>
-                <NavLink to={`/tag/${t.id}`} className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-                  <span className="sidebar-dot" style={{ background: t.color }} />
-                  #{t.name}
-                  <span className="sidebar-count">{indexes.byTag.get(t.id)?.length ?? 0}</span>
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+      <div className="sidebar-section">
+        <NavLink to="/tags" className={({ isActive }) => isActive ? "sidebar-section-link active" : "sidebar-section-link"}>Tags</NavLink>
+        <button type="button" className="sidebar-icon-btn" aria-label="Add tag"
+                onClick={() => setEditor({ tag: null })}>+</button>
+      </div>
+      <ul className="sidebar-list">
+        {tags.map(t => (
+          <li className="sidebar-tag-row" key={t.id}>
+            <NavLink to={`/tag/${t.id}`} className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+              <span className="sidebar-dot" style={{ background: t.color }} />
+              #{t.name}
+              <span className="sidebar-count">{indexes.byTag.get(t.id)?.length ?? 0}</span>
+            </NavLink>
+            <button type="button" className="sidebar-icon-btn tag-edit-btn" aria-label={`Edit #${t.name}`}
+                    onClick={() => setEditor({ tag: t })}>✎</button>
+          </li>
+        ))}
+      </ul>
 
       <div style={{ marginTop: "auto" }}>
         <ul className="sidebar-list">
@@ -63,6 +78,18 @@ export function Sidebar({ doc, indexes }: Props) {
         </ul>
         <SyncStatus lastModified={doc.last_modified} />
       </div>
+
+      {editor && (
+        <TagEditor
+          tag={editor.tag}
+          onClose={() => setEditor(null)}
+          onDeleted={() => {
+            const deletedId = editor.tag?.id;
+            setEditor(null);
+            if (deletedId && location.pathname === `/tag/${deletedId}`) navigate("/today");
+          }}
+        />
+      )}
     </nav>
   );
 }

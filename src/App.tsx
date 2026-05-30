@@ -8,6 +8,7 @@ import { TagView } from "./views/TagView";
 import { UpcomingView } from "./views/UpcomingView";
 import { SearchView } from "./views/SearchView";
 import { SettingsView } from "./views/SettingsView";
+import { TagsView } from "./views/TagsView";
 import { ConflictsView } from "./views/ConflictsView";
 import { useDocument } from "./state/store";
 
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/upcoming" element={<UpcomingView indexes={indexes} />} />
           <Route path="/search" element={<SearchView indexes={indexes} />} />
           <Route path="/settings" element={<SettingsView doc={doc} indexes={indexes} />} />
+          <Route path="/tags" element={<TagsView doc={doc} indexes={indexes} />} />
           <Route path="/conflicts/:filename" element={<ConflictsView />} />
           <Route path="*"      element={<p>Not built yet — comes in Phase 2.</p>} />
         </Routes>
