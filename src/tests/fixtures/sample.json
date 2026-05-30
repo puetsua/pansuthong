@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "settings": { "data_file": null, "theme": "auto", "device_id": "d_test00000000" },
+  "settings": { "theme": "auto" },
   "projects": [
     { "id": "p_work",     "name": "Work",       "color": "#4338ca" },
     { "id": "p_reno",     "name": "Renovation", "color": "#ef4444" }

@@ -4,9 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 export type Priority = "low" | "med" | "high";
 
 export type Settings = {
-  data_file: string | null;
   theme: "auto" | "light" | "dark";
-  device_id: string;
 };
 
 export type Project = { id: string; name: string; color: string };
