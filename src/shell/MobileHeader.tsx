@@ -8,6 +8,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/inbox":    "Inbox",
   "/upcoming": "Upcoming",
   "/search":   "Search",
+  "/tags":     "Tags",
   "/settings": "Settings",
 };
 
@@ -18,9 +19,10 @@ export function MobileHeader({ indexes }: Props) {
   return (
     <header className="mobile-header">
       <h1 className="mobile-title">{title}</h1>
-      <Link to="/settings" className="mobile-header-icon" aria-label="Settings">
-        ⚙
-      </Link>
+      <div className="mobile-header-actions">
+        <Link to="/tags" className="mobile-header-icon" aria-label="Tags">#</Link>
+        <Link to="/settings" className="mobile-header-icon" aria-label="Settings">⚙</Link>
+      </div>
     </header>
   );
 }

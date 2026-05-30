@@ -90,6 +90,9 @@ button {
 }
 .sidebar-list { list-style: none; padding: 0; margin: 0 0 var(--space-3); }
 .sidebar-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   text-transform: uppercase;
   font-size: 0.65rem;
   letter-spacing: 0.06em;
@@ -545,3 +548,48 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .te-spacer { flex: 1; }
 .te-delete { color: var(--c-danger); }
 .te-save { font-weight: 600; }
+/* Keep the weight field compact inside the tag editor (the .settings-row width
+   rule is scoped to settings, so the modal needs its own). */
+.te-field input.weight-input { width: 5.5rem; }
+
+/* --- Sidebar tag controls (add / edit) --- */
+.sidebar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  color: var(--c-text-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.sidebar-icon-btn:hover { background: var(--c-surface); color: var(--c-text); }
+
+.sidebar-tag-row { display: flex; align-items: center; }
+.sidebar-tag-row .sidebar-link { flex: 1; min-width: 0; }
+/* The edit pencil stays hidden until the row is hovered or the button is
+   focused; touch devices (no hover) always show it. */
+.tag-edit-btn { opacity: 0; }
+.sidebar-tag-row:hover .tag-edit-btn,
+.tag-edit-btn:focus-visible { opacity: 1; }
+@media (hover: none) {
+  .tag-edit-btn { opacity: 1; }
+}
+
+/* Tag view header: title + an "Edit tag" action on the same row. */
+.view-title-row { display: flex; align-items: center; gap: var(--space-3); }
+.view-title-row h1 { margin-bottom: 0; }
+.tag-edit-link { margin-left: auto; flex-shrink: 0; }
+
+/* Tags manager page: per-row task count next to the weight. */
+.tag-count { color: var(--c-text-muted); font-size: 0.8rem; }
+
+/* The sidebar "Tags" section heading is a link to the manager page. */
+.sidebar-section-link { color: inherit; text-decoration: none; }
+.sidebar-section-link:hover { color: var(--c-text); text-decoration: none; }
+.sidebar-section-link.active { color: var(--c-accent); }
+
+/* Group the mobile header's icon links (Tags + Settings) on the right. */
+.mobile-header-actions { display: flex; align-items: center; gap: var(--space-1); }
