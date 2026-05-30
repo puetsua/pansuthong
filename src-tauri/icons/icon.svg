@@ -1,0 +1,40 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pansutong">
+  <defs>
+    <!-- indigo -> deep violet tile, nods to the gold+purple identity -->
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5B53F0"/>
+      <stop offset="1" stop-color="#4326B0"/>
+    </linearGradient>
+    <!-- soft top-left light for depth -->
+    <radialGradient id="sheen" cx="0.28" cy="0.18" r="0.9">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.20"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <!-- golden leaf shaped like a quill pen: the "life" + the "writing/tracking" -->
+    <linearGradient id="leaf" x1="0.12" y1="1" x2="0.9" y2="0">
+      <stop offset="0" stop-color="#EA8C0B"/>
+      <stop offset="0.45" stop-color="#FBBF24"/>
+      <stop offset="1" stop-color="#FDE68A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App tile -->
+  <rect width="512" height="512" rx="114" fill="url(#tile)"/>
+  <rect width="512" height="512" rx="114" fill="url(#sheen)"/>
+
+  <!-- Empty white checkbox (the "task"), equidistant from the bottom & right edges
+       (margin 64, size 118). The leaf nib rests on top of it. -->
+  <rect x="330" y="330" width="118" height="118" rx="30.68" fill="#FFFFFF"/>
+
+  <!-- Golden quill-leaf on top, tilted -45deg: nib at lower-right (over the box),
+       feather body sweeping up to the upper-left. Drawn last so the nib overlaps the box. -->
+  <g transform="translate(398 374) rotate(-45)">
+    <path d="M0 0
+      C 31.5 -88, 99.75 -184.8, 105 -290.4
+      C 107.1 -378.4, 52.5 -440, 0 -440
+      C -52.5 -440, -107.1 -378.4, -105 -290.4
+      C -99.75 -184.8, -31.5 -88, 0 0 Z" fill="url(#leaf)"/>
+    <!-- central ink-slit / midrib -->
+    <path d="M0 -26.4 L0 -272.8" stroke="#B45309" stroke-width="11" opacity="0.5" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>
