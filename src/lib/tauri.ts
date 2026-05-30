@@ -39,6 +39,17 @@ export type Document = {
   tasks: Task[];
 };
 
+// `null` clears an optional field; an omitted key leaves it unchanged.
+export type TaskUpdate = {
+  id: string;
+  title?: string;
+  due_date?: string | null;
+  scheduled_date?: string | null;
+  priority?: Priority | null;
+  notes?: string;
+  tag_ids?: string[];
+};
+
 export type DataLocation = { folder: string | null; effective_path: string };
 
 export type TaskDiff =
@@ -57,7 +68,7 @@ export const api = {
   /** Force an immediate re-read of tasks.json from disk; returns the freshest doc. */
   syncNow:       ()                          => invoke<Document>("sync_now"),
   addTask:       (input: Partial<Task> & { title: string }) => invoke<Task>("add_task", { input }),
-  updateTask:    (input: Partial<Task> & { id: string })    => invoke<Task>("update_task", { input }),
+  updateTask:    (input: TaskUpdate)                         => invoke<Task>("update_task", { input }),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
   deleteTask:    (id: string)                => invoke<void>("delete_task", { id }),
   addProject:    (name: string, color: string) => invoke<Project>("add_project", { input: { name, color } }),

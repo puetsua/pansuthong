@@ -6,7 +6,7 @@ use crate::search::search as search_doc;
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
 use chrono::{Local, NaiveDate};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -68,20 +68,27 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
     Ok(saved)
 }
 
-// NOTE (Phase 2): The double-Option fields (due_date, scheduled_date, priority) are
-// intended to distinguish "field absent (don't change)" from "field is null (clear it)".
-// With default serde_json, this does NOT work — `{}` and `{"due_date": null}` both
-// deserialize to None. Phase 1 UI never exercises the "clear an existing optional
-// field" path (it only adds/toggles/deletes), so the bug is latent. When the Phase 2
-// task-edit UI lands, fix this by adding `serde_with` and using `#[serde_as]` with
-// `Option<Option<_>>`, or by switching to explicit `clear_<field>: bool` fields.
+/// Lets an optional field distinguish "absent" from an explicit JSON `null`.
+/// With `#[serde(default, deserialize_with = "double_option")]`:
+///   absent -> None (leave unchanged); null -> Some(None) (clear); value -> Some(Some(v)) (set).
+fn double_option<'de, T, D>(de: D) -> std::result::Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    Option::<T>::deserialize(de).map(Some)
+}
+
+// `due_date`, `scheduled_date`, and `priority` are `Option<Option<_>>` decoded with the
+// `double_option` deserializer above, so the edit UI can distinguish "field absent
+// (don't change)" from "field is null (clear it)".
 #[derive(Deserialize)]
 pub struct UpdateTaskInput {
     pub id: String,
     #[serde(default)] pub title: Option<String>,
-    #[serde(default)] pub due_date: Option<Option<NaiveDate>>,
-    #[serde(default)] pub scheduled_date: Option<Option<NaiveDate>>,
-    #[serde(default)] pub priority: Option<Option<Priority>>,
+    #[serde(default, deserialize_with = "double_option")] pub due_date: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "double_option")] pub scheduled_date: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "double_option")] pub priority: Option<Option<Priority>>,
     #[serde(default)] pub notes: Option<String>,
     #[serde(default)] pub tag_ids: Option<Vec<String>>,
 }
@@ -403,4 +410,33 @@ pub fn clear_data_folder(
     crate::sync::restart(&watcher, &app, new_path);
     emit_changed(&app);
     get_data_location(state, app.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn update_task_input_absent_field_stays_none() {
+        let v: UpdateTaskInput = serde_json::from_str(r#"{"id":"t_1"}"#).unwrap();
+        assert_eq!(v.due_date, None);
+        assert_eq!(v.scheduled_date, None);
+        assert_eq!(v.priority, None);
+    }
+
+    #[test]
+    fn update_task_input_null_field_clears() {
+        let v: UpdateTaskInput =
+            serde_json::from_str(r#"{"id":"t_1","due_date":null,"priority":null}"#).unwrap();
+        assert_eq!(v.due_date, Some(None));
+        assert_eq!(v.priority, Some(None));
+    }
+
+    #[test]
+    fn update_task_input_value_sets_field() {
+        let v: UpdateTaskInput =
+            serde_json::from_str(r#"{"id":"t_1","due_date":"2026-06-01","priority":"high"}"#).unwrap();
+        assert_eq!(v.due_date, Some(Some(NaiveDate::from_ymd_opt(2026, 6, 1).unwrap())));
+        assert_eq!(v.priority, Some(Some(Priority::High)));
+    }
 }
