@@ -66,6 +66,13 @@ describe("effectivePriority", () => {
     expect(effectivePriority(byId.get("k_c")!, ix.tagsById)).toBe(0);
     expect(effectivePriority(byId.get("k_d")!, ix.tagsById)).toBe(-5);
   });
+
+  it("takes the MAX across multiple tags (not first/last/min/sum)", () => {
+    const multi = task("k_multi", ["t_lo", "t_hi"], "2026-05-22"); // weights 1 and 9
+    expect(effectivePriority(multi, ix.tagsById)).toBe(9);
+    const multiNeg = task("k_multineg", ["t_neg", "t_lo"], "2026-05-22"); // -5 and 1
+    expect(effectivePriority(multiNeg, ix.tagsById)).toBe(1);
+  });
 });
 
 describe("sort order", () => {
@@ -77,5 +84,40 @@ describe("sort order", () => {
   it("date mode: earliest date first, weight breaks ties", () => {
     const ix = buildIndexes(weightedDoc("date"));
     expect(ix.today("2026-05-28").map(t => t.id)).toEqual(["k_c", "k_d", "k_a", "k_b"]);
+  });
+});
+
+// Tasks share dates/weights so the SECONDARY comparator and stable-sort fallback
+// actually decide the order (the weightedDoc cases are all primary-key-distinct).
+function tieDoc(order: SortOrder): Document {
+  return {
+    version: 2,
+    last_modified: 0,
+    settings: { theme: "auto", sort_order: order },
+    tags: [
+      { id: "t_hi", name: "hi", color: "#000", priority: 9 },
+      { id: "t_lo", name: "lo", color: "#000", priority: 1 },
+      { id: "t_x",  name: "x",  color: "#000", priority: 5 },
+    ],
+    tasks: [
+      task("k_lo", ["t_lo"], "2026-05-18"),     // same date as k_hi, lower weight
+      task("k_hi", ["t_hi"], "2026-05-18"),     // same date as k_lo, higher weight
+      task("k_first",  ["t_x"], "2026-05-19"),  // same date AND weight as k_second
+      task("k_second", ["t_x"], "2026-05-19"),
+    ],
+  };
+}
+
+describe("sort tiebreaks", () => {
+  it("date mode: equal dates fall back to weight desc", () => {
+    const ix = buildIndexes(tieDoc("date"));
+    const sameDay = ix.today("2026-05-28").filter(t => t.due_date === "2026-05-18").map(t => t.id);
+    expect(sameDay).toEqual(["k_hi", "k_lo"]);
+  });
+
+  it("equal weight AND equal date preserve insertion order (stable sort)", () => {
+    const ix = buildIndexes(tieDoc("priority"));
+    const sameWeight = ix.today("2026-05-28").filter(t => t.due_date === "2026-05-19").map(t => t.id);
+    expect(sameWeight).toEqual(["k_first", "k_second"]);
   });
 });

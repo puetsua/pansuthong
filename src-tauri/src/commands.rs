@@ -386,4 +386,14 @@ mod tests {
         let v: NewTagInput = serde_json::from_str(r##"{"name":"x","color":"#fff"}"##).unwrap();
         assert_eq!(v.priority, 0);
     }
+
+    #[test]
+    fn update_settings_input_parses_sort_order() {
+        // Pins the snake_case `sort_order` key that the JS api sends.
+        let v: UpdateSettingsInput = serde_json::from_str(r#"{"sort_order":"date"}"#).unwrap();
+        assert_eq!(v.sort_order.as_deref(), Some("date"));
+        let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(absent.sort_order, None);
+        assert_eq!(absent.theme, None);
+    }
 }

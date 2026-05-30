@@ -111,14 +111,17 @@ function TagEditRow({ tag, onDone, onError }: EditProps) {
     else if (e.key === "Escape") { e.preventDefault(); onDone(); }
   };
 
+  // Enter/Escape are scoped to the text fields (not the row) so activating a
+  // ColorPicker swatch with the keyboard doesn't also save and close the row.
   return (
-    <li className="tag-edit-row" onKeyDown={onKeyDown}>
+    <li className="tag-edit-row">
       <ColorPicker value={color} onChange={setColor} />
       <input
         className="tag-edit-name"
         value={name}
         aria-label={`Name for #${tag.name}`}
         onChange={e => setName(e.currentTarget.value)}
+        onKeyDown={onKeyDown}
         autoFocus
       />
       <input
@@ -129,6 +132,7 @@ function TagEditRow({ tag, onDone, onError }: EditProps) {
         max={9999}
         aria-label={`Weight for #${tag.name}`}
         onChange={e => setWeight(e.currentTarget.value)}
+        onKeyDown={onKeyDown}
       />
       <button className="link-button" onClick={save} disabled={!name.trim()}>save</button>
       <button className="link-button" onClick={onDone}>cancel</button>

@@ -49,6 +49,7 @@ export function SettingsView({ doc, indexes: _indexes }: Props) {
             <button
               key={t}
               className={`theme-option ${theme === t ? "active" : ""}`}
+              aria-pressed={theme === t}
               onClick={() => setTheme(t)}
             >
               {t}
@@ -67,6 +68,7 @@ export function SettingsView({ doc, indexes: _indexes }: Props) {
             <button
               key={s}
               className={`theme-option ${sortOrder === s ? "active" : ""}`}
+              aria-pressed={sortOrder === s}
               onClick={() => setSort(s)}
             >
               {s}
