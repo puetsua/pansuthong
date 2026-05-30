@@ -22,17 +22,13 @@ pub fn new_tag_id()     -> String { short_id("t") }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
-    pub data_file: Option<String>,
     pub theme: String,        // "auto" | "light" | "dark"
-    pub device_id: String,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            data_file: None,
             theme: "auto".into(),
-            device_id: short_id("d"),
         }
     }
 }
