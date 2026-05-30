@@ -1,6 +1,6 @@
 use crate::conflict::{apply_decisions, diff_tasks, Decision, TaskDiff};
 use crate::error::{AppError, Result};
-use crate::model::{new_tag_id, new_task_id, now_ms, Document, Priority, Tag, Task};
+use crate::model::{new_tag_id, new_task_id, now_ms, Document, Tag, Task};
 use crate::parse::{parse as parse_input, ParsedInput};
 use crate::search::search as search_doc;
 use crate::store::AppState;
@@ -38,7 +38,6 @@ pub struct NewTaskInput {
     pub title: String,
     #[serde(default)] pub due_date: Option<NaiveDate>,
     #[serde(default)] pub scheduled_date: Option<NaiveDate>,
-    #[serde(default)] pub priority: Option<Priority>,
     #[serde(default)] pub notes: String,
     #[serde(default)] pub tag_ids: Vec<String>,
 }
@@ -56,7 +55,6 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
         done: false,
         due_date: input.due_date,
         scheduled_date: input.scheduled_date,
-        priority: input.priority,
         notes: input.notes,
         tag_ids: input.tag_ids,
         created_at: ts,
@@ -79,7 +77,7 @@ where
     Option::<T>::deserialize(de).map(Some)
 }
 
-// `due_date`, `scheduled_date`, and `priority` are `Option<Option<_>>` decoded with the
+// `due_date` and `scheduled_date` are `Option<Option<_>>` decoded with the
 // `double_option` deserializer above, so the edit UI can distinguish "field absent
 // (don't change)" from "field is null (clear it)".
 #[derive(Deserialize)]
@@ -88,7 +86,6 @@ pub struct UpdateTaskInput {
     #[serde(default)] pub title: Option<String>,
     #[serde(default, deserialize_with = "double_option")] pub due_date: Option<Option<NaiveDate>>,
     #[serde(default, deserialize_with = "double_option")] pub scheduled_date: Option<Option<NaiveDate>>,
-    #[serde(default, deserialize_with = "double_option")] pub priority: Option<Option<Priority>>,
     #[serde(default)] pub notes: Option<String>,
     #[serde(default)] pub tag_ids: Option<Vec<String>>,
 }
@@ -107,7 +104,6 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
         }
         if let Some(v) = input.due_date       { t.due_date = v; }
         if let Some(v) = input.scheduled_date { t.scheduled_date = v; }
-        if let Some(v) = input.priority       { t.priority = v; }
         if let Some(v) = input.notes          { t.notes = v; }
         if let Some(v) = input.tag_ids        { t.tag_ids = v; }
         t.updated_at = now_ms();
@@ -150,11 +146,12 @@ pub fn delete_task(id: String, state: State<'_, AppState>, app: AppHandle) -> Re
 pub struct NewTagInput {
     pub name: String,
     pub color: String,
+    #[serde(default)] pub priority: i64,
 }
 
 #[tauri::command]
 pub fn add_tag(input: NewTagInput, state: State<'_, AppState>, app: AppHandle) -> Result<Tag> {
-    let t = Tag { id: new_tag_id(), name: input.name, color: input.color };
+    let t = Tag { id: new_tag_id(), name: input.name, color: input.color, priority: input.priority };
     let saved = state.write(|d| { d.tags.push(t.clone()); Ok(t) })?;
     emit_changed(&app);
     Ok(saved)
@@ -191,8 +188,9 @@ pub fn search_tasks(query: String, state: State<'_, AppState>) -> Vec<crate::mod
 #[derive(Deserialize)]
 pub struct UpdateTagInput {
     pub id:    String,
-    #[serde(default)] pub name:  Option<String>,
-    #[serde(default)] pub color: Option<String>,
+    #[serde(default)] pub name:     Option<String>,
+    #[serde(default)] pub color:    Option<String>,
+    #[serde(default)] pub priority: Option<i64>,
 }
 
 #[tauri::command]
@@ -205,7 +203,8 @@ pub fn update_tag(input: UpdateTagInput, state: State<'_, AppState>, app: AppHan
             if trimmed.is_empty() { return Err(AppError::Invalid("name is empty".into())); }
             t.name = trimmed;
         }
-        if let Some(v) = input.color { t.color = v; }
+        if let Some(v) = input.color    { t.color = v; }
+        if let Some(v) = input.priority { t.priority = v; }
         Ok(t.clone())
     })?;
     emit_changed(&app);
@@ -215,6 +214,7 @@ pub fn update_tag(input: UpdateTagInput, state: State<'_, AppState>, app: AppHan
 #[derive(Deserialize)]
 pub struct UpdateSettingsInput {
     #[serde(default)] pub theme: Option<String>,
+    #[serde(default)] pub sort_order: Option<String>,
 }
 
 #[tauri::command]
@@ -225,6 +225,12 @@ pub fn update_settings(input: UpdateSettingsInput, state: State<'_, AppState>, a
                 return Err(AppError::Invalid(format!("invalid theme: {t}")));
             }
             d.settings.theme = t;
+        }
+        if let Some(s) = input.sort_order {
+            if !matches!(s.as_str(), "priority" | "date") {
+                return Err(AppError::Invalid(format!("invalid sort_order: {s}")));
+            }
+            d.settings.sort_order = s;
         }
         Ok(())
     })?;
@@ -349,22 +355,35 @@ mod tests {
         let v: UpdateTaskInput = serde_json::from_str(r#"{"id":"t_1"}"#).unwrap();
         assert_eq!(v.due_date, None);
         assert_eq!(v.scheduled_date, None);
-        assert_eq!(v.priority, None);
     }
 
     #[test]
     fn update_task_input_null_field_clears() {
         let v: UpdateTaskInput =
-            serde_json::from_str(r#"{"id":"t_1","due_date":null,"priority":null}"#).unwrap();
+            serde_json::from_str(r#"{"id":"t_1","due_date":null,"scheduled_date":null}"#).unwrap();
         assert_eq!(v.due_date, Some(None));
-        assert_eq!(v.priority, Some(None));
+        assert_eq!(v.scheduled_date, Some(None));
     }
 
     #[test]
     fn update_task_input_value_sets_field() {
         let v: UpdateTaskInput =
-            serde_json::from_str(r#"{"id":"t_1","due_date":"2026-06-01","priority":"high"}"#).unwrap();
+            serde_json::from_str(r#"{"id":"t_1","due_date":"2026-06-01"}"#).unwrap();
         assert_eq!(v.due_date, Some(Some(NaiveDate::from_ymd_opt(2026, 6, 1).unwrap())));
-        assert_eq!(v.priority, Some(Some(Priority::High)));
+    }
+
+    #[test]
+    fn update_tag_input_priority_parses() {
+        let v: UpdateTagInput =
+            serde_json::from_str(r#"{"id":"t_1","priority":9}"#).unwrap();
+        assert_eq!(v.priority, Some(9));
+        let absent: UpdateTagInput = serde_json::from_str(r#"{"id":"t_1"}"#).unwrap();
+        assert_eq!(absent.priority, None);
+    }
+
+    #[test]
+    fn new_tag_input_priority_defaults_zero() {
+        let v: NewTagInput = serde_json::from_str(r##"{"name":"x","color":"#fff"}"##).unwrap();
+        assert_eq!(v.priority, 0);
     }
 }

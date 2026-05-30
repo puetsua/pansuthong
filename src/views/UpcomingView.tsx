@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import { TaskList } from "../components/TaskList";
-import { Indexes } from "../state/indexes";
+import { effectivePriority, Indexes } from "../state/indexes";
 import { Task } from "../lib/tauri";
 import { todayIso } from "../lib/dates";
 
@@ -38,7 +38,10 @@ function buildGroups(indexes: Indexes, todayStr: string): Group[] {
   for (let i = 1; i <= HORIZON_DAYS; i++) {
     const day = today.add(i, "day");
     const iso = day.format("YYYY-MM-DD");
-    const tasks = indexes.tasks.filter(t => t.scheduled_date === iso || t.due_date === iso);
+    // All tasks in a group share this date, so order them by priority (weight desc).
+    const tasks = indexes.tasks
+      .filter(t => t.scheduled_date === iso || t.due_date === iso)
+      .sort((a, b) => effectivePriority(b, indexes.tagsById) - effectivePriority(a, indexes.tagsById));
     if (tasks.length > 0) result.push({ date: iso, label: labelFor(day, today), tasks });
   }
   return result;

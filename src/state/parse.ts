@@ -1,12 +1,10 @@
 import dayjs from "dayjs";
-import { Priority } from "../lib/tauri";
 
 export type ParsedInput = {
   title: string;
   tag_names: string[];
   due_date?: string;       // YYYY-MM-DD
   scheduled_date?: string; // YYYY-MM-DD
-  priority?: Priority;
 };
 
 const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -28,13 +26,6 @@ export function parseComposer(input: string, todayIso: string): ParsedInput {
       out.tag_names.push(tok.slice(1));
       continue;
     }
-    const bangs = leadingBangs(tok);
-    if (bangs > 0) {
-      out.priority = bangs >= 3 ? "high" : bangs === 2 ? "med" : "low";
-      const rest = tok.slice(bangs);
-      if (rest) titleParts.push(rest);
-      continue;
-    }
     if ((tok === "due" || tok === "sched" || tok === "scheduled") && i + 1 < tokens.length) {
       const date = parseDateWord(tokens[i + 1], todayIso);
       if (date) {
@@ -49,12 +40,6 @@ export function parseComposer(input: string, todayIso: string): ParsedInput {
 
   out.title = titleParts.join(" ").trim();
   return out;
-}
-
-function leadingBangs(tok: string): number {
-  let n = 0;
-  while (n < tok.length && tok[n] === "!") n++;
-  return n;
 }
 
 function parseDateWord(word: string, todayIso: string): string | undefined {

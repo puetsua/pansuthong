@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { api, Priority, Tag, Task } from "../lib/tauri";
+import { api, Tag, Task } from "../lib/tauri";
 import { buildTaskUpdate, EditorForm } from "../state/taskUpdate";
 
 type Props = {
@@ -9,19 +9,11 @@ type Props = {
   onClose: () => void;
 };
 
-const PRIORITIES: { value: "" | Priority; label: string }[] = [
-  { value: "",     label: "None" },
-  { value: "low",  label: "Low" },
-  { value: "med",  label: "Medium" },
-  { value: "high", label: "High" },
-];
-
 export function TaskEditor({ task, allTags, onClose }: Props) {
   const initialRef = useRef<EditorForm>({
     title: task.title,
     scheduled_date: task.scheduled_date ?? "",
     due_date: task.due_date ?? "",
-    priority: task.priority ?? "",
     notes: task.notes ?? "",
     tag_ids: task.tag_ids,
   });
@@ -123,19 +115,12 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
             <input type="date" value={form.due_date}
                    onChange={e => set("due_date", e.currentTarget.value)} />
           </label>
-          <label className="te-field">
-            <span>Priority</span>
-            <select value={form.priority}
-                    onChange={e => set("priority", e.currentTarget.value as "" | Priority)}>
-              {PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-            </select>
-          </label>
         </div>
 
         <div className="te-field">
           <span>Tags</span>
           <div className="te-tags">
-            {[...allTags.values()].map(t => (
+            {[...allTags.values()].sort((a, b) => b.priority - a.priority).map(t => (
               <button type="button" key={t.id}
                       className={form.tag_ids.includes(t.id) ? "te-tag on" : "te-tag"}
                       style={{ borderColor: t.color, color: t.color }}

@@ -1,4 +1,3 @@
-use crate::model::Priority;
 use chrono::{Datelike, Duration, NaiveDate, Weekday};
 use serde::Serialize;
 
@@ -8,7 +7,6 @@ pub struct ParsedInput {
     pub tag_names: Vec<String>,
     pub due_date: Option<NaiveDate>,
     pub scheduled_date: Option<NaiveDate>,
-    pub priority: Option<Priority>,
 }
 
 /// Pure: takes the composer's raw string and "today" reference; returns structured tokens.
@@ -28,13 +26,6 @@ pub fn parse(input: &str, today: NaiveDate) -> ParsedInput {
                 continue;
             }
         }
-        if let Some(p) = leading_bang_priority(tok) {
-            out.priority = Some(p);
-            let rest = tok.trim_start_matches('!');
-            if !rest.is_empty() { title_parts.push(rest); }
-            i += 1;
-            continue;
-        }
         if (tok == "due" || tok == "sched" || tok == "scheduled") && i + 1 < tokens.len() {
             if let Some(d) = parse_date(tokens[i + 1], today) {
                 if tok == "due" { out.due_date = Some(d); }
@@ -49,16 +40,6 @@ pub fn parse(input: &str, today: NaiveDate) -> ParsedInput {
 
     out.title = title_parts.join(" ").trim().to_string();
     out
-}
-
-fn leading_bang_priority(tok: &str) -> Option<Priority> {
-    let bangs: usize = tok.chars().take_while(|c| *c == '!').count();
-    match bangs {
-        1 => Some(Priority::Low),
-        2 => Some(Priority::Med),
-        n if n >= 3 => Some(Priority::High),
-        _ => None,
-    }
 }
 
 fn parse_date(word: &str, today: NaiveDate) -> Option<NaiveDate> {

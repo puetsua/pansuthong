@@ -10,15 +10,11 @@ export function ComposerPreview({ parsed, tagsByName }: Props) {
   const anything =
     parsed.tag_names.length > 0 ||
     parsed.due_date ||
-    parsed.scheduled_date ||
-    parsed.priority;
+    parsed.scheduled_date;
   if (!anything) return null;
 
   return (
     <div className="composer-preview">
-      {parsed.priority && (
-        <span className={`composer-chip pri-${parsed.priority}`}>{parsed.priority}</span>
-      )}
       {parsed.tag_names.map(name => {
         const existing = tagsByName.get(name.toLowerCase());
         const color = existing?.color ?? "var(--c-text-muted)";

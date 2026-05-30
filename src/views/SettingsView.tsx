@@ -10,6 +10,9 @@ export function SettingsView({ doc, indexes: _indexes }: Props) {
   const theme = doc.settings.theme;
   const setTheme = (t: "auto" | "light" | "dark") => { void api.updateSettings({ theme: t }); };
 
+  const sortOrder = doc.settings.sort_order;
+  const setSort = (s: "priority" | "date") => { void api.updateSettings({ sort_order: s }); };
+
   const [android, setAndroid] = useState(false);
   const [loc, setLoc] = useState<DataLocation | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,6 +52,24 @@ export function SettingsView({ doc, indexes: _indexes }: Props) {
               onClick={() => setTheme(t)}
             >
               {t}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h2>Sort order</h2>
+        <p className="view-sub">
+          How task lists are ordered. Priority sorts by the highest weight among a task's tags.
+        </p>
+        <div className="theme-options">
+          {(["priority", "date"] as const).map(s => (
+            <button
+              key={s}
+              className={`theme-option ${sortOrder === s ? "active" : ""}`}
+              onClick={() => setSort(s)}
+            >
+              {s}
             </button>
           ))}
         </div>
