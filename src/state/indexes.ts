@@ -10,13 +10,14 @@ export type Indexes = {
   tasks:        Task[];
 };
 
-/** Highest weight among a task's tags; 0 if it has none (or only unknown tags). */
+/** Highest weight among a task's *resolvable* tags; 0 if it has none (or only unknown tags). */
 export function effectivePriority(task: Task, tagsById: Map<string, Tag>): number {
   let max = 0;
   let seen = false;
   for (const id of task.tag_ids) {
-    const w = tagsById.get(id)?.priority ?? 0;
-    if (!seen || w > max) { max = w; seen = true; }
+    const tag = tagsById.get(id);
+    if (!tag) continue;   // unknown/dangling id contributes nothing (no phantom weight-0)
+    if (!seen || tag.priority > max) { max = tag.priority; seen = true; }
   }
   return max;
 }
@@ -36,19 +37,32 @@ function byDateAsc(a: Task, b: Task): number {
   return da < db ? -1 : 1;
 }
 
+/** Open tasks before done ones; equal `done` is a tie. */
+function byOpenFirst(a: Task, b: Task): number {
+  return a.done === b.done ? 0 : a.done ? 1 : -1;
+}
+
+/** Number of not-yet-done ("remaining work") tasks in a list. */
+export function openCount(tasks: Task[]): number {
+  let n = 0;
+  for (const t of tasks) if (!t.done) n++;
+  return n;
+}
+
 /**
  * Sort a task list in place by the configured order. `Array.prototype.sort` is
- * stable, so ties fall back to the list's original (insertion) order.
- *   priority: weight desc -> date asc -> insertion
- *   date:     date asc -> weight desc -> insertion
+ * stable, so ties fall back to the list's original (insertion) order. Completed
+ * tasks always sink below open ones (a done high-weight task does not stay pinned).
+ *   priority: done last -> weight desc -> date asc -> insertion
+ *   date:     done last -> date asc -> weight desc -> insertion
  */
 function sortTasks(tasks: Task[], order: SortOrder, tagsById: Map<string, Tag>): Task[] {
   const byWeightDesc = (a: Task, b: Task) =>
     effectivePriority(b, tagsById) - effectivePriority(a, tagsById);
   if (order === "date") {
-    tasks.sort((a, b) => byDateAsc(a, b) || byWeightDesc(a, b));
+    tasks.sort((a, b) => byOpenFirst(a, b) || byDateAsc(a, b) || byWeightDesc(a, b));
   } else {
-    tasks.sort((a, b) => byWeightDesc(a, b) || byDateAsc(a, b));
+    tasks.sort((a, b) => byOpenFirst(a, b) || byWeightDesc(a, b) || byDateAsc(a, b));
   }
   return tasks;
 }

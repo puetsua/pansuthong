@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Indexes } from "../state/indexes";
+import { Indexes, openCount } from "../state/indexes";
 import { todayIso } from "../lib/dates";
 
 type Props = { indexes: Indexes };
@@ -12,8 +12,8 @@ const TABS = [
 ] as const;
 
 export function BottomTabs({ indexes }: Props) {
-  const todayCount = indexes.today(todayIso()).length;
-  const inboxCount = indexes.inbox.length;
+  const todayCount = openCount(indexes.today(todayIso()));
+  const inboxCount = openCount(indexes.inbox);
 
   return (
     <nav className="bottom-tabs" role="navigation" aria-label="Primary">
