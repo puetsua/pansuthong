@@ -12,9 +12,9 @@ Pansutong is a cross-platform task tracker built with **Tauri 2**, targeting **W
 
 The persisted root is a single `Document` (`src-tauri/src/model.rs`, mirrored as a TS `type` in `src/lib/tauri.ts`) holding just `tasks`, `tags`, and `settings`.
 
-- A **task** carries its own fields (title, done, dates, priority, notes) plus `tag_ids: string[]` — tasks reference tags, never the reverse.
-- A **tag** is flat (`id`, `name`, `color`) — no hierarchy or parent grouping.
-- Views are **queries over tasks + tags** computed in `Document` helpers, not separate stored collections — e.g. `tasks_today` (date-based), `tasks_inbox` (`task_in_inbox` = task has no tags), and `tasks_for_tag`.
+- A **task** carries its own fields (title, done, dates, notes) plus `tag_ids: string[]` — tasks reference tags, never the reverse. A task has **no priority field**: its priority is *derived* from its tags (resolves #4).
+- A **tag** is flat (`id`, `name`, `color`, `priority`) — `priority` is an integer weight (`-9999..=9999`, default 0); no hierarchy or parent grouping. A task's effective priority is the **max weight among its tags** (0 if untagged; a negative weight sinks a task below untagged ones). The old `!`/`!!`/`!!!` composer shortcut was removed.
+- Views are **queries over tasks + tags** computed in `Document` helpers, not separate stored collections — e.g. `tasks_today` (date-based), `tasks_inbox` (`task_in_inbox` = task has no tags), and `tasks_for_tag`. Task lists are ordered by `settings.sort_order` (`"priority"` = weight desc → date → insertion, the default; or `"date"`), applied in the TS `buildIndexes`.
 - Keep model changes additive and backward-compatible: use `#[serde(default)]` / optional TS keys so older data files still load.
 
 ## Stack
