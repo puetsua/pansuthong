@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import sample from "../tests/fixtures/sample.json";
 import { Document, SortOrder, Task } from "../lib/tauri";
-import { buildIndexes, effectivePriority } from "./indexes";
+import { buildIndexes, effectivePriority, openCount } from "./indexes";
 
 const TODAY = "2026-05-28";
 
@@ -73,6 +73,15 @@ describe("effectivePriority", () => {
     const multiNeg = task("k_multineg", ["t_neg", "t_lo"], "2026-05-22"); // -5 and 1
     expect(effectivePriority(multiNeg, ix.tagsById)).toBe(1);
   });
+
+  it("ignores unknown tag ids (no phantom weight-0)", () => {
+    // unknown-only resolves to no tags -> 0
+    const unknownOnly = task("k_unk", ["t_does_not_exist"], "2026-05-22");
+    expect(effectivePriority(unknownOnly, ix.tagsById)).toBe(0);
+    // unknown + a real negative tag -> the negative value, not a phantom 0
+    const unknownPlusNeg = task("k_unkneg", ["t_does_not_exist", "t_neg"], "2026-05-22"); // -5
+    expect(effectivePriority(unknownPlusNeg, ix.tagsById)).toBe(-5);
+  });
 });
 
 describe("sort order", () => {
@@ -119,5 +128,54 @@ describe("sort tiebreaks", () => {
     const ix = buildIndexes(tieDoc("priority"));
     const sameWeight = ix.today("2026-05-28").filter(t => t.due_date === "2026-05-19").map(t => t.id);
     expect(sameWeight).toEqual(["k_first", "k_second"]);
+  });
+});
+
+// Done and open tasks all scheduled today, so today() includes every one.
+function doneDoc(order: SortOrder): Document {
+  const TODAY_ISO = "2026-05-28";
+  const t = (id: string, tags: string[], done: boolean): Task => ({
+    id, title: id, done, scheduled_date: TODAY_ISO, notes: "", tag_ids: tags, created_at: 0, updated_at: 0,
+  });
+  return {
+    version: 2,
+    last_modified: 0,
+    settings: { theme: "auto", sort_order: order },
+    tags: [
+      { id: "t_hi", name: "hi", color: "#000", priority: 9 },
+      { id: "t_lo", name: "lo", color: "#000", priority: 1 },
+    ],
+    tasks: [
+      t("k_done_hi", ["t_hi"], true),   // done,  weight 9
+      t("k_open_lo", ["t_lo"], false),  // open,  weight 1
+      t("k_open_hi", ["t_hi"], false),  // open,  weight 9
+      t("k_done_lo", ["t_lo"], true),   // done,  weight 1
+    ],
+  };
+}
+
+describe("done-aware lists (#32)", () => {
+  it("priority mode: done tasks sink below all open tasks, even higher-weight done ones", () => {
+    const ix = buildIndexes(doneDoc("priority"));
+    expect(ix.today("2026-05-28").map(t => t.id))
+      .toEqual(["k_open_hi", "k_open_lo", "k_done_hi", "k_done_lo"]);
+  });
+
+  it("date mode: done tasks also sink below open tasks", () => {
+    const ix = buildIndexes(doneDoc("date"));
+    const done = ix.today("2026-05-28").map(t => t.done);
+    // every open (false) comes before every done (true)
+    expect(done).toEqual([false, false, true, true]);
+  });
+
+  it("the list still contains the done tasks (de-emphasized, not removed)", () => {
+    const ix = buildIndexes(doneDoc("priority"));
+    expect(ix.today("2026-05-28").length).toBe(4);
+  });
+
+  it("openCount counts only not-done tasks", () => {
+    const ix = buildIndexes(doneDoc("priority"));
+    expect(openCount(ix.today("2026-05-28"))).toBe(2);
+    expect(openCount([])).toBe(0);
   });
 });
