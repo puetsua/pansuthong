@@ -15,6 +15,7 @@ fn make_task(title: &str) -> Task {
         tag_ids: Vec::new(),
         created_at: 0,
         completed_at: None,
+        updated_at: 0,
     }
 }
 

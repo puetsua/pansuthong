@@ -45,10 +45,12 @@ impl AppState {
     }
 
     /// Mutate then persist. Returns the result of `f` after the file is on disk.
+    /// Bumps `last_modified` so every edit stamps the document with its edit time.
     pub fn write<F, T>(&self, f: F) -> Result<T>
     where F: FnOnce(&mut Document) -> Result<T> {
         let mut g = self.inner.lock().unwrap();
         let value = f(&mut g.doc)?;
+        g.doc.last_modified = crate::model::now_ms();
         let bytes = serde_json::to_vec_pretty(&g.doc)?;
         atomic_write(&g.path, &bytes)?;
         g.last_written_hash = sha256(&bytes);
@@ -126,6 +128,23 @@ fn atomic_write(target: &Path, bytes: &[u8]) -> Result<()> {
 mod repoint_tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn write_bumps_last_modified() {
+        let dir = tempdir().unwrap();
+        let state = AppState::open(dir.path().join("tasks.json")).unwrap();
+        let before = state.read(|d| d.last_modified);
+
+        state.write(|d| { d.settings.theme = "dark".into(); Ok(()) }).unwrap();
+
+        let after = state.read(|d| d.last_modified);
+        assert!(after > before, "write should bump last_modified ({after} !> {before})");
+
+        // The bump is persisted to disk, not just held in memory.
+        let bytes = std::fs::read(dir.path().join("tasks.json")).unwrap();
+        let on_disk: crate::model::Document = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(on_disk.last_modified, after);
+    }
 
     #[test]
     fn repoint_seeds_when_target_absent() {

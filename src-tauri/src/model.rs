@@ -20,6 +20,13 @@ pub fn new_task_id()    -> String { short_id("k") }
 pub fn new_project_id() -> String { short_id("p") }
 pub fn new_tag_id()     -> String { short_id("t") }
 
+/// Epoch milliseconds. Used for created_at/updated_at/last_modified. UTC-based,
+/// so it's stable across devices and timezone changes.
+pub fn now_ms() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub data_file: Option<String>,
@@ -71,6 +78,10 @@ pub struct Task {
     pub created_at:   i64,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub completed_at: Option<i64>,
+    /// Epoch millis of the last edit to this task. `#[serde(default)]` = 0 for
+    /// tasks written before this field existed (UI falls back to created_at).
+    #[serde(default)]
+    pub updated_at:   i64,
 }
 
 const CURRENT_VERSION: u32 = 1;
@@ -78,6 +89,11 @@ const CURRENT_VERSION: u32 = 1;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Document {
     pub version:  u32,
+    /// Epoch millis of the last edit to the document (any task/project/tag/setting
+    /// change). Bumped by `AppState::write`. Shown as "Last synced"; identical on
+    /// all devices when in sync. `#[serde(default)]` = 0 for pre-existing files.
+    #[serde(default)]
+    pub last_modified: i64,
     #[serde(default)]
     pub settings: Settings,
     #[serde(default)]
@@ -92,6 +108,7 @@ impl Default for Document {
     fn default() -> Self {
         Self {
             version:  CURRENT_VERSION,
+            last_modified: 0,
             settings: Settings::default(),
             projects: Vec::new(),
             tags:     Vec::new(),
