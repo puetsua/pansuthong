@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod conflict;
 pub mod error;
+pub mod location;
 pub mod model;
 pub mod parse;
 pub mod search;
