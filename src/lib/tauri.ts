@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 
 export type Priority = "low" | "med" | "high";
 
@@ -37,6 +38,8 @@ export type Document = {
   tags: Tag[];
   tasks: Task[];
 };
+
+export type DataLocation = { folder: string | null; effective_path: string };
 
 export type TaskDiff =
   | { kind: "differs";     id: string; mine: Task;   theirs: Task }
@@ -81,4 +84,12 @@ export const api = {
                                       invoke<void>("resolve_conflict",
                                         { input: { conflict_path: path, decisions } }),
   dismissConflict:  (path: string) => invoke<void>("dismiss_conflict", { conflictPath: path }),
+  getDataLocation: () => invoke<DataLocation>("get_data_location"),
+  clearDataFolder: () => invoke<DataLocation>("clear_data_folder"),
+  /** Opens the OS folder picker; on a selection, repoints tasks.json into it. Returns null if cancelled. */
+  pickAndSetDataFolder: async (): Promise<DataLocation | null> => {
+    const dir = await open({ directory: true, multiple: false, title: "Choose a sync folder" });
+    if (typeof dir !== "string") return null;
+    return invoke<DataLocation>("set_data_folder", { folder: dir });
+  },
 };
