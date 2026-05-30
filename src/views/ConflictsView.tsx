@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, Decision, Task, TaskDiff } from "../lib/tauri";
+import { errorMessage } from "../lib/errors";
+import { BulkIntent, bulkAction, nextConflictPath } from "../state/conflictDecisions";
 
 export function ConflictsView() {
   const { filename } = useParams<{ filename: string }>();
@@ -14,9 +16,13 @@ export function ConflictsView() {
 
   useEffect(() => {
     if (!path) return;
+    // Reset per-conflict state so navigating to the next conflict starts clean.
+    setChosen({});
+    setError(null);
+    setDiffs(null);
     api.readConflict(path)
       .then(setDiffs)
-      .catch(err => setError(String(err)));
+      .catch(err => setError(errorMessage(err)));
   }, [path]);
 
   if (!path) return <p className="view-empty">No conflict selected.</p>;
@@ -30,6 +36,14 @@ export function ConflictsView() {
   const allDecided = diffs.every(d => chosen[d.id] !== undefined);
   const fileLabel  = path.split(/[\\/]/).pop() ?? path;
 
+  // After resolving/dismissing, go to the next outstanding conflict (if any).
+  const goNext = async () => {
+    let remaining: string[] = [];
+    try { remaining = await api.listConflicts(); } catch { /* fall back to Today */ }
+    const next = nextConflictPath(remaining, path);
+    navigate(next ? `/conflicts/${encodeURIComponent(next)}` : "/today");
+  };
+
   const submit = async () => {
     setBusy(true);
     try {
@@ -37,9 +51,9 @@ export function ConflictsView() {
         ({ action, id }) as Decision
       );
       await api.resolveConflict(path, decisions);
-      navigate("/today");
+      await goNext();
     } catch (err) {
-      setError(String(err));
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -47,13 +61,15 @@ export function ConflictsView() {
 
   const dismiss = async () => {
     if (!window.confirm("Discard this conflict file without merging?")) return;
-    try { await api.dismissConflict(path); navigate("/today"); }
-    catch (err) { setError(String(err)); }
+    try { await api.dismissConflict(path); await goNext(); }
+    catch (err) { setError(errorMessage(err)); }
   };
 
-  const useAll = (action: Decision["action"]) => {
+  // Translate a bulk intent into a valid action per row kind so one-sided rows
+  // are never assigned an action they don't offer (#31).
+  const useAll = (intent: BulkIntent) => {
     const all: Record<string, Decision["action"]> = {};
-    for (const d of diffs) all[d.id] = action;
+    for (const d of diffs) all[d.id] = bulkAction(d, intent);
     setChosen(all);
   };
 
@@ -65,8 +81,8 @@ export function ConflictsView() {
       </header>
 
       <div className="conflict-bulk">
-        <button onClick={() => useAll("keep_mine")}   className="link-button">Use all mine</button>
-        <button onClick={() => useAll("keep_theirs")} className="link-button">Use all theirs</button>
+        <button onClick={() => useAll("mine")}   className="link-button">Use all mine</button>
+        <button onClick={() => useAll("theirs")} className="link-button">Use all theirs</button>
       </div>
 
       {diffs.length === 0

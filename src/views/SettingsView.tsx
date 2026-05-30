@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, DataLocation, Document } from "../lib/tauri";
+import { errorMessage } from "../lib/errors";
 import { isAndroid } from "../lib/platform";
 import { Indexes } from "../state/indexes";
 
@@ -25,13 +26,13 @@ export function SettingsView({ doc, indexes: _indexes }: Props) {
     try {
       const next = await api.pickAndSetDataFolder();
       if (next) setLoc(next);
-    } catch (e) { setErr(String(e)); }
+    } catch (e) { setErr(errorMessage(e)); }
     finally { setBusy(false); }
   };
   const reset = async () => {
     setBusy(true); setErr(null);
     try { setLoc(await api.clearDataFolder()); }
-    catch (e) { setErr(String(e)); }
+    catch (e) { setErr(errorMessage(e)); }
     finally { setBusy(false); }
   };
 

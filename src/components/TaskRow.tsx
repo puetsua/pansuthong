@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Task, Tag } from "../lib/tauri";
 import { api } from "../lib/tauri";
+import { errorMessage } from "../lib/errors";
 import { TaskEditor } from "./TaskEditor";
 
 type Props = {
@@ -27,6 +28,7 @@ function diffDays(a: string, b: string): number {
 
 export function TaskRow({ task, tags, todayIso }: Props) {
   const [editing, setEditing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const w = whenLabel(task, todayIso);
   // All of the task's tags as chips, highest-weight (priority) first.
   const taskTags = task.tag_ids
@@ -35,8 +37,11 @@ export function TaskRow({ task, tags, todayIso }: Props) {
     .sort((a, b) => b.priority - a.priority);
 
   const toggle = () => {
+    setError(null);
     api.setTaskDone(task.id, !task.done).catch(err => {
-      console.error("setTaskDone failed:", err);
+      // The checkbox reflects the persisted `task.done`, so it stays put on
+      // failure; surface the error so the user knows the change didn't stick.
+      setError(errorMessage(err));
     });
   };
 
@@ -57,6 +62,7 @@ export function TaskRow({ task, tags, todayIso }: Props) {
         <input type="checkbox" checked={task.done} onChange={toggle}
                aria-label={`Toggle ${task.title}`} />
       </div>
+      {error && <p className="composer-error" role="alert">Couldn’t update: {error}</p>}
       {editing && <TaskEditor task={task} allTags={tags} onClose={() => setEditing(false)} />}
     </>
   );

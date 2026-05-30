@@ -13,7 +13,7 @@ import { ConflictsView } from "./views/ConflictsView";
 import { useDocument } from "./state/store";
 
 export default function App() {
-  const { doc, indexes, error } = useDocument();
+  const { doc, indexes, error, reloadError, dismissReloadError } = useDocument();
   const isMobile = useIsMobile();
 
   if (error) return <p className="app-error">Failed to load: {error}</p>;
@@ -24,6 +24,14 @@ export default function App() {
   return (
     <BrowserRouter>
       <Shell doc={doc} indexes={indexes}>
+        {reloadError && (
+          <div className="reload-banner" role="alert">
+            <span>Couldn’t refresh — showing the last loaded data. {reloadError}</span>
+            <button type="button" className="reload-banner-dismiss" onClick={dismissReloadError}>
+              Dismiss
+            </button>
+          </div>
+        )}
         <Routes>
           <Route path="/" element={<Navigate to="/today" replace />} />
           <Route path="/today" element={<TodayView doc={doc} indexes={indexes} />} />

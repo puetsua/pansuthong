@@ -1,13 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, Document } from "../lib/tauri";
+import { errorMessage } from "../lib/errors";
 import { buildIndexes, Indexes } from "./indexes";
 
-type DocState = { doc: Document | null; indexes: Indexes | null; error: string | null };
+type DocState = {
+  doc: Document | null;
+  indexes: Indexes | null;
+  /** Fatal: the first load failed, so there is nothing to render. */
+  error: string | null;
+  /** Non-fatal: a background refresh failed; the last-good doc is still shown. */
+  reloadError: string | null;
+  dismissReloadError: () => void;
+};
 
 export function useDocument(): DocState {
   const [doc, setDoc] = useState<Document | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reloadError, setReloadError] = useState<string | null>(null);
+  // Whether a good doc has ever loaded. A later reload failure then degrades to
+  // a dismissible banner instead of wiping the mounted UI to the error screen.
+  const hasDoc = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -15,9 +28,16 @@ export function useDocument(): DocState {
     const load = async () => {
       try {
         const d = await api.getDocument();
-        if (mounted) setDoc(d);
+        if (!mounted) return;
+        hasDoc.current = true;
+        setDoc(d);
+        setError(null);
+        setReloadError(null);
       } catch (e) {
-        if (mounted) setError(String(e));
+        if (!mounted) return;
+        const msg = errorMessage(e);
+        if (hasDoc.current) setReloadError(msg); // keep last-good doc on screen
+        else setError(msg);                      // nothing loaded yet: fatal
       }
     };
 
@@ -37,5 +57,11 @@ export function useDocument(): DocState {
   }, [doc?.settings.theme]);
 
   const indexes = useMemo(() => (doc ? buildIndexes(doc) : null), [doc]);
-  return { doc, indexes, error };
+  return {
+    doc,
+    indexes,
+    error,
+    reloadError,
+    dismissReloadError: () => setReloadError(null),
+  };
 }
