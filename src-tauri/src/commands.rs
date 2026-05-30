@@ -1,6 +1,6 @@
 use crate::conflict::{apply_decisions, diff_tasks, Decision, TaskDiff};
 use crate::error::{AppError, Result};
-use crate::model::{new_project_id, new_tag_id, new_task_id, Document, Priority, Project, Tag, Task};
+use crate::model::{new_project_id, new_tag_id, new_task_id, now_ms, Document, Priority, Project, Tag, Task};
 use crate::parse::{parse as parse_input, ParsedInput};
 use crate::search::search as search_doc;
 use crate::store::AppState;
@@ -8,14 +8,9 @@ use crate::sync::scan_conflict_files;
 use chrono::{Local, NaiveDate};
 use serde::Deserialize;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 const STORE_CHANGED: &str = "store-changed";
-
-fn now_ms() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
-}
 
 fn emit_changed(app: &AppHandle) {
     let _ = app.emit(STORE_CHANGED, ());
@@ -23,6 +18,18 @@ fn emit_changed(app: &AppHandle) {
 
 #[tauri::command]
 pub fn get_document(state: State<'_, AppState>) -> Document {
+    state.read(|d| d.clone())
+}
+
+/// Manual "Sync now": re-read the data file from disk immediately instead of
+/// waiting for the polling fallback. Picks up changes a cloud-sync client
+/// (Google Drive) pulled in from another device. Returns the freshest document.
+#[tauri::command]
+pub fn sync_now(state: State<'_, AppState>, app: AppHandle) -> Document {
+    let path = state.path();
+    if crate::sync::reload_if_changed(&state, &path) {
+        emit_changed(&app);
+    }
     state.read(|d| d.clone())
 }
 
@@ -42,6 +49,7 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
     if title.is_empty() {
         return Err(AppError::Invalid("title is empty".into()));
     }
+    let ts = now_ms();
     let task = Task {
         id: new_task_id(),
         title,
@@ -51,8 +59,9 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
         priority: input.priority,
         notes: input.notes,
         tag_ids: input.tag_ids,
-        created_at: now_ms(),
+        created_at: ts,
         completed_at: None,
+        updated_at: ts,
     };
     let saved = state.write(|d| { d.tasks.push(task.clone()); Ok(task) })?;
     emit_changed(&app);
@@ -94,6 +103,7 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
         if let Some(v) = input.priority       { t.priority = v; }
         if let Some(v) = input.notes          { t.notes = v; }
         if let Some(v) = input.tag_ids        { t.tag_ids = v; }
+        t.updated_at = now_ms();
         Ok(t.clone())
     })?;
     emit_changed(&app);
@@ -106,7 +116,9 @@ pub fn set_task_done(id: String, done: bool, state: State<'_, AppState>, app: Ap
         let t = d.tasks.iter_mut().find(|t| t.id == id)
             .ok_or_else(|| AppError::NotFound(format!("task {id}")))?;
         t.done = done;
-        t.completed_at = if done { Some(now_ms()) } else { None };
+        let ts = now_ms();
+        t.completed_at = if done { Some(ts) } else { None };
+        t.updated_at = ts;
         Ok(t.clone())
     })?;
     emit_changed(&app);

@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import { Document } from "../lib/tauri";
 import { Indexes } from "../state/indexes";
 import { todayIso } from "../lib/dates";
+import { SyncStatus } from "../components/SyncStatus";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -75,6 +76,7 @@ export function Sidebar({ doc, indexes }: Props) {
             </NavLink>
           </li>
         </ul>
+        <SyncStatus lastModified={doc.last_modified} />
       </div>
     </nav>
   );

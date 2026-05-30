@@ -29,10 +29,12 @@ export type Task = {
   tag_ids: string[];
   created_at: number;
   completed_at?: number;
+  updated_at: number; // epoch ms of last edit (0 for pre-existing tasks)
 };
 
 export type Document = {
   version: number;
+  last_modified: number; // epoch ms of last edit to the document (0 if never)
   settings: Settings;
   projects: Project[];
   tags: Tag[];
@@ -54,6 +56,8 @@ export type Decision =
 
 export const api = {
   getDocument:   ()                          => invoke<Document>("get_document"),
+  /** Force an immediate re-read of tasks.json from disk; returns the freshest doc. */
+  syncNow:       ()                          => invoke<Document>("sync_now"),
   addTask:       (input: Partial<Task> & { title: string }) => invoke<Task>("add_task", { input }),
   updateTask:    (input: Partial<Task> & { id: string })    => invoke<Task>("update_task", { input }),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
