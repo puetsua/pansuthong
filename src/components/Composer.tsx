@@ -27,7 +27,6 @@ export function Composer({ scheduledDate, tagsByName }: Props) {
         title: parsed.title,
         scheduled_date: parsed.scheduled_date ?? scheduledDate,
         due_date: parsed.due_date,
-        priority: parsed.priority,
         tag_ids: resolvedTagIds,
       });
       setInput("");
@@ -43,7 +42,7 @@ export function Composer({ scheduledDate, tagsByName }: Props) {
         <input
           value={input}
           onChange={e => setInput(e.currentTarget.value)}
-          placeholder="What needs doing?  (try: #work due fri !! Reply to Anna)"
+          placeholder="What needs doing?  (try: #work due fri Reply to Anna)"
           aria-label="New task"
         />
         <button type="submit" disabled={!parsed.title}>Add</button>

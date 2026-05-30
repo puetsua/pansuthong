@@ -28,11 +28,6 @@
   --c-accent-bg:    #eef2ff;
   --c-danger:       #dc2626;
   --c-success:      #047857;
-
-  /* Priority stripe */
-  --c-pri-high: #ef4444;
-  --c-pri-med:  #f59e0b;
-  --c-pri-low:  #d1d5db;
 }
 
 @media (prefers-color-scheme: dark) {

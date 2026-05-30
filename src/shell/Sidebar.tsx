@@ -40,7 +40,7 @@ export function Sidebar({ doc, indexes }: Props) {
         <>
           <div className="sidebar-section">Tags</div>
           <ul className="sidebar-list">
-            {doc.tags.map(t => (
+            {[...doc.tags].sort((a, b) => b.priority - a.priority || a.name.localeCompare(b.name)).map(t => (
               <li key={t.id}>
                 <NavLink to={`/tag/${t.id}`} className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
                   <span className="sidebar-dot" style={{ background: t.color }} />

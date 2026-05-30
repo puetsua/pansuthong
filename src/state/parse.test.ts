@@ -9,7 +9,6 @@ describe("parseComposer", () => {
     expect(p.title).toBe("Buy milk");
     expect(p.tag_names).toEqual([]);
     expect(p.due_date).toBeUndefined();
-    expect(p.priority).toBeUndefined();
   });
 
   it("hash tag extracts", () => {
@@ -18,10 +17,10 @@ describe("parseComposer", () => {
     expect(p.tag_names).toEqual(["work"]);
   });
 
-  it("priority bangs", () => {
-    expect(parseComposer("! task", TODAY).priority).toBe("low");
-    expect(parseComposer("!! task", TODAY).priority).toBe("med");
-    expect(parseComposer("!!! task", TODAY).priority).toBe("high");
+  it("bangs are literal title text (priority shortcut removed)", () => {
+    expect(parseComposer("! task", TODAY).title).toBe("! task");
+    expect(parseComposer("!!task", TODAY).title).toBe("!!task");
+    expect(parseComposer("!!! urgent thing", TODAY).title).toBe("!!! urgent thing");
   });
 
   it("due today", () => {
@@ -54,10 +53,9 @@ describe("parseComposer", () => {
   });
 
   it("everything together", () => {
-    const p = parseComposer("!! Review #work due fri", TODAY);
+    const p = parseComposer("Review #work due fri", TODAY);
     expect(p.title).toBe("Review");
     expect(p.tag_names).toEqual(["work"]);
-    expect(p.priority).toBe("med");
     expect(p.due_date).toBe("2026-05-29");
   });
 

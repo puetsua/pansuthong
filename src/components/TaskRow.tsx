@@ -9,15 +9,6 @@ type Props = {
   todayIso: string;
 };
 
-function priColor(p: Task["priority"]): string {
-  switch (p) {
-    case "high": return "var(--c-pri-high)";
-    case "med":  return "var(--c-pri-med)";
-    case "low":  return "var(--c-pri-low)";
-    default:     return "transparent";
-  }
-}
-
 function whenLabel(t: Task, today: string): { text: string; late: boolean } {
   if (t.due_date) {
     if (t.due_date === today)       return { text: "due today", late: false };
@@ -37,7 +28,11 @@ function diffDays(a: string, b: string): number {
 export function TaskRow({ task, tags, todayIso }: Props) {
   const [editing, setEditing] = useState(false);
   const w = whenLabel(task, todayIso);
-  const firstTag = task.tag_ids.length ? tags.get(task.tag_ids[0]) : undefined;
+  // All of the task's tags as chips, highest-weight (priority) first.
+  const taskTags = task.tag_ids
+    .map(id => tags.get(id))
+    .filter((t): t is Tag => t !== undefined)
+    .sort((a, b) => b.priority - a.priority);
 
   const toggle = () => {
     api.setTaskDone(task.id, !task.done).catch(err => {
@@ -51,13 +46,12 @@ export function TaskRow({ task, tags, todayIso }: Props) {
     <>
       <div className="task-row" data-done={task.done}>
         <button type="button" className="task-main" onClick={open} aria-label={`Edit ${task.title}`}>
-          <span className="task-pri" style={{ background: priColor(task.priority) }} />
           <span className="task-title">{task.title}</span>
-          {firstTag && (
-            <span className="task-tag" style={{ background: firstTag.color + "22", color: firstTag.color }}>
-              {firstTag.name}
+          {taskTags.map(t => (
+            <span key={t.id} className="task-tag" style={{ background: t.color + "22", color: t.color }}>
+              {t.name}
             </span>
-          )}
+          ))}
           {w.text && <span className={w.late ? "task-when late" : "task-when"}>{w.text}</span>}
         </button>
         <input type="checkbox" checked={task.done} onChange={toggle}

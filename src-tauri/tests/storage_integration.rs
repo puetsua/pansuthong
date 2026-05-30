@@ -10,7 +10,6 @@ fn make_task(title: &str) -> Task {
         done: false,
         due_date: None,
         scheduled_date: None,
-        priority: None,
         notes: String::new(),
         tag_ids: Vec::new(),
         created_at: 0,
@@ -26,7 +25,7 @@ fn open_creates_default_document_when_missing() {
     let state = AppState::open(path.clone()).unwrap();
     assert!(path.exists());
     state.read(|d| {
-        assert_eq!(d.version, 1);
+        assert_eq!(d.version, 2);
         assert!(d.tasks.is_empty());
     });
 }

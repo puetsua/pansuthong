@@ -1,16 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
-export type Priority = "low" | "med" | "high";
+export type SortOrder = "priority" | "date";
 
 export type Settings = {
   theme: "auto" | "light" | "dark";
+  sort_order: SortOrder;
 };
 
 export type Tag = {
   id: string;
   name: string;
   color: string;
+  priority: number; // weight; -9999..9999. A task's priority = max weight of its tags.
 };
 
 export type Task = {
@@ -19,7 +21,6 @@ export type Task = {
   done: boolean;
   due_date?: string;       // YYYY-MM-DD
   scheduled_date?: string; // YYYY-MM-DD
-  priority?: Priority;
   notes: string;
   tag_ids: string[];
   created_at: number;
@@ -41,7 +42,6 @@ export type TaskUpdate = {
   title?: string;
   due_date?: string | null;
   scheduled_date?: string | null;
-  priority?: Priority | null;
   notes?: string;
   tag_ids?: string[];
 };
@@ -67,20 +67,19 @@ export const api = {
   updateTask:    (input: TaskUpdate)                         => invoke<Task>("update_task", { input }),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
   deleteTask:    (id: string)                => invoke<void>("delete_task", { id }),
-  addTag:        (name: string, color: string) =>
-                                                invoke<Tag>("add_tag", { input: { name, color } }),
+  addTag:        (name: string, color: string, priority = 0) =>
+                                                invoke<Tag>("add_tag", { input: { name, color, priority } }),
   deleteTag:     (id: string)                => invoke<void>("delete_tag", { id }),
   parseComposer:   (input: string) => invoke<{
     title: string;
     tag_names: string[];
     due_date?: string;
     scheduled_date?: string;
-    priority?: Priority;
   }>("parse_composer", { input }),
   searchTasks:     (query: string) => invoke<Task[]>("search_tasks", { query }),
-  updateTag:       (input: { id: string; name?: string; color?: string }) =>
+  updateTag:       (input: { id: string; name?: string; color?: string; priority?: number }) =>
                                      invoke<Tag>("update_tag", { input }),
-  updateSettings: (input: { theme?: "auto" | "light" | "dark" }) =>
+  updateSettings: (input: { theme?: "auto" | "light" | "dark"; sort_order?: SortOrder }) =>
                                    invoke<void>("update_settings", { input }),
   listConflicts:    ()             => invoke<string[]>("list_conflicts"),
   readConflict:     (path: string) => invoke<TaskDiff[]>("read_conflict", { conflictPath: path }),

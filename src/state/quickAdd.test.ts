@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { TAG_PALETTE, pickPaletteColor, resolveTagIds } from "./quickAdd";
 import { Tag } from "../lib/tauri";
 
-const mkTag = (id: string, name: string): Tag => ({ id, name, color: "#000000" });
+const mkTag = (id: string, name: string): Tag => ({ id, name, color: "#000000", priority: 0 });
 
 describe("pickPaletteColor", () => {
   it("is deterministic for the same seed", () => {

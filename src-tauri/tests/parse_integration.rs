@@ -1,5 +1,4 @@
 use chrono::NaiveDate;
-use pansutong_lib::model::Priority;
 use pansutong_lib::parse::{parse, ParsedInput};
 
 fn today() -> NaiveDate { NaiveDate::from_ymd_opt(2026, 5, 28).unwrap() } // Thu
@@ -11,7 +10,6 @@ fn plain_title_passes_through() {
     assert!(p.tag_names.is_empty());
     assert_eq!(p.due_date, None);
     assert_eq!(p.scheduled_date, None);
-    assert_eq!(p.priority, None);
 }
 
 #[test]
@@ -36,17 +34,11 @@ fn empty_hash_is_part_of_title() {
 }
 
 #[test]
-fn bang_priority_low_med_high() {
-    assert_eq!(parse("! task",   today()).priority, Some(Priority::Low));
-    assert_eq!(parse("!! task",  today()).priority, Some(Priority::Med));
-    assert_eq!(parse("!!! task", today()).priority, Some(Priority::High));
-    assert_eq!(parse("!!!!! task", today()).priority, Some(Priority::High));
-}
-
-#[test]
-fn bang_priority_strips_from_title() {
-    assert_eq!(parse("!!task", today()).title, "task");
-    assert_eq!(parse("!!! urgent thing", today()).title, "urgent thing");
+fn bangs_are_literal_title_text() {
+    // The `!`/`!!`/`!!!` priority shortcut was removed; bangs are now plain text.
+    assert_eq!(parse("!!task", today()).title, "!!task");
+    assert_eq!(parse("!!! urgent thing", today()).title, "!!! urgent thing");
+    assert_eq!(parse("! task", today()).title, "! task");
 }
 
 #[test]
@@ -100,12 +92,12 @@ fn unrecognized_due_word_keeps_title() {
 
 #[test]
 fn all_features_together() {
-    let p = parse("!! Review PR #248 #work due fri", today());
+    let p = parse("Review PR #248 #work due fri", today());
     // Note: our grammar treats every #word as a tag. "#248" becomes tag "248".
     assert!(p.tag_names.contains(&"248".to_string()));
     assert!(p.tag_names.contains(&"work".to_string()));
     assert_eq!(p.due_date, Some(NaiveDate::from_ymd_opt(2026, 5, 29).unwrap()));
-    assert_eq!(p.priority, Some(Priority::Med));
+    assert_eq!(p.title, "Review PR");
 }
 
 #[test]

@@ -5,7 +5,6 @@ const base: EditorForm = {
   title: "Write report",
   scheduled_date: "",
   due_date: "",
-  priority: "",
   notes: "",
   tag_ids: [],
 };
@@ -15,17 +14,15 @@ describe("buildTaskUpdate", () => {
     expect(buildTaskUpdate("t_1", { ...base, title: "  hi  " }).title).toBe("hi");
   });
 
-  it("clears empty date and priority to null", () => {
+  it("clears empty dates to null", () => {
     const p = buildTaskUpdate("t_1", base);
     expect(p.due_date).toBeNull();
     expect(p.scheduled_date).toBeNull();
-    expect(p.priority).toBeNull();
   });
 
-  it("sets provided date and priority", () => {
-    const p = buildTaskUpdate("t_1", { ...base, due_date: "2026-06-01", priority: "high" });
+  it("sets provided dates", () => {
+    const p = buildTaskUpdate("t_1", { ...base, due_date: "2026-06-01" });
     expect(p.due_date).toBe("2026-06-01");
-    expect(p.priority).toBe("high");
   });
 
   it("passes through notes and tag_ids and id", () => {

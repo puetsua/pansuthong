@@ -2,14 +2,6 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Priority {
-    Low,
-    Med,
-    High,
-}
-
 /// Shortened uuid (12 hex chars) with a type prefix. Stable across devices.
 fn short_id(prefix: &str) -> String {
     let hex = Uuid::new_v4().simple().to_string();
@@ -29,12 +21,21 @@ pub fn now_ms() -> i64 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub theme: String,        // "auto" | "light" | "dark"
+    /// Task list ordering: "priority" (weight desc, then date) or "date".
+    /// `#[serde(default)]` = "priority" for files written before this field existed.
+    #[serde(default = "default_sort_order")]
+    pub sort_order: String,
+}
+
+fn default_sort_order() -> String {
+    "priority".into()
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             theme: "auto".into(),
+            sort_order: default_sort_order(),
         }
     }
 }
@@ -44,6 +45,11 @@ pub struct Tag {
     pub id:    String,
     pub name:  String,
     pub color: String,
+    /// Priority weight. A task's effective priority is the max weight among its
+    /// tags (0 if it has none). `#[serde(default)]` = 0 for tags written before
+    /// this field existed. Range enforced by the UI to -9999..=9999.
+    #[serde(default)]
+    pub priority: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,8 +61,6 @@ pub struct Task {
     pub due_date: Option<NaiveDate>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub scheduled_date: Option<NaiveDate>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub priority: Option<Priority>,
     #[serde(default)]
     pub notes: String,
     #[serde(default)]
@@ -70,7 +74,7 @@ pub struct Task {
     pub updated_at:   i64,
 }
 
-const CURRENT_VERSION: u32 = 1;
+const CURRENT_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Document {

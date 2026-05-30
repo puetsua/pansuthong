@@ -117,7 +117,6 @@ fn task_equal(a: &Task, b: &Task) -> bool {
         && a.done == b.done
         && a.due_date == b.due_date
         && a.scheduled_date == b.scheduled_date
-        && a.priority == b.priority
         && a.notes == b.notes
         && a.tag_ids == b.tag_ids
 }

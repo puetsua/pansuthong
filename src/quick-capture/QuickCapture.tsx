@@ -53,7 +53,6 @@ export function QuickCapture() {
         due_date: parsed.due_date,
         // No today-default here (unlike the Today composer): undated tasks land in Inbox.
         scheduled_date: parsed.scheduled_date,
-        priority: parsed.priority,
         tag_ids: tagIds,
       });
       setInput("");
@@ -88,7 +87,7 @@ export function QuickCapture() {
         value={input}
         onChange={e => setInput(e.currentTarget.value)}
         onKeyDown={onKeyDown}
-        placeholder="Quick add…  (#tag  due fri  !!)"
+        placeholder="Quick add…  (#tag  due fri)"
         aria-label="Quick capture"
       />
       <ComposerPreview parsed={parsed} tagsByName={tagsByName} />

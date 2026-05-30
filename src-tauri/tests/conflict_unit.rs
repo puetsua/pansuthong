@@ -8,7 +8,6 @@ fn mk(id: &str, title: &str, done: bool) -> Task {
         done,
         due_date: None,
         scheduled_date: None,
-        priority: None,
         notes: String::new(),
         tag_ids: Vec::new(),
         created_at: 0,
