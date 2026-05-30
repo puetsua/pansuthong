@@ -9,7 +9,7 @@ use chrono::{Local, NaiveDate};
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 const STORE_CHANGED: &str = "store-changed";
 
@@ -330,4 +330,65 @@ pub fn dismiss_conflict(conflict_path: String, app: AppHandle, state: State<'_, 
     let path: PathBuf = state.path();
     let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
     Ok(())
+}
+
+#[derive(serde::Serialize)]
+pub struct DataLocation {
+    /// User-chosen folder, or null when using the default app-data dir.
+    pub folder: Option<String>,
+    /// The effective absolute tasks.json path in use right now.
+    pub effective_path: String,
+}
+
+fn default_data_dir(app: &AppHandle) -> Result<PathBuf> {
+    app.path()
+        .app_data_dir()
+        .map_err(|e| AppError::Invalid(format!("app_data_dir: {e}")))
+}
+
+#[tauri::command]
+pub fn get_data_location(state: State<'_, AppState>, app: AppHandle) -> Result<DataLocation> {
+    let cfg = crate::location::load(&default_data_dir(&app)?);
+    Ok(DataLocation {
+        folder: cfg.folder,
+        effective_path: state.path().to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn set_data_folder(
+    folder: String,
+    state: State<'_, AppState>,
+    watcher: State<'_, crate::sync::WatcherHandle>,
+    app: AppHandle,
+) -> Result<DataLocation> {
+    let folder_path = PathBuf::from(&folder);
+    if !folder_path.is_dir() {
+        return Err(AppError::Invalid(format!("not a folder: {folder}")));
+    }
+    let new_path = folder_path.join("tasks.json");
+    state.repoint(new_path.clone())?;
+    crate::location::save(
+        &default_data_dir(&app)?,
+        &crate::location::DataLocationConfig { folder: Some(folder) },
+    )?;
+    crate::sync::restart(&watcher, &app, new_path);
+    emit_changed(&app);
+    let _ = app.emit("conflicts-detected", &crate::sync::scan_conflict_files(&state.path()));
+    get_data_location(state, app.clone())
+}
+
+#[tauri::command]
+pub fn clear_data_folder(
+    state: State<'_, AppState>,
+    watcher: State<'_, crate::sync::WatcherHandle>,
+    app: AppHandle,
+) -> Result<DataLocation> {
+    let default_dir = default_data_dir(&app)?;
+    let new_path = default_dir.join("tasks.json");
+    state.repoint(new_path.clone())?;
+    crate::location::save(&default_dir, &crate::location::DataLocationConfig { folder: None })?;
+    crate::sync::restart(&watcher, &app, new_path);
+    emit_changed(&app);
+    get_data_location(state, app.clone())
 }

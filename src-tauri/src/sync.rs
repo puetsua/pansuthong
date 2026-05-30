@@ -70,6 +70,21 @@ fn process_change(app: &AppHandle, data_path: &Path) {
     }
 }
 
+use std::sync::Mutex;
+
+/// Managed wrapper so the watcher can be replaced when the data path changes.
+pub struct WatcherHandle(pub Mutex<Option<SyncHandle>>);
+
+/// Stop the current watcher (if any) and start a new one on `data_path`'s dir.
+pub fn restart(handle: &WatcherHandle, app: &AppHandle, data_path: PathBuf) {
+    let mut g = handle.0.lock().unwrap();
+    *g = None; // drop the old watcher + let its thread exit
+    match start(app.clone(), data_path) {
+        Ok(h) => { *g = Some(h); }
+        Err(e) => { eprintln!("warning: failed to restart watcher: {e}"); }
+    }
+}
+
 pub fn scan_conflict_files(data_path: &Path) -> Vec<String> {
     let parent = match data_path.parent() {
         Some(p) => p,

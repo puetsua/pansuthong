@@ -1,4 +1,6 @@
-import { api, Document } from "../lib/tauri";
+import { useEffect, useState } from "react";
+import { api, DataLocation, Document } from "../lib/tauri";
+import { isAndroid } from "../lib/platform";
 import { Indexes } from "../state/indexes";
 import { ProjectManager } from "./settings/ProjectManager";
 import { TagManager } from "./settings/TagManager";
@@ -8,6 +10,29 @@ type Props = { doc: Document; indexes: Indexes };
 export function SettingsView({ doc, indexes: _indexes }: Props) {
   const theme = doc.settings.theme;
   const setTheme = (t: "auto" | "light" | "dark") => { void api.updateSettings({ theme: t }); };
+
+  const [android, setAndroid] = useState(false);
+  const [loc, setLoc] = useState<DataLocation | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => { void isAndroid().then(setAndroid); }, []);
+  useEffect(() => { void api.getDataLocation().then(setLoc).catch(() => {}); }, []);
+
+  const pick = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const next = await api.pickAndSetDataFolder();
+      if (next) setLoc(next);
+    } catch (e) { setErr(String(e)); }
+    finally { setBusy(false); }
+  };
+  const reset = async () => {
+    setBusy(true); setErr(null);
+    try { setLoc(await api.clearDataFolder()); }
+    catch (e) { setErr(String(e)); }
+    finally { setBusy(false); }
+  };
 
   return (
     <section>
@@ -36,12 +61,27 @@ export function SettingsView({ doc, indexes: _indexes }: Props) {
       <section className="settings-section">
         <h2>Data file</h2>
         <p className="view-sub">
-          Tasks persist to:&nbsp;
-          <code>{doc.settings.data_file ?? "(default app data directory)"}</code>
+          Tasks persist to: <code>{loc?.effective_path ?? "…"}</code>
         </p>
-        <p className="view-sub">
-          Custom paths come in Phase 2-sync. Use the default location for now.
-        </p>
+        {android ? (
+          <p className="view-sub">
+            On Android, use the in-app sync folder (Android storage access), not this picker.
+          </p>
+        ) : (
+          <>
+            <p className="view-sub">
+              Point this at a Syncthing-managed folder to sync across devices. On first link it
+              adopts that folder's <code>tasks.json</code> if present, otherwise it seeds it.
+            </p>
+            <div className="theme-options">
+              <button className="theme-option" disabled={busy} onClick={pick}>Choose folder…</button>
+              {loc?.folder && (
+                <button className="theme-option" disabled={busy} onClick={reset}>Use default location</button>
+              )}
+            </div>
+            {err && <p className="view-sub" style={{ color: "var(--c-danger)" }}>{err}</p>}
+          </>
+        )}
       </section>
     </section>
   );
