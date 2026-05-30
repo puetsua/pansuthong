@@ -57,9 +57,19 @@ function parseDateWord(word: string, todayIso: string): string | undefined {
     return today.add(delta, "day").format("YYYY-MM-DD");
   }
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(w)) {
-    const d = dayjs(w, "YYYY-MM-DD");
-    if (d.isValid()) return w;
+  const iso = w.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const y = parseInt(iso[1], 10);
+    const m = parseInt(iso[2], 10);
+    const d = parseInt(iso[3], 10);
+    // Explicit calendar validation. `dayjs(w, "YYYY-MM-DD")` is a no-op without
+    // the customParseFormat plugin, so it can't reject e.g. 2026-13-05 / 2026-02-30.
+    // A native Date round-trips only for real dates (overflow rolls the fields).
+    const dt = new Date(y, m - 1, d);
+    if (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) {
+      return w;
+    }
+    return undefined;
   }
   const md = w.match(/^(\d{1,2})\/(\d{1,2})$/);
   if (md) {

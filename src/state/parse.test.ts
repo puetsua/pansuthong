@@ -75,4 +75,16 @@ describe("parseComposer", () => {
     expect(parseComposer("Task due 12/31", TODAY).due_date).toBe("2026-12-31");
     expect(parseComposer("Task due 1/1",   TODAY).due_date).toBe("2026-01-01");
   });
+
+  it("accepts a valid YYYY-MM-DD literal", () => {
+    expect(parseComposer("Task due 2026-02-28", TODAY).due_date).toBe("2026-02-28");
+  });
+
+  it("rejects an out-of-range YYYY-MM-DD literal", () => {
+    // month 13 and Feb 30 are not real dates; the shape-only regex must not
+    // accept them (the dayjs format arg is a no-op without customParseFormat)
+    expect(parseComposer("Task due 2026-13-05", TODAY).due_date).toBeUndefined();
+    expect(parseComposer("Task due 2026-13-05", TODAY).title).toBe("Task due 2026-13-05");
+    expect(parseComposer("Task due 2026-02-30", TODAY).due_date).toBeUndefined();
+  });
 });

@@ -68,7 +68,11 @@ pub fn run() {
                 use tauri::{WebviewUrl, WebviewWindowBuilder};
                 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
-                WebviewWindowBuilder::new(
+                // Quick capture is a convenience, not core. If its window can't be
+                // built or the Ctrl+Shift+N hotkey can't be registered (e.g. another
+                // app already owns it), log and carry on so the main app still
+                // launches instead of aborting startup (#29).
+                let quick_capture = WebviewWindowBuilder::new(
                     app,
                     "quick-capture",
                     WebviewUrl::App("quick-capture.html".into()),
@@ -81,10 +85,18 @@ pub fn run() {
                 .skip_taskbar(true)
                 .resizable(false)
                 .center()
-                .build()?;
+                .build();
 
-                let hotkey = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyN);
-                app.global_shortcut().register(hotkey)?;
+                match quick_capture {
+                    Ok(_) => {
+                        let hotkey =
+                            Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyN);
+                        if let Err(e) = app.global_shortcut().register(hotkey) {
+                            eprintln!("warning: quick-capture shortcut unavailable: {e}");
+                        }
+                    }
+                    Err(e) => eprintln!("warning: quick-capture window unavailable: {e}"),
+                }
             }
 
             Ok(())
