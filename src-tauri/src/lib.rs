@@ -40,24 +40,25 @@ pub fn run() {
 
     builder
         .setup(|app| {
-            let data_dir = app
+            let default_dir = app
                 .path()
                 .app_data_dir()
                 .expect("app_data_dir resolvable");
-            std::fs::create_dir_all(&data_dir).expect("create app data dir");
-            let path = data_dir.join("tasks.json");
+            std::fs::create_dir_all(&default_dir).expect("create app data dir");
+            // Effective path honours a device-local custom folder, if set.
+            let path = crate::location::resolve_data_path(&default_dir);
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
             let state = AppState::open(path.clone()).expect("open store");
             app.manage(state);
 
             let handle = app.handle().clone();
-            match crate::sync::start(handle, path) {
-                Ok(sync_handle) => {
-                    app.manage(sync_handle);
-                }
-                Err(e) => {
-                    eprintln!("warning: filesystem watcher failed to start: {e}");
-                }
+            let sync_handle = crate::sync::start(handle, path).ok();
+            if sync_handle.is_none() {
+                eprintln!("warning: filesystem watcher failed to start");
             }
+            app.manage(crate::sync::WatcherHandle(std::sync::Mutex::new(sync_handle)));
 
             // Desktop quick-capture: a hidden, always-on-top window the global
             // shortcut shows. Created here (not in tauri.conf.json) so it never
