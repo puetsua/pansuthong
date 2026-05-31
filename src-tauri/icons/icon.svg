@@ -1,6 +1,6 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pansutong">
   <defs>
-    <!-- indigo -> deep violet tile, nods to the gold+purple identity -->
+    <!-- indigo -> deep violet tile: the gold+purple identity -->
     <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#5B53F0"/>
       <stop offset="1" stop-color="#4326B0"/>
@@ -10,11 +10,11 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.20"/>
       <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <!-- golden leaf shaped like a quill pen: the "life" + the "writing/tracking" -->
-    <linearGradient id="leaf" x1="0.12" y1="1" x2="0.9" y2="0">
-      <stop offset="0" stop-color="#EA8C0B"/>
-      <stop offset="0.45" stop-color="#FBBF24"/>
-      <stop offset="1" stop-color="#FDE68A"/>
+    <!-- golden star fill -->
+    <linearGradient id="gold" x1="0.15" y1="0.05" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#FDE68A"/>
+      <stop offset="0.5" stop-color="#FBBF24"/>
+      <stop offset="1" stop-color="#EA8C0B"/>
     </linearGradient>
   </defs>
 
@@ -22,19 +22,14 @@
   <rect width="512" height="512" rx="114" fill="url(#tile)"/>
   <rect width="512" height="512" rx="114" fill="url(#sheen)"/>
 
-  <!-- Empty white checkbox (the "task"), equidistant from the bottom & right edges
-       (margin 64, size 118). The leaf nib rests on top of it. -->
-  <rect x="330" y="330" width="118" height="118" rx="30.68" fill="#FFFFFF"/>
+  <!-- Gold 5-pointed star, centered (cx=256 cy=262, R=180 r=74) -->
+  <path d="M256 82
+    L298.5 199.9 L427.2 202.5 L324.5 280.6 L361.8 401.6
+    L256 332.4 L150.2 401.6 L187.5 280.6 L84.8 202.5 L213.5 199.9 Z"
+    fill="url(#gold)" stroke="#B45309" stroke-width="6" stroke-linejoin="round"/>
 
-  <!-- Golden quill-leaf on top, tilted -45deg: nib at lower-right (over the box),
-       feather body sweeping up to the upper-left. Drawn last so the nib overlaps the box. -->
-  <g transform="translate(398 374) rotate(-45)">
-    <path d="M0 0
-      C 31.5 -88, 99.75 -184.8, 105 -290.4
-      C 107.1 -378.4, 52.5 -440, 0 -440
-      C -52.5 -440, -107.1 -378.4, -105 -290.4
-      C -99.75 -184.8, -31.5 -88, 0 0 Z" fill="url(#leaf)"/>
-    <!-- central ink-slit / midrib -->
-    <path d="M0 -26.4 L0 -272.8" stroke="#B45309" stroke-width="11" opacity="0.5" fill="none" stroke-linecap="round"/>
-  </g>
+  <!-- Purple checkmark nested in the star body -->
+  <path d="M206 262 L242 302 L320 214"
+    fill="none" stroke="#4326B0" stroke-width="30"
+    stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
