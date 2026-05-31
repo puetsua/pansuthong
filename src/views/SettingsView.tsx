@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, DataLocation, Document } from "../lib/tauri";
+import { api, DataLocation, Document, SyncStatus } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { isAndroid } from "../lib/platform";
 import { clampUpcomingDays, upcomingDays, UPCOMING_DAYS_MAX, UPCOMING_DAYS_MIN } from "../lib/settings";
@@ -38,11 +38,13 @@ export function SettingsView({ doc }: Props) {
 
   const [android, setAndroid] = useState(false);
   const [loc, setLoc] = useState<DataLocation | null>(null);
+  const [sync, setSync] = useState<SyncStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => { void isAndroid().then(setAndroid); }, []);
   useEffect(() => { void api.getDataLocation().then(setLoc).catch(() => {}); }, []);
+  useEffect(() => { if (android) void api.safStatus().then(setSync).catch(() => {}); }, [android]);
 
   const pick = async () => {
     setBusy(true); setErr(null);
@@ -55,6 +57,26 @@ export function SettingsView({ doc }: Props) {
   const reset = async () => {
     setBusy(true); setErr(null);
     try { setLoc(await api.clearDataFolder()); }
+    catch (e) { setErr(errorMessage(e)); }
+    finally { setBusy(false); }
+  };
+
+  // Android SAF folder sync (#Phase 4B).
+  const pickSaf = async () => {
+    setBusy(true); setErr(null);
+    try { setSync(await api.safPickFolder()); }
+    catch (e) { setErr(errorMessage(e)); }
+    finally { setBusy(false); }
+  };
+  const syncNowSaf = async () => {
+    setBusy(true); setErr(null);
+    try { setSync(await api.safSyncNow()); }
+    catch (e) { setErr(errorMessage(e)); }
+    finally { setBusy(false); }
+  };
+  const unlinkSaf = async () => {
+    setBusy(true); setErr(null);
+    try { await api.safClearFolder(); setSync(await api.safStatus()); }
     catch (e) { setErr(errorMessage(e)); }
     finally { setBusy(false); }
   };
@@ -136,9 +158,35 @@ export function SettingsView({ doc }: Props) {
           Tasks persist to: <code>{loc?.effective_path ?? "…"}</code>
         </p>
         {android ? (
-          <p className="view-sub">
-            On Android, use the in-app sync folder (Android storage access), not this picker.
-          </p>
+          sync?.linked ? (
+            <>
+              <p className="view-sub">
+                Synced folder: <code>{sync.folder_label ?? "(linked)"}</code>
+                {!sync.permission_ok && " — access lost, re-pick the folder"}
+              </p>
+              <p className="view-sub">
+                {sync.last_synced_ms
+                  ? `Last synced ${new Date(sync.last_synced_ms).toLocaleString()}`
+                  : "Not synced yet"}
+                {sync.conflict_count > 0 && ` · ${sync.conflict_count} conflict(s)`}
+                {sync.last_error && ` · error: ${sync.last_error}`}
+              </p>
+              <div className="theme-options">
+                <button className="theme-option" disabled={busy} onClick={syncNowSaf}>Sync now</button>
+                <button className="theme-option" disabled={busy} onClick={pickSaf}>Change folder…</button>
+                <button className="theme-option" disabled={busy} onClick={unlinkSaf}>Unlink</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="view-sub">
+                Pick a Syncthing- or Drive-synced folder to keep tasks in sync across devices. On
+                first link it adopts that folder's <code>tasks.json</code> if present, otherwise it
+                seeds it.
+              </p>
+              <button className="theme-option" disabled={busy} onClick={pickSaf}>Pick folder…</button>
+            </>
+          )
         ) : (
           <>
             <p className="view-sub">
@@ -151,9 +199,9 @@ export function SettingsView({ doc }: Props) {
                 <button className="theme-option" disabled={busy} onClick={reset}>Use default location</button>
               )}
             </div>
-            {err && <p className="view-sub" style={{ color: "var(--c-danger)" }}>{err}</p>}
           </>
         )}
+        {err && <p className="view-sub" style={{ color: "var(--c-danger)" }}>{err}</p>}
       </section>
     </section>
   );
