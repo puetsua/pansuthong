@@ -52,7 +52,7 @@ pub fn push_out(
     backend: &dyn SafBackend,
     last_synced_hash: Option<[u8; 32]>,
 ) -> Result<Option<[u8; 32]>> {
-    let bytes = state.read(|d| serde_json::to_vec_pretty(d))?;
+    let bytes = state.read(serde_json::to_vec_pretty)?;
     let h = sha256(&bytes);
     if Some(h) == last_synced_hash {
         return Ok(None);
