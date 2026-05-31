@@ -65,6 +65,22 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
     };
   }, []);
 
+  // While the editor is open, make the rest of the app inert so assistive tech
+  // (and pointer/focus) can't reach the background behind the dialog. The modal is
+  // portaled to document.body — a sibling of #root — so #root can be inert without
+  // affecting the dialog. aria-hidden is a fallback for any WebView lacking `inert`
+  // support; both are cleared on unmount (#43).
+  useEffect(() => {
+    const root = document.getElementById("root");
+    if (!root) return;
+    root.setAttribute("inert", "");
+    root.setAttribute("aria-hidden", "true");
+    return () => {
+      root.removeAttribute("inert");
+      root.removeAttribute("aria-hidden");
+    };
+  }, []);
+
   const set = <K extends keyof EditorForm>(k: K, v: EditorForm[K]) =>
     setForm(f => ({ ...f, [k]: v }));
 
@@ -122,8 +138,19 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
     }
   };
 
+  // Clicking the dimmed backdrop auto-saves rather than prompting to discard:
+  // commit the edits like Save would, then close. If the form is invalid, save()
+  // surfaces the error and keeps the modal open instead of losing the edits; if
+  // nothing changed, just close (no redundant write). Escape and Cancel still use
+  // requestClose, so an explicit discard path remains (#66).
+  const saveOnBackdrop = () => {
+    if (busy) return;
+    if (isDirty()) void save();
+    else onClose();
+  };
+
   return createPortal(
-    <div className="modal-backdrop" onClick={requestClose}>
+    <div className="modal-backdrop" onClick={saveOnBackdrop}>
       <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true" aria-label="Edit task"
            onClick={e => e.stopPropagation()}>
         <label className="te-field">

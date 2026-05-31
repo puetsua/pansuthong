@@ -108,3 +108,63 @@ describe("TaskEditor date validation (#51)", () => {
     expect(button("Save").disabled).toBe(true);
   });
 });
+
+const backdrop = () => document.querySelector(".modal-backdrop") as HTMLElement;
+
+describe("TaskEditor backdrop auto-save (#66)", () => {
+  it("saves the edits and closes when the dirty form is valid", async () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Edited title" } });
+    fireEvent.click(backdrop());
+
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "k_1", title: "Edited title" }),
+      ),
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("keeps the modal open and shows the error when the title is empty", async () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "" } });
+    fireEvent.click(backdrop());
+
+    expect(screen.getByText(/title can.?t be empty/i)).toBeTruthy();
+    expect(api.updateTask).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes without saving when nothing changed", () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.click(backdrop());
+
+    expect(api.updateTask).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("TaskEditor inert background (#43)", () => {
+  it("marks #root inert + aria-hidden while open and clears it on close", () => {
+    const root = document.createElement("div");
+    root.id = "root";
+    document.body.appendChild(root);
+    try {
+      const { unmount } = render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+      expect(root.hasAttribute("inert")).toBe(true);
+      expect(root.getAttribute("aria-hidden")).toBe("true");
+
+      unmount();
+      expect(root.hasAttribute("inert")).toBe(false);
+      expect(root.hasAttribute("aria-hidden")).toBe(false);
+    } finally {
+      root.remove();
+    }
+  });
+});
