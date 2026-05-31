@@ -591,6 +591,15 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 }
 .te-tag.on { opacity: 1; font-weight: 600; }
 .te-empty { font-size: 0.8rem; color: var(--c-text-muted); }
+/* Add-tag affordance + on-demand picker (#24): the task's own tags show by
+   default; "Add tag" reveals the remaining tags below a divider. */
+.te-tag.te-add-tag, .te-tag.te-add-done { opacity: 1; color: var(--c-accent); border-color: var(--c-accent); }
+.te-tag-picker {
+  display: flex; flex-wrap: wrap; gap: var(--space-1);
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--c-border);
+}
 .te-actions { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
 .te-spacer { flex: 1; }
 .te-delete { color: var(--c-danger); }
