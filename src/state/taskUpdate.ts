@@ -74,3 +74,32 @@ export function isEditorDirty(form: EditorForm, initial: EditorForm): boolean {
 export function dueBeforeScheduled(form: Pick<EditorForm, "scheduled_date" | "due_date">): boolean {
   return !!form.scheduled_date && !!form.due_date && form.due_date < form.scheduled_date;
 }
+
+/** Upper bound for a template's relative date offset; mirrors the Rust
+ * OFFSET_DAYS_MAX in commands.rs (#71). */
+export const OFFSET_DAYS_MAX = 3650;
+
+/**
+ * Validation message for a template's offset inputs, or null when valid. Bounds each
+ * offset to 0..=OFFSET_DAYS_MAX and mirrors the #51 due-before-scheduled guard for
+ * relative offsets, so a template can't silently spawn out-of-range or
+ * due-before-scheduled tasks. Empty inputs are "no offset" and always valid.
+ */
+export function offsetFormError(
+  form: Pick<EditorForm, "due_offset_days" | "scheduled_offset_days">,
+): string | null {
+  for (const [label, raw] of [["Scheduled", form.scheduled_offset_days], ["Due", form.due_offset_days]] as const) {
+    const t = raw.trim();
+    if (t === "") continue;
+    const n = Number(t);
+    if (!Number.isInteger(n) || n < 0 || n > OFFSET_DAYS_MAX) {
+      return `${label} offset must be a whole number of days between 0 and ${OFFSET_DAYS_MAX}.`;
+    }
+  }
+  const s = form.scheduled_offset_days.trim();
+  const d = form.due_offset_days.trim();
+  if (s !== "" && d !== "" && Number(d) < Number(s)) {
+    return "Due offset can't be before the scheduled offset.";
+  }
+  return null;
+}

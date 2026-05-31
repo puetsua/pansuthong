@@ -114,10 +114,33 @@ pub struct CreateFromTemplateInput {
     pub template_id: String,
 }
 
-/// Instantiate a fresh, independent task from a template: copy title/notes/tag_ids
+/// Build the fresh, independent task a template spawns: copy title/notes/tag_ids
 /// and resolve the template's relative offsets into absolute dates (today + offset).
-/// The new task is an ordinary task (is_template = false, no offsets), so editing or
-/// completing it never affects the template (#71).
+/// The result is an ordinary task — is_template = false with no offsets — so editing
+/// or completing it never affects the template (#71). Pure over (tpl, today, ts) so
+/// the instantiation invariants are unit-testable without a Tauri State.
+fn instantiate_template(tpl: &Task, today: NaiveDate, ts: i64) -> Task {
+    Task {
+        id: new_task_id(),
+        title: tpl.title.clone(),
+        done: false,
+        due_date: date_from_offset(today, tpl.due_offset_days),
+        scheduled_date: date_from_offset(today, tpl.scheduled_offset_days),
+        notes: tpl.notes.clone(),
+        // The template's tag_ids were filtered to known tags when it was saved.
+        tag_ids: tpl.tag_ids.clone(),
+        created_at: ts,
+        completed_at: None,
+        updated_at: ts,
+        archived: false,
+        archived_at: None,
+        is_template: false,
+        due_offset_days: None,
+        scheduled_offset_days: None,
+    }
+}
+
+/// Instantiate a fresh, independent task from a template (see `instantiate_template`).
 #[tauri::command]
 pub fn create_task_from_template(
     input: CreateFromTemplateInput,
@@ -132,24 +155,7 @@ pub fn create_task_from_template(
             .iter()
             .find(|t| t.id == input.template_id && t.is_template)
             .ok_or_else(|| AppError::NotFound(format!("template {}", input.template_id)))?;
-        let task = Task {
-            id: new_task_id(),
-            title: tpl.title.clone(),
-            done: false,
-            due_date: date_from_offset(today, tpl.due_offset_days),
-            scheduled_date: date_from_offset(today, tpl.scheduled_offset_days),
-            notes: tpl.notes.clone(),
-            // The template's tag_ids were filtered to known tags when it was saved.
-            tag_ids: tpl.tag_ids.clone(),
-            created_at: ts,
-            completed_at: None,
-            updated_at: ts,
-            archived: false,
-            archived_at: None,
-            is_template: false,
-            due_offset_days: None,
-            scheduled_offset_days: None,
-        };
+        let task = instantiate_template(tpl, today, ts);
         d.tasks.push(task.clone());
         Ok(task)
     })?;
@@ -682,5 +688,50 @@ mod tests {
             date_from_offset(today, Some(i64::MAX)),
             Some(today + Duration::days(OFFSET_DAYS_MAX))
         );
+    }
+
+    fn template(id: &str) -> Task {
+        Task {
+            id: id.into(), title: "Weekly report".into(), done: false,
+            due_date: None, scheduled_date: None, notes: "agenda".into(),
+            tag_ids: vec!["t_work".into()], created_at: 1, completed_at: None, updated_at: 1,
+            archived: false, archived_at: None,
+            is_template: true, due_offset_days: Some(3), scheduled_offset_days: Some(0),
+        }
+    }
+
+    #[test]
+    fn instantiate_template_spawns_independent_task_with_resolved_dates() {
+        let today = NaiveDate::from_ymd_opt(2026, 5, 31).unwrap();
+        let t = instantiate_template(&template("k_tmpl"), today, 999);
+
+        // The spawned task is an ordinary task, never itself a template (else it
+        // would vanish from every active view).
+        assert!(!t.is_template);
+        assert_eq!(t.due_offset_days, None);
+        assert_eq!(t.scheduled_offset_days, None);
+        assert_ne!(t.id, "k_tmpl");
+        // Copies title / notes / tags.
+        assert_eq!(t.title, "Weekly report");
+        assert_eq!(t.notes, "agenda");
+        assert_eq!(t.tag_ids, vec!["t_work".to_string()]);
+        // Relative offsets resolved to absolute dates (today + offset).
+        assert_eq!(t.scheduled_date, Some(today));
+        assert_eq!(t.due_date, Some(NaiveDate::from_ymd_opt(2026, 6, 3).unwrap()));
+        // Stamped fresh, not done/archived.
+        assert!(!t.done && !t.archived);
+        assert_eq!(t.created_at, 999);
+        assert_eq!(t.updated_at, 999);
+    }
+
+    #[test]
+    fn instantiate_template_without_offsets_leaves_dates_unset() {
+        let today = NaiveDate::from_ymd_opt(2026, 5, 31).unwrap();
+        let mut tpl = template("k_tmpl");
+        tpl.due_offset_days = None;
+        tpl.scheduled_offset_days = None;
+        let t = instantiate_template(&tpl, today, 0);
+        assert_eq!(t.due_date, None);
+        assert_eq!(t.scheduled_date, None);
     }
 }

@@ -179,6 +179,16 @@ describe("TaskEditor template mode (#71)", () => {
     );
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
+
+  it("blocks Save when the due offset precedes the scheduled offset (#71 mirrors #51)", () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: /save as template/i }));
+    fireEvent.change(screen.getByLabelText(/scheduled in \(days\)/i), { target: { value: "10" } });
+    fireEvent.change(screen.getByLabelText(/due in \(days\)/i), { target: { value: "3" } });
+
+    expect(screen.getByText(/due offset can.?t be before/i)).toBeTruthy();
+    expect(button("Save").disabled).toBe(true);
+  });
 });
 
 describe("TaskEditor inert background (#43)", () => {

@@ -4,6 +4,7 @@ import {
   dueBeforeScheduled,
   EditorForm,
   isEditorDirty,
+  offsetFormError,
   sameTagSet,
 } from "./taskUpdate";
 
@@ -91,6 +92,22 @@ describe("isEditorDirty (#51)", () => {
   it("a real field change is dirty", () => {
     expect(isEditorDirty({ ...base, title: "changed" }, base)).toBe(true);
     expect(isEditorDirty({ ...base, tag_ids: ["a"] }, base)).toBe(true);
+  });
+});
+
+describe("offsetFormError (#71)", () => {
+  it("accepts empty and in-range offsets", () => {
+    expect(offsetFormError({ scheduled_offset_days: "", due_offset_days: "" })).toBeNull();
+    expect(offsetFormError({ scheduled_offset_days: "0", due_offset_days: "3" })).toBeNull();
+    expect(offsetFormError({ scheduled_offset_days: "", due_offset_days: "3650" })).toBeNull();
+  });
+  it("rejects out-of-range or non-integer offsets", () => {
+    expect(offsetFormError({ scheduled_offset_days: "-1", due_offset_days: "" })).toMatch(/between 0 and 3650/i);
+    expect(offsetFormError({ scheduled_offset_days: "", due_offset_days: "9999" })).toMatch(/between 0 and 3650/i);
+    expect(offsetFormError({ scheduled_offset_days: "", due_offset_days: "1.5" })).toMatch(/whole number/i);
+  });
+  it("rejects a due offset earlier than the scheduled offset (mirrors #51)", () => {
+    expect(offsetFormError({ scheduled_offset_days: "10", due_offset_days: "3" })).toMatch(/due offset can.?t be before/i);
   });
 });
 

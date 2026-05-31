@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, Tag, Task } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { buildTaskUpdate, dueBeforeScheduled, EditorForm, isEditorDirty } from "../state/taskUpdate";
+import { buildTaskUpdate, dueBeforeScheduled, EditorForm, isEditorDirty, offsetFormError } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { TagInput } from "./TagInput";
 
@@ -106,10 +106,15 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
   const dateError = !form.is_template && dueBeforeScheduled(form)
     ? "Due date can't be before the scheduled date."
     : null;
+  // Templates use relative offsets instead of absolute dates; validate them (range
+  // and due-before-scheduled ordering) the same way #51 validates dates, so a
+  // template can't silently spawn invalid tasks on every instantiation (#71).
+  const offsetError = form.is_template ? offsetFormError(form) : null;
 
   const save = async () => {
     if (!form.title.trim()) { setError("Title can't be empty."); return; }
     if (dateError) { setError(dateError); return; }
+    if (offsetError) { setError(offsetError); return; }
     setBusy(true);
     try {
       // Create any tags the user typed but didn't pick from the list, then fold
@@ -171,20 +176,23 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
         </label>
 
         {form.is_template ? (
-          <div className="te-row">
-            <label className="te-field">
-              <span>Scheduled in (days)</span>
-              <input type="number" min={0} max={3650} inputMode="numeric" placeholder="—"
-                     value={form.scheduled_offset_days}
-                     onChange={e => set("scheduled_offset_days", e.currentTarget.value)} />
-            </label>
-            <label className="te-field">
-              <span>Due in (days)</span>
-              <input type="number" min={0} max={3650} inputMode="numeric" placeholder="—"
-                     value={form.due_offset_days}
-                     onChange={e => set("due_offset_days", e.currentTarget.value)} />
-            </label>
-          </div>
+          <>
+            <div className="te-row">
+              <label className="te-field">
+                <span>Scheduled in (days)</span>
+                <input type="number" min={0} max={3650} inputMode="numeric" placeholder="—"
+                       value={form.scheduled_offset_days}
+                       onChange={e => set("scheduled_offset_days", e.currentTarget.value)} />
+              </label>
+              <label className="te-field">
+                <span>Due in (days)</span>
+                <input type="number" min={0} max={3650} inputMode="numeric" placeholder="—"
+                       value={form.due_offset_days}
+                       onChange={e => set("due_offset_days", e.currentTarget.value)} />
+              </label>
+            </div>
+            {offsetError && <p className="te-warn" role="alert">{offsetError}</p>}
+          </>
         ) : (
           <>
             <div className="te-row">
@@ -229,7 +237,7 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
           <span className="te-spacer" />
           <button type="button" onClick={requestClose} disabled={busy}>Cancel</button>
           <button type="button" className="te-save" onClick={save}
-                  disabled={busy || !form.title.trim() || !!dateError}>Save</button>
+                  disabled={busy || !form.title.trim() || !!dateError || !!offsetError}>Save</button>
         </div>
       </div>
     </div>,

@@ -91,8 +91,9 @@ pub struct Task {
     pub archived_at: Option<i64>,
     /// A template is a reusable blueprint, not real work to do. It lives in the
     /// `tasks` Vec (templates serve the task center rather than competing with it)
-    /// but is excluded from every active view (Today/Inbox/tag/Upcoming) and from
-    /// search, exactly like `archived`. New tasks are spawned from it via
+    /// but is excluded from every active view (Today/Inbox/tag/Upcoming) exactly
+    /// like `archived`, and additionally from search (unlike archived tasks, which
+    /// stay searchable). New tasks are spawned from it via
     /// `create_task_from_template`. `#[serde(default)]` = false for older files.
     #[serde(default)]
     pub is_template: bool,
