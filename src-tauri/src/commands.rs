@@ -7,7 +7,7 @@ use crate::store::AppState;
 use crate::sync::scan_conflict_files;
 use chrono::{Local, NaiveDate};
 use serde::{Deserialize, Deserializer};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 const STORE_CHANGED: &str = "store-changed";
@@ -297,9 +297,40 @@ pub fn list_conflicts(state: State<'_, AppState>) -> Vec<String> {
     scan_conflict_files(&path)
 }
 
+/// Reject any conflict path the UI didn't get from `list_conflicts`. A valid path
+/// must live directly in the data dir (same parent as the data file) and match the
+/// conflict-file naming pattern `scan_conflict_files` recognizes (see sync.rs).
+/// Without this, these commands would `std::fs::read` / `remove_file` an arbitrary
+/// caller-supplied path; a frontend bug could then touch an unrelated file (#49).
+fn validate_conflict_path(candidate: &str, data_path: &Path) -> Result<PathBuf> {
+    let candidate = Path::new(candidate);
+    let data_dir = data_path
+        .parent()
+        .ok_or_else(|| AppError::Invalid("data path has no parent".into()))?;
+    // Parent must be the data dir. Plain PathBuf equality, not canonicalize:
+    // legitimate paths are echoed verbatim from list_conflicts, and a `..`/other-dir
+    // path simply won't match (fail-safe) — canonicalize would also break on a
+    // stale entry and add a Windows `\\?\` prefix mismatch.
+    match candidate.parent() {
+        Some(p) if p == data_dir => {}
+        _ => return Err(AppError::Invalid("conflict path is not in the data directory".into())),
+    }
+    let name = candidate
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| AppError::Invalid("conflict path has no file name".into()))?;
+    let stem = data_path.file_stem().and_then(|s| s.to_str()).unwrap_or("tasks");
+    let data_file_name = data_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    if !crate::sync::is_conflict_file_name(name, stem, data_file_name) {
+        return Err(AppError::Invalid("not a recognized conflict file".into()));
+    }
+    Ok(candidate.to_path_buf())
+}
+
 #[tauri::command]
 pub fn read_conflict(conflict_path: String, state: State<'_, AppState>) -> Result<Vec<TaskDiff>> {
-    let bytes = std::fs::read(&conflict_path)?;
+    let path = validate_conflict_path(&conflict_path, &state.path())?;
+    let bytes = std::fs::read(&path)?;
     let theirs: crate::model::Document = serde_json::from_slice(&bytes)?;
     let diffs = state.read(|d| diff_tasks(d, &theirs));
     Ok(diffs)
@@ -317,7 +348,8 @@ pub fn resolve_conflict(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<()> {
-    let bytes = std::fs::read(&input.conflict_path)?;
+    let path = validate_conflict_path(&input.conflict_path, &state.path())?;
+    let bytes = std::fs::read(&path)?;
     let theirs: crate::model::Document = serde_json::from_slice(&bytes)?;
     state.write(|d| {
         let new_tasks = apply_decisions(d, &theirs, &input.decisions);
@@ -327,18 +359,19 @@ pub fn resolve_conflict(
         d.tags.extend(added_tags);
         Ok(())
     })?;
-    let _ = std::fs::remove_file(&input.conflict_path);
+    let _ = std::fs::remove_file(&path);
     emit_changed(&app);
-    let path: PathBuf = state.path();
-    let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
+    let data_path: PathBuf = state.path();
+    let _ = app.emit("conflicts-detected", &scan_conflict_files(&data_path));
     Ok(())
 }
 
 #[tauri::command]
 pub fn dismiss_conflict(conflict_path: String, app: AppHandle, state: State<'_, AppState>) -> Result<()> {
-    let _ = std::fs::remove_file(&conflict_path);
-    let path: PathBuf = state.path();
-    let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
+    let path = validate_conflict_path(&conflict_path, &state.path())?;
+    let _ = std::fs::remove_file(&path);
+    let data_path: PathBuf = state.path();
+    let _ = app.emit("conflicts-detected", &scan_conflict_files(&data_path));
     Ok(())
 }
 
@@ -479,5 +512,41 @@ mod tests {
         assert_eq!(v.upcoming_days, Some(30));
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.upcoming_days, None);
+    }
+
+    #[test]
+    fn validate_conflict_path_accepts_a_scanner_named_file_in_the_data_dir() {
+        let data = Path::new("/data/tasks.json");
+        // Matches store.rs's `{stem}.conflict-local-{ms}.json` shape.
+        assert!(validate_conflict_path("/data/tasks.conflict-local-123.json", data).is_ok());
+        // And a cloud-sync sibling the scanner would also surface.
+        assert!(validate_conflict_path("/data/tasks.sync-conflict-1.json", data).is_ok());
+    }
+
+    #[test]
+    fn validate_conflict_path_rejects_a_path_outside_the_data_dir() {
+        let data = Path::new("/data/tasks.json");
+        assert!(validate_conflict_path("/etc/passwd", data).is_err());
+        // Right name, wrong directory.
+        assert!(validate_conflict_path("/other/tasks.conflict-local-1.json", data).is_err());
+        // A `..` escape resolves to a different parent, so it's rejected.
+        assert!(validate_conflict_path("/data/sub/../tasks.conflict-local-1.json", data).is_err());
+    }
+
+    #[test]
+    fn validate_conflict_path_rejects_the_data_file_and_non_conflict_siblings() {
+        let data = Path::new("/data/tasks.json");
+        assert!(validate_conflict_path("/data/tasks.json", data).is_err());
+        assert!(validate_conflict_path("/data/notes.txt", data).is_err());
+        // Same dir + .json but neither mentions "conflict" nor starts with the stem.
+        assert!(validate_conflict_path("/data/random.json", data).is_err());
+    }
+
+    #[test]
+    fn validate_conflict_path_filename_match_is_case_insensitive() {
+        // Mirrors scan_conflict_files's lowercasing so a Windows-cased name isn't
+        // rejected when the scanner would have surfaced it.
+        let data = Path::new("/data/tasks.json");
+        assert!(validate_conflict_path("/data/Tasks.CONFLICT-local-1.JSON", data).is_ok());
     }
 }
