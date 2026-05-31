@@ -1,0 +1,148 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// Mock the IPC boundary so we can assert the exact command name and argument
+// shape each `api.*` wrapper sends. This is the most fragile cross-language seam:
+// a renamed command or a mis-cased arg key compiles fine but fails only at runtime (#42).
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
+
+import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
+import { api } from "./tauri";
+
+const invokeMock = vi.mocked(invoke);
+const openMock = vi.mocked(open);
+
+beforeEach(() => {
+  invokeMock.mockReset();
+  invokeMock.mockResolvedValue(undefined as never);
+  openMock.mockReset();
+});
+
+describe("api IPC wrappers — command names & arg keys", () => {
+  it("getDocument → get_document (no args)", async () => {
+    await api.getDocument();
+    expect(invokeMock).toHaveBeenCalledWith("get_document");
+  });
+
+  it("syncNow → sync_now", async () => {
+    await api.syncNow();
+    expect(invokeMock).toHaveBeenCalledWith("sync_now");
+  });
+
+  it("addTask wraps the payload under `input`", async () => {
+    await api.addTask({ title: "Buy milk" });
+    expect(invokeMock).toHaveBeenCalledWith("add_task", { input: { title: "Buy milk" } });
+  });
+
+  it("updateTask wraps the payload under `input`", async () => {
+    const input = { id: "k_1", title: "x", tag_ids: ["t_a"] };
+    await api.updateTask(input);
+    expect(invokeMock).toHaveBeenCalledWith("update_task", { input });
+  });
+
+  it("setTaskDone → set_task_done with camelCase-free scalar args", async () => {
+    await api.setTaskDone("k_1", true);
+    expect(invokeMock).toHaveBeenCalledWith("set_task_done", { id: "k_1", done: true });
+  });
+
+  it("setTaskArchived → set_task_archived { id, archived }", async () => {
+    await api.setTaskArchived("k_1", true);
+    expect(invokeMock).toHaveBeenCalledWith("set_task_archived", { id: "k_1", archived: true });
+  });
+
+  it("archiveCompleted → archive_completed (no args)", async () => {
+    await api.archiveCompleted();
+    expect(invokeMock).toHaveBeenCalledWith("archive_completed");
+  });
+
+  it("deleteTask → delete_task { id }", async () => {
+    await api.deleteTask("k_1");
+    expect(invokeMock).toHaveBeenCalledWith("delete_task", { id: "k_1" });
+  });
+
+  it("addTag wraps name/color/priority under `input`, defaulting priority to 0", async () => {
+    await api.addTag("work", "#fff");
+    expect(invokeMock).toHaveBeenCalledWith("add_tag", { input: { name: "work", color: "#fff", priority: 0 } });
+    await api.addTag("work", "#fff", 5);
+    expect(invokeMock).toHaveBeenCalledWith("add_tag", { input: { name: "work", color: "#fff", priority: 5 } });
+  });
+
+  it("deleteTag → delete_tag { id }", async () => {
+    await api.deleteTag("t_1");
+    expect(invokeMock).toHaveBeenCalledWith("delete_tag", { id: "t_1" });
+  });
+
+  it("parseComposer → parse_composer { input }", async () => {
+    await api.parseComposer("#work due fri Reply");
+    expect(invokeMock).toHaveBeenCalledWith("parse_composer", { input: "#work due fri Reply" });
+  });
+
+  it("searchTasks → search_tasks { query }", async () => {
+    await api.searchTasks("milk");
+    expect(invokeMock).toHaveBeenCalledWith("search_tasks", { query: "milk" });
+  });
+
+  it("updateTag wraps under `input`", async () => {
+    const input = { id: "t_1", name: "office", color: "#000", priority: 3 };
+    await api.updateTag(input);
+    expect(invokeMock).toHaveBeenCalledWith("update_tag", { input });
+  });
+
+  it("updateSettings wraps theme/sort_order/upcoming_days under `input`", async () => {
+    await api.updateSettings({ theme: "dark" });
+    expect(invokeMock).toHaveBeenCalledWith("update_settings", { input: { theme: "dark" } });
+    await api.updateSettings({ sort_order: "date" });
+    expect(invokeMock).toHaveBeenCalledWith("update_settings", { input: { sort_order: "date" } });
+    await api.updateSettings({ upcoming_days: 30 });
+    expect(invokeMock).toHaveBeenCalledWith("update_settings", { input: { upcoming_days: 30 } });
+  });
+
+  it("listConflicts → list_conflicts", async () => {
+    await api.listConflicts();
+    expect(invokeMock).toHaveBeenCalledWith("list_conflicts");
+  });
+
+  it("readConflict → read_conflict { conflictPath } (camelCase key)", async () => {
+    await api.readConflict("/p/x.json");
+    expect(invokeMock).toHaveBeenCalledWith("read_conflict", { conflictPath: "/p/x.json" });
+  });
+
+  it("resolveConflict → resolve_conflict { input: { conflict_path, decisions } } (snake_case inside input)", async () => {
+    const decisions = [{ action: "keep_mine", id: "k_1" }] as const;
+    await api.resolveConflict("/p/x.json", [...decisions]);
+    expect(invokeMock).toHaveBeenCalledWith("resolve_conflict", {
+      input: { conflict_path: "/p/x.json", decisions: [...decisions] },
+    });
+  });
+
+  it("dismissConflict → dismiss_conflict { conflictPath }", async () => {
+    await api.dismissConflict("/p/x.json");
+    expect(invokeMock).toHaveBeenCalledWith("dismiss_conflict", { conflictPath: "/p/x.json" });
+  });
+
+  it("getDataLocation → get_data_location", async () => {
+    await api.getDataLocation();
+    expect(invokeMock).toHaveBeenCalledWith("get_data_location");
+  });
+
+  it("clearDataFolder → clear_data_folder", async () => {
+    await api.clearDataFolder();
+    expect(invokeMock).toHaveBeenCalledWith("clear_data_folder");
+  });
+});
+
+describe("pickAndSetDataFolder", () => {
+  it("invokes set_data_folder with the chosen folder when a directory is picked", async () => {
+    openMock.mockResolvedValue("/home/me/sync");
+    await api.pickAndSetDataFolder();
+    expect(invokeMock).toHaveBeenCalledWith("set_data_folder", { folder: "/home/me/sync" });
+  });
+
+  it("returns null and never invokes when the picker is cancelled", async () => {
+    openMock.mockResolvedValue(null as never);
+    const result = await api.pickAndSetDataFolder();
+    expect(result).toBeNull();
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+});
