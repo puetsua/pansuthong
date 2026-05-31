@@ -441,9 +441,9 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 
 .mobile-shell {
   display: grid;
-  /* header, sync-status bar, scrollable main, bottom tabs — main takes the
-     stretch. (Was `auto 1fr auto` for 3 rows, which handed the 1fr to the
-     sync-status bar so it ballooned and left `main` unscrollable.) */
+  /* header, sync-status bar, scrollable main, bottom tabs — main takes the stretch.
+     (Was `auto 1fr auto` for 3 rows, which gave the 1fr to the sync-status bar and
+     ballooned it to fill the screen once SyncStatus was added as a 4th child.) */
   grid-template-rows: auto auto 1fr auto;
   height: 100%;
 }
@@ -495,6 +495,15 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 }
 .bottom-tab.active { color: var(--c-accent); font-weight: 600; }
 .bottom-tab-icon  { font-size: 1.1rem; line-height: 1; }
+/* Keep each label on one line so a long label (e.g. "Templates") can't wrap and
+   make one tab taller than the rest; clip with an ellipsis at the narrowest
+   widths rather than pushing the 5-tab bar wider than the viewport. */
+.bottom-tab-label {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .bottom-tab-badge {
   position: absolute;
   top: 4px;
@@ -595,6 +604,26 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .te-field > span { font-size: 0.72rem; color: var(--c-text-muted); font-weight: 600; }
 .te-row { display: flex; gap: var(--space-2); }
 .te-row .te-field { flex: 1; min-width: 0; }
+/* Task-editor "Options" menu (e.g. Save as template) and the success notice (#71). */
+.te-options { position: relative; }
+.te-options-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 12rem;
+  padding: var(--space-1);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+.te-options-menu button { text-align: left; padding: var(--space-2); border-radius: var(--radius-sm); }
+.te-options-menu button:hover:not(:disabled) { background: var(--c-accent-bg); }
+.te-options-menu button.te-menu-danger { color: var(--c-danger); }
+.te-notice { color: var(--c-accent); font-size: 0.8rem; margin: 0; }
 .te-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .te-tag {
   font-size: 0.75rem;

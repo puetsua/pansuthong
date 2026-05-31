@@ -9,6 +9,7 @@ vi.mock("../lib/tauri", async (importOriginal) => {
     ...actual,
     api: {
       updateTask: vi.fn().mockResolvedValue({}),
+      addTask: vi.fn().mockResolvedValue({}),
       deleteTask: vi.fn().mockResolvedValue(undefined),
       addTag: vi.fn((name: string, color: string) =>
         Promise.resolve({ id: `t_new_${name}`, name, color, priority: 0 })),
@@ -106,5 +107,134 @@ describe("TaskEditor date validation (#51)", () => {
 
     expect(screen.getByText(/can.?t be before the scheduled date/i)).toBeTruthy();
     expect(button("Save").disabled).toBe(true);
+  });
+});
+
+const backdrop = () => document.querySelector(".modal-backdrop") as HTMLElement;
+
+describe("TaskEditor backdrop auto-save (#66)", () => {
+  it("saves the edits and closes when the dirty form is valid", async () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Edited title" } });
+    fireEvent.click(backdrop());
+
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "k_1", title: "Edited title" }),
+      ),
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("keeps the modal open and shows the error when the title is empty", async () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "" } });
+    fireEvent.click(backdrop());
+
+    expect(screen.getByText(/title can.?t be empty/i)).toBeTruthy();
+    expect(api.updateTask).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes without saving when nothing changed", () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.click(backdrop());
+
+    expect(api.updateTask).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
+const templateTask: Task = { ...baseTask, is_template: true, scheduled_offset_days: 0, due_offset_days: 2 };
+
+describe("TaskEditor template editing (#71)", () => {
+  it("a template shows relative-offset inputs instead of absolute date pickers", () => {
+    render(<TaskEditor task={templateTask} allTags={tags} onClose={vi.fn()} />);
+    expect(screen.queryByLabelText("Scheduled")).toBeNull();
+    expect(screen.getByLabelText(/scheduled in \(days\)/i)).toBeTruthy();
+    expect(screen.getByLabelText(/due in \(days\)/i)).toBeTruthy();
+  });
+
+  it("saves a template's offsets and clears absolute dates", async () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={templateTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.change(screen.getByLabelText(/due in \(days\)/i), { target: { value: "5" } });
+    fireEvent.click(button("Save"));
+
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "k_1", is_template: true, due_offset_days: 5, due_date: null }),
+      ),
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("blocks Save when a template's due offset precedes its scheduled offset (mirrors #51)", () => {
+    render(<TaskEditor task={{ ...templateTask, scheduled_offset_days: 10, due_offset_days: 3 }}
+                       allTags={tags} onClose={vi.fn()} />);
+    expect(screen.getByText(/due offset can.?t be before/i)).toBeTruthy();
+    expect(button("Save").disabled).toBe(true);
+  });
+});
+
+describe("TaskEditor 'Save as template' option (#71)", () => {
+  it("creates a template copy via the Options menu and keeps the task (no convert)", async () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+    // There is no always-visible toggle — it lives behind the Options menu.
+    expect(screen.queryByRole("checkbox", { name: /save as template/i })).toBeNull();
+
+    fireEvent.click(button(/options/i));
+    fireEvent.click(screen.getByRole("menuitem", { name: /save as template/i }));
+
+    await waitFor(() =>
+      expect(api.addTask).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Write report", is_template: true }),
+      ),
+    );
+    // The original task is untouched — saving-as-template does not convert it.
+    expect(api.updateTask).not.toHaveBeenCalled();
+  });
+});
+
+describe("TaskEditor create mode (#71)", () => {
+  it("adds a new task on save (no Delete, never updates)", async () => {
+    const onClose = vi.fn();
+    const draft: Task = { ...baseTask, id: "", title: "From template" };
+    render(<TaskEditor task={draft} allTags={tags} creating onClose={onClose} />);
+
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    fireEvent.click(button(/add task/i));
+
+    await waitFor(() =>
+      expect(api.addTask).toHaveBeenCalledWith(expect.objectContaining({ title: "From template" })),
+    );
+    expect(api.updateTask).not.toHaveBeenCalled();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+});
+
+describe("TaskEditor inert background (#43)", () => {
+  it("marks #root inert + aria-hidden while open and clears it on close", () => {
+    const root = document.createElement("div");
+    root.id = "root";
+    document.body.appendChild(root);
+    try {
+      const { unmount } = render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+      expect(root.hasAttribute("inert")).toBe(true);
+      expect(root.getAttribute("aria-hidden")).toBe("true");
+
+      unmount();
+      expect(root.hasAttribute("inert")).toBe(false);
+      expect(root.hasAttribute("aria-hidden")).toBe(false);
+    } finally {
+      root.remove();
+    }
   });
 });

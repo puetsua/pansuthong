@@ -68,11 +68,6 @@ describe("api IPC wrappers — command names & arg keys", () => {
     expect(invokeMock).toHaveBeenCalledWith("delete_tag", { id: "t_1" });
   });
 
-  it("parseComposer → parse_composer { input }", async () => {
-    await api.parseComposer("#work due fri Reply");
-    expect(invokeMock).toHaveBeenCalledWith("parse_composer", { input: "#work due fri Reply" });
-  });
-
   it("searchTasks → search_tasks { query }", async () => {
     await api.searchTasks("milk");
     expect(invokeMock).toHaveBeenCalledWith("search_tasks", { query: "milk" });

@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { formatIsoLocal } from "./dates";
+import { addDaysIso, daysBetweenIso, formatIsoLocal } from "./dates";
+
+describe("addDaysIso / daysBetweenIso (#71)", () => {
+  it("addDaysIso adds days across month boundaries", () => {
+    expect(addDaysIso("2026-05-31", 0)).toBe("2026-05-31");
+    expect(addDaysIso("2026-05-31", 3)).toBe("2026-06-03");
+    expect(addDaysIso("2026-12-31", 1)).toBe("2027-01-01");
+  });
+  it("daysBetweenIso is the inverse and signed", () => {
+    expect(daysBetweenIso("2026-05-31", "2026-06-03")).toBe(3);
+    expect(daysBetweenIso("2026-05-31", "2026-05-31")).toBe(0);
+    expect(daysBetweenIso("2026-06-03", "2026-05-31")).toBe(-3);
+  });
+});
 
 describe("formatIsoLocal", () => {
   it("formats an epoch-ms timestamp as full ISO 8601 with seconds and a timezone offset", () => {

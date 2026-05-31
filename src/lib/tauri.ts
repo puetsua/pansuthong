@@ -29,6 +29,9 @@ export type Task = {
   updated_at: number; // epoch ms of last edit (0 for pre-existing tasks)
   archived?: boolean; // true = non-destructively hidden from active views (#23)
   archived_at?: number; // epoch ms the task was archived
+  is_template?: boolean;          // true = reusable blueprint, hidden from active views (#71)
+  due_offset_days?: number;       // template only: spawned task's due = today + N days
+  scheduled_offset_days?: number; // template only: spawned task's scheduled = today + M days
 };
 
 export type Document = {
@@ -47,6 +50,9 @@ export type TaskUpdate = {
   scheduled_date?: string | null;
   notes?: string;
   tag_ids?: string[];
+  is_template?: boolean;
+  due_offset_days?: number | null;
+  scheduled_offset_days?: number | null;
 };
 
 export type DataLocation = { folder: string | null; effective_path: string };
@@ -85,12 +91,6 @@ export const api = {
   addTag:        (name: string, color: string, priority = 0) =>
                                                 invoke<Tag>("add_tag", { input: { name, color, priority } }),
   deleteTag:     (id: string)                => invoke<void>("delete_tag", { id }),
-  parseComposer:   (input: string) => invoke<{
-    title: string;
-    tag_names: string[];
-    due_date?: string;
-    scheduled_date?: string;
-  }>("parse_composer", { input }),
   searchTasks:     (query: string) => invoke<Task[]>("search_tasks", { query }),
   updateTag:       (input: { id: string; name?: string; color?: string; priority?: number }) =>
                                      invoke<Tag>("update_tag", { input }),

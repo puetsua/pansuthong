@@ -10,6 +10,7 @@ import { SearchView } from "./views/SearchView";
 import { SettingsView } from "./views/SettingsView";
 import { TagsView } from "./views/TagsView";
 import { ArchivedView } from "./views/ArchivedView";
+import { TemplatesView } from "./views/TemplatesView";
 import { ConflictsView } from "./views/ConflictsView";
 import { useDocument } from "./state/store";
 
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/settings" element={<SettingsView doc={doc} />} />
           <Route path="/tags" element={<TagsView doc={doc} indexes={indexes} />} />
           <Route path="/archived" element={<ArchivedView doc={doc} indexes={indexes} />} />
+          <Route path="/templates" element={<TemplatesView doc={doc} indexes={indexes} />} />
           <Route path="/conflicts/:filename" element={<ConflictsView />} />
           <Route path="*"      element={<p>Not built yet — comes in Phase 2.</p>} />
         </Routes>

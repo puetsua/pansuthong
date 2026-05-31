@@ -133,7 +133,6 @@ pub fn run() {
             commands::delete_task,
             commands::add_tag,
             commands::delete_tag,
-            commands::parse_composer,
             commands::search_tasks,
             commands::update_tag,
             commands::update_settings,

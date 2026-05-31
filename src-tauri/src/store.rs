@@ -40,7 +40,7 @@ impl AppState {
 
     pub fn read<F, T>(&self, f: F) -> T
     where F: FnOnce(&Document) -> T {
-        let g = self.inner.lock().unwrap();
+        let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         f(&g.doc)
     }
 
@@ -48,7 +48,7 @@ impl AppState {
     /// Bumps `last_modified` so every edit stamps the document with its edit time.
     pub fn write<F, T>(&self, f: F) -> Result<T>
     where F: FnOnce(&mut Document) -> Result<T> {
-        let mut g = self.inner.lock().unwrap();
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let value = f(&mut g.doc)?;
         g.doc.last_modified = crate::model::now_ms();
         let bytes = serde_json::to_vec_pretty(&g.doc)?;
@@ -62,19 +62,19 @@ impl AppState {
     /// external write.
     pub fn reload_from_bytes(&self, bytes: Vec<u8>) -> Result<()> {
         let doc = parse_checked(&bytes)?;
-        let mut g = self.inner.lock().unwrap();
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         g.doc = doc;
         g.last_written_hash = sha256(&bytes);
         Ok(())
     }
 
     pub fn path(&self) -> PathBuf {
-        self.inner.lock().unwrap().path.clone()
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).path.clone()
     }
 
     #[allow(dead_code)] // used by Phase 2 sync
     pub fn last_written_hash(&self) -> [u8; 32] {
-        self.inner.lock().unwrap().last_written_hash
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).last_written_hash
     }
 
     /// Relocate the master data file to `new_path`. If `new_path` already exists,
@@ -84,7 +84,7 @@ impl AppState {
     /// directory so the conflict UI can reconcile it (#34). Updates the stored
     /// path and the loop-suppression hash.
     pub fn repoint(&self, new_path: std::path::PathBuf) -> Result<()> {
-        let mut g = self.inner.lock().unwrap();
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         if new_path.exists() {
             let bytes = std::fs::read(&new_path)?;
             let target_doc = parse_checked(&bytes)?;
@@ -236,6 +236,7 @@ mod repoint_tests {
             due_date: None, scheduled_date: None, notes: String::new(),
             tag_ids: Vec::new(), created_at: 0, completed_at: None, updated_at: 0,
             archived: false, archived_at: None,
+            is_template: false, due_offset_days: None, scheduled_offset_days: None,
         }
     }
 
@@ -285,6 +286,30 @@ mod repoint_tests {
         let bytes = std::fs::read(&conflicts[0]).unwrap();
         let preserved: Document = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(preserved.tasks.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["k_local"]);
+    }
+
+    #[test]
+    fn store_recovers_after_a_panic_poisons_the_lock() {
+        use std::panic::{catch_unwind, AssertUnwindSafe};
+
+        let dir = tempdir().unwrap();
+        let state = AppState::open(dir.path().join("tasks.json")).unwrap();
+
+        // A panic inside the write closure unwinds while the lock is held, which
+        // poisons the std Mutex. catch_unwind keeps the test thread alive so we
+        // can prove the store still works afterwards (the panic backtrace printed
+        // to stderr during this test is expected, not a failure).
+        let poisoned = catch_unwind(AssertUnwindSafe(|| {
+            let _ = state.write(|_| -> Result<()> { panic!("boom") });
+        }));
+        assert!(poisoned.is_err(), "the closure should have panicked");
+
+        // Before the fix, every later lock().unwrap() would re-panic on the poison.
+        // With unwrap_or_else(|e| e.into_inner()) the guard is recovered, so reads
+        // and writes keep working.
+        let _ = state.read(|d| d.tasks.len());
+        state.write(|d| { d.settings.theme = "dark".into(); Ok(()) }).unwrap();
+        assert_eq!(state.read(|d| d.settings.theme.clone()), "dark");
     }
 
     #[test]
