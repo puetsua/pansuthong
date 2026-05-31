@@ -19,37 +19,6 @@ pub fn now_ms() -> i64 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Settings {
-    pub theme: String,        // "auto" | "light" | "dark"
-    /// Task list ordering: "priority" (weight desc, then date) or "date".
-    /// `#[serde(default)]` = "priority" for files written before this field existed.
-    #[serde(default = "default_sort_order")]
-    pub sort_order: String,
-    /// How many days ahead the Upcoming view looks. `#[serde(default)]` = 14 for
-    /// files written before this field existed. The UI bounds it to 1..=365.
-    #[serde(default = "default_upcoming_days")]
-    pub upcoming_days: u32,
-}
-
-fn default_sort_order() -> String {
-    "priority".into()
-}
-
-fn default_upcoming_days() -> u32 {
-    14
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            theme: "auto".into(),
-            sort_order: default_sort_order(),
-            upcoming_days: default_upcoming_days(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tag {
     pub id:    String,
     pub name:  String,
@@ -122,13 +91,11 @@ fn default_version() -> u32 {
 pub struct Document {
     #[serde(default = "default_version")]
     pub version:  u32,
-    /// Epoch millis of the last edit to the document (any task/tag/setting
-    /// change). Bumped by `AppState::write`. Shown as "Last synced"; identical on
-    /// all devices when in sync. `#[serde(default)]` = 0 for pre-existing files.
+    /// Epoch millis of the last edit to the document (any task/tag change).
+    /// Bumped by `AppState::write`. Shown as "Last synced"; identical on all
+    /// devices when in sync. `#[serde(default)]` = 0 for pre-existing files.
     #[serde(default)]
     pub last_modified: i64,
-    #[serde(default)]
-    pub settings: Settings,
     #[serde(default)]
     pub tags:     Vec<Tag>,
     #[serde(default)]
@@ -140,7 +107,6 @@ impl Default for Document {
         Self {
             version:  CURRENT_VERSION,
             last_modified: 0,
-            settings: Settings::default(),
             tags:     Vec::new(),
             tasks:    Vec::new(),
         }

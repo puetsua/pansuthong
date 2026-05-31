@@ -369,15 +369,20 @@ mod tests {
     #[test]
     fn pull_in_imports_changed_remote_and_skips_unchanged() {
         let (_d, state, path) = temp_state();
-        // Build "remote" bytes = current doc with theme flipped, so import is observable.
+        // Build "remote" bytes = current doc with an extra tag, so import is observable.
         let mut remote_doc = state.read(|d| d.clone());
-        remote_doc.settings.theme = "dark".to_string();
+        remote_doc.tags.push(crate::model::Tag {
+            id: "g_remote".into(),
+            name: "remote".into(),
+            color: "#fff".into(),
+            priority: 0,
+        });
         let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
         let backend = FakeBackend::with(&[("tasks.json", &remote)]);
 
         let out = pull_in(&state, &backend, &path, None).unwrap();
         assert!(out.imported);
-        assert_eq!(state.read(|d| d.settings.theme.clone()), "dark");
+        assert_eq!(state.read(|d| d.tags.iter().map(|t| t.id.clone()).collect::<Vec<_>>()), ["g_remote"]);
         let h = out.new_synced_hash;
 
         // Pulling again with the same hash imports nothing.
@@ -401,16 +406,14 @@ mod tests {
             })
             .unwrap();
 
-        // Remote holds a different document (dark theme, no such tag).
-        let mut remote_doc = crate::model::Document::default();
-        remote_doc.settings.theme = "dark".into();
+        // Remote holds a different document (empty, no such tag).
+        let remote_doc = crate::model::Document::default();
         let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
         let backend = FakeBackend::with(&[("tasks.json", &remote)]);
 
         // First link (last_synced_hash = None): adopt remote, preserve local.
         let out = pull_in(&state, &backend, &path, None).unwrap();
         assert!(out.imported);
-        assert_eq!(state.read(|d| d.settings.theme.clone()), "dark");
         assert!(state.read(|d| d.tags.is_empty()), "remote (no tags) was adopted");
 
         // The diverged local doc must survive as a conflict file to reconcile.
@@ -440,13 +443,18 @@ mod tests {
 
         // Remote moved ahead (another device); this device has NO un-synced edits.
         let mut remote_doc = state.read(|d| d.clone());
-        remote_doc.settings.theme = "dark".into();
+        remote_doc.tags.push(crate::model::Tag {
+            id: "g_remote".into(),
+            name: "remote".into(),
+            color: "#fff".into(),
+            priority: 0,
+        });
         let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
         let backend = FakeBackend::with(&[("tasks.json", &remote)]);
 
         let out = pull_in(&state, &backend, &path, Some(synced_hash)).unwrap();
         assert!(out.imported);
-        assert_eq!(state.read(|d| d.settings.theme.clone()), "dark");
+        assert!(state.read(|d| d.tags.iter().any(|t| t.id == "g_remote")), "remote edit adopted");
         // No spurious conflict file: local was merely behind, not diverged.
         assert!(
             crate::sync::scan_conflict_files(&path).is_empty(),
@@ -469,7 +477,10 @@ mod tests {
         let result = pull_in(&state, &backend, &path, None);
         // Either it errored on parse OR skipped import; the shadow doc is unchanged either way.
         let _ = result; // parse error is acceptable for the main file
-        assert_eq!(state.read(|d| d.settings.theme.clone()), before.settings.theme);
+        assert_eq!(
+            state.read(|d| (d.tasks.len(), d.tags.len())),
+            (before.tasks.len(), before.tags.len())
+        );
 
         // The conflict file must have been mirrored into the app-private dir.
         let mirrored = path.with_file_name("tasks.sync-conflict-20260530-120000-AAA.json");

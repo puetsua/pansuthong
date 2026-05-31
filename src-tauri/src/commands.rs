@@ -1,11 +1,12 @@
+use crate::config::{ConfigState, Settings};
 use crate::conflict::{apply_decisions, diff_tasks, tags_to_merge, Decision, TaskDiff};
 use crate::error::{AppError, Result};
-use crate::model::{new_tag_id, new_task_id, now_ms, Document, Tag, Task};
+use crate::model::{new_tag_id, new_task_id, now_ms, Tag, Task};
 use crate::search::search as search_doc;
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
 use chrono::NaiveDate;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -15,21 +16,47 @@ fn emit_changed(app: &AppHandle) {
     let _ = app.emit(STORE_CHANGED, ());
 }
 
+/// Wire shape the frontend consumes: the synced document (tasks + tags) with the
+/// device-local `settings` spliced in. Settings live in `config.json`, not the
+/// synced `Document`, but the UI still receives them in one payload.
+#[derive(Serialize)]
+pub struct DocumentView {
+    version: u32,
+    last_modified: i64,
+    settings: Settings,
+    tags: Vec<Tag>,
+    tasks: Vec<Task>,
+}
+
+fn document_view(state: &AppState, config: &ConfigState) -> DocumentView {
+    state.read(|d| DocumentView {
+        version: d.version,
+        last_modified: d.last_modified,
+        settings: config.settings(),
+        tags: d.tags.clone(),
+        tasks: d.tasks.clone(),
+    })
+}
+
 #[tauri::command]
-pub fn get_document(state: State<'_, AppState>) -> Document {
-    state.read(|d| d.clone())
+pub fn get_document(state: State<'_, AppState>, config: State<'_, ConfigState>) -> DocumentView {
+    document_view(&state, &config)
 }
 
 /// Manual "Sync now": re-read the data file from disk immediately instead of
 /// waiting for the polling fallback. Picks up changes a cloud-sync client
 /// (Google Drive) pulled in from another device. Returns the freshest document.
 #[tauri::command]
-pub fn sync_now(state: State<'_, AppState>, app: AppHandle) -> Document {
+pub fn sync_now(
+    state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
+    app: AppHandle,
+) -> DocumentView {
     let path = state.path();
     if crate::sync::reload_if_changed(&state, &path) {
         emit_changed(&app);
     }
-    state.read(|d| d.clone())
+    document_view(&state, &config)
 }
 
 #[derive(Deserialize)]
@@ -287,19 +314,23 @@ pub struct UpdateSettingsInput {
 }
 
 #[tauri::command]
-pub fn update_settings(input: UpdateSettingsInput, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
-    state.write(|d| {
+pub fn update_settings(
+    input: UpdateSettingsInput,
+    config: State<'_, ConfigState>,
+    app: AppHandle,
+) -> Result<()> {
+    config.update_settings(|s| {
         if let Some(t) = input.theme {
             if !matches!(t.as_str(), "auto" | "light" | "dark") {
                 return Err(AppError::Invalid(format!("invalid theme: {t}")));
             }
-            d.settings.theme = t;
+            s.theme = t;
         }
-        if let Some(s) = input.sort_order {
-            if !matches!(s.as_str(), "priority" | "date") {
-                return Err(AppError::Invalid(format!("invalid sort_order: {s}")));
+        if let Some(order) = input.sort_order {
+            if !matches!(order.as_str(), "priority" | "date") {
+                return Err(AppError::Invalid(format!("invalid sort_order: {order}")));
             }
-            d.settings.sort_order = s;
+            s.sort_order = order;
         }
         if let Some(n) = input.upcoming_days {
             if !(UPCOMING_DAYS_MIN..=UPCOMING_DAYS_MAX).contains(&n) {
@@ -307,7 +338,7 @@ pub fn update_settings(input: UpdateSettingsInput, state: State<'_, AppState>, a
                     "upcoming_days must be {UPCOMING_DAYS_MIN}..={UPCOMING_DAYS_MAX}, got {n}"
                 )));
             }
-            d.settings.upcoming_days = n;
+            s.upcoming_days = n;
         }
         Ok(())
     })?;
@@ -421,19 +452,26 @@ fn default_data_dir(app: &AppHandle) -> Result<PathBuf> {
         .map_err(|e| AppError::Invalid(format!("app_data_dir: {e}")))
 }
 
-#[tauri::command]
-pub fn get_data_location(state: State<'_, AppState>, app: AppHandle) -> Result<DataLocation> {
-    let cfg = crate::location::load(&default_data_dir(&app)?);
-    Ok(DataLocation {
-        folder: cfg.folder,
+fn data_location(state: &AppState, config: &ConfigState) -> DataLocation {
+    DataLocation {
+        folder: config.folder(),
         effective_path: state.path().to_string_lossy().to_string(),
-    })
+    }
+}
+
+#[tauri::command]
+pub fn get_data_location(
+    state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
+) -> DataLocation {
+    data_location(&state, &config)
 }
 
 #[tauri::command]
 pub fn set_data_folder(
     folder: String,
     state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
     watcher: State<'_, crate::sync::WatcherHandle>,
     app: AppHandle,
 ) -> Result<DataLocation> {
@@ -443,29 +481,27 @@ pub fn set_data_folder(
     }
     let new_path = folder_path.join("tasks.json");
     state.repoint(new_path.clone())?;
-    crate::location::save(
-        &default_data_dir(&app)?,
-        &crate::location::DataLocationConfig { folder: Some(folder) },
-    )?;
+    config.set_folder(Some(folder))?;
     crate::sync::restart(&watcher, &app, new_path);
     emit_changed(&app);
     let _ = app.emit("conflicts-detected", &crate::sync::scan_conflict_files(&state.path()));
-    get_data_location(state, app.clone())
+    Ok(data_location(&state, &config))
 }
 
 #[tauri::command]
 pub fn clear_data_folder(
     state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
     watcher: State<'_, crate::sync::WatcherHandle>,
     app: AppHandle,
 ) -> Result<DataLocation> {
     let default_dir = default_data_dir(&app)?;
     let new_path = default_dir.join("tasks.json");
     state.repoint(new_path.clone())?;
-    crate::location::save(&default_dir, &crate::location::DataLocationConfig { folder: None })?;
+    config.set_folder(None)?;
     crate::sync::restart(&watcher, &app, new_path);
     emit_changed(&app);
-    get_data_location(state, app.clone())
+    Ok(data_location(&state, &config))
 }
 
 // ───────────────────────── Android SAF folder sync ─────────────────────────
