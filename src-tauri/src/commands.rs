@@ -1,13 +1,12 @@
 use crate::conflict::{apply_decisions, diff_tasks, tags_to_merge, Decision, TaskDiff};
 use crate::error::{AppError, Result};
 use crate::model::{new_tag_id, new_task_id, now_ms, Document, Tag, Task};
-use crate::parse::{parse as parse_input, ParsedInput};
 use crate::search::search as search_doc;
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
-use chrono::{Local, NaiveDate};
+use chrono::NaiveDate;
 use serde::{Deserialize, Deserializer};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 const STORE_CHANGED: &str = "store-changed";
@@ -40,6 +39,9 @@ pub struct NewTaskInput {
     #[serde(default)] pub scheduled_date: Option<NaiveDate>,
     #[serde(default)] pub notes: String,
     #[serde(default)] pub tag_ids: Vec<String>,
+    #[serde(default)] pub is_template: bool,
+    #[serde(default)] pub due_offset_days: Option<i64>,
+    #[serde(default)] pub scheduled_offset_days: Option<i64>,
 }
 
 /// Drop tag ids that don't exist in the document so tasks never persist dangling
@@ -49,12 +51,31 @@ fn retain_known_tags(ids: Vec<String>, tags: &[Tag]) -> Vec<String> {
     ids.into_iter().filter(|id| tags.iter().any(|t| &t.id == id)).collect()
 }
 
+/// Upper bound for a template's relative date offset (#71). 0 = today; the editor
+/// caps entry to this range too.
+const OFFSET_DAYS_MAX: i64 = 3650;
+
+/// Reject a template offset outside `0..=OFFSET_DAYS_MAX` so a bad value never
+/// persists (and so instantiation's date arithmetic always stays in range).
+fn validate_offset_days(days: Option<i64>) -> Result<()> {
+    if let Some(n) = days {
+        if !(0..=OFFSET_DAYS_MAX).contains(&n) {
+            return Err(AppError::Invalid(format!(
+                "offset days must be 0..={OFFSET_DAYS_MAX}, got {n}"
+            )));
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
     let title = input.title.trim().to_string();
     if title.is_empty() {
         return Err(AppError::Invalid("title is empty".into()));
     }
+    validate_offset_days(input.due_offset_days)?;
+    validate_offset_days(input.scheduled_offset_days)?;
     let ts = now_ms();
     let saved = state.write(|d| {
         let task = Task {
@@ -70,6 +91,9 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
             updated_at: ts,
             archived: false,
             archived_at: None,
+            is_template: input.is_template,
+            due_offset_days: input.due_offset_days,
+            scheduled_offset_days: input.scheduled_offset_days,
         };
         d.tasks.push(task.clone());
         Ok(task)
@@ -100,6 +124,9 @@ pub struct UpdateTaskInput {
     #[serde(default, deserialize_with = "double_option")] pub scheduled_date: Option<Option<NaiveDate>>,
     #[serde(default)] pub notes: Option<String>,
     #[serde(default)] pub tag_ids: Option<Vec<String>>,
+    #[serde(default)] pub is_template: Option<bool>,
+    #[serde(default, deserialize_with = "double_option")] pub due_offset_days: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")] pub scheduled_offset_days: Option<Option<i64>>,
 }
 
 #[tauri::command]
@@ -124,6 +151,9 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
         if let Some(v) = input.tag_ids        {
             t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
         }
+        if let Some(v) = input.is_template    { t.is_template = v; }
+        if let Some(v) = input.due_offset_days       { validate_offset_days(v)?; t.due_offset_days = v; }
+        if let Some(v) = input.scheduled_offset_days { validate_offset_days(v)?; t.scheduled_offset_days = v; }
         t.updated_at = now_ms();
         Ok(t.clone())
     })?;
@@ -215,12 +245,6 @@ pub fn delete_tag(id: String, state: State<'_, AppState>, app: AppHandle) -> Res
 }
 
 #[tauri::command]
-pub fn parse_composer(input: String) -> ParsedInput {
-    let today = Local::now().date_naive();
-    parse_input(&input, today)
-}
-
-#[tauri::command]
 pub fn search_tasks(query: String, state: State<'_, AppState>) -> Vec<crate::model::Task> {
     state.read(|d| search_doc(d, &query).into_iter().cloned().collect())
 }
@@ -297,9 +321,40 @@ pub fn list_conflicts(state: State<'_, AppState>) -> Vec<String> {
     scan_conflict_files(&path)
 }
 
+/// Reject any conflict path the UI didn't get from `list_conflicts`. A valid path
+/// must live directly in the data dir (same parent as the data file) and match the
+/// conflict-file naming pattern `scan_conflict_files` recognizes (see sync.rs).
+/// Without this, these commands would `std::fs::read` / `remove_file` an arbitrary
+/// caller-supplied path; a frontend bug could then touch an unrelated file (#49).
+fn validate_conflict_path(candidate: &str, data_path: &Path) -> Result<PathBuf> {
+    let candidate = Path::new(candidate);
+    let data_dir = data_path
+        .parent()
+        .ok_or_else(|| AppError::Invalid("data path has no parent".into()))?;
+    // Parent must be the data dir. Plain PathBuf equality, not canonicalize:
+    // legitimate paths are echoed verbatim from list_conflicts, and a `..`/other-dir
+    // path simply won't match (fail-safe) — canonicalize would also break on a
+    // stale entry and add a Windows `\\?\` prefix mismatch.
+    match candidate.parent() {
+        Some(p) if p == data_dir => {}
+        _ => return Err(AppError::Invalid("conflict path is not in the data directory".into())),
+    }
+    let name = candidate
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| AppError::Invalid("conflict path has no file name".into()))?;
+    let stem = data_path.file_stem().and_then(|s| s.to_str()).unwrap_or("tasks");
+    let data_file_name = data_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    if !crate::sync::is_conflict_file_name(name, stem, data_file_name) {
+        return Err(AppError::Invalid("not a recognized conflict file".into()));
+    }
+    Ok(candidate.to_path_buf())
+}
+
 #[tauri::command]
 pub fn read_conflict(conflict_path: String, state: State<'_, AppState>) -> Result<Vec<TaskDiff>> {
-    let bytes = std::fs::read(&conflict_path)?;
+    let path = validate_conflict_path(&conflict_path, &state.path())?;
+    let bytes = std::fs::read(&path)?;
     let theirs: crate::model::Document = serde_json::from_slice(&bytes)?;
     let diffs = state.read(|d| diff_tasks(d, &theirs));
     Ok(diffs)
@@ -317,7 +372,8 @@ pub fn resolve_conflict(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<()> {
-    let bytes = std::fs::read(&input.conflict_path)?;
+    let path = validate_conflict_path(&input.conflict_path, &state.path())?;
+    let bytes = std::fs::read(&path)?;
     let theirs: crate::model::Document = serde_json::from_slice(&bytes)?;
     state.write(|d| {
         let new_tasks = apply_decisions(d, &theirs, &input.decisions);
@@ -327,18 +383,19 @@ pub fn resolve_conflict(
         d.tags.extend(added_tags);
         Ok(())
     })?;
-    let _ = std::fs::remove_file(&input.conflict_path);
+    let _ = std::fs::remove_file(&path);
     emit_changed(&app);
-    let path: PathBuf = state.path();
-    let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
+    let data_path: PathBuf = state.path();
+    let _ = app.emit("conflicts-detected", &scan_conflict_files(&data_path));
     Ok(())
 }
 
 #[tauri::command]
 pub fn dismiss_conflict(conflict_path: String, app: AppHandle, state: State<'_, AppState>) -> Result<()> {
-    let _ = std::fs::remove_file(&conflict_path);
-    let path: PathBuf = state.path();
-    let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
+    let path = validate_conflict_path(&conflict_path, &state.path())?;
+    let _ = std::fs::remove_file(&path);
+    let data_path: PathBuf = state.path();
+    let _ = app.emit("conflicts-detected", &scan_conflict_files(&data_path));
     Ok(())
 }
 
@@ -479,5 +536,80 @@ mod tests {
         assert_eq!(v.upcoming_days, Some(30));
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.upcoming_days, None);
+    }
+
+    #[test]
+    fn validate_conflict_path_accepts_a_scanner_named_file_in_the_data_dir() {
+        let data = Path::new("/data/tasks.json");
+        // Matches store.rs's `{stem}.conflict-local-{ms}.json` shape.
+        assert!(validate_conflict_path("/data/tasks.conflict-local-123.json", data).is_ok());
+        // And a cloud-sync sibling the scanner would also surface.
+        assert!(validate_conflict_path("/data/tasks.sync-conflict-1.json", data).is_ok());
+    }
+
+    #[test]
+    fn validate_conflict_path_rejects_a_path_outside_the_data_dir() {
+        let data = Path::new("/data/tasks.json");
+        assert!(validate_conflict_path("/etc/passwd", data).is_err());
+        // Right name, wrong directory.
+        assert!(validate_conflict_path("/other/tasks.conflict-local-1.json", data).is_err());
+        // A `..` escape resolves to a different parent, so it's rejected.
+        assert!(validate_conflict_path("/data/sub/../tasks.conflict-local-1.json", data).is_err());
+    }
+
+    #[test]
+    fn validate_conflict_path_rejects_the_data_file_and_non_conflict_siblings() {
+        let data = Path::new("/data/tasks.json");
+        assert!(validate_conflict_path("/data/tasks.json", data).is_err());
+        assert!(validate_conflict_path("/data/notes.txt", data).is_err());
+        // Same dir + .json but neither mentions "conflict" nor starts with the stem.
+        assert!(validate_conflict_path("/data/random.json", data).is_err());
+    }
+
+    #[test]
+    fn validate_conflict_path_filename_match_is_case_insensitive() {
+        // Mirrors scan_conflict_files's lowercasing so a Windows-cased name isn't
+        // rejected when the scanner would have surfaced it.
+        let data = Path::new("/data/tasks.json");
+        assert!(validate_conflict_path("/data/Tasks.CONFLICT-local-1.JSON", data).is_ok());
+    }
+
+    #[test]
+    fn new_task_input_parses_template_fields() {
+        // Pins the snake_case keys the JS api sends for a template (#71).
+        let v: NewTaskInput = serde_json::from_str(
+            r#"{"title":"t","is_template":true,"due_offset_days":3,"scheduled_offset_days":0}"#,
+        ).unwrap();
+        assert!(v.is_template);
+        assert_eq!(v.due_offset_days, Some(3));
+        assert_eq!(v.scheduled_offset_days, Some(0));
+        // Absent template fields default to a plain task.
+        let plain: NewTaskInput = serde_json::from_str(r#"{"title":"t"}"#).unwrap();
+        assert!(!plain.is_template);
+        assert_eq!(plain.due_offset_days, None);
+    }
+
+    #[test]
+    fn update_task_input_offset_double_option_distinguishes_absent_null_value() {
+        // Mirrors the due_date double_option semantics for offsets.
+        let absent: UpdateTaskInput = serde_json::from_str(r#"{"id":"k_1"}"#).unwrap();
+        assert_eq!(absent.due_offset_days, None);
+        assert_eq!(absent.is_template, None);
+        let cleared: UpdateTaskInput =
+            serde_json::from_str(r#"{"id":"k_1","due_offset_days":null}"#).unwrap();
+        assert_eq!(cleared.due_offset_days, Some(None));
+        let set: UpdateTaskInput =
+            serde_json::from_str(r#"{"id":"k_1","is_template":true,"due_offset_days":5}"#).unwrap();
+        assert_eq!(set.is_template, Some(true));
+        assert_eq!(set.due_offset_days, Some(Some(5)));
+    }
+
+    #[test]
+    fn validate_offset_days_bounds() {
+        assert!(validate_offset_days(None).is_ok());
+        assert!(validate_offset_days(Some(0)).is_ok());
+        assert!(validate_offset_days(Some(OFFSET_DAYS_MAX)).is_ok());
+        assert!(validate_offset_days(Some(-1)).is_err());
+        assert!(validate_offset_days(Some(OFFSET_DAYS_MAX + 1)).is_err());
     }
 }

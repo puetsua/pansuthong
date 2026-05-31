@@ -29,6 +29,21 @@ export function todayIso(now: Date = new Date()): string {
 /** Compare two ISO date strings lexically — works because format is fixed-width. */
 export function isoLt(a: string, b: string): boolean { return a < b; }
 
+/** ISO date (YYYY-MM-DD) `days` after `baseIso`, computed in UTC to avoid DST drift. */
+export function addDaysIso(baseIso: string, days: number): string {
+  const [y, m, d] = baseIso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+}
+
+/** Whole days from `fromIso` to `toIso` (negative when `toIso` is earlier). */
+export function daysBetweenIso(fromIso: string, toIso: string): number {
+  const utc = (s: string) => { const [y, m, d] = s.split("-").map(Number); return Date.UTC(y, m - 1, d); };
+  return Math.round((utc(toIso) - utc(fromIso)) / 86_400_000);
+}
+
 /** True if a task with this due date is overdue relative to today. */
 export function isOverdue(dueIso: string | undefined, todayIsoStr: string, done: boolean): boolean {
   if (done || !dueIso) return false;

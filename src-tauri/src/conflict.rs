@@ -142,6 +142,9 @@ fn task_equal(a: &Task, b: &Task) -> bool {
     a.title == b.title
         && a.done == b.done
         && a.archived == b.archived
+        && a.is_template == b.is_template
+        && a.due_offset_days == b.due_offset_days
+        && a.scheduled_offset_days == b.scheduled_offset_days
         && a.due_date == b.due_date
         && a.scheduled_date == b.scheduled_date
         && a.notes == b.notes
@@ -163,6 +166,7 @@ mod merge_tests {
             tag_ids: tag_ids.iter().map(|s| s.to_string()).collect(),
             created_at: 0, completed_at: None, updated_at: 0,
             archived: false, archived_at: None,
+            is_template: false, due_offset_days: None, scheduled_offset_days: None,
         }
     }
 
