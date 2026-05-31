@@ -93,8 +93,9 @@ pub struct Task {
     /// `tasks` Vec (templates serve the task center rather than competing with it)
     /// but is excluded from every active view (Today/Inbox/tag/Upcoming) exactly
     /// like `archived`, and additionally from search (unlike archived tasks, which
-    /// stay searchable). New tasks are spawned from it via
-    /// `create_task_from_template`. `#[serde(default)]` = false for older files.
+    /// stay searchable). New tasks are spawned from it in the Templates view (the
+    /// frontend resolves the offsets and creates an ordinary task via `add_task`).
+    /// `#[serde(default)]` = false for older files.
     #[serde(default)]
     pub is_template: bool,
     /// Template only: the instantiated task's due date is today + this many days.

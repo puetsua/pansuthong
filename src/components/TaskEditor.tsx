@@ -4,15 +4,24 @@ import { api, Tag, Task } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { buildTaskUpdate, dueBeforeScheduled, EditorForm, isEditorDirty, offsetFormError } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
+import { daysBetweenIso, todayIso } from "../lib/dates";
 import { TagInput } from "./TagInput";
 
 type Props = {
   task: Task;
   allTags: Map<string, Tag>;
   onClose: () => void;
+  // Create a brand-new task on save (api.addTask) instead of editing `task`. Used
+  // for "New task from template": the row pre-fills `task` with the template's
+  // resolved values and the user finishes before the task is created (#71).
+  creating?: boolean;
 };
 
-export function TaskEditor({ task, allTags, onClose }: Props) {
+export function TaskEditor({ task, allTags, onClose, creating = false }: Props) {
+  // Whether this editor is for a template entity (offset inputs) vs a real task
+  // (absolute dates). Fixed by the entity — a task is never converted in place;
+  // "Save as template" creates a separate copy instead (#71).
+  const isTemplate = (task.is_template ?? false) && !creating;
   const initialRef = useRef<EditorForm>({
     title: task.title,
     scheduled_date: task.scheduled_date ?? "",
@@ -26,6 +35,8 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
   });
   const [form, setForm] = useState<EditorForm>(initialRef.current);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -103,13 +114,25 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
   // mistake, so it's surfaced and blocks Save rather than persisting silently (#51).
   // Only meaningful for real tasks — templates use relative offsets, not absolute
   // dates, so the guard doesn't apply when editing a template (#71).
-  const dateError = !form.is_template && dueBeforeScheduled(form)
+  const dateError = !isTemplate && dueBeforeScheduled(form)
     ? "Due date can't be before the scheduled date."
     : null;
   // Templates use relative offsets instead of absolute dates; validate them (range
   // and due-before-scheduled ordering) the same way #51 validates dates, so a
   // template can't silently spawn invalid tasks on every instantiation (#71).
-  const offsetError = form.is_template ? offsetFormError(form) : null;
+  const offsetError = isTemplate ? offsetFormError(form) : null;
+
+  // Create any tags the user typed but didn't pick from the list, then fold their
+  // ids in alongside the existing ones. Done at save time (not on each add) so
+  // Cancel leaves no orphan tags behind.
+  const resolveTags = async (): Promise<string[]> => {
+    const newNames = form.new_tag_names ?? [];
+    if (newNames.length === 0) return form.tag_ids;
+    const byName = new Map<string, Tag>();
+    for (const t of allTags.values()) byName.set(t.name.toLowerCase(), t);
+    const newIds = await resolveTagIds(newNames, byName, api.addTag);
+    return [...form.tag_ids, ...newIds.filter(id => !form.tag_ids.includes(id))];
+  };
 
   const save = async () => {
     if (!form.title.trim()) { setError("Title can't be empty."); return; }
@@ -117,19 +140,49 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
     if (offsetError) { setError(offsetError); return; }
     setBusy(true);
     try {
-      // Create any tags the user typed but didn't pick from the list, then fold
-      // their ids in alongside the existing ones. Done here (not on each add) so
-      // Cancel leaves no orphan tags behind.
-      let tagIds = form.tag_ids;
-      const newNames = form.new_tag_names ?? [];
-      if (newNames.length > 0) {
-        const byName = new Map<string, Tag>();
-        for (const t of allTags.values()) byName.set(t.name.toLowerCase(), t);
-        const newIds = await resolveTagIds(newNames, byName, api.addTag);
-        tagIds = [...form.tag_ids, ...newIds.filter(id => !form.tag_ids.includes(id))];
+      const tagIds = await resolveTags();
+      if (creating) {
+        // A brand-new task (e.g. spawned from a template): create it now.
+        await api.addTask({
+          title: form.title.trim(),
+          scheduled_date: form.scheduled_date || undefined,
+          due_date: form.due_date || undefined,
+          notes: form.notes,
+          tag_ids: tagIds,
+        });
+      } else {
+        await api.updateTask(buildTaskUpdate(task.id, { ...form, tag_ids: tagIds }));
       }
-      await api.updateTask(buildTaskUpdate(task.id, { ...form, tag_ids: tagIds }));
       onClose();
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  // "Save as template" (an option for a normal task): create a separate template
+  // copy and KEEP the original task untouched (#71). The task's absolute dates
+  // become relative offsets (today + N), clamped to >= 0.
+  const saveAsTemplate = async () => {
+    setOptionsOpen(false);
+    if (!form.title.trim()) { setError("Title can't be empty."); return; }
+    if (dateError) { setError(dateError); return; }
+    setBusy(true);
+    try {
+      const tagIds = await resolveTags();
+      const today = todayIso();
+      const offset = (d: string) => (d ? Math.max(0, daysBetweenIso(today, d)) : undefined);
+      await api.addTask({
+        title: form.title.trim(),
+        notes: form.notes,
+        tag_ids: tagIds,
+        is_template: true,
+        scheduled_offset_days: offset(form.scheduled_date),
+        due_offset_days: offset(form.due_date),
+      });
+      setBusy(false);
+      setError(null);
+      setNotice("Saved as a template — this task is unchanged.");
     } catch (err) {
       setError(errorMessage(err));
       setBusy(false);
@@ -155,13 +208,17 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
   // requestClose, so an explicit discard path remains (#66).
   const saveOnBackdrop = () => {
     if (busy) return;
+    // A new (not-yet-created) task shouldn't be created by an outside click — treat
+    // the backdrop like Cancel. For an existing task, auto-save the edits (#66).
+    if (creating) { requestClose(); return; }
     if (isDirty()) void save();
     else onClose();
   };
 
   return createPortal(
     <div className="modal-backdrop" onClick={saveOnBackdrop}>
-      <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true" aria-label="Edit task"
+      <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true"
+           aria-label={creating ? "New task" : isTemplate ? "Edit template" : "Edit task"}
            onClick={e => e.stopPropagation()}>
         <label className="te-field">
           <span>Title</span>
@@ -169,13 +226,7 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
                  onChange={e => set("title", e.currentTarget.value)} />
         </label>
 
-        <label className="te-template-toggle">
-          <input type="checkbox" checked={form.is_template}
-                 onChange={e => set("is_template", e.currentTarget.checked)} />
-          <span>Save as template — reusable, hidden from active views, spawns new tasks</span>
-        </label>
-
-        {form.is_template ? (
+        {isTemplate ? (
           <>
             <div className="te-row">
               <label className="te-field">
@@ -231,13 +282,33 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
         </label>
 
         {error && <p className="composer-error">{error}</p>}
+        {notice && <p className="te-notice" role="status">{notice}</p>}
 
         <div className="te-actions">
-          <button type="button" className="te-delete" onClick={remove} disabled={busy}>Delete</button>
+          {!creating && (
+            <button type="button" className="te-delete" onClick={remove} disabled={busy}>Delete</button>
+          )}
+          {!isTemplate && !creating && (
+            <div className="te-options">
+              <button type="button" className="te-options-btn" onClick={() => setOptionsOpen(o => !o)}
+                      disabled={busy} aria-haspopup="menu" aria-expanded={optionsOpen}>
+                Options ▾
+              </button>
+              {optionsOpen && (
+                <div className="te-options-menu" role="menu">
+                  <button type="button" role="menuitem" onClick={saveAsTemplate} disabled={busy}>
+                    Save as template
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           <span className="te-spacer" />
           <button type="button" onClick={requestClose} disabled={busy}>Cancel</button>
           <button type="button" className="te-save" onClick={save}
-                  disabled={busy || !form.title.trim() || !!dateError || !!offsetError}>Save</button>
+                  disabled={busy || !form.title.trim() || !!dateError || !!offsetError}>
+            {creating ? "Add task" : "Save"}
+          </button>
         </div>
       </div>
     </div>,

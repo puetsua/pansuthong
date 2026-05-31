@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Task, Tag } from "../lib/tauri";
 import { api } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
+import { addDaysIso } from "../lib/dates";
 import { effectivePriority } from "../state/indexes";
 import { TaskEditor } from "./TaskEditor";
 
@@ -42,6 +43,9 @@ function diffDays(a: string, b: string): number {
 
 export function TaskRow({ task, tags, todayIso, archived = false, template = false }: Props) {
   const [editing, setEditing] = useState(false);
+  // A draft task pre-filled from this template, shown in the editor so the user can
+  // finish it before it's actually created (#71). null = not creating.
+  const [creatingDraft, setCreatingDraft] = useState<Task | null>(null);
   const [error, setError] = useState<string | null>(null);
   const w = whenLabel(task, todayIso);
   // Effective priority = the max weight among the task's tags (0 if untagged).
@@ -71,10 +75,24 @@ export function TaskRow({ task, tags, todayIso, archived = false, template = fal
     api.setTaskDone(task.id, false).catch(err => setError(errorMessage(err)));
   };
 
-  // Spawn a fresh, independent task from this template.
+  // Build a draft task from this template (relative offsets resolved to absolute
+  // dates: today + offset) and open the editor so the user can finish it before it
+  // is created (#71). Creation happens on the editor's "Add task".
   const newFromTemplate = () => {
     setError(null);
-    api.createTaskFromTemplate(task.id).catch(err => setError(errorMessage(err)));
+    setCreatingDraft({
+      ...task,
+      id: "",
+      is_template: false,
+      due_offset_days: undefined,
+      scheduled_offset_days: undefined,
+      due_date: task.due_offset_days != null ? addDaysIso(todayIso, task.due_offset_days) : undefined,
+      scheduled_date: task.scheduled_offset_days != null ? addDaysIso(todayIso, task.scheduled_offset_days) : undefined,
+      done: false,
+      completed_at: undefined,
+      archived: false,
+      archived_at: undefined,
+    });
   };
 
   const open = () => setEditing(true);
@@ -117,6 +135,9 @@ export function TaskRow({ task, tags, todayIso, archived = false, template = fal
       </div>
       {error && <p className="composer-error" role="alert">Couldn’t update: {error}</p>}
       {editing && <TaskEditor task={task} allTags={tags} onClose={() => setEditing(false)} />}
+      {creatingDraft && (
+        <TaskEditor task={creatingDraft} allTags={tags} creating onClose={() => setCreatingDraft(null)} />
+      )}
     </>
   );
 }

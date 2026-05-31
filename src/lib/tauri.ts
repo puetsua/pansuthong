@@ -74,9 +74,6 @@ export const api = {
   syncNow:       ()                          => invoke<Document>("sync_now"),
   addTask:       (input: Partial<Task> & { title: string }) => invoke<Task>("add_task", { input }),
   updateTask:    (input: TaskUpdate)                         => invoke<Task>("update_task", { input }),
-  /** Spawn a fresh, independent task from a template (copies title/notes/tags, resolves date offsets). */
-  createTaskFromTemplate: (templateId: string) =>
-                                 invoke<Task>("create_task_from_template", { input: { template_id: templateId } }),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
   /** Archive every completed-but-not-archived task; resolves to the number archived. */
   archiveCompleted: ()                       => invoke<number>("archive_completed"),
