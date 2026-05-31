@@ -39,11 +39,11 @@ export function ArchivedView({ indexes }: Props) {
             </button>
           )}
         </div>
-        <p className="view-sub">{archived.length} archived · un-check a task to restore it</p>
+        <p className="view-sub">{archived.length} archived · Restore brings a task back to the active lists</p>
       </header>
       {error && <p className="composer-error" role="alert">{error}</p>}
       <TaskList tasks={archived} tags={indexes.tagsById} todayIso={todayIso()}
-                emptyText="No archived tasks yet." />
+                emptyText="No archived tasks yet." archived />
     </section>
   );
 }

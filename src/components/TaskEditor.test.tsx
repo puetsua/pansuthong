@@ -10,7 +10,6 @@ vi.mock("../lib/tauri", async (importOriginal) => {
     api: {
       updateTask: vi.fn().mockResolvedValue({}),
       deleteTask: vi.fn().mockResolvedValue(undefined),
-      setTaskArchived: vi.fn().mockResolvedValue({}),
       addTag: vi.fn((name: string, color: string) =>
         Promise.resolve({ id: `t_new_${name}`, name, color, priority: 0 })),
     },

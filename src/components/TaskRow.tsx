@@ -9,6 +9,8 @@ type Props = {
   task: Task;
   tags: Map<string, Tag>;
   todayIso: string;
+  // Archived view: show a single "Restore" action instead of the done-checkbox.
+  archived?: boolean;
 };
 
 function whenLabel(t: Task, today: string): { text: string; late: boolean } {
@@ -27,7 +29,7 @@ function diffDays(a: string, b: string): number {
   return Math.round((db - da) / 86400000);
 }
 
-export function TaskRow({ task, tags, todayIso }: Props) {
+export function TaskRow({ task, tags, todayIso, archived = false }: Props) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const w = whenLabel(task, todayIso);
@@ -48,6 +50,14 @@ export function TaskRow({ task, tags, todayIso }: Props) {
       // failure; surface the error so the user knows the change didn't stick.
       setError(errorMessage(err));
     });
+  };
+
+  // Restore = clear `done`, which un-archives via the done↔archived coupling.
+  // Always sets done=false (not a toggle) so it also rescues legacy tasks that
+  // were archived while still incomplete (done already false) (#23).
+  const restore = () => {
+    setError(null);
+    api.setTaskDone(task.id, false).catch(err => setError(errorMessage(err)));
   };
 
   const open = () => setEditing(true);
@@ -71,8 +81,15 @@ export function TaskRow({ task, tags, todayIso }: Props) {
           ))}
           {w.text && <span className={w.late ? "task-when late" : "task-when"}>{w.text}</span>}
         </button>
-        <input type="checkbox" checked={task.done} onChange={toggle}
-               aria-label={`Toggle ${task.title}`} />
+        {archived ? (
+          <button type="button" className="task-restore" onClick={restore}
+                  aria-label={`Restore ${task.title}`}>
+            Restore
+          </button>
+        ) : (
+          <input type="checkbox" checked={task.done} onChange={toggle}
+                 aria-label={`Toggle ${task.title}`} />
+        )}
       </div>
       {error && <p className="composer-error" role="alert">Couldn’t update: {error}</p>}
       {editing && <TaskEditor task={task} allTags={tags} onClose={() => setEditing(false)} />}

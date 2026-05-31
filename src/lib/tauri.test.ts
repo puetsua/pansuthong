@@ -46,11 +46,6 @@ describe("api IPC wrappers — command names & arg keys", () => {
     expect(invokeMock).toHaveBeenCalledWith("set_task_done", { id: "k_1", done: true });
   });
 
-  it("setTaskArchived → set_task_archived { id, archived }", async () => {
-    await api.setTaskArchived("k_1", true);
-    expect(invokeMock).toHaveBeenCalledWith("set_task_archived", { id: "k_1", archived: true });
-  });
-
   it("archiveCompleted → archive_completed (no args)", async () => {
     await api.archiveCompleted();
     expect(invokeMock).toHaveBeenCalledWith("archive_completed");

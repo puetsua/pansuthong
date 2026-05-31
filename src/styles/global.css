@@ -66,6 +66,17 @@ button {
 }
 .task-prio.neg { opacity: 0.65; }
 
+.task-restore {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+}
+.task-restore:hover { color: var(--c-accent); border-color: var(--c-accent); }
+
 .task-empty { color: var(--c-text-subtle); text-align: center; padding: var(--space-6) 0; }
 
 .composer {
