@@ -441,7 +441,10 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 
 .mobile-shell {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  /* header, sync-status bar, scrollable main, bottom tabs — main takes the
+     stretch. (Was `auto 1fr auto` for 3 rows, which handed the 1fr to the
+     sync-status bar so it ballooned and left `main` unscrollable.) */
+  grid-template-rows: auto auto 1fr auto;
   height: 100%;
 }
 .mobile-header {
