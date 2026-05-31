@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, Document } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
+import { isAndroid } from "../lib/platform";
 import { buildIndexes, Indexes } from "./indexes";
 
 type DocState = {
@@ -55,6 +56,36 @@ export function useDocument(): DocState {
     if (theme === "auto") document.documentElement.removeAttribute("data-theme");
     else                  document.documentElement.setAttribute("data-theme", theme);
   }, [doc?.settings.theme]);
+
+  // Android folder-sync triggers: pull on launch + when returning to the
+  // foreground, and a debounced push after each local change. store-changed
+  // already drives the reload, so these only move bytes to/from the SAF folder.
+  // All `saf*` calls are inert stubs on desktop (#Phase 4B).
+  useEffect(() => {
+    let active = true;
+    let pushTimer: ReturnType<typeof setTimeout> | undefined;
+    let unlisten: (() => void) | undefined;
+
+    const onChange = () => {
+      clearTimeout(pushTimer);
+      pushTimer = setTimeout(() => { void api.safPush().catch(() => {}); }, 1000);
+    };
+    const onVisible = () => { if (!document.hidden) void api.safSyncNow().catch(() => {}); };
+
+    void isAndroid().then((android) => {
+      if (!android || !active) return;
+      void api.safSyncNow().catch(() => {}); // pull on launch
+      document.addEventListener("visibilitychange", onVisible);
+      void listen("store-changed", onChange).then((un) => { if (active) unlisten = un; else un(); });
+    });
+
+    return () => {
+      active = false;
+      clearTimeout(pushTimer);
+      document.removeEventListener("visibilitychange", onVisible);
+      unlisten?.();
+    };
+  }, []);
 
   const indexes = useMemo(() => (doc ? buildIndexes(doc) : null), [doc]);
   return {

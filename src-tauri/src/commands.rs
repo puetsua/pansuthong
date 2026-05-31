@@ -328,6 +328,10 @@ pub fn resolve_conflict(
         Ok(())
     })?;
     let _ = std::fs::remove_file(&input.conflict_path);
+    // Also remove the conflict copy from the synced SAF folder so it doesn't
+    // re-appear on the next pull (#Phase 4B).
+    #[cfg(target_os = "android")]
+    saf_delete_conflict(&app, &input.conflict_path);
     emit_changed(&app);
     let path: PathBuf = state.path();
     let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
@@ -337,6 +341,8 @@ pub fn resolve_conflict(
 #[tauri::command]
 pub fn dismiss_conflict(conflict_path: String, app: AppHandle, state: State<'_, AppState>) -> Result<()> {
     let _ = std::fs::remove_file(&conflict_path);
+    #[cfg(target_os = "android")]
+    saf_delete_conflict(&app, &conflict_path);
     let path: PathBuf = state.path();
     let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
     Ok(())
@@ -402,6 +408,185 @@ pub fn clear_data_folder(
     emit_changed(&app);
     get_data_location(state, app.clone())
 }
+
+// ───────────────────────── Android SAF folder sync ─────────────────────────
+// Mirror the app-private tasks.json (and Syncthing conflict copies) to/from a
+// user-picked SAF folder (e.g. a Google Drive or Syncthing folder). All SAF I/O
+// lives behind a trait in safsync.rs; these commands wire it to the app. Desktop
+// builds get inert stubs so the command names always resolve in generate_handler!.
+
+#[cfg(target_os = "android")]
+fn saf_delete_conflict(app: &AppHandle, conflict_path: &str) {
+    use crate::safsync::SafBackend as _;
+    let Some(name) = std::path::Path::new(conflict_path).file_name().and_then(|s| s.to_str()) else { return };
+    let saf = app.state::<crate::safsync::SafSync>();
+    let folder_json = saf.inner.lock().unwrap().folder_uri_json.clone();
+    if let Some(json) = folder_json {
+        if let Ok(backend) = crate::safsync::android::AndroidSafBackend::from_json(app, &json) {
+            let _ = backend.delete_file(name);
+        }
+    }
+}
+
+#[cfg(target_os = "android")]
+fn saf_conflict_count(path: &std::path::Path) -> usize {
+    scan_conflict_files(path).len()
+}
+
+#[cfg(target_os = "android")]
+fn saf_run_pull(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync) -> crate::safsync::SyncStatus {
+    use crate::safsync::{self, android::AndroidSafBackend};
+    let path = state.path();
+    let (folder_json, last_hash) = {
+        let g = saf.inner.lock().unwrap();
+        (g.folder_uri_json.clone(), g.last_synced_hash)
+    };
+    let mut conflicts = 0usize;
+    if let Some(json) = folder_json {
+        match AndroidSafBackend::from_json(app, &json) {
+            Ok(backend) => match safsync::pull_in(state, &backend, &path, last_hash) {
+                Ok(out) => {
+                    {
+                        let mut g = saf.inner.lock().unwrap();
+                        g.last_synced_hash = out.new_synced_hash;
+                        g.last_synced_ms = Some(now_ms());
+                        g.last_error = None;
+                    }
+                    conflicts = out.conflict_count;
+                    if out.imported {
+                        let _ = app.emit(STORE_CHANGED, ());
+                    }
+                    let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
+                }
+                Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); }
+            },
+            Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); }
+        }
+    }
+    saf.status(conflicts)
+}
+
+#[cfg(target_os = "android")]
+fn saf_run_push(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync) -> crate::safsync::SyncStatus {
+    use crate::safsync::{self, android::AndroidSafBackend};
+    let (folder_json, last_hash) = {
+        let g = saf.inner.lock().unwrap();
+        (g.folder_uri_json.clone(), g.last_synced_hash)
+    };
+    if let Some(json) = folder_json {
+        match AndroidSafBackend::from_json(app, &json) {
+            Ok(backend) => match safsync::push_out(state, &backend, last_hash) {
+                Ok(Some(h)) => {
+                    let mut g = saf.inner.lock().unwrap();
+                    g.last_synced_hash = Some(h);
+                    g.last_synced_ms = Some(now_ms());
+                    g.last_error = None;
+                }
+                Ok(None) => {}
+                Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); }
+            },
+            Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); }
+        }
+    }
+    saf.status(saf_conflict_count(&state.path()))
+}
+
+/// Open the SAF folder picker, persist permission, save the link, and seed/pull.
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn saf_pick_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    saf: State<'_, crate::safsync::SafSync>,
+) -> Result<crate::safsync::SyncStatus> {
+    use crate::safsync::{self, SafBackend as _};
+    let picked = safsync::android::pick_and_persist(&app).await?;
+    if let Some((json, label)) = picked {
+        {
+            let mut g = saf.inner.lock().unwrap();
+            g.folder_uri_json = Some(json.clone());
+            g.folder_label = Some(label.clone());
+            g.permission_ok = true;
+            g.last_synced_hash = None; // force a real sync on first link
+            g.last_error = None;
+        }
+        safsync::save_config(&state.path(), &safsync::SyncConfig {
+            folder_uri_json: Some(json.clone()),
+            folder_label: Some(label),
+        })?;
+        // First link: pull if the folder already has tasks.json, else push to seed it.
+        let has_remote = safsync::android::AndroidSafBackend::from_json(&app, &json)
+            .ok()
+            .and_then(|b| b.read_tasks().ok().flatten())
+            .is_some();
+        return Ok(if has_remote { saf_run_pull(&app, &state, &saf) } else { saf_run_push(&app, &state, &saf) });
+    }
+    Ok(saf.status(saf_conflict_count(&state.path())))
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn saf_clear_folder(
+    state: State<'_, AppState>,
+    saf: State<'_, crate::safsync::SafSync>,
+) -> Result<()> {
+    {
+        let mut g = saf.inner.lock().unwrap();
+        g.folder_uri_json = None;
+        g.folder_label = None;
+        g.permission_ok = false;
+        g.last_synced_hash = None;
+        g.last_error = None;
+    }
+    crate::safsync::save_config(&state.path(), &crate::safsync::SyncConfig::default())
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn saf_push(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    saf: State<'_, crate::safsync::SafSync>,
+) -> crate::safsync::SyncStatus {
+    saf_run_push(&app, &state, &saf)
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn saf_sync_now(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    saf: State<'_, crate::safsync::SafSync>,
+) -> crate::safsync::SyncStatus {
+    let _ = saf_run_push(&app, &state, &saf); // push local edits, then pull remote
+    saf_run_pull(&app, &state, &saf)
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn saf_status(
+    state: State<'_, AppState>,
+    saf: State<'_, crate::safsync::SafSync>,
+) -> crate::safsync::SyncStatus {
+    saf.status(saf_conflict_count(&state.path()))
+}
+
+// Desktop/iOS stubs (no SAF): keep the command names resolvable for the handler.
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub fn saf_pick_folder() -> crate::safsync::SyncStatus { crate::safsync::SyncStatus::unlinked() }
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub fn saf_clear_folder() -> Result<()> { Ok(()) }
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub fn saf_push() -> crate::safsync::SyncStatus { crate::safsync::SyncStatus::unlinked() }
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub fn saf_sync_now() -> crate::safsync::SyncStatus { crate::safsync::SyncStatus::unlinked() }
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub fn saf_status() -> crate::safsync::SyncStatus { crate::safsync::SyncStatus::unlinked() }
 
 #[cfg(test)]
 mod tests {

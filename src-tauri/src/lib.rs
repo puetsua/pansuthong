@@ -4,6 +4,7 @@ pub mod error;
 pub mod location;
 pub mod model;
 pub mod parse;
+pub mod safsync;
 pub mod search;
 pub mod store;
 pub mod sync;
@@ -38,6 +39,9 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_dialog::init());
 
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(tauri_plugin_android_fs::init());
+
     builder
         .setup(|app| {
             let default_dir = app
@@ -54,11 +58,29 @@ pub fn run() {
             app.manage(state);
 
             let handle = app.handle().clone();
-            let sync_handle = crate::sync::start(handle, path).ok();
+            let sync_handle = crate::sync::start(handle, path.clone()).ok();
             if sync_handle.is_none() {
                 eprintln!("warning: filesystem watcher failed to start");
             }
             app.manage(crate::sync::WatcherHandle(std::sync::Mutex::new(sync_handle)));
+
+            // Android folder-sync: restore the previously linked SAF folder (if any)
+            // and manage the sync runtime state. The sidecar (sync.json) lives beside
+            // the app-private tasks.json and is never itself synced (#Phase 4B).
+            #[cfg(target_os = "android")]
+            {
+                use crate::safsync::{load_config, SafSync};
+                let cfg = load_config(&path);
+                let saf = SafSync::default();
+                if let Some(json) = cfg.folder_uri_json.clone() {
+                    let ok = crate::safsync::android::permission_ok(&app.handle(), &json);
+                    let mut g = saf.inner.lock().unwrap();
+                    g.folder_uri_json = Some(json);
+                    g.folder_label = cfg.folder_label.clone();
+                    g.permission_ok = ok;
+                }
+                app.manage(saf);
+            }
 
             // Desktop quick-capture: a hidden, always-on-top window the global
             // shortcut shows. Created here (not in tauri.conf.json) so it never
@@ -122,6 +144,11 @@ pub fn run() {
             commands::get_data_location,
             commands::set_data_folder,
             commands::clear_data_folder,
+            commands::saf_pick_folder,
+            commands::saf_clear_folder,
+            commands::saf_push,
+            commands::saf_sync_now,
+            commands::saf_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

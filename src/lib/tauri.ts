@@ -62,6 +62,16 @@ export type Decision =
   | { action: "keep_both";   id: string }
   | { action: "drop";        id: string };
 
+/** Android folder-sync status surfaced in Settings (#Phase 4B). */
+export type SyncStatus = {
+  linked: boolean;
+  folder_label: string | null;
+  permission_ok: boolean;
+  last_synced_ms: number | null;
+  last_error: string | null;
+  conflict_count: number;
+};
+
 export const api = {
   getDocument:   ()                          => invoke<Document>("get_document"),
   /** Force an immediate re-read of tasks.json from disk; returns the freshest doc. */
@@ -100,4 +110,10 @@ export const api = {
     if (typeof dir !== "string") return null;
     return invoke<DataLocation>("set_data_folder", { folder: dir });
   },
+  // Android SAF folder sync (#Phase 4B). On desktop these resolve to inert stubs.
+  safPickFolder:  () => invoke<SyncStatus>("saf_pick_folder"),
+  safClearFolder: () => invoke<void>("saf_clear_folder"),
+  safPush:        () => invoke<SyncStatus>("saf_push"),
+  safSyncNow:     () => invoke<SyncStatus>("saf_sync_now"),
+  safStatus:      () => invoke<SyncStatus>("saf_status"),
 };
