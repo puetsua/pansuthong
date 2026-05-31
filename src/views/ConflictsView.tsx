@@ -67,7 +67,7 @@ export function ConflictsView() {
 
   // Translate a bulk intent into a valid action per row kind so one-sided rows
   // are never assigned an action they don't offer (#31).
-  const useAll = (intent: BulkIntent) => {
+  const applyToAll = (intent: BulkIntent) => {
     const all: Record<string, Decision["action"]> = {};
     for (const d of diffs) all[d.id] = bulkAction(d, intent);
     setChosen(all);
@@ -81,8 +81,8 @@ export function ConflictsView() {
       </header>
 
       <div className="conflict-bulk">
-        <button onClick={() => useAll("mine")}   className="link-button">Use all mine</button>
-        <button onClick={() => useAll("theirs")} className="link-button">Use all theirs</button>
+        <button onClick={() => applyToAll("mine")}   className="link-button">Use all mine</button>
+        <button onClick={() => applyToAll("theirs")} className="link-button">Use all theirs</button>
       </div>
 
       {diffs.length === 0
