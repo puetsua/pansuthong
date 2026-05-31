@@ -75,12 +75,6 @@ export const api = {
   addTag:        (name: string, color: string, priority = 0) =>
                                                 invoke<Tag>("add_tag", { input: { name, color, priority } }),
   deleteTag:     (id: string)                => invoke<void>("delete_tag", { id }),
-  parseComposer:   (input: string) => invoke<{
-    title: string;
-    tag_names: string[];
-    due_date?: string;
-    scheduled_date?: string;
-  }>("parse_composer", { input }),
   searchTasks:     (query: string) => invoke<Task[]>("search_tasks", { query }),
   updateTag:       (input: { id: string; name?: string; color?: string; priority?: number }) =>
                                      invoke<Tag>("update_tag", { input }),
