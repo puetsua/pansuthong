@@ -164,12 +164,17 @@ mod poll_tests {
         // file out-of-band (not through AppState::write, so no FS event is
         // guaranteed) with a different document.
         let mut doc = state.read(|d| d.clone());
-        doc.settings.theme = "dark".into();
+        doc.tags.push(crate::model::Tag {
+            id: "t_x".into(),
+            name: "x".into(),
+            color: "#fff".into(),
+            priority: 0,
+        });
         std::fs::write(&path, serde_json::to_vec_pretty(&doc).unwrap()).unwrap();
 
         // The polling core detects the difference and reloads the in-memory doc.
         assert!(reload_if_changed(&state, &path));
-        assert_eq!(state.read(|d| d.settings.theme.clone()), "dark");
+        assert_eq!(state.read(|d| d.tags.iter().map(|t| t.id.clone()).collect::<Vec<_>>()), ["t_x"]);
 
         // Idempotent: a second poll with no further change is a no-op.
         assert!(!reload_if_changed(&state, &path));

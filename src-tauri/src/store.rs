@@ -172,7 +172,7 @@ mod repoint_tests {
         let state = AppState::open(dir.path().join("tasks.json")).unwrap();
         let before = state.read(|d| d.last_modified);
 
-        state.write(|d| { d.settings.theme = "dark".into(); Ok(()) }).unwrap();
+        state.write(|d| { d.tasks.push(sample_task("k_x")); Ok(()) }).unwrap();
 
         let after = state.read(|d| d.last_modified);
         assert!(after > before, "write should bump last_modified ({after} !> {before})");
@@ -188,7 +188,7 @@ mod repoint_tests {
         let dir = tempdir().unwrap();
         let state = AppState::open(dir.path().join("tasks.json")).unwrap();
         // mutate so the seeded copy is observable
-        state.write(|d| { d.settings.theme = "dark".into(); Ok(()) }).unwrap();
+        state.write(|d| { d.tasks.push(sample_task("k_seed")); Ok(()) }).unwrap();
 
         let target_dir = tempdir().unwrap();
         let new_path = target_dir.path().join("tasks.json");
@@ -199,7 +199,7 @@ mod repoint_tests {
         assert_eq!(state.path(), new_path);
         let bytes = std::fs::read(&new_path).unwrap();
         let doc: crate::model::Document = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(doc.settings.theme, "dark");
+        assert_eq!(doc.tasks.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["k_seed"]);
     }
 
     #[test]
@@ -211,14 +211,14 @@ mod repoint_tests {
         let target_dir = tempdir().unwrap();
         let new_path = target_dir.path().join("tasks.json");
         let mut other = state.read(|d| d.clone());
-        other.settings.theme = "light".into();
+        other.tasks.push(sample_task("k_theirs"));
         std::fs::write(&new_path, serde_json::to_vec_pretty(&other).unwrap()).unwrap();
 
         state.repoint(new_path.clone()).unwrap();
 
         assert_eq!(state.path(), new_path);
         // In-memory doc adopted the target's content.
-        assert_eq!(state.read(|d| d.settings.theme.clone()), "light");
+        assert_eq!(state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()), ["k_theirs"]);
         // Hash now matches the adopted bytes, so the watcher won't re-import.
         let h = {
             use sha2::{Digest, Sha256};
@@ -272,13 +272,13 @@ mod repoint_tests {
         let target_dir = tempdir().unwrap();
         let new_path = target_dir.path().join("tasks.json");
         let mut other = Document::default();
-        other.settings.theme = "light".into();
+        other.tasks.push(sample_task("k_theirs"));
         std::fs::write(&new_path, serde_json::to_vec_pretty(&other).unwrap()).unwrap();
 
         state.repoint(new_path.clone()).unwrap();
 
         // The target was adopted...
-        assert_eq!(state.read(|d| d.settings.theme.clone()), "light");
+        assert_eq!(state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()), ["k_theirs"]);
         // ...and the local doc was preserved as a conflict file, not discarded.
         let conflicts = crate::sync::scan_conflict_files(&new_path);
         assert_eq!(conflicts.len(), 1, "local data should be saved to a conflict file");

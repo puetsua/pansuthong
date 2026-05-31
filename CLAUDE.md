@@ -10,12 +10,14 @@ Pansutong is a cross-platform task tracker built with **Tauri 2**, targeting **W
 
 **Tasks and tags are the core data — every other feature is built around them.** When designing or changing functionality, treat the task/tag model as primary and make new features serve it; do not introduce data that competes with or sits beside this center. **Projects were removed in favor of tags** (resolves #5, #7) — express any grouping through tags; do not reintroduce a parallel grouping concept.
 
-The persisted root is a single `Document` (`src-tauri/src/model.rs`, mirrored as a TS `type` in `src/lib/tauri.ts`) holding just `tasks`, `tags`, and `settings`.
+The synced root is a single `Document` (`src-tauri/src/model.rs`, mirrored as a TS `type` in `src/lib/tauri.ts`) holding just `tasks` and `tags`. **Settings are NOT synced** — they live device-locally in `config.json` (see below).
 
 - A **task** carries its own fields (title, done, dates, notes) plus `tag_ids: string[]` — tasks reference tags, never the reverse. A task has **no priority field**: its priority is *derived* from its tags (resolves #4).
 - A **tag** is flat (`id`, `name`, `color`, `priority`) — `priority` is an integer weight (`-9999..=9999`, default 0); no hierarchy or parent grouping. A task's effective priority is the **max weight among its tags** (0 if untagged; a negative weight sinks a task below untagged ones). The old `!`/`!!`/`!!!` composer shortcut was removed.
 - Views are **queries over tasks + tags** computed in `Document` helpers, not separate stored collections — e.g. `tasks_today` (date-based), `tasks_inbox` (`task_in_inbox` = task has no tags), and `tasks_for_tag`. Task lists are ordered by `settings.sort_order` (`"priority"` = weight desc → date → insertion, the default; or `"date"`), applied in the TS `buildIndexes`.
 - Keep model changes additive and backward-compatible: use `#[serde(default)]` / optional TS keys so older data files still load.
+
+**Settings & data-folder config are device-local** (`src-tauri/src/config.rs`), stored in `<app_data_dir>/config.json` — **never synced**, so each device keeps its own theme/sort/Upcoming-horizon and the chosen sync-folder path never leaks across devices. `config.json` holds `{ folder, settings }`: `folder` is the user-chosen data-folder (`None` = default dir), `settings` is `{ theme, sort_order, upcoming_days }`. The managed `ConfigState` owns it; `get_document`/`sync_now` return a `DocumentView` that splices `settings` into the synced doc so the frontend still receives one payload. On first launch after the rename, `load_or_migrate` carries forward a legacy `data_location.json` folder and lifts the old `settings` out of `tasks.json`.
 
 ## Stack
 

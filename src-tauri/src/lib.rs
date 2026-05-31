@@ -1,7 +1,7 @@
 pub mod commands;
+pub mod config;
 pub mod conflict;
 pub mod error;
-pub mod location;
 pub mod model;
 pub mod parse;
 pub mod search;
@@ -45,13 +45,17 @@ pub fn run() {
                 .app_data_dir()
                 .expect("app_data_dir resolvable");
             std::fs::create_dir_all(&default_dir).expect("create app data dir");
+            // Device-local config: chosen folder + settings. Migrates legacy
+            // data_location.json / tasks.json settings on first launch.
+            let config = crate::config::load_or_migrate(&default_dir);
             // Effective path honours a device-local custom folder, if set.
-            let path = crate::location::resolve_data_path(&default_dir);
+            let path = crate::config::resolve_data_path(&default_dir, &config.folder);
             if let Some(parent) = path.parent() {
                 let _ = std::fs::create_dir_all(parent);
             }
             let state = AppState::open(path.clone()).expect("open store");
             app.manage(state);
+            app.manage(crate::config::ConfigState::new(&default_dir, config));
 
             let handle = app.handle().clone();
             let sync_handle = crate::sync::start(handle, path).ok();
