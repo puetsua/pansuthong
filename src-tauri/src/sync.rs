@@ -111,7 +111,7 @@ pub struct WatcherHandle(pub Mutex<Option<SyncHandle>>);
 
 /// Stop the current watcher (if any) and start a new one on `data_path`'s dir.
 pub fn restart(handle: &WatcherHandle, app: &AppHandle, data_path: PathBuf) {
-    let mut g = handle.0.lock().unwrap();
+    let mut g = handle.0.lock().unwrap_or_else(|e| e.into_inner());
     *g = None; // drop the old watcher + let its thread exit
     match start(app.clone(), data_path) {
         Ok(h) => { *g = Some(h); }
