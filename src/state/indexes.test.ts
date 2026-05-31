@@ -215,3 +215,39 @@ describe("archived tasks (#23)", () => {
     expect(ix.archived.map(t => t.id)).toEqual(["k_arch2", "k_arch1"]);
   });
 });
+
+// A real task plus two templates (a tagged one + an untagged one), all scheduled
+// today so they'd otherwise land in the active lists.
+function templatesDoc(): Document {
+  const TODAY_ISO = "2026-05-28";
+  const t = (id: string, tags: string[], is_template: boolean): Task => ({
+    id, title: id, done: false, scheduled_date: TODAY_ISO, notes: "",
+    tag_ids: tags, created_at: 0, updated_at: 0, is_template,
+  });
+  return {
+    version: 2,
+    last_modified: 0,
+    settings: { theme: "auto", sort_order: "priority" },
+    tags: [{ id: "t_w", name: "w", color: "#000", priority: 1 }],
+    tasks: [
+      t("k_real",       ["t_w"], false),
+      t("k_tmpl",       ["t_w"], true),
+      t("k_tmpl_inbox", [],      true),
+    ],
+  };
+}
+
+describe("templates (#71)", () => {
+  const ix = buildIndexes(templatesDoc());
+
+  it("are excluded from today / inbox / byTag / tasks", () => {
+    expect(ix.today("2026-05-28").map(t => t.id)).toEqual(["k_real"]);
+    expect(ix.inbox.map(t => t.id)).toEqual([]);
+    expect(ix.byTag.get("t_w")?.map(t => t.id)).toEqual(["k_real"]);
+    expect(ix.tasks.map(t => t.id)).toEqual(["k_real"]);
+  });
+
+  it("are collected into `templates` in document order", () => {
+    expect(ix.templates.map(t => t.id)).toEqual(["k_tmpl", "k_tmpl_inbox"]);
+  });
+});

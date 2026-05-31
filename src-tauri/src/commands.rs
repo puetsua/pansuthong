@@ -4,7 +4,7 @@ use crate::model::{new_tag_id, new_task_id, now_ms, Document, Tag, Task};
 use crate::search::search as search_doc;
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
-use chrono::NaiveDate;
+use chrono::{Duration, Local, NaiveDate};
 use serde::{Deserialize, Deserializer};
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -39,6 +39,9 @@ pub struct NewTaskInput {
     #[serde(default)] pub scheduled_date: Option<NaiveDate>,
     #[serde(default)] pub notes: String,
     #[serde(default)] pub tag_ids: Vec<String>,
+    #[serde(default)] pub is_template: bool,
+    #[serde(default)] pub due_offset_days: Option<i64>,
+    #[serde(default)] pub scheduled_offset_days: Option<i64>,
 }
 
 /// Drop tag ids that don't exist in the document so tasks never persist dangling
@@ -48,12 +51,38 @@ fn retain_known_tags(ids: Vec<String>, tags: &[Tag]) -> Vec<String> {
     ids.into_iter().filter(|id| tags.iter().any(|t| &t.id == id)).collect()
 }
 
+/// Upper bound for a template's relative date offset (#71). 0 = today; the editor
+/// caps entry to this range too.
+const OFFSET_DAYS_MAX: i64 = 3650;
+
+/// Reject a template offset outside `0..=OFFSET_DAYS_MAX` so a bad value never
+/// persists (and so instantiation's date arithmetic always stays in range).
+fn validate_offset_days(days: Option<i64>) -> Result<()> {
+    if let Some(n) = days {
+        if !(0..=OFFSET_DAYS_MAX).contains(&n) {
+            return Err(AppError::Invalid(format!(
+                "offset days must be 0..={OFFSET_DAYS_MAX}, got {n}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// `today + days`, or `None` when the template carries no offset. The offset is
+/// clamped to the valid range so even a hand-edited out-of-range value can't panic
+/// the date math.
+fn date_from_offset(today: NaiveDate, days: Option<i64>) -> Option<NaiveDate> {
+    days.map(|n| today + Duration::days(n.clamp(0, OFFSET_DAYS_MAX)))
+}
+
 #[tauri::command]
 pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
     let title = input.title.trim().to_string();
     if title.is_empty() {
         return Err(AppError::Invalid("title is empty".into()));
     }
+    validate_offset_days(input.due_offset_days)?;
+    validate_offset_days(input.scheduled_offset_days)?;
     let ts = now_ms();
     let saved = state.write(|d| {
         let task = Task {
@@ -69,6 +98,57 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
             updated_at: ts,
             archived: false,
             archived_at: None,
+            is_template: input.is_template,
+            due_offset_days: input.due_offset_days,
+            scheduled_offset_days: input.scheduled_offset_days,
+        };
+        d.tasks.push(task.clone());
+        Ok(task)
+    })?;
+    emit_changed(&app);
+    Ok(saved)
+}
+
+#[derive(Deserialize)]
+pub struct CreateFromTemplateInput {
+    pub template_id: String,
+}
+
+/// Instantiate a fresh, independent task from a template: copy title/notes/tag_ids
+/// and resolve the template's relative offsets into absolute dates (today + offset).
+/// The new task is an ordinary task (is_template = false, no offsets), so editing or
+/// completing it never affects the template (#71).
+#[tauri::command]
+pub fn create_task_from_template(
+    input: CreateFromTemplateInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Task> {
+    let today = Local::now().date_naive();
+    let ts = now_ms();
+    let saved = state.write(|d| {
+        let tpl = d
+            .tasks
+            .iter()
+            .find(|t| t.id == input.template_id && t.is_template)
+            .ok_or_else(|| AppError::NotFound(format!("template {}", input.template_id)))?;
+        let task = Task {
+            id: new_task_id(),
+            title: tpl.title.clone(),
+            done: false,
+            due_date: date_from_offset(today, tpl.due_offset_days),
+            scheduled_date: date_from_offset(today, tpl.scheduled_offset_days),
+            notes: tpl.notes.clone(),
+            // The template's tag_ids were filtered to known tags when it was saved.
+            tag_ids: tpl.tag_ids.clone(),
+            created_at: ts,
+            completed_at: None,
+            updated_at: ts,
+            archived: false,
+            archived_at: None,
+            is_template: false,
+            due_offset_days: None,
+            scheduled_offset_days: None,
         };
         d.tasks.push(task.clone());
         Ok(task)
@@ -99,6 +179,9 @@ pub struct UpdateTaskInput {
     #[serde(default, deserialize_with = "double_option")] pub scheduled_date: Option<Option<NaiveDate>>,
     #[serde(default)] pub notes: Option<String>,
     #[serde(default)] pub tag_ids: Option<Vec<String>>,
+    #[serde(default)] pub is_template: Option<bool>,
+    #[serde(default, deserialize_with = "double_option")] pub due_offset_days: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")] pub scheduled_offset_days: Option<Option<i64>>,
 }
 
 #[tauri::command]
@@ -123,6 +206,9 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
         if let Some(v) = input.tag_ids        {
             t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
         }
+        if let Some(v) = input.is_template    { t.is_template = v; }
+        if let Some(v) = input.due_offset_days       { validate_offset_days(v)?; t.due_offset_days = v; }
+        if let Some(v) = input.scheduled_offset_days { validate_offset_days(v)?; t.scheduled_offset_days = v; }
         t.updated_at = now_ms();
         Ok(t.clone())
     })?;
@@ -541,5 +627,60 @@ mod tests {
         // rejected when the scanner would have surfaced it.
         let data = Path::new("/data/tasks.json");
         assert!(validate_conflict_path("/data/Tasks.CONFLICT-local-1.JSON", data).is_ok());
+    }
+
+    #[test]
+    fn new_task_input_parses_template_fields() {
+        // Pins the snake_case keys the JS api sends for a template (#71).
+        let v: NewTaskInput = serde_json::from_str(
+            r#"{"title":"t","is_template":true,"due_offset_days":3,"scheduled_offset_days":0}"#,
+        ).unwrap();
+        assert!(v.is_template);
+        assert_eq!(v.due_offset_days, Some(3));
+        assert_eq!(v.scheduled_offset_days, Some(0));
+        // Absent template fields default to a plain task.
+        let plain: NewTaskInput = serde_json::from_str(r#"{"title":"t"}"#).unwrap();
+        assert!(!plain.is_template);
+        assert_eq!(plain.due_offset_days, None);
+    }
+
+    #[test]
+    fn update_task_input_offset_double_option_distinguishes_absent_null_value() {
+        // Mirrors the due_date double_option semantics for offsets.
+        let absent: UpdateTaskInput = serde_json::from_str(r#"{"id":"k_1"}"#).unwrap();
+        assert_eq!(absent.due_offset_days, None);
+        assert_eq!(absent.is_template, None);
+        let cleared: UpdateTaskInput =
+            serde_json::from_str(r#"{"id":"k_1","due_offset_days":null}"#).unwrap();
+        assert_eq!(cleared.due_offset_days, Some(None));
+        let set: UpdateTaskInput =
+            serde_json::from_str(r#"{"id":"k_1","is_template":true,"due_offset_days":5}"#).unwrap();
+        assert_eq!(set.is_template, Some(true));
+        assert_eq!(set.due_offset_days, Some(Some(5)));
+    }
+
+    #[test]
+    fn validate_offset_days_bounds() {
+        assert!(validate_offset_days(None).is_ok());
+        assert!(validate_offset_days(Some(0)).is_ok());
+        assert!(validate_offset_days(Some(OFFSET_DAYS_MAX)).is_ok());
+        assert!(validate_offset_days(Some(-1)).is_err());
+        assert!(validate_offset_days(Some(OFFSET_DAYS_MAX + 1)).is_err());
+    }
+
+    #[test]
+    fn date_from_offset_adds_days_and_clamps() {
+        let today = NaiveDate::from_ymd_opt(2026, 5, 31).unwrap();
+        assert_eq!(date_from_offset(today, None), None);
+        assert_eq!(date_from_offset(today, Some(0)), Some(today));
+        assert_eq!(
+            date_from_offset(today, Some(3)),
+            Some(NaiveDate::from_ymd_opt(2026, 6, 3).unwrap())
+        );
+        // A corrupt out-of-range offset is clamped, never panics.
+        assert_eq!(
+            date_from_offset(today, Some(i64::MAX)),
+            Some(today + Duration::days(OFFSET_DAYS_MAX))
+        );
     }
 }

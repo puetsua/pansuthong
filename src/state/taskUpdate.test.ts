@@ -13,6 +13,9 @@ const base: EditorForm = {
   due_date: "",
   notes: "",
   tag_ids: [],
+  is_template: false,
+  due_offset_days: "",
+  scheduled_offset_days: "",
 };
 
 describe("buildTaskUpdate", () => {
@@ -36,6 +39,35 @@ describe("buildTaskUpdate", () => {
     expect(p.id).toBe("t_9");
     expect(p.notes).toBe("n");
     expect(p.tag_ids).toEqual(["tag_a"]);
+  });
+
+  it("a normal task clears offsets and keeps absolute dates (#71)", () => {
+    const p = buildTaskUpdate("t_1", { ...base, due_date: "2026-06-01" });
+    expect(p.is_template).toBe(false);
+    expect(p.due_date).toBe("2026-06-01");
+    expect(p.due_offset_days).toBeNull();
+    expect(p.scheduled_offset_days).toBeNull();
+  });
+
+  it("a template sends relative offsets and clears absolute dates (#71)", () => {
+    const p = buildTaskUpdate("t_1", {
+      ...base,
+      is_template: true,
+      due_date: "2026-06-01",        // ignored for templates
+      due_offset_days: "3",
+      scheduled_offset_days: "0",
+    });
+    expect(p.is_template).toBe(true);
+    expect(p.due_date).toBeNull();
+    expect(p.scheduled_date).toBeNull();
+    expect(p.due_offset_days).toBe(3);
+    expect(p.scheduled_offset_days).toBe(0);
+  });
+
+  it("an empty or non-numeric offset becomes null (#71)", () => {
+    const p = buildTaskUpdate("t_1", { ...base, is_template: true, due_offset_days: "", scheduled_offset_days: "x" });
+    expect(p.due_offset_days).toBeNull();
+    expect(p.scheduled_offset_days).toBeNull();
   });
 });
 

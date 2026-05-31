@@ -29,6 +29,9 @@ export type Task = {
   updated_at: number; // epoch ms of last edit (0 for pre-existing tasks)
   archived?: boolean; // true = non-destructively hidden from active views (#23)
   archived_at?: number; // epoch ms the task was archived
+  is_template?: boolean;          // true = reusable blueprint, hidden from active views (#71)
+  due_offset_days?: number;       // template only: spawned task's due = today + N days
+  scheduled_offset_days?: number; // template only: spawned task's scheduled = today + M days
 };
 
 export type Document = {
@@ -47,6 +50,9 @@ export type TaskUpdate = {
   scheduled_date?: string | null;
   notes?: string;
   tag_ids?: string[];
+  is_template?: boolean;
+  due_offset_days?: number | null;
+  scheduled_offset_days?: number | null;
 };
 
 export type DataLocation = { folder: string | null; effective_path: string };
@@ -68,6 +74,9 @@ export const api = {
   syncNow:       ()                          => invoke<Document>("sync_now"),
   addTask:       (input: Partial<Task> & { title: string }) => invoke<Task>("add_task", { input }),
   updateTask:    (input: TaskUpdate)                         => invoke<Task>("update_task", { input }),
+  /** Spawn a fresh, independent task from a template (copies title/notes/tags, resolves date offsets). */
+  createTaskFromTemplate: (templateId: string) =>
+                                 invoke<Task>("create_task_from_template", { input: { template_id: templateId } }),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
   /** Archive every completed-but-not-archived task; resolves to the number archived. */
   archiveCompleted: ()                       => invoke<number>("archive_completed"),

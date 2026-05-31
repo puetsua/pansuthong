@@ -7,6 +7,8 @@ export type Indexes = {
   inbox:     Task[];
   /** Archived tasks (newest-archived first); excluded from every active list above. */
   archived:     Task[];
+  /** Template tasks (reusable blueprints); excluded from every active list above. */
+  templates:    Task[];
   tagsById:     Map<string, Tag>;
   tagsByName:   Map<string, Tag>;
   /** Active (non-archived) tasks in document order. */
@@ -74,9 +76,10 @@ export function buildIndexes(doc: Document): Indexes {
   const tagsById = new Map(doc.tags.map(t => [t.id, t]));
   const order: SortOrder = doc.settings.sort_order === "date" ? "date" : "priority";
 
-  // Archived tasks are non-destructively hidden: every active list is built from
-  // the non-archived set, so filtering happens once, here (#23).
-  const active = doc.tasks.filter(t => !t.archived);
+  // Archived tasks (#23) and templates (#71) are both non-destructively hidden:
+  // every active list is built from this filtered set, so the exclusion happens
+  // once, here.
+  const active = doc.tasks.filter(t => !t.archived && !t.is_template);
 
   const byTag = new Map<string, Task[]>();
   for (const tag of doc.tags) byTag.set(tag.id, []);
@@ -94,6 +97,9 @@ export function buildIndexes(doc: Document): Indexes {
     .filter(t => t.archived)
     .sort((a, b) => (b.archived_at ?? b.completed_at ?? 0) - (a.archived_at ?? a.completed_at ?? 0));
 
+  // Templates in document order; surfaced only in the Templates view.
+  const templates = doc.tasks.filter(t => t.is_template);
+
   const tagsByName = new Map<string, Tag>();
   for (const t of doc.tags) tagsByName.set(t.name.toLowerCase(), t);
 
@@ -109,5 +115,5 @@ export function buildIndexes(doc: Document): Indexes {
     return sortTasks(list, order, tagsById);
   };
 
-  return { byTag, today, inbox, archived, tagsById, tagsByName, tasks: active };
+  return { byTag, today, inbox, archived, templates, tagsById, tagsByName, tasks: active };
 }

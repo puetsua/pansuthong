@@ -17,6 +17,9 @@ fn make_task(title: &str) -> Task {
         updated_at: 0,
         archived: false,
         archived_at: None,
+        is_template: false,
+        due_offset_days: None,
+        scheduled_offset_days: None,
     }
 }
 

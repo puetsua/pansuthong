@@ -150,6 +150,37 @@ describe("TaskEditor backdrop auto-save (#66)", () => {
   });
 });
 
+describe("TaskEditor template mode (#71)", () => {
+  it("toggling 'Save as template' swaps the date pickers for offset inputs", () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+    // A normal task shows absolute date pickers.
+    expect(screen.getByLabelText("Scheduled")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /save as template/i }));
+
+    // Now relative-offset inputs, and the absolute pickers are gone.
+    expect(screen.queryByLabelText("Scheduled")).toBeNull();
+    expect(screen.getByLabelText(/scheduled in \(days\)/i)).toBeTruthy();
+    expect(screen.getByLabelText(/due in \(days\)/i)).toBeTruthy();
+  });
+
+  it("saves is_template with the offset and cleared absolute dates", async () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /save as template/i }));
+    fireEvent.change(screen.getByLabelText(/due in \(days\)/i), { target: { value: "3" } });
+    fireEvent.click(button("Save"));
+
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "k_1", is_template: true, due_offset_days: 3, due_date: null }),
+      ),
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+});
+
 describe("TaskEditor inert background (#43)", () => {
   it("marks #root inert + aria-hidden while open and clears it on close", () => {
     const root = document.createElement("div");

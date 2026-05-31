@@ -41,6 +41,11 @@ describe("api IPC wrappers — command names & arg keys", () => {
     expect(invokeMock).toHaveBeenCalledWith("update_task", { input });
   });
 
+  it("createTaskFromTemplate → create_task_from_template { input: { template_id } }", async () => {
+    await api.createTaskFromTemplate("k_1");
+    expect(invokeMock).toHaveBeenCalledWith("create_task_from_template", { input: { template_id: "k_1" } });
+  });
+
   it("setTaskDone → set_task_done with camelCase-free scalar args", async () => {
     await api.setTaskDone("k_1", true);
     expect(invokeMock).toHaveBeenCalledWith("set_task_done", { id: "k_1", done: true });

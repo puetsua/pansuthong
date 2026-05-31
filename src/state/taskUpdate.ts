@@ -10,17 +10,38 @@ export type EditorForm = {
   // immediately) so they're only persisted as real tags when the user clicks
   // Save, and discarded on Cancel. Stored lowercased and deduped.
   new_tag_names?: string[];
+  // Template fields (#71). When is_template, the editor shows relative-offset
+  // inputs ("in N days") instead of absolute date pickers; "" = no offset.
+  is_template: boolean;
+  due_offset_days: string;
+  scheduled_offset_days: string;
 };
 
-/** Map editor form state to an update_task payload. Empty date => null (clear). */
+/** "" => null (no offset); otherwise the parsed integer, NaN guarded to null. */
+function offsetOrNull(s: string): number | null {
+  const t = s.trim();
+  if (t === "") return null;
+  const n = parseInt(t, 10);
+  return Number.isNaN(n) ? null : n;
+}
+
+/**
+ * Map editor form state to an update_task payload. A template carries relative
+ * offsets and no absolute dates; a normal task is the reverse. Whichever kind the
+ * form isn't gets cleared (null) so toggling template ↔ task never leaves stale
+ * values of the other kind behind. Empty date/offset => null (clear).
+ */
 export function buildTaskUpdate(id: string, form: EditorForm): TaskUpdate {
   return {
     id,
     title: form.title.trim(),
-    scheduled_date: form.scheduled_date || null,
-    due_date: form.due_date || null,
     notes: form.notes,
     tag_ids: form.tag_ids,
+    is_template: form.is_template,
+    scheduled_date: form.is_template ? null : (form.scheduled_date || null),
+    due_date:       form.is_template ? null : (form.due_date || null),
+    scheduled_offset_days: form.is_template ? offsetOrNull(form.scheduled_offset_days) : null,
+    due_offset_days:       form.is_template ? offsetOrNull(form.due_offset_days) : null,
   };
 }
 
@@ -43,6 +64,9 @@ export function isEditorDirty(form: EditorForm, initial: EditorForm): boolean {
     || form.due_date !== initial.due_date
     || form.notes !== initial.notes
     || !sameTagSet(form.tag_ids, initial.tag_ids)
+    || form.is_template !== initial.is_template
+    || form.due_offset_days !== initial.due_offset_days
+    || form.scheduled_offset_days !== initial.scheduled_offset_days
     || (form.new_tag_names?.length ?? 0) > 0;
 }
 

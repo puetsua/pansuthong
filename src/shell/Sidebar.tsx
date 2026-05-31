@@ -42,6 +42,11 @@ export function Sidebar({ doc, indexes }: Props) {
             Upcoming
           </NavLink>
         </li>
+        <li>
+          <NavLink to="/templates" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+            Templates <span className="sidebar-count">{indexes.templates.length}</span>
+          </NavLink>
+        </li>
       </ul>
 
       <div className="sidebar-section">

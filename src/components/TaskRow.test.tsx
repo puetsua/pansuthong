@@ -9,6 +9,7 @@ vi.mock("../lib/tauri", async (importOriginal) => {
     ...actual,
     api: {
       setTaskDone: vi.fn().mockResolvedValue({}),
+      createTaskFromTemplate: vi.fn().mockResolvedValue({}),
     },
   };
 });
@@ -52,5 +53,14 @@ describe("TaskRow archived mode (#23)", () => {
     render(<TaskRow task={{ ...baseTask, done: false, archived: true }} tags={tags} todayIso="2026-05-31" archived />);
     fireEvent.click(screen.getByRole("button", { name: /restore/i }));
     await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", false));
+  });
+});
+
+describe("TaskRow template mode (#71)", () => {
+  it("shows a 'New task' button instead of a checkbox and spawns from the template", async () => {
+    render(<TaskRow task={{ ...baseTask, is_template: true }} tags={tags} todayIso="2026-05-31" template />);
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /new task from/i }));
+    await waitFor(() => expect(api.createTaskFromTemplate).toHaveBeenCalledWith("k_1"));
   });
 });

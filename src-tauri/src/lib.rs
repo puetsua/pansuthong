@@ -105,6 +105,7 @@ pub fn run() {
             commands::get_document,
             commands::sync_now,
             commands::add_task,
+            commands::create_task_from_template,
             commands::update_task,
             commands::set_task_done,
             commands::archive_completed,

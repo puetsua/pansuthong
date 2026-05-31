@@ -20,6 +20,9 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
     notes: task.notes ?? "",
     tag_ids: task.tag_ids,
     new_tag_names: [],
+    is_template: task.is_template ?? false,
+    due_offset_days: task.due_offset_days != null ? String(task.due_offset_days) : "",
+    scheduled_offset_days: task.scheduled_offset_days != null ? String(task.scheduled_offset_days) : "",
   });
   const [form, setForm] = useState<EditorForm>(initialRef.current);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +101,9 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
 
   // Cross-field guard: a due date before the scheduled date is almost always a
   // mistake, so it's surfaced and blocks Save rather than persisting silently (#51).
-  const dateError = dueBeforeScheduled(form)
+  // Only meaningful for real tasks — templates use relative offsets, not absolute
+  // dates, so the guard doesn't apply when editing a template (#71).
+  const dateError = !form.is_template && dueBeforeScheduled(form)
     ? "Due date can't be before the scheduled date."
     : null;
 
@@ -159,19 +164,44 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
                  onChange={e => set("title", e.currentTarget.value)} />
         </label>
 
-        <div className="te-row">
-          <label className="te-field">
-            <span>Scheduled</span>
-            <input type="date" value={form.scheduled_date}
-                   onChange={e => set("scheduled_date", e.currentTarget.value)} />
-          </label>
-          <label className="te-field">
-            <span>Due</span>
-            <input type="date" value={form.due_date}
-                   onChange={e => set("due_date", e.currentTarget.value)} />
-          </label>
-        </div>
-        {dateError && <p className="te-warn" role="alert">{dateError}</p>}
+        <label className="te-template-toggle">
+          <input type="checkbox" checked={form.is_template}
+                 onChange={e => set("is_template", e.currentTarget.checked)} />
+          <span>Save as template — reusable, hidden from active views, spawns new tasks</span>
+        </label>
+
+        {form.is_template ? (
+          <div className="te-row">
+            <label className="te-field">
+              <span>Scheduled in (days)</span>
+              <input type="number" min={0} max={3650} inputMode="numeric" placeholder="—"
+                     value={form.scheduled_offset_days}
+                     onChange={e => set("scheduled_offset_days", e.currentTarget.value)} />
+            </label>
+            <label className="te-field">
+              <span>Due in (days)</span>
+              <input type="number" min={0} max={3650} inputMode="numeric" placeholder="—"
+                     value={form.due_offset_days}
+                     onChange={e => set("due_offset_days", e.currentTarget.value)} />
+            </label>
+          </div>
+        ) : (
+          <>
+            <div className="te-row">
+              <label className="te-field">
+                <span>Scheduled</span>
+                <input type="date" value={form.scheduled_date}
+                       onChange={e => set("scheduled_date", e.currentTarget.value)} />
+              </label>
+              <label className="te-field">
+                <span>Due</span>
+                <input type="date" value={form.due_date}
+                       onChange={e => set("due_date", e.currentTarget.value)} />
+              </label>
+            </div>
+            {dateError && <p className="te-warn" role="alert">{dateError}</p>}
+          </>
+        )}
 
         <div className="te-field">
           <span>Tags</span>

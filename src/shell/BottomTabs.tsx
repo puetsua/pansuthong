@@ -5,10 +5,11 @@ import { todayIso } from "../lib/dates";
 type Props = { indexes: Indexes };
 
 const TABS = [
-  { to: "/today",    label: "Today",    icon: "●" },
-  { to: "/inbox",    label: "Inbox",    icon: "▣" },
-  { to: "/upcoming", label: "Upcoming", icon: "◔" },
-  { to: "/search",   label: "Search",   icon: "⌕" },
+  { to: "/today",     label: "Today",     icon: "●" },
+  { to: "/inbox",     label: "Inbox",     icon: "▣" },
+  { to: "/upcoming",  label: "Upcoming",  icon: "◔" },
+  { to: "/templates", label: "Templates", icon: "▤" },
+  { to: "/search",    label: "Search",    icon: "⌕" },
 ] as const;
 
 export function BottomTabs({ indexes }: Props) {

@@ -11,6 +11,9 @@ type Props = {
   todayIso: string;
   // Archived view: show a single "Restore" action instead of the done-checkbox.
   archived?: boolean;
+  // Templates view: show a "New task" action instead of the done-checkbox, and
+  // summarise the relative date offsets instead of absolute dates.
+  template?: boolean;
 };
 
 function whenLabel(t: Task, today: string): { text: string; late: boolean } {
@@ -24,12 +27,20 @@ function whenLabel(t: Task, today: string): { text: string; late: boolean } {
   return { text: "", late: false };
 }
 
+/** Compact summary of a template's relative offsets, e.g. "start +0d · due +3d". */
+function offsetLabel(t: Task): string {
+  const parts: string[] = [];
+  if (t.scheduled_offset_days != null) parts.push(`start +${t.scheduled_offset_days}d`);
+  if (t.due_offset_days != null)       parts.push(`due +${t.due_offset_days}d`);
+  return parts.join(" · ");
+}
+
 function diffDays(a: string, b: string): number {
   const da = Date.parse(a), db = Date.parse(b);
   return Math.round((db - da) / 86400000);
 }
 
-export function TaskRow({ task, tags, todayIso, archived = false }: Props) {
+export function TaskRow({ task, tags, todayIso, archived = false, template = false }: Props) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const w = whenLabel(task, todayIso);
@@ -60,6 +71,12 @@ export function TaskRow({ task, tags, todayIso, archived = false }: Props) {
     api.setTaskDone(task.id, false).catch(err => setError(errorMessage(err)));
   };
 
+  // Spawn a fresh, independent task from this template.
+  const newFromTemplate = () => {
+    setError(null);
+    api.createTaskFromTemplate(task.id).catch(err => setError(errorMessage(err)));
+  };
+
   const open = () => setEditing(true);
 
   return (
@@ -79,9 +96,16 @@ export function TaskRow({ task, tags, todayIso, archived = false }: Props) {
               {t.name}
             </span>
           ))}
-          {w.text && <span className={w.late ? "task-when late" : "task-when"}>{w.text}</span>}
+          {template
+            ? offsetLabel(task) && <span className="task-when">{offsetLabel(task)}</span>
+            : w.text && <span className={w.late ? "task-when late" : "task-when"}>{w.text}</span>}
         </button>
-        {archived ? (
+        {template ? (
+          <button type="button" className="task-restore" onClick={newFromTemplate}
+                  aria-label={`New task from ${task.title}`}>
+            New task
+          </button>
+        ) : archived ? (
           <button type="button" className="task-restore" onClick={restore}
                   aria-label={`Restore ${task.title}`}>
             Restore
