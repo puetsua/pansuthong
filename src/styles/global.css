@@ -594,6 +594,8 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .te-actions { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
 .te-spacer { flex: 1; }
 .te-delete { color: var(--c-danger); }
+.te-archive { color: var(--c-text-muted); }
+.te-archive:hover { color: var(--c-text); }
 .te-save { font-weight: 600; }
 /* Keep the weight field compact inside the tag editor (the .settings-row width
    rule is scoped to settings, so the modal needs its own). */

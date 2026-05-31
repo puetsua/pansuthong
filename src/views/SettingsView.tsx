@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, DataLocation, Document } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { isAndroid } from "../lib/platform";
@@ -7,7 +8,7 @@ import { clampUpcomingDays, upcomingDays, UPCOMING_DAYS_MAX, UPCOMING_DAYS_MIN }
 
 type Props = { doc: Document; indexes: Indexes };
 
-export function SettingsView({ doc, indexes: _indexes }: Props) {
+export function SettingsView({ doc, indexes }: Props) {
   const theme = doc.settings.theme;
   const setTheme = (t: "auto" | "light" | "dark") => { void api.updateSettings({ theme: t }); };
 
@@ -24,6 +25,8 @@ export function SettingsView({ doc, indexes: _indexes }: Props) {
     setDraftDays(String(n));
     if (n !== days) setUpcoming(n);
   };
+
+  const archivedCount = indexes.archived.length;
 
   const [android, setAndroid] = useState(false);
   const [loc, setLoc] = useState<DataLocation | null>(null);
@@ -115,6 +118,14 @@ export function SettingsView({ doc, indexes: _indexes }: Props) {
             onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
           />
         </div>
+      </section>
+
+      <section className="settings-section">
+        <h2>Archived tasks</h2>
+        <p className="view-sub">Completed tasks you’ve tucked out of the active lists.</p>
+        <Link to="/archived" className="theme-option">
+          View archived{archivedCount > 0 ? ` (${archivedCount})` : ""}
+        </Link>
       </section>
 
       <section className="settings-section">

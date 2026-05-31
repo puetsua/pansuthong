@@ -9,6 +9,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/upcoming": "Upcoming",
   "/search":   "Search",
   "/tags":     "Tags",
+  "/archived": "Archived",
   "/settings": "Settings",
 };
 

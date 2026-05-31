@@ -15,6 +15,8 @@ fn make_task(title: &str) -> Task {
         created_at: 0,
         completed_at: None,
         updated_at: 0,
+        archived: false,
+        archived_at: None,
     }
 }
 

@@ -81,6 +81,14 @@ pub struct Task {
     /// tasks written before this field existed (UI falls back to created_at).
     #[serde(default)]
     pub updated_at:   i64,
+    /// Archived tasks are non-destructively removed from the active views
+    /// (Today / Inbox / tag / Upcoming) but remain recoverable and searchable.
+    /// `#[serde(default)]` = false for tasks written before this field existed.
+    #[serde(default)]
+    pub archived: bool,
+    /// Epoch millis the task was archived; cleared on unarchive.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub archived_at: Option<i64>,
 }
 
 pub const CURRENT_VERSION: u32 = 2;
@@ -129,8 +137,10 @@ impl Document {
     }
 
     /// Today: scheduled today, OR (due < today AND !done), OR due == today.
+    /// Archived tasks never appear in active views.
     pub fn tasks_today(&self, today: NaiveDate) -> Vec<&Task> {
         self.tasks.iter().filter(|t| {
+            if t.archived { return false; }
             if t.scheduled_date == Some(today) { return true; }
             if let Some(due) = t.due_date {
                 if due == today { return true; }
@@ -141,10 +151,12 @@ impl Document {
     }
 
     pub fn tasks_inbox(&self) -> Vec<&Task> {
-        self.tasks.iter().filter(|t| self.task_in_inbox(t)).collect()
+        self.tasks.iter().filter(|t| !t.archived && self.task_in_inbox(t)).collect()
     }
 
     pub fn tasks_for_tag(&self, tag_id: &str) -> Vec<&Task> {
-        self.tasks.iter().filter(|t| t.tag_ids.iter().any(|id| id == tag_id)).collect()
+        self.tasks.iter()
+            .filter(|t| !t.archived && t.tag_ids.iter().any(|id| id == tag_id))
+            .collect()
     }
 }

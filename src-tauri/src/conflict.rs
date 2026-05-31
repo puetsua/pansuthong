@@ -141,6 +141,7 @@ fn decision_id(d: &Decision) -> &str {
 fn task_equal(a: &Task, b: &Task) -> bool {
     a.title == b.title
         && a.done == b.done
+        && a.archived == b.archived
         && a.due_date == b.due_date
         && a.scheduled_date == b.scheduled_date
         && a.notes == b.notes
@@ -161,6 +162,7 @@ mod merge_tests {
             due_date: None, scheduled_date: None, notes: String::new(),
             tag_ids: tag_ids.iter().map(|s| s.to_string()).collect(),
             created_at: 0, completed_at: None, updated_at: 0,
+            archived: false, archived_at: None,
         }
     }
 

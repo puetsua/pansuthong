@@ -179,3 +179,39 @@ describe("done-aware lists (#32)", () => {
     expect(openCount([])).toBe(0);
   });
 });
+
+// One open tagged task plus two archived ones (a tagged + an untagged), all
+// scheduled today so they'd otherwise land in the active lists.
+function archivedDoc(): Document {
+  const TODAY_ISO = "2026-05-28";
+  const t = (id: string, tags: string[], archived: boolean, archived_at?: number): Task => ({
+    id, title: id, done: archived, scheduled_date: TODAY_ISO, notes: "",
+    tag_ids: tags, created_at: 0, updated_at: 0, archived, archived_at,
+  });
+  return {
+    version: 2,
+    last_modified: 0,
+    settings: { theme: "auto", sort_order: "priority" },
+    tags: [{ id: "t_w", name: "w", color: "#000", priority: 1 }],
+    tasks: [
+      t("k_open",  ["t_w"], false),
+      t("k_arch1", ["t_w"], true, 100),
+      t("k_arch2", [],      true, 200),
+    ],
+  };
+}
+
+describe("archived tasks (#23)", () => {
+  const ix = buildIndexes(archivedDoc());
+
+  it("are excluded from today / inbox / byTag / tasks", () => {
+    expect(ix.today("2026-05-28").map(t => t.id)).toEqual(["k_open"]);
+    expect(ix.inbox.map(t => t.id)).toEqual([]);
+    expect(ix.byTag.get("t_w")?.map(t => t.id)).toEqual(["k_open"]);
+    expect(ix.tasks.map(t => t.id)).toEqual(["k_open"]);
+  });
+
+  it("are collected into `archived`, most-recently-archived first", () => {
+    expect(ix.archived.map(t => t.id)).toEqual(["k_arch2", "k_arch1"]);
+  });
+});

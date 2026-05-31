@@ -5,8 +5,11 @@ export type Indexes = {
   byTag:     Map<string, Task[]>;
   today:     (todayIso: string) => Task[];
   inbox:     Task[];
+  /** Archived tasks (newest-archived first); excluded from every active list above. */
+  archived:     Task[];
   tagsById:     Map<string, Tag>;
   tagsByName:   Map<string, Tag>;
+  /** Active (non-archived) tasks in document order. */
   tasks:        Task[];
 };
 
@@ -71,22 +74,31 @@ export function buildIndexes(doc: Document): Indexes {
   const tagsById = new Map(doc.tags.map(t => [t.id, t]));
   const order: SortOrder = doc.settings.sort_order === "date" ? "date" : "priority";
 
+  // Archived tasks are non-destructively hidden: every active list is built from
+  // the non-archived set, so filtering happens once, here (#23).
+  const active = doc.tasks.filter(t => !t.archived);
+
   const byTag = new Map<string, Task[]>();
   for (const tag of doc.tags) byTag.set(tag.id, []);
-  for (const task of doc.tasks) {
+  for (const task of active) {
     for (const tagId of task.tag_ids) {
       byTag.get(tagId)?.push(task);
     }
   }
   for (const arr of byTag.values()) sortTasks(arr, order, tagsById);
 
-  const inbox = sortTasks(doc.tasks.filter(t => t.tag_ids.length === 0), order, tagsById);
+  const inbox = sortTasks(active.filter(t => t.tag_ids.length === 0), order, tagsById);
+
+  // Most-recently-archived first (fall back to completion/insertion when unstamped).
+  const archived = doc.tasks
+    .filter(t => t.archived)
+    .sort((a, b) => (b.archived_at ?? b.completed_at ?? 0) - (a.archived_at ?? a.completed_at ?? 0));
 
   const tagsByName = new Map<string, Tag>();
   for (const t of doc.tags) tagsByName.set(t.name.toLowerCase(), t);
 
   const today = (todayIso: string): Task[] => {
-    const list = doc.tasks.filter(t => {
+    const list = active.filter(t => {
       if (t.scheduled_date === todayIso) return true;
       if (t.due_date) {
         if (t.due_date === todayIso) return true;
@@ -97,5 +109,5 @@ export function buildIndexes(doc: Document): Indexes {
     return sortTasks(list, order, tagsById);
   };
 
-  return { byTag, today, inbox, tagsById, tagsByName, tasks: doc.tasks };
+  return { byTag, today, inbox, archived, tagsById, tagsByName, tasks: active };
 }
