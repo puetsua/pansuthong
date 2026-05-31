@@ -441,7 +441,10 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 
 .mobile-shell {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  /* header, sync-status bar, scrollable main, bottom tabs — main takes the stretch.
+     (Was `auto 1fr auto` for 3 rows, which gave the 1fr to the sync-status bar and
+     ballooned it to fill the screen once SyncStatus was added as a 4th child.) */
+  grid-template-rows: auto auto 1fr auto;
   height: 100%;
 }
 .mobile-header {
@@ -619,6 +622,7 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 }
 .te-options-menu button { text-align: left; padding: var(--space-2); border-radius: var(--radius-sm); }
 .te-options-menu button:hover:not(:disabled) { background: var(--c-accent-bg); }
+.te-options-menu button.te-menu-danger { color: var(--c-danger); }
 .te-notice { color: var(--c-accent); font-size: 0.8rem; margin: 0; }
 .te-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .te-tag {

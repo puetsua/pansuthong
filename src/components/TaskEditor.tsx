@@ -286,9 +286,6 @@ export function TaskEditor({ task, allTags, onClose, creating = false }: Props) 
 
         <div className="te-actions">
           {!creating && (
-            <button type="button" className="te-delete" onClick={remove} disabled={busy}>Delete</button>
-          )}
-          {!isTemplate && !creating && (
             <div className="te-options">
               <button type="button" className="te-options-btn" onClick={() => setOptionsOpen(o => !o)}
                       disabled={busy} aria-haspopup="menu" aria-expanded={optionsOpen}>
@@ -296,8 +293,14 @@ export function TaskEditor({ task, allTags, onClose, creating = false }: Props) 
               </button>
               {optionsOpen && (
                 <div className="te-options-menu" role="menu">
-                  <button type="button" role="menuitem" onClick={saveAsTemplate} disabled={busy}>
-                    Save as template
+                  {!isTemplate && (
+                    <button type="button" role="menuitem" onClick={saveAsTemplate} disabled={busy}>
+                      Save as template
+                    </button>
+                  )}
+                  <button type="button" role="menuitem" className="te-menu-danger"
+                          onClick={() => { setOptionsOpen(false); void remove(); }} disabled={busy}>
+                    Delete
                   </button>
                 </div>
               )}
