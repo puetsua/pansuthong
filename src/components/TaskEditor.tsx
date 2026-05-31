@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { api, Tag, Task } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { buildTaskUpdate, dueBeforeScheduled, EditorForm, isEditorDirty } from "../state/taskUpdate";
+import { resolveTagIds } from "../state/quickAdd";
+import { TagInput } from "./TagInput";
 
 type Props = {
   task: Task;
@@ -17,13 +19,11 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
     due_date: task.due_date ?? "",
     notes: task.notes ?? "",
     tag_ids: task.tag_ids,
+    new_tag_names: [],
   });
   const [form, setForm] = useState<EditorForm>(initialRef.current);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // The "add tag" picker (the list of not-yet-assigned tags) is collapsed by
-  // default so the Tags field shows only the task's own tags (#24).
-  const [picking, setPicking] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   // The element focused before the modal opened (the triggering row button),
@@ -68,11 +68,17 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
   const set = <K extends keyof EditorForm>(k: K, v: EditorForm[K]) =>
     setForm(f => ({ ...f, [k]: v }));
 
-  const toggleTag = (id: string) =>
-    setForm(f => ({
-      ...f,
-      tag_ids: f.tag_ids.includes(id) ? f.tag_ids.filter(t => t !== id) : [...f.tag_ids, id],
-    }));
+  const addExistingTag = (id: string) =>
+    setForm(f => (f.tag_ids.includes(id) ? f : { ...f, tag_ids: [...f.tag_ids, id] }));
+  const removeExistingTag = (id: string) =>
+    setForm(f => ({ ...f, tag_ids: f.tag_ids.filter(t => t !== id) }));
+  const addNewTag = (name: string) =>
+    setForm(f => {
+      const names = f.new_tag_names ?? [];
+      return names.includes(name) ? f : { ...f, new_tag_names: [...names, name] };
+    });
+  const removeNewTag = (name: string) =>
+    setForm(f => ({ ...f, new_tag_names: (f.new_tag_names ?? []).filter(n => n !== name) }));
 
   // Cross-field guard: a due date before the scheduled date is almost always a
   // mistake, so it's surfaced and blocks Save rather than persisting silently (#51).
@@ -85,7 +91,18 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
     if (dateError) { setError(dateError); return; }
     setBusy(true);
     try {
-      await api.updateTask(buildTaskUpdate(task.id, form));
+      // Create any tags the user typed but didn't pick from the list, then fold
+      // their ids in alongside the existing ones. Done here (not on each add) so
+      // Cancel leaves no orphan tags behind.
+      let tagIds = form.tag_ids;
+      const newNames = form.new_tag_names ?? [];
+      if (newNames.length > 0) {
+        const byName = new Map<string, Tag>();
+        for (const t of allTags.values()) byName.set(t.name.toLowerCase(), t);
+        const newIds = await resolveTagIds(newNames, byName, api.addTag);
+        tagIds = [...form.tag_ids, ...newIds.filter(id => !form.tag_ids.includes(id))];
+      }
+      await api.updateTask(buildTaskUpdate(task.id, { ...form, tag_ids: tagIds }));
       onClose();
     } catch (err) {
       setError(errorMessage(err));
@@ -116,17 +133,6 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
     }
   };
 
-  // Tags currently on the task (removable chips) vs. the rest (shown only when
-  // the user opens the picker). Both highest-weight first.
-  const byWeightDesc = (a: Tag, b: Tag) => b.priority - a.priority;
-  const assigned = form.tag_ids
-    .map(id => allTags.get(id))
-    .filter((t): t is Tag => t !== undefined)
-    .sort(byWeightDesc);
-  const unassigned = [...allTags.values()]
-    .filter(t => !form.tag_ids.includes(t.id))
-    .sort(byWeightDesc);
-
   return createPortal(
     <div className="modal-backdrop" onClick={requestClose}>
       <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true" aria-label="Edit task"
@@ -153,42 +159,15 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
 
         <div className="te-field">
           <span>Tags</span>
-          <div className="te-tags">
-            {assigned.map(t => (
-              <button type="button" key={t.id} className="te-tag on"
-                      style={{ borderColor: t.color, color: t.color }}
-                      onClick={() => toggleTag(t.id)}
-                      aria-label={`Remove ${t.name}`} title={`Remove ${t.name}`}>
-                {t.name} <span aria-hidden="true">×</span>
-              </button>
-            ))}
-            {!picking && (
-              <button type="button" className="te-tag te-add-tag"
-                      onClick={() => setPicking(true)}>
-                + Add tag
-              </button>
-            )}
-          </div>
-          {picking && (
-            <div className="te-tag-picker">
-              {unassigned.length === 0 ? (
-                <span className="te-empty">
-                  {allTags.size === 0 ? "No tags yet — create one on the Tags page." : "All tags added."}
-                </span>
-              ) : (
-                unassigned.map(t => (
-                  <button type="button" key={t.id} className="te-tag"
-                          style={{ borderColor: t.color, color: t.color }}
-                          onClick={() => toggleTag(t.id)}>
-                    {t.name}
-                  </button>
-                ))
-              )}
-              <button type="button" className="te-tag te-add-done" onClick={() => setPicking(false)}>
-                Done
-              </button>
-            </div>
-          )}
+          <TagInput
+            allTags={allTags}
+            tagIds={form.tag_ids}
+            newNames={form.new_tag_names ?? []}
+            onAddExisting={addExistingTag}
+            onAddNew={addNewTag}
+            onRemoveExisting={removeExistingTag}
+            onRemoveNew={removeNewTag}
+          />
         </div>
 
         <label className="te-field">
