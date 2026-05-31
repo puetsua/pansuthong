@@ -93,17 +93,6 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
     }
   };
 
-  const toggleArchive = async () => {
-    setBusy(true);
-    try {
-      await api.setTaskArchived(task.id, !task.archived);
-      onClose();
-    } catch (err) {
-      setError(errorMessage(err));
-      setBusy(false);
-    }
-  };
-
   const remove = async () => {
     if (!window.confirm(`Delete "${task.title}"? This can't be undone.`)) return;
     setBusy(true);
@@ -201,9 +190,6 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
 
         <div className="te-actions">
           <button type="button" className="te-delete" onClick={remove} disabled={busy}>Delete</button>
-          <button type="button" className="te-archive" onClick={toggleArchive} disabled={busy}>
-            {task.archived ? "Unarchive" : "Archive"}
-          </button>
           <span className="te-spacer" />
           <button type="button" onClick={requestClose} disabled={busy}>Cancel</button>
           <button type="button" className="te-save" onClick={save}

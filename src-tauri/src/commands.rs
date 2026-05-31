@@ -131,15 +131,14 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
     Ok(updated)
 }
 
+/// Toggle a task's completion. Finishing a task also archives it (sending it out
+/// of the active views); reopening it restores the task. See `Task::set_done`.
 #[tauri::command]
 pub fn set_task_done(id: String, done: bool, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
     let updated = state.write(|d| {
         let t = d.tasks.iter_mut().find(|t| t.id == id)
             .ok_or_else(|| AppError::NotFound(format!("task {id}")))?;
-        t.done = done;
-        let ts = now_ms();
-        t.completed_at = if done { Some(ts) } else { None };
-        t.updated_at = ts;
+        t.set_done(done, now_ms());
         Ok(t.clone())
     })?;
     emit_changed(&app);
