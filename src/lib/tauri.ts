@@ -69,8 +69,6 @@ export const api = {
   addTask:       (input: Partial<Task> & { title: string }) => invoke<Task>("add_task", { input }),
   updateTask:    (input: TaskUpdate)                         => invoke<Task>("update_task", { input }),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
-  /** Archive or unarchive a single task (non-destructive). */
-  setTaskArchived: (id: string, archived: boolean) => invoke<Task>("set_task_archived", { id, archived }),
   /** Archive every completed-but-not-archived task; resolves to the number archived. */
   archiveCompleted: ()                       => invoke<number>("archive_completed"),
   deleteTask:    (id: string)                => invoke<void>("delete_task", { id }),

@@ -40,7 +40,7 @@ export default function App() {
           <Route path="/tag/:id"     element={<TagView indexes={indexes} />} />
           <Route path="/upcoming" element={<UpcomingView doc={doc} indexes={indexes} />} />
           <Route path="/search" element={<SearchView indexes={indexes} />} />
-          <Route path="/settings" element={<SettingsView doc={doc} indexes={indexes} />} />
+          <Route path="/settings" element={<SettingsView doc={doc} />} />
           <Route path="/tags" element={<TagsView doc={doc} indexes={indexes} />} />
           <Route path="/archived" element={<ArchivedView doc={doc} indexes={indexes} />} />
           <Route path="/conflicts/:filename" element={<ConflictsView />} />

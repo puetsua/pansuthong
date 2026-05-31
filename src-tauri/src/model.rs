@@ -130,6 +130,20 @@ impl Default for Document {
     }
 }
 
+impl Task {
+    /// Toggle completion. Finishing a task also archives it (sweeping it out of
+    /// the active Today/Inbox/tag views); reopening it clears the archive. Keeping
+    /// `done` and `archived` in lockstep is what makes "done" send a task to the
+    /// archive and un-checking it bring the task back.
+    pub fn set_done(&mut self, done: bool, ts: i64) {
+        self.done = done;
+        self.completed_at = if done { Some(ts) } else { None };
+        self.archived = done;
+        self.archived_at = if done { Some(ts) } else { None };
+        self.updated_at = ts;
+    }
+}
+
 impl Document {
     /// True if the task is in Inbox (has no tags).
     pub fn task_in_inbox(&self, task: &Task) -> bool {
@@ -158,5 +172,50 @@ impl Document {
         self.tasks.iter()
             .filter(|t| !t.archived && t.tag_ids.iter().any(|id| id == tag_id))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn task() -> Task {
+        Task {
+            id: "k_1".into(),
+            title: "t".into(),
+            done: false,
+            due_date: None,
+            scheduled_date: None,
+            notes: String::new(),
+            tag_ids: Vec::new(),
+            created_at: 0,
+            completed_at: None,
+            updated_at: 0,
+            archived: false,
+            archived_at: None,
+        }
+    }
+
+    #[test]
+    fn completing_a_task_archives_it() {
+        let mut t = task();
+        t.set_done(true, 100);
+        assert!(t.done);
+        assert_eq!(t.completed_at, Some(100));
+        assert!(t.archived, "finishing a task sends it to the archive");
+        assert_eq!(t.archived_at, Some(100));
+        assert_eq!(t.updated_at, 100);
+    }
+
+    #[test]
+    fn uncompleting_a_task_unarchives_it() {
+        let mut t = task();
+        t.set_done(true, 100);
+        t.set_done(false, 200);
+        assert!(!t.done);
+        assert_eq!(t.completed_at, None);
+        assert!(!t.archived, "reopening a task restores it to the active views");
+        assert_eq!(t.archived_at, None);
+        assert_eq!(t.updated_at, 200);
     }
 }

@@ -10,7 +10,6 @@ vi.mock("../lib/tauri", async (importOriginal) => {
     api: {
       updateTask: vi.fn().mockResolvedValue({}),
       deleteTask: vi.fn().mockResolvedValue(undefined),
-      setTaskArchived: vi.fn().mockResolvedValue({}),
       addTag: vi.fn((name: string, color: string) =>
         Promise.resolve({ id: `t_new_${name}`, name, color, priority: 0 })),
     },
@@ -84,16 +83,17 @@ describe("TaskEditor tags (#24)", () => {
 });
 
 describe("TaskEditor archive (#23)", () => {
-  it("archives an active task", async () => {
+  // Archiving is now driven by completion (finishing a task archives it,
+  // reopening restores it), so the modal no longer carries a manual archive
+  // control — for active or already-archived tasks alike.
+  it("has no Archive button on an active task", () => {
     render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
-    fireEvent.click(button("Archive"));
-    await waitFor(() => expect(api.setTaskArchived).toHaveBeenCalledWith("k_1", true));
+    expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
   });
 
-  it("offers Unarchive for an archived task", async () => {
+  it("has no Unarchive button on an archived task", () => {
     render(<TaskEditor task={{ ...baseTask, archived: true }} allTags={tags} onClose={vi.fn()} />);
-    fireEvent.click(button("Unarchive"));
-    await waitFor(() => expect(api.setTaskArchived).toHaveBeenCalledWith("k_1", false));
+    expect(screen.queryByRole("button", { name: "Unarchive" })).toBeNull();
   });
 });
 
