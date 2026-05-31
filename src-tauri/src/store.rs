@@ -106,6 +106,37 @@ impl AppState {
         }
         Ok(())
     }
+
+    /// Adopt externally-synced `bytes` as the master document. The bytes are
+    /// persisted **verbatim** (so the on-disk file, the in-memory doc, and the
+    /// returned hash all agree) and `last_modified` is NOT bumped — unlike
+    /// `write`, whose re-stamp would change the bytes and defeat the folder-sync
+    /// hash de-duplication (causing a cross-device re-push echo).
+    ///
+    /// Before overwriting, the current local document is preserved as a conflict
+    /// file when it (a) holds data, (b) has un-synced changes — i.e. its hash
+    /// differs from `last_synced_hash` — and (c) differs from the incoming bytes.
+    /// This mirrors `repoint`'s #34 protection so folder-sync adoption never
+    /// silently drops local edits, while a device that is merely behind (local ==
+    /// last synced) adopts cleanly with no spurious conflict file. The document is
+    /// validated before anything is touched, so torn/garbage or newer-version
+    /// bytes leave the master intact. Returns the adopted bytes' hash.
+    pub fn adopt_synced(&self, bytes: &[u8], last_synced_hash: Option<[u8; 32]>) -> Result<[u8; 32]> {
+        let doc = parse_checked(bytes)?; // validate before mutating the master
+        let hash = sha256(bytes);
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if doc_has_data(&g.doc) {
+            let local_bytes = serde_json::to_vec_pretty(&g.doc)?;
+            let local_diverged = Some(sha256(&local_bytes)) != last_synced_hash;
+            if local_diverged && local_bytes != bytes {
+                write_local_conflict(&g.path, &local_bytes)?;
+            }
+        }
+        atomic_write(&g.path, bytes)?;
+        g.doc = doc;
+        g.last_written_hash = hash;
+        Ok(hash)
+    }
 }
 
 /// Parse a document and reject one written by a newer schema version, so an

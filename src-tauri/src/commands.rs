@@ -492,6 +492,22 @@ fn saf_conflict_count(path: &std::path::Path) -> usize {
     scan_conflict_files(path).len()
 }
 
+/// Persist the current link + last-synced hash to the device-local sidecar so a
+/// cold start can restore the hash and avoid clobbering a remote that another
+/// device updated while this app was closed (#Phase 4B).
+#[cfg(target_os = "android")]
+fn saf_persist(state: &AppState, saf: &crate::safsync::SafSync) {
+    let cfg = {
+        let g = saf.inner.lock().unwrap();
+        crate::safsync::SyncConfig {
+            folder_uri_json: g.folder_uri_json.clone(),
+            folder_label: g.folder_label.clone(),
+            last_synced_hash: g.last_synced_hash,
+        }
+    };
+    let _ = crate::safsync::save_config(&state.path(), &cfg);
+}
+
 #[cfg(target_os = "android")]
 fn saf_run_pull(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync) -> crate::safsync::SyncStatus {
     use crate::safsync::{self, android::AndroidSafBackend};
@@ -515,6 +531,7 @@ fn saf_run_pull(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync
                     if out.imported {
                         let _ = app.emit(STORE_CHANGED, ());
                     }
+                    saf_persist(state, saf); // persist the advanced last_synced_hash
                     let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
                 }
                 Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); }
@@ -536,10 +553,13 @@ fn saf_run_push(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync
         match AndroidSafBackend::from_json(app, &json) {
             Ok(backend) => match safsync::push_out(state, &backend, last_hash) {
                 Ok(Some(h)) => {
-                    let mut g = saf.inner.lock().unwrap();
-                    g.last_synced_hash = Some(h);
-                    g.last_synced_ms = Some(now_ms());
-                    g.last_error = None;
+                    {
+                        let mut g = saf.inner.lock().unwrap();
+                        g.last_synced_hash = Some(h);
+                        g.last_synced_ms = Some(now_ms());
+                        g.last_error = None;
+                    }
+                    saf_persist(state, saf); // persist the advanced last_synced_hash
                 }
                 Ok(None) => {}
                 Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); }
@@ -572,6 +592,7 @@ pub async fn saf_pick_folder(
         safsync::save_config(&state.path(), &safsync::SyncConfig {
             folder_uri_json: Some(json.clone()),
             folder_label: Some(label),
+            last_synced_hash: None, // the seed/pull below persists the real hash
         })?;
         // First link: pull if the folder already has tasks.json, else push to seed it.
         let has_remote = safsync::android::AndroidSafBackend::from_json(&app, &json)
@@ -617,8 +638,11 @@ pub fn saf_sync_now(
     state: State<'_, AppState>,
     saf: State<'_, crate::safsync::SafSync>,
 ) -> crate::safsync::SyncStatus {
-    let _ = saf_run_push(&app, &state, &saf); // push local edits, then pull remote
-    saf_run_pull(&app, &state, &saf)
+    // Pull first so a remote another device updated is adopted (diverged local
+    // edits are preserved as a conflict file) BEFORE we push — otherwise a cold
+    // start would push this device's stale copy over the newer remote (#Phase 4B).
+    let _ = saf_run_pull(&app, &state, &saf);
+    saf_run_push(&app, &state, &saf)
 }
 
 #[cfg(target_os = "android")]

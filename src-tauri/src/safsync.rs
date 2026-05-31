@@ -90,23 +90,21 @@ pub fn pull_in(
         }
     }
 
-    // 2. Adopt a changed, VALID remote tasks.json (last-write-wins).
+    // 2. Adopt a changed, VALID remote tasks.json (last-write-wins), preserving
+    //    any diverged local edits as a conflict file (#34) and writing the remote
+    //    bytes verbatim so the synced hash matches what's on disk (no re-push echo).
     let mut new_hash = last_synced_hash;
     let mut imported = false;
     if let Some(remote) = backend.read_tasks()? {
         let h = sha256(&remote);
         if Some(h) != last_synced_hash {
-            match serde_json::from_slice::<crate::model::Document>(&remote) {
-                Ok(doc) => {
-                    state.write(|d| {
-                        *d = doc;
-                        Ok(())
-                    })?;
-                    new_hash = Some(h);
+            match state.adopt_synced(&remote, last_synced_hash) {
+                Ok(hash) => {
+                    new_hash = Some(hash);
                     imported = true;
                 }
                 Err(_) => {
-                    // Torn/garbage remote: skip, keep the shadow intact.
+                    // Torn/garbage or newer-version remote: skip, keep the shadow intact.
                     return Err(AppError::Invalid("saf: remote tasks.json is not valid JSON".into()));
                 }
             }
@@ -148,6 +146,11 @@ pub struct SyncConfig {
     /// `FileUri::to_json_string()` output; `None` = not linked.
     pub folder_uri_json: Option<String>,
     pub folder_label: Option<String>,
+    /// Hash of the last document synced (pushed or pulled). Persisted so a cold
+    /// start doesn't treat the unchanged local doc as "never synced" and clobber
+    /// a remote another device updated while this app was closed (#Phase 4B).
+    #[serde(default)]
+    pub last_synced_hash: Option<[u8; 32]>,
 }
 
 pub fn sidecar_path(data_path: &Path) -> PathBuf {
@@ -380,6 +383,75 @@ mod tests {
         // Pulling again with the same hash imports nothing.
         let out2 = pull_in(&state, &backend, &path, h).unwrap();
         assert!(!out2.imported);
+    }
+
+    #[test]
+    fn pull_in_preserves_diverged_local_as_conflict() {
+        let (_d, state, path) = temp_state();
+        // Local has un-synced data (a tag) that a naive adopt would discard.
+        state
+            .write(|d| {
+                d.tags.push(crate::model::Tag {
+                    id: "g_local".into(),
+                    name: "local".into(),
+                    color: "#fff".into(),
+                    priority: 0,
+                });
+                Ok(())
+            })
+            .unwrap();
+
+        // Remote holds a different document (dark theme, no such tag).
+        let mut remote_doc = crate::model::Document::default();
+        remote_doc.settings.theme = "dark".into();
+        let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
+        let backend = FakeBackend::with(&[("tasks.json", &remote)]);
+
+        // First link (last_synced_hash = None): adopt remote, preserve local.
+        let out = pull_in(&state, &backend, &path, None).unwrap();
+        assert!(out.imported);
+        assert_eq!(state.read(|d| d.settings.theme.clone()), "dark");
+        assert!(state.read(|d| d.tags.is_empty()), "remote (no tags) was adopted");
+
+        // The diverged local doc must survive as a conflict file to reconcile.
+        let conflicts = crate::sync::scan_conflict_files(&path);
+        assert_eq!(conflicts.len(), 1, "diverged local data preserved as a conflict file");
+        let bytes = std::fs::read(&conflicts[0]).unwrap();
+        let preserved: crate::model::Document = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(preserved.tags.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["g_local"]);
+    }
+
+    #[test]
+    fn pull_in_adopts_cleanly_when_local_matches_last_synced() {
+        let (_d, state, path) = temp_state();
+        // Seed local with data and treat it as already-synced (hash of local).
+        state
+            .write(|d| {
+                d.tags.push(crate::model::Tag {
+                    id: "g".into(),
+                    name: "t".into(),
+                    color: "#fff".into(),
+                    priority: 0,
+                });
+                Ok(())
+            })
+            .unwrap();
+        let synced_hash = sha256(&state.read(serde_json::to_vec_pretty).unwrap());
+
+        // Remote moved ahead (another device); this device has NO un-synced edits.
+        let mut remote_doc = state.read(|d| d.clone());
+        remote_doc.settings.theme = "dark".into();
+        let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
+        let backend = FakeBackend::with(&[("tasks.json", &remote)]);
+
+        let out = pull_in(&state, &backend, &path, Some(synced_hash)).unwrap();
+        assert!(out.imported);
+        assert_eq!(state.read(|d| d.settings.theme.clone()), "dark");
+        // No spurious conflict file: local was merely behind, not diverged.
+        assert!(
+            crate::sync::scan_conflict_files(&path).is_empty(),
+            "a device that is only behind must adopt without a conflict file"
+        );
     }
 
     #[test]

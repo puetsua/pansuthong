@@ -73,11 +73,15 @@ pub fn run() {
                 let cfg = load_config(&path);
                 let saf = SafSync::default();
                 if let Some(json) = cfg.folder_uri_json.clone() {
-                    let ok = crate::safsync::android::permission_ok(&app.handle(), &json);
+                    let ok = crate::safsync::android::permission_ok(app.handle(), &json);
                     let mut g = saf.inner.lock().unwrap();
                     g.folder_uri_json = Some(json);
                     g.folder_label = cfg.folder_label.clone();
                     g.permission_ok = ok;
+                    // Restore the last-synced hash so the launch sync doesn't treat
+                    // the unchanged local doc as "never synced" and clobber a remote
+                    // updated by another device while this app was closed (#Phase 4B).
+                    g.last_synced_hash = cfg.last_synced_hash;
                 }
                 app.manage(saf);
             }

@@ -74,7 +74,7 @@ export function useDocument(): DocState {
 
     void isAndroid().then((android) => {
       if (!android || !active) return;
-      void api.safSyncNow().catch(() => {}); // pull on launch
+      void api.safSyncNow().catch(() => {}); // pull-then-push on launch
       document.addEventListener("visibilitychange", onVisible);
       void listen("store-changed", onChange).then((un) => { if (active) unlisten = un; else un(); });
     });
