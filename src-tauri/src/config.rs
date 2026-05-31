@@ -92,6 +92,7 @@ fn persist(path: &Path, cfg: &Config) -> Result<()> {
 /// 2. lift the `settings` object out of the existing `tasks.json` so each
 ///    device keeps the theme/sort/horizon it had before settings became
 ///    device-local.
+///
 /// The migrated config is written to `config.json`; the legacy file is left in
 /// place (harmless) so a downgrade still finds it.
 pub fn load_or_migrate(default_dir: &Path) -> Config {
