@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, Tag, Task } from "../lib/tauri";
+import { errorMessage } from "../lib/errors";
 import { buildTaskUpdate, EditorForm } from "../state/taskUpdate";
 
 type Props = {
@@ -77,7 +78,7 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
       await api.updateTask(buildTaskUpdate(task.id, form));
       onClose();
     } catch (err) {
-      setError(String(err));
+      setError(errorMessage(err));
       setBusy(false);
     }
   };
@@ -89,7 +90,7 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
       await api.deleteTask(task.id);
       onClose();
     } catch (err) {
-      setError(String(err));
+      setError(errorMessage(err));
       setBusy(false);
     }
   };

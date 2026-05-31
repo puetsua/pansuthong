@@ -296,6 +296,40 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   gap: var(--space-3);
   font-size: 0.85rem;
 }
+
+.reload-banner {
+  background: #fee2e2;
+  color: #7f1d1d;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: 0.85rem;
+}
+.reload-banner-dismiss {
+  color: #b91c1c;
+  font-weight: 600;
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .reload-banner {
+    background: #3f1d1d;
+    color: #fecaca;
+    border-color: #7f1d1d;
+  }
+  :root:not([data-theme="light"]) .reload-banner-dismiss { color: #fca5a5; }
+}
+:root[data-theme="dark"] .reload-banner {
+  background: #3f1d1d; color: #fecaca; border-color: #7f1d1d;
+}
+:root[data-theme="dark"] .reload-banner-dismiss { color: #fca5a5; }
 .conflict-banner-link {
   color: #b45309;
   font-weight: 600;

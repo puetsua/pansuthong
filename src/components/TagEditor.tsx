@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, Tag } from "../lib/tauri";
+import { errorMessage } from "../lib/errors";
 import { clampWeight } from "../lib/tags";
 import { ColorPicker } from "./ColorPicker";
 
@@ -82,7 +83,7 @@ export function TagEditor({ tag, onClose, onDeleted }: Props) {
       }
       onClose();
     } catch (err) {
-      setError(String(err));
+      setError(errorMessage(err));
       setBusy(false);
     }
   };
@@ -95,7 +96,7 @@ export function TagEditor({ tag, onClose, onDeleted }: Props) {
       await api.deleteTag(tag.id);
       (onDeleted ?? onClose)();
     } catch (err) {
-      setError(String(err));
+      setError(errorMessage(err));
       setBusy(false);
     }
   };

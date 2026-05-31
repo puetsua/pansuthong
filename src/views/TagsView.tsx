@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, Document, Tag } from "../lib/tauri";
+import { errorMessage } from "../lib/errors";
 import { Indexes } from "../state/indexes";
 import { TagEditor } from "../components/TagEditor";
 
@@ -19,7 +20,7 @@ export function TagsView({ doc, indexes }: Props) {
   const remove = async (t: Tag) => {
     if (!window.confirm(`Delete tag #${t.name}? It will be removed from all tasks.`)) return;
     try { await api.deleteTag(t.id); setError(null); }
-    catch (err) { setError(String(err)); }
+    catch (err) { setError(errorMessage(err)); }
   };
 
   return (

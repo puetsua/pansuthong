@@ -1,6 +1,6 @@
-use crate::model::{Document, Task};
+use crate::model::{Document, Tag, Task};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -103,6 +103,32 @@ pub fn apply_decisions(
     out
 }
 
+/// Tags from `theirs` that the resolved task list references but `mine` lacks.
+/// Conflict resolution keeps tasks that may carry tags living only in the other
+/// device's document; without merging those tags the references dangle and the
+/// task silently falls into Inbox at priority 0 (#30).
+pub fn tags_to_merge(tasks: &[Task], mine: &Document, theirs: &Document) -> Vec<Tag> {
+    let mine_ids: HashSet<&str> = mine.tags.iter().map(|t| t.id.as_str()).collect();
+    let theirs_by_id: HashMap<&str, &Tag> =
+        theirs.tags.iter().map(|t| (t.id.as_str(), t)).collect();
+
+    let mut added: Vec<Tag> = Vec::new();
+    let mut seen: HashSet<&str> = HashSet::new();
+    for task in tasks {
+        for id in &task.tag_ids {
+            let id = id.as_str();
+            if mine_ids.contains(id) || seen.contains(id) {
+                continue;
+            }
+            if let Some(tag) = theirs_by_id.get(id) {
+                added.push((*tag).clone());
+                seen.insert(id);
+            }
+        }
+    }
+    added
+}
+
 fn decision_id(d: &Decision) -> &str {
     match d {
         Decision::KeepMine   { id } |
@@ -119,4 +145,65 @@ fn task_equal(a: &Task, b: &Task) -> bool {
         && a.scheduled_date == b.scheduled_date
         && a.notes == b.notes
         && a.tag_ids == b.tag_ids
+}
+
+#[cfg(test)]
+mod merge_tests {
+    use super::*;
+
+    fn tag(id: &str) -> Tag {
+        Tag { id: id.into(), name: id.into(), color: "#000".into(), priority: 5 }
+    }
+
+    fn task_with_tags(id: &str, tag_ids: &[&str]) -> Task {
+        Task {
+            id: id.into(), title: id.into(), done: false,
+            due_date: None, scheduled_date: None, notes: String::new(),
+            tag_ids: tag_ids.iter().map(|s| s.to_string()).collect(),
+            created_at: 0, completed_at: None, updated_at: 0,
+        }
+    }
+
+    #[test]
+    fn merges_theirs_only_tag_referenced_by_a_kept_task() {
+        let mine = Document::default();
+        let mut theirs = Document::default();
+        theirs.tags.push(tag("t_work"));
+        let kept = task_with_tags("k_1", &["t_work"]);
+
+        let added = tags_to_merge(&[kept], &mine, &theirs);
+        assert_eq!(added.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["t_work"]);
+    }
+
+    #[test]
+    fn does_not_duplicate_a_tag_mine_already_has() {
+        let mut mine = Document::default();
+        mine.tags.push(tag("t_work"));
+        let mut theirs = Document::default();
+        theirs.tags.push(tag("t_work"));
+        let kept = task_with_tags("k_1", &["t_work"]);
+
+        assert!(tags_to_merge(&[kept], &mine, &theirs).is_empty());
+    }
+
+    #[test]
+    fn ignores_dangling_ids_absent_from_theirs() {
+        let mine = Document::default();
+        let theirs = Document::default();
+        let kept = task_with_tags("k_1", &["t_ghost"]);
+
+        assert!(tags_to_merge(&[kept], &mine, &theirs).is_empty());
+    }
+
+    #[test]
+    fn de_duplicates_when_two_tasks_reference_the_same_tag() {
+        let mine = Document::default();
+        let mut theirs = Document::default();
+        theirs.tags.push(tag("t_work"));
+        let a = task_with_tags("k_1", &["t_work"]);
+        let b = task_with_tags("k_2", &["t_work"]);
+
+        let added = tags_to_merge(&[a, b], &mine, &theirs);
+        assert_eq!(added.len(), 1);
+    }
 }

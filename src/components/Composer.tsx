@@ -1,5 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { api, Tag } from "../lib/tauri";
+import { errorMessage } from "../lib/errors";
 import { parseComposer } from "../state/parse";
 import { todayIso } from "../lib/dates";
 import { ComposerPreview } from "./ComposerPreview";
@@ -32,7 +33,7 @@ export function Composer({ scheduledDate, tagsByName }: Props) {
       setInput("");
       setError(null);
     } catch (err) {
-      setError(String(err));
+      setError(errorMessage(err));
     }
   };
 
