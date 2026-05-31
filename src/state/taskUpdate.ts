@@ -6,6 +6,10 @@ export type EditorForm = {
   due_date: string;         // "" = none
   notes: string;
   tag_ids: string[];
+  // Names typed into the tag input that don't exist yet. Held here (not created
+  // immediately) so they're only persisted as real tags when the user clicks
+  // Save, and discarded on Cancel. Stored lowercased and deduped.
+  new_tag_names?: string[];
 };
 
 /** Map editor form state to an update_task payload. Empty date => null (clear). */
@@ -38,7 +42,8 @@ export function isEditorDirty(form: EditorForm, initial: EditorForm): boolean {
     || form.scheduled_date !== initial.scheduled_date
     || form.due_date !== initial.due_date
     || form.notes !== initial.notes
-    || !sameTagSet(form.tag_ids, initial.tag_ids);
+    || !sameTagSet(form.tag_ids, initial.tag_ids)
+    || (form.new_tag_names?.length ?? 0) > 0;
 }
 
 /** True when both dates are set and the due date precedes the scheduled date (#51). */
