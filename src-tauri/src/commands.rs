@@ -227,10 +227,15 @@ pub fn update_tag(input: UpdateTagInput, state: State<'_, AppState>, app: AppHan
     Ok(updated)
 }
 
+/// Bounds for the configurable Upcoming horizon (#25).
+const UPCOMING_DAYS_MIN: u32 = 1;
+const UPCOMING_DAYS_MAX: u32 = 365;
+
 #[derive(Deserialize)]
 pub struct UpdateSettingsInput {
     #[serde(default)] pub theme: Option<String>,
     #[serde(default)] pub sort_order: Option<String>,
+    #[serde(default)] pub upcoming_days: Option<u32>,
 }
 
 #[tauri::command]
@@ -247,6 +252,14 @@ pub fn update_settings(input: UpdateSettingsInput, state: State<'_, AppState>, a
                 return Err(AppError::Invalid(format!("invalid sort_order: {s}")));
             }
             d.settings.sort_order = s;
+        }
+        if let Some(n) = input.upcoming_days {
+            if !(UPCOMING_DAYS_MIN..=UPCOMING_DAYS_MAX).contains(&n) {
+                return Err(AppError::Invalid(format!(
+                    "upcoming_days must be {UPCOMING_DAYS_MIN}..={UPCOMING_DAYS_MAX}, got {n}"
+                )));
+            }
+            d.settings.upcoming_days = n;
         }
         Ok(())
     })?;
@@ -433,5 +446,14 @@ mod tests {
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.sort_order, None);
         assert_eq!(absent.theme, None);
+    }
+
+    #[test]
+    fn update_settings_input_parses_upcoming_days() {
+        // Pins the snake_case `upcoming_days` key that the JS api sends.
+        let v: UpdateSettingsInput = serde_json::from_str(r#"{"upcoming_days":30}"#).unwrap();
+        assert_eq!(v.upcoming_days, Some(30));
+        let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(absent.upcoming_days, None);
     }
 }

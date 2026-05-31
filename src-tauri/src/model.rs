@@ -25,10 +25,18 @@ pub struct Settings {
     /// `#[serde(default)]` = "priority" for files written before this field existed.
     #[serde(default = "default_sort_order")]
     pub sort_order: String,
+    /// How many days ahead the Upcoming view looks. `#[serde(default)]` = 14 for
+    /// files written before this field existed. The UI bounds it to 1..=365.
+    #[serde(default = "default_upcoming_days")]
+    pub upcoming_days: u32,
 }
 
 fn default_sort_order() -> String {
     "priority".into()
+}
+
+fn default_upcoming_days() -> u32 {
+    14
 }
 
 impl Default for Settings {
@@ -36,6 +44,7 @@ impl Default for Settings {
         Self {
             theme: "auto".into(),
             sort_order: default_sort_order(),
+            upcoming_days: default_upcoming_days(),
         }
     }
 }

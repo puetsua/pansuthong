@@ -37,7 +37,7 @@ export default function App() {
           <Route path="/today" element={<TodayView doc={doc} indexes={indexes} />} />
           <Route path="/inbox" element={<InboxView doc={doc} indexes={indexes} />} />
           <Route path="/tag/:id"     element={<TagView indexes={indexes} />} />
-          <Route path="/upcoming" element={<UpcomingView indexes={indexes} />} />
+          <Route path="/upcoming" element={<UpcomingView doc={doc} indexes={indexes} />} />
           <Route path="/search" element={<SearchView indexes={indexes} />} />
           <Route path="/settings" element={<SettingsView doc={doc} indexes={indexes} />} />
           <Route path="/tags" element={<TagsView doc={doc} indexes={indexes} />} />
