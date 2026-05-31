@@ -44,3 +44,29 @@ fn empty_document_has_empty_derivations() {
     assert!(doc.tasks_today(today()).is_empty());
     assert!(doc.tasks_inbox().is_empty());
 }
+
+#[test]
+fn archived_tasks_drop_out_of_active_views() {
+    // Inline doc (also exercises serde defaults for the new fields). One open
+    // tagged task scheduled today, one archived counterpart, one archived inbox task.
+    let doc: Document = serde_json::from_str(
+        r##"{
+            "version": 2,
+            "tags": [{"id":"t_a","name":"a","color":"#000","priority":1}],
+            "tasks": [
+                {"id":"k_open","title":"open","done":false,"scheduled_date":"2026-05-28","notes":"","tag_ids":["t_a"],"created_at":0},
+                {"id":"k_arch","title":"arch","done":true,"scheduled_date":"2026-05-28","notes":"","tag_ids":["t_a"],"created_at":0,"archived":true},
+                {"id":"k_arch_inbox","title":"ai","done":true,"notes":"","tag_ids":[],"created_at":0,"archived":true}
+            ]
+        }"##,
+    )
+    .unwrap();
+
+    let today_ids: Vec<&str> = doc.tasks_today(today()).iter().map(|t| t.id.as_str()).collect();
+    assert_eq!(today_ids, vec!["k_open"], "archived task excluded from Today");
+
+    let tag_ids: Vec<&str> = doc.tasks_for_tag("t_a").iter().map(|t| t.id.as_str()).collect();
+    assert_eq!(tag_ids, vec!["k_open"], "archived task excluded from tag view");
+
+    assert!(doc.tasks_inbox().is_empty(), "archived untagged task excluded from Inbox");
+}

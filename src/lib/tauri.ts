@@ -27,6 +27,8 @@ export type Task = {
   created_at: number;
   completed_at?: number;
   updated_at: number; // epoch ms of last edit (0 for pre-existing tasks)
+  archived?: boolean; // true = non-destructively hidden from active views (#23)
+  archived_at?: number; // epoch ms the task was archived
 };
 
 export type Document = {
@@ -67,6 +69,10 @@ export const api = {
   addTask:       (input: Partial<Task> & { title: string }) => invoke<Task>("add_task", { input }),
   updateTask:    (input: TaskUpdate)                         => invoke<Task>("update_task", { input }),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
+  /** Archive or unarchive a single task (non-destructive). */
+  setTaskArchived: (id: string, archived: boolean) => invoke<Task>("set_task_archived", { id, archived }),
+  /** Archive every completed-but-not-archived task; resolves to the number archived. */
+  archiveCompleted: ()                       => invoke<number>("archive_completed"),
   deleteTask:    (id: string)                => invoke<void>("delete_task", { id }),
   addTag:        (name: string, color: string, priority = 0) =>
                                                 invoke<Tag>("add_tag", { input: { name, color, priority } }),

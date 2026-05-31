@@ -107,6 +107,8 @@ pub fn run() {
             commands::add_task,
             commands::update_task,
             commands::set_task_done,
+            commands::set_task_archived,
+            commands::archive_completed,
             commands::delete_task,
             commands::add_tag,
             commands::delete_tag,

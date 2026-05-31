@@ -235,6 +235,7 @@ mod repoint_tests {
             id: id.into(), title: id.into(), done: false,
             due_date: None, scheduled_date: None, notes: String::new(),
             tag_ids: Vec::new(), created_at: 0, completed_at: None, updated_at: 0,
+            archived: false, archived_at: None,
         }
     }
 

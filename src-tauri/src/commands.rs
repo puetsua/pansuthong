@@ -68,6 +68,8 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
             created_at: ts,
             completed_at: None,
             updated_at: ts,
+            archived: false,
+            archived_at: None,
         };
         d.tasks.push(task.clone());
         Ok(task)
@@ -142,6 +144,47 @@ pub fn set_task_done(id: String, done: bool, state: State<'_, AppState>, app: Ap
     })?;
     emit_changed(&app);
     Ok(updated)
+}
+
+/// Archive or unarchive a single task. Archiving removes it from the active
+/// views non-destructively; unarchiving restores it. Stamps `archived_at` on
+/// archive and clears it on unarchive (#23).
+#[tauri::command]
+pub fn set_task_archived(id: String, archived: bool, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
+    let updated = state.write(|d| {
+        let t = d.tasks.iter_mut().find(|t| t.id == id)
+            .ok_or_else(|| AppError::NotFound(format!("task {id}")))?;
+        let ts = now_ms();
+        t.archived = archived;
+        t.archived_at = if archived { Some(ts) } else { None };
+        t.updated_at = ts;
+        Ok(t.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
+}
+
+/// Bulk-archive every completed-but-not-yet-archived task. Returns how many were
+/// archived; only emits a change (and bumps timestamps) when at least one moved (#23).
+#[tauri::command]
+pub fn archive_completed(state: State<'_, AppState>, app: AppHandle) -> Result<usize> {
+    let archived = state.write(|d| {
+        let ts = now_ms();
+        let mut count = 0usize;
+        for t in d.tasks.iter_mut() {
+            if t.done && !t.archived {
+                t.archived = true;
+                t.archived_at = Some(ts);
+                t.updated_at = ts;
+                count += 1;
+            }
+        }
+        Ok(count)
+    })?;
+    if archived > 0 {
+        emit_changed(&app);
+    }
+    Ok(archived)
 }
 
 #[tauri::command]
