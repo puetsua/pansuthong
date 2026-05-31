@@ -22,6 +22,7 @@ export function MobileHeader({ indexes }: Props) {
     <header className="mobile-header">
       <h1 className="mobile-title">{title}</h1>
       <div className="mobile-header-actions">
+        <Link to="/templates" className="mobile-header-icon" aria-label="Templates">▤</Link>
         <Link to="/tags" className="mobile-header-icon" aria-label="Tags">#</Link>
         <Link to="/settings" className="mobile-header-icon" aria-label="Settings">⚙</Link>
       </div>
