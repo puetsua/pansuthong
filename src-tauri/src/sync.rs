@@ -38,13 +38,8 @@ pub fn start(app: AppHandle, data_path: PathBuf) -> notify::Result<SyncHandle> {
         loop {
             // Block for the first event of a burst.
             if rx.recv().is_err() { break; }
-            // Drain any follow-up events in a DEBOUNCE_MS quiet window.
-            loop {
-                match rx.recv_timeout(Duration::from_millis(DEBOUNCE_MS)) {
-                    Ok(_)  => continue, // burst still happening; keep draining
-                    Err(_) => break,    // quiet for DEBOUNCE_MS — burst is over
-                }
-            }
+            // Drain any follow-up events until DEBOUNCE_MS of quiet ends the burst.
+            while rx.recv_timeout(Duration::from_millis(DEBOUNCE_MS)).is_ok() {}
             process_change(&app_for_thread, &path_for_thread);
         }
     });
