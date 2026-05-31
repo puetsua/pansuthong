@@ -12,9 +12,14 @@ export function QuickCapture() {
   const [input, setInput] = useState("");
   const [tagsByName, setTagsByName] = useState<Map<string, Tag>>(new Map());
   const [error, setError] = useState<string | null>(null);
+  // Confirmation shown after a "keep open" (Shift+Enter) save, since the only
+  // other signal is the input clearing — easy to miss when capturing rapidly (#51).
+  const [savedFlash, setSavedFlash] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const parsed = useMemo(() => parseComposer(input, todayIso()), [input]);
+  // Typed something that's only tags/dates — tell the user a title is required (#51).
+  const needsTitle = input.trim().length > 0 && !parsed.title;
 
   // Load tags (for #tag de-dup) on mount and whenever the store changes.
   useEffect(() => {
@@ -38,6 +43,7 @@ export function QuickCapture() {
     const focusFresh = () => {
       setInput("");
       setError(null);
+      setSavedFlash(false);
       inputRef.current?.focus();
     };
     focusFresh(); // also focus on first mount
@@ -59,6 +65,7 @@ export function QuickCapture() {
       setInput("");
       setError(null);
       if (closeAfter) await getCurrentWindow().hide();
+      else setSavedFlash(true); // keep-open: confirm the capture took
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -86,7 +93,7 @@ export function QuickCapture() {
         ref={inputRef}
         className="quick-capture-input"
         value={input}
-        onChange={e => setInput(e.currentTarget.value)}
+        onChange={e => { setInput(e.currentTarget.value); setSavedFlash(false); }}
         onKeyDown={onKeyDown}
         placeholder="Quick add…  (#tag  due fri)"
         aria-label="Quick capture"
@@ -95,6 +102,8 @@ export function QuickCapture() {
       <div className="quick-capture-hint">
         Enter to save · Shift+Enter to keep open · Esc to cancel
       </div>
+      {needsTitle && <p className="quick-capture-hint">Add a title — that's only tags/dates.</p>}
+      {savedFlash && <p className="quick-capture-saved" role="status">Saved ✓</p>}
       {error && <p className="quick-capture-error">{error}</p>}
     </form>
   );

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, Tag, Task } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { buildTaskUpdate, EditorForm } from "../state/taskUpdate";
+import { buildTaskUpdate, dueBeforeScheduled, EditorForm, isEditorDirty } from "../state/taskUpdate";
 
 type Props = {
   task: Task;
@@ -33,7 +33,7 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
     restoreFocusRef.current = document.activeElement as HTMLElement | null;
   }
 
-  const isDirty = () => JSON.stringify(form) !== JSON.stringify(initialRef.current);
+  const isDirty = () => isEditorDirty(form, initialRef.current);
   const requestClose = () => {
     if (isDirty() && !window.confirm("Discard unsaved changes?")) return;
     onClose();
@@ -74,8 +74,15 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
       tag_ids: f.tag_ids.includes(id) ? f.tag_ids.filter(t => t !== id) : [...f.tag_ids, id],
     }));
 
+  // Cross-field guard: a due date before the scheduled date is almost always a
+  // mistake, so it's surfaced and blocks Save rather than persisting silently (#51).
+  const dateError = dueBeforeScheduled(form)
+    ? "Due date can't be before the scheduled date."
+    : null;
+
   const save = async () => {
     if (!form.title.trim()) { setError("Title can't be empty."); return; }
+    if (dateError) { setError(dateError); return; }
     setBusy(true);
     try {
       await api.updateTask(buildTaskUpdate(task.id, form));
@@ -142,6 +149,7 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
                    onChange={e => set("due_date", e.currentTarget.value)} />
           </label>
         </div>
+        {dateError && <p className="te-warn" role="alert">{dateError}</p>}
 
         <div className="te-field">
           <span>Tags</span>
@@ -199,7 +207,7 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
           <span className="te-spacer" />
           <button type="button" onClick={requestClose} disabled={busy}>Cancel</button>
           <button type="button" className="te-save" onClick={save}
-                  disabled={busy || !form.title.trim()}>Save</button>
+                  disabled={busy || !form.title.trim() || !!dateError}>Save</button>
         </div>
       </div>
     </div>,

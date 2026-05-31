@@ -16,6 +16,9 @@ export function Composer({ scheduledDate, tagsByName }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const parsed = useMemo(() => parseComposer(input, todayIso()), [input]);
+  // The user typed something, but it parsed to only tags/dates with no title —
+  // explain why Enter/Add does nothing instead of failing silently (#51).
+  const needsTitle = input.trim().length > 0 && !parsed.title;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -48,6 +51,9 @@ export function Composer({ scheduledDate, tagsByName }: Props) {
         />
         <button type="submit" disabled={!parsed.title}>Add</button>
         {error && <p className="composer-error">{error}</p>}
+        {!error && needsTitle && (
+          <p className="composer-hint">Add a title — that line is only tags/dates.</p>
+        )}
       </form>
       <ComposerPreview parsed={parsed} tagsByName={tagsByName} />
     </div>
