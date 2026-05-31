@@ -141,7 +141,7 @@ fn sha256(bytes: &[u8]) -> [u8; 32] {
     h.finalize().into()
 }
 
-fn atomic_write(target: &Path, bytes: &[u8]) -> Result<()> {
+pub(crate) fn atomic_write(target: &Path, bytes: &[u8]) -> Result<()> {
     let tmp = target.with_extension("json.tmp");
     let result: std::io::Result<()> = (|| {
         let mut f = fs::File::create(&tmp)?;

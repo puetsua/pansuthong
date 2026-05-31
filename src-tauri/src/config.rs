@@ -20,13 +20,21 @@ const DATA_FILE: &str = "tasks.json";
 /// App settings. Formerly persisted inside the synced `Document`; now device-local.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
-    pub theme: String, // "auto" | "light" | "dark"
+    /// "auto" | "light" | "dark". `#[serde(default)]` so a partial settings
+    /// object missing this key still loads (defaulting only `theme`) instead of
+    /// failing the whole parse and discarding sort_order/upcoming_days.
+    #[serde(default = "default_theme")]
+    pub theme: String,
     /// Task list ordering: "priority" (weight desc, then date) or "date".
     #[serde(default = "default_sort_order")]
     pub sort_order: String,
     /// How many days ahead the Upcoming view looks. The UI bounds it to 1..=365.
     #[serde(default = "default_upcoming_days")]
     pub upcoming_days: u32,
+}
+
+fn default_theme() -> String {
+    "auto".into()
 }
 
 fn default_sort_order() -> String {
@@ -71,8 +79,10 @@ pub fn resolve_data_path(default_dir: &Path, folder: &Option<String>) -> PathBuf
 
 fn persist(path: &Path, cfg: &Config) -> Result<()> {
     let bytes = serde_json::to_vec_pretty(cfg)?;
-    std::fs::write(path, bytes)?;
-    Ok(())
+    // Atomic temp+rename (shared with the data store) so a crash mid-write can't
+    // leave a truncated config.json — which load_or_migrate would treat as
+    // absent and silently re-migrate, resetting settings to defaults.
+    crate::store::atomic_write(path, &bytes)
 }
 
 /// Load `config.json`, or migrate to it on first launch after the rename.
@@ -91,10 +101,21 @@ pub fn load_or_migrate(default_dir: &Path) -> Config {
         }
     }
     let folder = read_legacy_folder(default_dir);
+    // If a custom folder is configured but not currently mounted (cloud-sync
+    // not yet synced, removable/network drive offline), the real settings live
+    // in its tasks.json, which we can't read yet. Don't commit a config.json
+    // built from the fallback default-dir file — that would lock in default
+    // settings forever (migration is one-shot). Defer: use defaults this
+    // session and retry the migration on the next launch.
+    let folder_unavailable = matches!(&folder, Some(f) if !Path::new(f).is_dir());
     let data_path = resolve_data_path(default_dir, &folder);
     let settings = lift_settings_from_tasks(&data_path);
     let cfg = Config { folder, settings };
-    let _ = persist(&config_path(default_dir), &cfg);
+    if !folder_unavailable {
+        if let Err(e) = persist(&config_path(default_dir), &cfg) {
+            eprintln!("warning: failed to write migrated config.json: {e}");
+        }
+    }
     cfg
 }
 
@@ -149,22 +170,31 @@ impl ConfigState {
         self.inner.lock().unwrap().folder.clone()
     }
 
-    /// Mutate the settings, persist, and return the updated copy.
+    /// Mutate the settings, persist, and return the updated copy. The in-memory
+    /// value is updated only after a successful write, so a validation error in
+    /// `f` or a failed persist leaves memory and disk in agreement (no partial
+    /// mutation visible to a later `settings()` read).
     pub fn update_settings<F>(&self, f: F) -> Result<Settings>
     where
         F: FnOnce(&mut Settings) -> Result<()>,
     {
         let mut g = self.inner.lock().unwrap();
-        f(&mut g.settings)?;
-        persist(&self.path, &g)?;
+        let mut next = g.settings.clone();
+        f(&mut next)?;
+        let candidate = Config { folder: g.folder.clone(), settings: next };
+        persist(&self.path, &candidate)?;
+        g.settings = candidate.settings.clone();
         Ok(g.settings.clone())
     }
 
-    /// Set (or clear) the chosen folder and persist.
+    /// Set (or clear) the chosen folder and persist. Commits to memory only
+    /// after the write succeeds, keeping memory and disk consistent.
     pub fn set_folder(&self, folder: Option<String>) -> Result<()> {
         let mut g = self.inner.lock().unwrap();
-        g.folder = folder;
-        persist(&self.path, &g)
+        let candidate = Config { folder, settings: g.settings.clone() };
+        persist(&self.path, &candidate)?;
+        g.folder = candidate.folder;
+        Ok(())
     }
 }
 
@@ -258,6 +288,59 @@ mod tests {
         let bytes = std::fs::read(config_path(dir.path())).unwrap();
         let on_disk: Config = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(on_disk.settings.theme, "dark");
+    }
+
+    #[test]
+    fn update_settings_rolls_back_on_validation_error() {
+        let dir = tempdir().unwrap();
+        let state = ConfigState::new(dir.path(), Config::default());
+
+        // Closure mutates theme, then fails — neither memory nor disk should
+        // reflect the partial mutation.
+        let result = state.update_settings(|s| {
+            s.theme = "dark".into();
+            Err(crate::error::AppError::Invalid("bad".into()))
+        });
+        assert!(result.is_err());
+        assert_eq!(state.settings().theme, "auto", "memory must not keep the partial mutation");
+
+        // No config.json was written (first successful persist creates it).
+        assert!(!config_path(dir.path()).exists());
+    }
+
+    #[test]
+    fn load_or_migrate_defers_when_configured_folder_is_unavailable() {
+        let dir = tempdir().unwrap();
+        // Legacy config points at a folder that doesn't exist (e.g. cloud-sync
+        // not mounted yet). Real settings live in that folder's tasks.json,
+        // which we can't read — so migration must NOT be committed.
+        std::fs::write(
+            dir.path().join(LEGACY_FILE),
+            r#"{"folder":"/no/such/folder/at/all"}"#,
+        )
+        .unwrap();
+
+        let cfg = load_or_migrate(dir.path());
+        // Folder is still surfaced for this session...
+        assert_eq!(cfg.folder.as_deref(), Some("/no/such/folder/at/all"));
+        // ...but nothing was persisted, so next launch retries the migration.
+        assert!(!config_path(dir.path()).exists(), "migration must be deferred, not locked in");
+    }
+
+    #[test]
+    fn settings_missing_theme_only_defaults_theme() {
+        // A partial settings object lacking `theme` keeps the other fields.
+        let dir = tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(DATA_FILE),
+            r#"{"tasks":[],"tags":[],"settings":{"sort_order":"date","upcoming_days":21}}"#,
+        )
+        .unwrap();
+
+        let cfg = load_or_migrate(dir.path());
+        assert_eq!(cfg.settings.theme, "auto");
+        assert_eq!(cfg.settings.sort_order, "date");
+        assert_eq!(cfg.settings.upcoming_days, 21);
     }
 
     #[test]
