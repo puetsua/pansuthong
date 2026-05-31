@@ -19,3 +19,29 @@ export function buildTaskUpdate(id: string, form: EditorForm): TaskUpdate {
     tag_ids: form.tag_ids,
   };
 }
+
+/** Order-insensitive equality of two tag-id lists (treated as sets). */
+export function sameTagSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.every((v, i) => v === sb[i]);
+}
+
+/**
+ * Whether the editor form differs from its initial snapshot. Tag ids are compared
+ * as sets so re-adding a removed tag (which reorders `tag_ids`) is not a false
+ * "unsaved change" that triggers a spurious discard prompt (#51).
+ */
+export function isEditorDirty(form: EditorForm, initial: EditorForm): boolean {
+  return form.title !== initial.title
+    || form.scheduled_date !== initial.scheduled_date
+    || form.due_date !== initial.due_date
+    || form.notes !== initial.notes
+    || !sameTagSet(form.tag_ids, initial.tag_ids);
+}
+
+/** True when both dates are set and the due date precedes the scheduled date (#51). */
+export function dueBeforeScheduled(form: Pick<EditorForm, "scheduled_date" | "due_date">): boolean {
+  return !!form.scheduled_date && !!form.due_date && form.due_date < form.scheduled_date;
+}

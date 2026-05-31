@@ -39,3 +39,9 @@ body {
   font-size: 0.75rem;
   color: var(--c-danger, #dc2626);
 }
+.quick-capture-saved {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--c-accent, #16a34a);
+}

@@ -9,17 +9,29 @@ import { clampUpcomingDays, upcomingDays, UPCOMING_DAYS_MAX, UPCOMING_DAYS_MIN }
 type Props = { doc: Document; indexes: Indexes };
 
 export function SettingsView({ doc, indexes }: Props) {
+  // Settings writes used to be fire-and-forget; surface a failure so a click that
+  // didn't stick is visible rather than silently swallowed (#51).
+  const [settingsErr, setSettingsErr] = useState<string | null>(null);
+  const applySettings = async (patch: Parameters<typeof api.updateSettings>[0]) => {
+    setSettingsErr(null);
+    try {
+      await api.updateSettings(patch);
+    } catch (e) {
+      setSettingsErr(errorMessage(e));
+    }
+  };
+
   const theme = doc.settings.theme;
-  const setTheme = (t: "auto" | "light" | "dark") => { void api.updateSettings({ theme: t }); };
+  const setTheme = (t: "auto" | "light" | "dark") => { void applySettings({ theme: t }); };
 
   const sortOrder = doc.settings.sort_order;
-  const setSort = (s: "priority" | "date") => { void api.updateSettings({ sort_order: s }); };
+  const setSort = (s: "priority" | "date") => { void applySettings({ sort_order: s }); };
 
   // Upcoming horizon: presets apply immediately; the free input commits on blur/Enter.
   const days = upcomingDays(doc.settings);
   const [draftDays, setDraftDays] = useState(String(days));
   useEffect(() => { setDraftDays(String(days)); }, [days]); // resync when the doc changes
-  const setUpcoming = (n: number) => { void api.updateSettings({ upcoming_days: n }); };
+  const setUpcoming = (n: number) => { void applySettings({ upcoming_days: n }); };
   const commitDraftDays = () => {
     const n = clampUpcomingDays(draftDays);
     setDraftDays(String(n));
@@ -56,6 +68,8 @@ export function SettingsView({ doc, indexes }: Props) {
       <header className="view-header">
         <h1>Settings</h1>
       </header>
+
+      {settingsErr && <p className="composer-error" role="alert">Couldn’t save setting: {settingsErr}</p>}
 
       <section className="settings-section">
         <h2>Theme</h2>

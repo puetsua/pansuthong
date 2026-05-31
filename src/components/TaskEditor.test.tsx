@@ -71,3 +71,15 @@ describe("TaskEditor archive (#23)", () => {
     await waitFor(() => expect(api.setTaskArchived).toHaveBeenCalledWith("k_1", false));
   });
 });
+
+describe("TaskEditor date validation (#51)", () => {
+  it("blocks Save when the due date precedes the scheduled date", () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("Scheduled"), { target: { value: "2026-06-10" } });
+    fireEvent.change(screen.getByLabelText("Due"), { target: { value: "2026-06-01" } });
+
+    expect(screen.getByText(/can.?t be before the scheduled date/i)).toBeTruthy();
+    expect(button("Save").disabled).toBe(true);
+  });
+});
