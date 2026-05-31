@@ -21,6 +21,9 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
   const [form, setForm] = useState<EditorForm>(initialRef.current);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The "add tag" picker (the list of not-yet-assigned tags) is collapsed by
+  // default so the Tags field shows only the task's own tags (#24).
+  const [picking, setPicking] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   // The element focused before the modal opened (the triggering row button),
@@ -106,6 +109,17 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
     }
   };
 
+  // Tags currently on the task (removable chips) vs. the rest (shown only when
+  // the user opens the picker). Both highest-weight first.
+  const byWeightDesc = (a: Tag, b: Tag) => b.priority - a.priority;
+  const assigned = form.tag_ids
+    .map(id => allTags.get(id))
+    .filter((t): t is Tag => t !== undefined)
+    .sort(byWeightDesc);
+  const unassigned = [...allTags.values()]
+    .filter(t => !form.tag_ids.includes(t.id))
+    .sort(byWeightDesc);
+
   return createPortal(
     <div className="modal-backdrop" onClick={requestClose}>
       <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true" aria-label="Edit task"
@@ -132,16 +146,41 @@ export function TaskEditor({ task, allTags, onClose }: Props) {
         <div className="te-field">
           <span>Tags</span>
           <div className="te-tags">
-            {[...allTags.values()].sort((a, b) => b.priority - a.priority).map(t => (
-              <button type="button" key={t.id}
-                      className={form.tag_ids.includes(t.id) ? "te-tag on" : "te-tag"}
+            {assigned.map(t => (
+              <button type="button" key={t.id} className="te-tag on"
                       style={{ borderColor: t.color, color: t.color }}
-                      onClick={() => toggleTag(t.id)}>
-                {t.name}
+                      onClick={() => toggleTag(t.id)}
+                      aria-label={`Remove ${t.name}`} title={`Remove ${t.name}`}>
+                {t.name} <span aria-hidden="true">×</span>
               </button>
             ))}
-            {allTags.size === 0 && <span className="te-empty">No tags yet.</span>}
+            {!picking && (
+              <button type="button" className="te-tag te-add-tag"
+                      onClick={() => setPicking(true)}>
+                + Add tag
+              </button>
+            )}
           </div>
+          {picking && (
+            <div className="te-tag-picker">
+              {unassigned.length === 0 ? (
+                <span className="te-empty">
+                  {allTags.size === 0 ? "No tags yet — create one on the Tags page." : "All tags added."}
+                </span>
+              ) : (
+                unassigned.map(t => (
+                  <button type="button" key={t.id} className="te-tag"
+                          style={{ borderColor: t.color, color: t.color }}
+                          onClick={() => toggleTag(t.id)}>
+                    {t.name}
+                  </button>
+                ))
+              )}
+              <button type="button" className="te-tag te-add-done" onClick={() => setPicking(false)}>
+                Done
+              </button>
+            </div>
+          )}
         </div>
 
         <label className="te-field">
