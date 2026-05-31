@@ -111,12 +111,25 @@ pub struct WatcherHandle(pub Mutex<Option<SyncHandle>>);
 
 /// Stop the current watcher (if any) and start a new one on `data_path`'s dir.
 pub fn restart(handle: &WatcherHandle, app: &AppHandle, data_path: PathBuf) {
-    let mut g = handle.0.lock().unwrap();
+    let mut g = handle.0.lock().unwrap_or_else(|e| e.into_inner());
     *g = None; // drop the old watcher + let its thread exit
     match start(app.clone(), data_path) {
         Ok(h) => { *g = Some(h); }
         Err(e) => { eprintln!("warning: failed to restart watcher: {e}"); }
     }
+}
+
+/// True if `name` is a conflict file this scanner produces and recognizes: it
+/// mentions "conflict", begins with the data file's stem, ends with ".json", and
+/// is not the data file itself. Case-insensitive so it matches on Windows. The
+/// single source of truth for the naming pattern — also used by the conflict
+/// commands to confine the paths they read/delete to real conflict files (#49).
+pub(crate) fn is_conflict_file_name(name: &str, stem: &str, data_file_name: &str) -> bool {
+    let lower = name.to_lowercase();
+    lower.contains("conflict")
+        && lower.starts_with(&stem.to_lowercase())
+        && lower.ends_with(".json")
+        && name != data_file_name
 }
 
 pub fn scan_conflict_files(data_path: &Path) -> Vec<String> {
@@ -125,6 +138,7 @@ pub fn scan_conflict_files(data_path: &Path) -> Vec<String> {
         None => return Vec::new(),
     };
     let stem = data_path.file_stem().and_then(|s| s.to_str()).unwrap_or("tasks");
+    let data_file_name = data_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
     let mut out = Vec::new();
     let entries = match std::fs::read_dir(parent) {
         Ok(e) => e,
@@ -132,12 +146,7 @@ pub fn scan_conflict_files(data_path: &Path) -> Vec<String> {
     };
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().to_string();
-        let lower = name.to_lowercase();
-        if lower.contains("conflict")
-            && lower.starts_with(&stem.to_lowercase())
-            && lower.ends_with(".json")
-            && name != data_path.file_name().and_then(|n| n.to_str()).unwrap_or("")
-        {
+        if is_conflict_file_name(&name, stem, data_file_name) {
             out.push(entry.path().to_string_lossy().to_string());
         }
     }

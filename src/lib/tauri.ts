@@ -29,6 +29,9 @@ export type Task = {
   updated_at: number; // epoch ms of last edit (0 for pre-existing tasks)
   archived?: boolean; // true = non-destructively hidden from active views (#23)
   archived_at?: number; // epoch ms the task was archived
+  is_template?: boolean;          // true = reusable blueprint, hidden from active views (#71)
+  due_offset_days?: number;       // template only: spawned task's due = today + N days
+  scheduled_offset_days?: number; // template only: spawned task's scheduled = today + M days
 };
 
 export type Document = {
@@ -47,6 +50,9 @@ export type TaskUpdate = {
   scheduled_date?: string | null;
   notes?: string;
   tag_ids?: string[];
+  is_template?: boolean;
+  due_offset_days?: number | null;
+  scheduled_offset_days?: number | null;
 };
 
 export type DataLocation = { folder: string | null; effective_path: string };
@@ -62,6 +68,16 @@ export type Decision =
   | { action: "keep_both";   id: string }
   | { action: "drop";        id: string };
 
+/** Android folder-sync status surfaced in Settings (#Phase 4B). */
+export type SyncStatus = {
+  linked: boolean;
+  folder_label: string | null;
+  permission_ok: boolean;
+  last_synced_ms: number | null;
+  last_error: string | null;
+  conflict_count: number;
+};
+
 export const api = {
   getDocument:   ()                          => invoke<Document>("get_document"),
   /** Force an immediate re-read of tasks.json from disk; returns the freshest doc. */
@@ -75,12 +91,6 @@ export const api = {
   addTag:        (name: string, color: string, priority = 0) =>
                                                 invoke<Tag>("add_tag", { input: { name, color, priority } }),
   deleteTag:     (id: string)                => invoke<void>("delete_tag", { id }),
-  parseComposer:   (input: string) => invoke<{
-    title: string;
-    tag_names: string[];
-    due_date?: string;
-    scheduled_date?: string;
-  }>("parse_composer", { input }),
   searchTasks:     (query: string) => invoke<Task[]>("search_tasks", { query }),
   updateTag:       (input: { id: string; name?: string; color?: string; priority?: number }) =>
                                      invoke<Tag>("update_tag", { input }),
@@ -100,4 +110,10 @@ export const api = {
     if (typeof dir !== "string") return null;
     return invoke<DataLocation>("set_data_folder", { folder: dir });
   },
+  // Android SAF folder sync (#Phase 4B). On desktop these resolve to inert stubs.
+  safPickFolder:  () => invoke<SyncStatus>("saf_pick_folder"),
+  safClearFolder: () => invoke<void>("saf_clear_folder"),
+  safPush:        () => invoke<SyncStatus>("saf_push"),
+  safSyncNow:     () => invoke<SyncStatus>("saf_sync_now"),
+  safStatus:      () => invoke<SyncStatus>("saf_status"),
 };

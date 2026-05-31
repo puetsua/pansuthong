@@ -58,6 +58,23 @@ pub struct Task {
     /// Epoch millis the task was archived; cleared on unarchive.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub archived_at: Option<i64>,
+    /// A template is a reusable blueprint, not real work to do. It lives in the
+    /// `tasks` Vec (templates serve the task center rather than competing with it)
+    /// but is excluded from every active view (Today/Inbox/tag/Upcoming) exactly
+    /// like `archived`, and additionally from search (unlike archived tasks, which
+    /// stay searchable). New tasks are spawned from it in the Templates view (the
+    /// frontend resolves the offsets and creates an ordinary task via `add_task`).
+    /// `#[serde(default)]` = false for older files.
+    #[serde(default)]
+    pub is_template: bool,
+    /// Template only: the instantiated task's due date is today + this many days.
+    /// `None` = the spawned task has no due date. Meaningless on non-template tasks.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub due_offset_days: Option<i64>,
+    /// Template only: the instantiated task's scheduled date is today + this many
+    /// days. `None` = the spawned task has no scheduled date.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub scheduled_offset_days: Option<i64>,
 }
 
 pub const CURRENT_VERSION: u32 = 2;
@@ -120,7 +137,7 @@ impl Document {
     /// Archived tasks never appear in active views.
     pub fn tasks_today(&self, today: NaiveDate) -> Vec<&Task> {
         self.tasks.iter().filter(|t| {
-            if t.archived { return false; }
+            if t.archived || t.is_template { return false; }
             if t.scheduled_date == Some(today) { return true; }
             if let Some(due) = t.due_date {
                 if due == today { return true; }
@@ -131,13 +148,19 @@ impl Document {
     }
 
     pub fn tasks_inbox(&self) -> Vec<&Task> {
-        self.tasks.iter().filter(|t| !t.archived && self.task_in_inbox(t)).collect()
+        self.tasks.iter().filter(|t| !t.archived && !t.is_template && self.task_in_inbox(t)).collect()
     }
 
     pub fn tasks_for_tag(&self, tag_id: &str) -> Vec<&Task> {
         self.tasks.iter()
-            .filter(|t| !t.archived && t.tag_ids.iter().any(|id| id == tag_id))
+            .filter(|t| !t.archived && !t.is_template && t.tag_ids.iter().any(|id| id == tag_id))
             .collect()
+    }
+
+    /// Templates (reusable blueprints). The complement of the active views above —
+    /// these are the only place templates surface.
+    pub fn tasks_templates(&self) -> Vec<&Task> {
+        self.tasks.iter().filter(|t| t.is_template).collect()
     }
 }
 
@@ -159,6 +182,9 @@ mod tests {
             updated_at: 0,
             archived: false,
             archived_at: None,
+            is_template: false,
+            due_offset_days: None,
+            scheduled_offset_days: None,
         }
     }
 
@@ -183,5 +209,38 @@ mod tests {
         assert!(!t.archived, "reopening a task restores it to the active views");
         assert_eq!(t.archived_at, None);
         assert_eq!(t.updated_at, 200);
+    }
+
+    #[test]
+    fn templates_are_excluded_from_every_active_view() {
+        let today = NaiveDate::from_ymd_opt(2026, 5, 31).unwrap();
+        let mut doc = Document::default();
+        // A template that — were it a normal task — would show in Today (scheduled
+        // today), Inbox (untagged), and a tag view.
+        let mut tmpl = task();
+        tmpl.id = "k_tmpl".into();
+        tmpl.is_template = true;
+        tmpl.scheduled_date = Some(today);
+        tmpl.tag_ids = vec!["t_work".into()];
+        // A normal task sharing the same shape, to prove the views aren't simply empty.
+        let mut real = task();
+        real.id = "k_real".into();
+        real.scheduled_date = Some(today);
+        real.tag_ids = vec!["t_work".into()];
+        doc.tasks.push(tmpl);
+        doc.tasks.push(real);
+
+        let ids = |v: Vec<&Task>| v.into_iter().map(|t| t.id.clone()).collect::<Vec<_>>();
+        assert_eq!(ids(doc.tasks_today(today)), ["k_real"]);
+        assert_eq!(ids(doc.tasks_for_tag("t_work")), ["k_real"]);
+        // The template has a tag, but a tagged template must still not count as Inbox
+        // material either way — confirm an untagged template is kept out of Inbox.
+        let mut untagged_tmpl = task();
+        untagged_tmpl.id = "k_tmpl2".into();
+        untagged_tmpl.is_template = true;
+        doc.tasks.push(untagged_tmpl);
+        assert!(ids(doc.tasks_inbox()).is_empty());
+        // ...and templates are the only thing tasks_templates surfaces.
+        assert_eq!(ids(doc.tasks_templates()), ["k_tmpl", "k_tmpl2"]);
     }
 }
