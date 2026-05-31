@@ -592,15 +592,50 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 }
 .te-tag.on { opacity: 1; font-weight: 600; }
 .te-empty { font-size: 0.8rem; color: var(--c-text-muted); }
-/* Add-tag affordance + on-demand picker (#24): the task's own tags show by
-   default; "Add tag" reveals the remaining tags below a divider. */
-.te-tag.te-add-tag, .te-tag.te-add-done { opacity: 1; color: var(--c-accent); border-color: var(--c-accent); }
-.te-tag-picker {
-  display: flex; flex-wrap: wrap; gap: var(--space-1);
-  margin-top: var(--space-1);
-  padding-top: var(--space-2);
-  border-top: 1px dashed var(--c-border);
+/* A pending (not-yet-saved) new tag reads as a dashed chip until Save. */
+.te-tag.te-tag-new { border-style: dashed; }
+
+/* Typeahead tag input: a text field with a filtered candidate dropdown that
+   replaces the old reveal-everything picker. Type to filter existing tags or
+   create a new one; new tags are only persisted on Save. */
+.te-taginput { display: flex; flex-direction: column; gap: var(--space-1); }
+.te-tag-combo { position: relative; }
+.te-tag-field {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font-size: 0.85rem;
 }
+.te-tag-menu {
+  position: absolute;
+  z-index: 10;
+  left: 0; right: 0;
+  margin: 2px 0 0;
+  padding: var(--space-1);
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+.te-opt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.te-opt-active { background: var(--c-accent-bg); }
+.te-opt-create { color: var(--c-accent); font-style: italic; }
 /* Cross-field date warning (#51). */
 .te-warn { color: var(--c-danger); font-size: 0.8rem; margin: 0; }
 .te-actions { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }

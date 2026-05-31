@@ -11,6 +11,8 @@ vi.mock("../lib/tauri", async (importOriginal) => {
       updateTask: vi.fn().mockResolvedValue({}),
       deleteTask: vi.fn().mockResolvedValue(undefined),
       setTaskArchived: vi.fn().mockResolvedValue({}),
+      addTag: vi.fn((name: string, color: string) =>
+        Promise.resolve({ id: `t_new_${name}`, name, color, priority: 0 })),
     },
   };
 });
@@ -31,27 +33,50 @@ const button = (name: RegExp | string) => screen.getByRole("button", { name }) a
 beforeEach(() => vi.clearAllMocks());
 
 describe("TaskEditor tags (#24)", () => {
-  it("shows only assigned tags by default, hiding the rest behind Add tag", () => {
+  it("shows assigned tags as chips and only reveals candidates on focus", () => {
     render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
 
     // The assigned tag is shown as a removable chip...
     expect(screen.getByRole("button", { name: "Remove work" })).toBeTruthy();
-    // ...and the unassigned tag is NOT rendered until the picker opens.
+    // ...and unassigned tags aren't listed until the input is focused.
     expect(screen.queryByRole("button", { name: "home" })).toBeNull();
-    expect(button(/add tag/i)).toBeTruthy();
+    expect(screen.getByLabelText("Add tag")).toBeTruthy();
   });
 
-  it("reveals unassigned tags when Add tag is clicked, and saves the new selection", async () => {
+  it("filters candidates and saves an existing tag picked from the dropdown", async () => {
     const onClose = vi.fn();
     render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
 
-    fireEvent.click(button(/add tag/i));
-    fireEvent.click(button("home")); // add the previously-hidden tag
+    const input = screen.getByLabelText("Add tag");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "ho" } });
+    fireEvent.click(button("home")); // pick the filtered candidate
     fireEvent.click(button("Save"));
 
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(
         expect.objectContaining({ id: "k_1", tag_ids: ["t_a", "t_b"] }),
+      ),
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("creates a brand-new tag on Save and folds its id into the task", async () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    const input = screen.getByLabelText("Add tag");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "urgent" } });
+    fireEvent.click(button(/create/i)); // the "Create “urgent”" row
+    fireEvent.click(button("Save"));
+
+    // The new tag is only created at Save time...
+    await waitFor(() => expect(api.addTag).toHaveBeenCalledWith("urgent", expect.any(String)));
+    // ...and its id is merged with the task's existing tags.
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "k_1", tag_ids: ["t_a", "t_new_urgent"] }),
       ),
     );
     await waitFor(() => expect(onClose).toHaveBeenCalled());
