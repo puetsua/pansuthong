@@ -22,7 +22,7 @@ const getDocument = vi.mocked(api.getDocument);
 function makeDoc(theme: "auto" | "light" | "dark" = "auto"): Document {
   return {
     version: 2,
-    last_modified: 0,
+    last_modified: undefined,
     settings: { theme, sort_order: "priority" },
     tags: [],
     tasks: [],

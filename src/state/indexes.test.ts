@@ -35,13 +35,13 @@ describe("buildIndexes", () => {
 
 // All tasks are overdue (due < TODAY, not done) so they all land in today().
 function task(id: string, tag_ids: string[], due_date: string): Task {
-  return { id, title: id, due_date, notes: "", tag_ids, created_at: 0, updated_at: 0 };
+  return { id, title: id, due_date, notes: "", tag_ids, created_at: "1970-01-01T00:00:00Z" };
 }
 
 function weightedDoc(order: SortOrder): Document {
   return {
     version: 2,
-    last_modified: 0,
+    last_modified: undefined,
     settings: { theme: "auto", sort_order: order },
     tags: [
       { id: "t_hi",  name: "hi",  color: "#000", priority: 9 },
@@ -101,7 +101,7 @@ describe("sort order", () => {
 function tieDoc(order: SortOrder): Document {
   return {
     version: 2,
-    last_modified: 0,
+    last_modified: undefined,
     settings: { theme: "auto", sort_order: order },
     tags: [
       { id: "t_hi", name: "hi", color: "#000", priority: 9 },
@@ -135,12 +135,12 @@ describe("sort tiebreaks", () => {
 function doneDoc(order: SortOrder): Document {
   const TODAY_ISO = "2026-05-28";
   const t = (id: string, tags: string[], done: boolean): Task => ({
-    id, title: id, completed_at: done ? 1 : undefined,
-    scheduled_date: TODAY_ISO, notes: "", tag_ids: tags, created_at: 0, updated_at: 0,
+    id, title: id, completed_at: done ? "2026-05-28T10:00:00Z" : undefined,
+    scheduled_date: TODAY_ISO, notes: "", tag_ids: tags, created_at: "1970-01-01T00:00:00Z",
   });
   return {
     version: 2,
-    last_modified: 0,
+    last_modified: undefined,
     settings: { theme: "auto", sort_order: order },
     tags: [
       { id: "t_hi", name: "hi", color: "#000", priority: 9 },
@@ -181,20 +181,20 @@ describe("completed tasks leave the active lists (#32, #23)", () => {
 // scheduled today so they'd otherwise land in the active lists.
 function archivedDoc(): Document {
   const TODAY_ISO = "2026-05-28";
-  const t = (id: string, tags: string[], archived: boolean, archived_at?: number): Task => ({
+  const t = (id: string, tags: string[], archived: boolean, archived_at?: string): Task => ({
     id, title: id, scheduled_date: TODAY_ISO, notes: "",
-    tag_ids: tags, created_at: 0, updated_at: 0,
-    completed_at: archived ? (archived_at ?? 1) : undefined,
+    tag_ids: tags, created_at: "1970-01-01T00:00:00Z",
+    completed_at: archived ? (archived_at ?? "2026-05-28T09:00:00Z") : undefined,
   });
   return {
     version: 2,
-    last_modified: 0,
+    last_modified: undefined,
     settings: { theme: "auto", sort_order: "priority" },
     tags: [{ id: "t_w", name: "w", color: "#000", priority: 1 }],
     tasks: [
       t("k_open",  ["t_w"], false),
-      t("k_arch1", ["t_w"], true, 100),
-      t("k_arch2", [],      true, 200),
+      t("k_arch1", ["t_w"], true, "2026-05-28T10:00:00Z"),
+      t("k_arch2", [],      true, "2026-05-28T11:00:00Z"),
     ],
   };
 }
@@ -212,6 +212,25 @@ describe("archived tasks (#23)", () => {
   it("are collected into `archived`, most-recently-archived first", () => {
     expect(ix.archived.map(t => t.id)).toEqual(["k_arch2", "k_arch1"]);
   });
+
+  it("orders `archived` by instant, not lexically, across timezone offsets", () => {
+    // Same completion times expressed in different local offsets, chosen so that a
+    // lexical compare disagrees with chronological order: k_early's instant
+    // (2026-06-01T14:00:00Z) precedes k_late's (2026-06-01T16:00:00Z), yet its
+    // string sorts *after* lexically ("...T23..." > "...T16...").
+    const t = (id: string, completed_at: string): Task => ({
+      id, title: id, notes: "", tag_ids: [], created_at: "1970-01-01T00:00:00Z", completed_at,
+    });
+    const doc: Document = {
+      version: 2, last_modified: undefined,
+      settings: { theme: "auto", sort_order: "priority" }, tags: [],
+      tasks: [
+        t("k_early", "2026-06-01T23:00:00+09:00"),
+        t("k_late",  "2026-06-01T16:00:00+00:00"),
+      ],
+    };
+    expect(buildIndexes(doc).archived.map(x => x.id)).toEqual(["k_late", "k_early"]);
+  });
 });
 
 // A real task plus two templates (a tagged one + an untagged one), all scheduled
@@ -220,11 +239,11 @@ function templatesDoc(): Document {
   const TODAY_ISO = "2026-05-28";
   const t = (id: string, tags: string[], is_template: boolean): Task => ({
     id, title: id, scheduled_date: TODAY_ISO, notes: "",
-    tag_ids: tags, created_at: 0, updated_at: 0, is_template,
+    tag_ids: tags, created_at: "1970-01-01T00:00:00Z", is_template,
   });
   return {
     version: 2,
-    last_modified: 0,
+    last_modified: undefined,
     settings: { theme: "auto", sort_order: "priority" },
     tags: [{ id: "t_w", name: "w", color: "#000", priority: 1 }],
     tasks: [

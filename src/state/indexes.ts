@@ -94,9 +94,12 @@ export function buildIndexes(doc: Document): Indexes {
   const inbox = sortTasks(active.filter(t => t.tag_ids.length === 0), order, tagsById);
 
   // Most-recently-completed first (fall back to insertion order when unstamped).
+  // completed_at is an ISO-8601 string carrying a local offset, so compare by the
+  // parsed instant rather than lexically (offsets make string order != time order).
+  const instant = (t: Task): number => t.completed_at ? new Date(t.completed_at).getTime() : 0;
   const archived = doc.tasks
     .filter(t => isArchived(t))
-    .sort((a, b) => (b.completed_at ?? 0) - (a.completed_at ?? 0));
+    .sort((a, b) => instant(b) - instant(a));
 
   // Templates in document order; surfaced only in the Templates view.
   const templates = doc.tasks.filter(t => t.is_template);

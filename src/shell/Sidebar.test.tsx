@@ -14,7 +14,7 @@ const tag = (over: Partial<Tag>): Tag => ({
 
 const doc = (tags: Tag[]): Document => ({
   version: 2,
-  last_modified: 0,
+  last_modified: undefined,
   settings: { theme: "auto", sort_order: "priority" },
   tags,
   tasks: [],

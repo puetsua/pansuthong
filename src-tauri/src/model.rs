@@ -11,11 +11,94 @@ fn short_id(prefix: &str) -> String {
 pub fn new_task_id()    -> String { short_id("k") }
 pub fn new_tag_id()     -> String { short_id("t") }
 
-/// Epoch milliseconds. Used for created_at/updated_at/last_modified. UTC-based,
-/// so it's stable across devices and timezone changes.
+/// Epoch milliseconds. Used in memory for created_at/updated_at/last_modified and
+/// for unique conflict-file names. UTC-based, so it's stable across devices and
+/// timezone changes. On disk these stamps are written as ISO-8601 strings in the
+/// writer's local time with an explicit offset, truncated to the second (see
+/// `iso_secs`); the offset keeps the instant unambiguous and the in-memory value
+/// keeps full millisecond resolution.
 pub fn now_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
+}
+
+/// True when a timestamp is the epoch-0 "unset" sentinel. Used by
+/// `skip_serializing_if` so a never-edited document / pre-`updated_at` task omits
+/// the key entirely rather than writing a misleading 1970 timestamp.
+pub(crate) fn is_zero(ms: &i64) -> bool { *ms == 0 }
+
+/// Serde for an `i64` epoch-millis field stored as an ISO-8601 local-time string
+/// at second precision (e.g. `2026-06-01T20:34:56+08:00`). Deserialization accepts
+/// either representation and any offset, so integer-millis files written by older
+/// builds (or other devices, in their own timezones) keep loading — the model
+/// stays backward compatible (AGENTS.md). Serialization always writes the ISO
+/// string.
+pub(crate) mod iso_secs {
+    use chrono::{DateTime, Local, SecondsFormat, TimeZone};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    /// Epoch millis -> ISO-8601 in the machine's local time with an explicit offset,
+    /// truncated to the second (e.g. `2026-06-01T20:34:56+08:00`). The offset keeps
+    /// the instant unambiguous, so `from_iso` recovers the same `ms` regardless of
+    /// where the file is later read. Falls back to the raw integer string for an
+    /// out-of-range instant (chrono can't represent it), which still round-trips
+    /// through the integer arm of `deserialize`.
+    pub(super) fn to_iso(ms: i64) -> String {
+        match Local.timestamp_millis_opt(ms).single() {
+            Some(dt) => dt.to_rfc3339_opts(SecondsFormat::Secs, false),
+            None      => ms.to_string(),
+        }
+    }
+
+    /// ISO-8601 string -> epoch millis (any offset is normalized to UTC).
+    pub(super) fn from_iso(s: &str) -> Option<i64> {
+        DateTime::parse_from_rfc3339(s).ok().map(|dt| dt.timestamp_millis())
+    }
+
+    /// Accept either a JSON integer (legacy epoch millis) or an ISO-8601 string.
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    pub(super) enum IntOrIso { Int(i64), Iso(String) }
+
+    impl IntOrIso {
+        pub(super) fn into_ms<E: serde::de::Error>(self) -> Result<i64, E> {
+            match self {
+                IntOrIso::Int(ms) => Ok(ms),
+                IntOrIso::Iso(s)  => from_iso(&s)
+                    .ok_or_else(|| E::custom(format!("invalid ISO-8601 timestamp: {s}"))),
+            }
+        }
+    }
+
+    pub fn serialize<S: Serializer>(ms: &i64, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&to_iso(*ms))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<i64, D::Error> {
+        IntOrIso::deserialize(d)?.into_ms()
+    }
+}
+
+/// `iso_secs` for an `Option<i64>` (e.g. `completed_at`). `None` serializes as
+/// JSON null; combined with `skip_serializing_if = "Option::is_none"` it is simply
+/// omitted. Deserialization accepts null, an integer, or an ISO-8601 string.
+mod iso_secs_opt {
+    use super::iso_secs::{self, IntOrIso};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(ms: &Option<i64>, s: S) -> Result<S::Ok, S::Error> {
+        match ms {
+            Some(v) => iso_secs::serialize(v, s),
+            None    => s.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<i64>, D::Error> {
+        match Option::<IntOrIso>::deserialize(d)? {
+            Some(v) => v.into_ms().map(Some),
+            None    => Ok(None),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,6 +133,7 @@ pub struct Task {
     pub notes: String,
     #[serde(default)]
     pub tag_ids: Vec<String>,
+    #[serde(serialize_with = "iso_secs::serialize")]
     pub created_at:   i64,
     /// Epoch millis the task was completed. The **single source of truth** for
     /// completion *and* archival: `Some` = done and swept out of the active views
@@ -57,11 +141,12 @@ pub struct Task {
     /// `done`/`archived`/`archived_at` fields collapsed into this one and are now
     /// derived via `done()`/`archived()`/`archived_at()`. Legacy files that still
     /// carry those keys are folded in on load by `TaskCompat`.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(skip_serializing_if = "Option::is_none", default, serialize_with = "iso_secs_opt::serialize")]
     pub completed_at: Option<i64>,
     /// Epoch millis of the last edit to this task. `#[serde(default)]` = 0 for
-    /// tasks written before this field existed (UI falls back to created_at).
-    #[serde(default)]
+    /// tasks written before this field existed (UI falls back to created_at);
+    /// `skip_serializing_if` then omits the key rather than writing a 1970 ISO date.
+    #[serde(default, skip_serializing_if = "is_zero", serialize_with = "iso_secs::serialize")]
     pub updated_at:   i64,
     /// A template is a reusable blueprint, not real work to do. It lives in the
     /// `tasks` Vec (templates serve the task center rather than competing with it)
@@ -102,14 +187,15 @@ struct TaskCompat {
     notes: String,
     #[serde(default)]
     tag_ids: Vec<String>,
+    #[serde(deserialize_with = "iso_secs::deserialize")]
     created_at: i64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "iso_secs_opt::deserialize")]
     completed_at: Option<i64>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "iso_secs::deserialize")]
     updated_at: i64,
     #[serde(default)]
     archived: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "iso_secs_opt::deserialize")]
     archived_at: Option<i64>,
     #[serde(default)]
     is_template: bool,
@@ -141,7 +227,12 @@ impl From<TaskCompat> for Task {
     }
 }
 
-pub const CURRENT_VERSION: u32 = 3;
+/// Bumped to 4 when on-disk timestamps switched from integer epoch-millis to
+/// ISO-8601 local-time strings (`created_at`/`updated_at`/`completed_at`/`last_modified`).
+/// A pre-4 build can't parse the ISO strings, so the higher version also lets
+/// `parse_checked` reject the file with a clear "update the app" message where it
+/// can. New builds still read old integer-millis files (see `iso_secs`).
+pub const CURRENT_VERSION: u32 = 4;
 
 /// Files written before `version` existed are assumed compatible with the
 /// current schema (the model is additive/backward-compatible), so an absent
@@ -157,8 +248,10 @@ pub struct Document {
     pub version:  u32,
     /// Epoch millis of the last edit to the document (any task/tag change).
     /// Bumped by `AppState::write`. Shown as "Last synced"; identical on all
-    /// devices when in sync. `#[serde(default)]` = 0 for pre-existing files.
-    #[serde(default)]
+    /// devices when in sync. `#[serde(default)]` = 0 for pre-existing files;
+    /// `skip_serializing_if` omits the key for a never-edited document so the UI
+    /// shows an em dash rather than a 1970 ISO date.
+    #[serde(default, skip_serializing_if = "is_zero", with = "iso_secs")]
     pub last_modified: i64,
     #[serde(default)]
     pub tags:     Vec<Tag>,
@@ -323,12 +416,79 @@ mod tests {
     #[test]
     fn completed_task_serializes_without_legacy_keys() {
         let mut t = task();
-        t.set_done(true, 555);
+        // 2026-06-01T12:34:56Z in epoch millis (whole second, so it round-trips
+        // losslessly through the second-precision ISO form).
+        t.set_done(true, 1_780_317_296_000);
         let json = serde_json::to_string(&t).unwrap();
-        assert!(json.contains("\"completed_at\":555"), "{json}");
+        // completed_at is present as an ISO string for the same instant (rendered in
+        // local time — see timestamps_serialize_as_iso_local_seconds); this test
+        // guards only that the legacy keys are gone.
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let completed = v["completed_at"].as_str().expect("completed_at is an ISO string");
+        assert_eq!(
+            chrono::DateTime::parse_from_rfc3339(completed).unwrap().timestamp_millis(),
+            1_780_317_296_000,
+        );
         assert!(!json.contains("\"done\""), "no legacy done key: {json}");
         assert!(!json.contains("\"archived\""), "no legacy archived key: {json}");
         assert!(!json.contains("archived_at"), "no legacy archived_at key: {json}");
+    }
+
+    #[test]
+    fn timestamps_serialize_as_iso_local_seconds() {
+        use chrono::{DateTime, Local, SecondsFormat, TimeZone};
+        let ms = 1_780_317_296_000; // 2026-06-01T12:34:56Z
+        // The instant rendered in the machine's local time, e.g. 2026-06-01T20:34:56+08:00.
+        let expect = |ms: i64| Local.timestamp_millis_opt(ms).single().unwrap()
+            .to_rfc3339_opts(SecondsFormat::Secs, false);
+
+        let mut t = task();
+        t.created_at = ms;
+        t.updated_at = ms;
+        let json = serde_json::to_string(&t).unwrap();
+        assert!(json.contains(&format!("\"created_at\":\"{}\"", expect(ms))), "{json}");
+        assert!(json.contains(&format!("\"updated_at\":\"{}\"", expect(ms))), "{json}");
+
+        // Whatever offset is written, the string round-trips to the same instant.
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let created = v["created_at"].as_str().unwrap();
+        assert_eq!(DateTime::parse_from_rfc3339(created).unwrap().timestamp_millis(), ms);
+
+        // updated_at == 0 (the "never edited" sentinel) is omitted, not written as 1970.
+        t.updated_at = 0;
+        let json = serde_json::to_string(&t).unwrap();
+        assert!(!json.contains("updated_at"), "zero updated_at is skipped: {json}");
+
+        // Document.last_modified == 0 is likewise omitted, but a real stamp is ISO local.
+        let mut doc = Document::default();
+        assert!(!serde_json::to_string(&doc).unwrap().contains("last_modified"));
+        doc.last_modified = ms;
+        assert!(serde_json::to_string(&doc).unwrap()
+            .contains(&format!("\"last_modified\":\"{}\"", expect(ms))));
+    }
+
+    #[test]
+    fn timestamps_load_from_integer_or_iso() {
+        // Legacy integer epoch-millis still parse (backward compatible).
+        let from_int: Task = serde_json::from_str(
+            r##"{"id":"k_1","title":"t","created_at":1780317296000,"updated_at":1780317296000,"completed_at":1780317296000}"##,
+        ).unwrap();
+        assert_eq!(from_int.created_at, 1_780_317_296_000);
+        assert_eq!(from_int.updated_at, 1_780_317_296_000);
+        assert_eq!(from_int.completed_at, Some(1_780_317_296_000));
+
+        // ISO-8601 strings parse to the same instant. A non-UTC offset is honored.
+        let from_iso: Task = serde_json::from_str(
+            r##"{"id":"k_2","title":"t","created_at":"2026-06-01T12:34:56Z","completed_at":"2026-06-01T21:34:56+09:00"}"##,
+        ).unwrap();
+        assert_eq!(from_iso.created_at, 1_780_317_296_000);
+        assert_eq!(from_iso.completed_at, Some(1_780_317_296_000));
+
+        // Legacy archived_at as an ISO string still folds into completed_at.
+        let legacy: Task = serde_json::from_str(
+            r##"{"id":"k_3","title":"t","done":true,"created_at":0,"archived":true,"archived_at":"2026-06-01T12:34:56Z"}"##,
+        ).unwrap();
+        assert_eq!(legacy.completed_at, Some(1_780_317_296_000));
     }
 
     #[test]

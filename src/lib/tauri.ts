@@ -26,13 +26,13 @@ export type Task = {
   scheduled_date?: string; // YYYY-MM-DD
   notes: string;
   tag_ids: string[];
-  created_at: number;
-  // Epoch ms the task was completed. The single source of truth for completion
-  // AND archival: set = done and hidden from the active views; absent = active.
-  // Derive with isDone(t) / isArchived(t). Merged the former
-  // done/archived/archived_at fields (#23).
-  completed_at?: number;
-  updated_at: number; // epoch ms of last edit (0 for pre-existing tasks)
+  created_at: string; // ISO-8601 local time w/ offset, e.g. 2026-06-01T20:34:56+08:00
+  // ISO-8601 instant (local time w/ offset) the task was completed. The single
+  // source of truth for completion AND archival: set = done and hidden from the
+  // active views; absent = active. Derive with isDone(t) / isArchived(t). Merged
+  // the former done/archived/archived_at fields (#23).
+  completed_at?: string;
+  updated_at?: string; // ISO-8601 local time w/ offset of last edit; omitted for pre-existing tasks
   is_template?: boolean;          // true = reusable blueprint, hidden from active views (#71)
   due_offset_days?: number;       // template only: spawned task's due = today + N days
   scheduled_offset_days?: number; // template only: spawned task's scheduled = today + M days
@@ -45,7 +45,7 @@ export function isArchived(t: Task): boolean { return t.completed_at != null; }
 
 export type Document = {
   version: number;
-  last_modified: number; // epoch ms of last edit to the document (0 if never)
+  last_modified?: string; // ISO-8601 local time w/ offset of last edit; omitted if never edited
   settings: Settings;
   tags: Tag[];
   tasks: Task[];
