@@ -3,7 +3,6 @@ import { Task, Tag } from "../lib/tauri";
 import { api } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { addDaysIso } from "../lib/dates";
-import { effectivePriority } from "../state/indexes";
 import { TaskEditor } from "./TaskEditor";
 
 type Props = {
@@ -48,10 +47,6 @@ export function TaskRow({ task, tags, todayIso, archived = false, template = fal
   const [creatingDraft, setCreatingDraft] = useState<Task | null>(null);
   const [error, setError] = useState<string | null>(null);
   const w = whenLabel(task, todayIso);
-  // Effective priority = the max weight among the task's tags (0 if untagged).
-  // Surfaced as a non-color numeric badge so weight is legible regardless of
-  // sort order or theme (#50). 0 is the baseline and stays unbadged to cut noise.
-  const weight = effectivePriority(task, tags);
   // All of the task's tags as chips, highest-weight (priority) first.
   const taskTags = task.tag_ids
     .map(id => tags.get(id))
@@ -101,14 +96,8 @@ export function TaskRow({ task, tags, todayIso, archived = false, template = fal
     <>
       <div className="task-row" data-done={task.done}>
         <button type="button" className="task-main" onClick={open}
-                aria-label={`Edit ${task.title}${weight !== 0 ? `, priority ${weight}` : ""}`}>
+                aria-label={`Edit ${task.title}`}>
           <span className="task-title">{task.title}</span>
-          {weight !== 0 && (
-            <span className={weight > 0 ? "task-prio" : "task-prio neg"}
-                  title={`priority ${weight}`} aria-hidden="true">
-              {weight > 0 ? `↑${weight}` : `↓${Math.abs(weight)}`}
-            </span>
-          )}
           {taskTags.map(t => (
             <span key={t.id} className="task-tag" style={{ background: t.color + "22", color: t.color }}>
               {t.name}
