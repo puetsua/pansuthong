@@ -2,7 +2,7 @@ import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, Settings, Tag } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { clampWeight } from "../lib/tags";
+import { clampWeight, readableTextColor } from "../lib/tags";
 import { defaultTagColor, defaultTagPriority } from "../lib/settings";
 import { ColorPicker } from "./ColorPicker";
 
@@ -145,6 +145,15 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
         <div className="te-field">
           <span>Color</span>
           <ColorPicker value={form.color} onChange={c => set("color", c)} />
+        </div>
+
+        <div className="te-field">
+          <span>Preview</span>
+          <div>
+            <span className="task-tag" style={{ background: form.color, color: readableTextColor(form.color) }}>
+              {form.name.trim() || "tag"}
+            </span>
+          </div>
         </div>
 
         <label className="te-field">

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, Document, Tag } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
+import { readableTextColor } from "../lib/tags";
 import { Indexes } from "../state/indexes";
 import { TagEditor } from "../components/TagEditor";
 
@@ -59,8 +60,11 @@ export function TagsView({ doc, indexes }: Props) {
                       aria-label={t.pinned ? `Unpin #${t.name} from sidebar` : `Pin #${t.name} to sidebar`}
                       title={t.pinned ? "Pinned to sidebar" : "Pin to sidebar"}
                       onClick={() => togglePinned(t)}>{t.pinned ? "★" : "☆"}</button>
-              <span className="color-dot" style={{ background: t.color }} />
-              <span className="settings-name">#{t.name}</span>
+              <span className="settings-name">
+                <span className="task-tag" style={{ background: t.color, color: readableTextColor(t.color) }}>
+                  {t.name}
+                </span>
+              </span>
               <span className="tag-count">{count} {count === 1 ? "task" : "tasks"}</span>
               <span className="tag-weight" title="priority weight">{t.priority}</span>
               <button className="link-button" onClick={() => { setError(null); setEditor({ tag: t }); }}>edit</button>
