@@ -108,7 +108,6 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
         let task = Task {
             id: new_task_id(),
             title,
-            done: false,
             due_date: input.due_date,
             scheduled_date: input.scheduled_date,
             notes: input.notes,
@@ -116,8 +115,6 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
             created_at: ts,
             completed_at: None,
             updated_at: ts,
-            archived: false,
-            archived_at: None,
             is_template: input.is_template,
             due_offset_days: input.due_offset_days,
             scheduled_offset_days: input.scheduled_offset_days,
@@ -200,29 +197,6 @@ pub fn set_task_done(id: String, done: bool, state: State<'_, AppState>, app: Ap
     })?;
     emit_changed(&app);
     Ok(updated)
-}
-
-/// Bulk-archive every completed-but-not-yet-archived task. Returns how many were
-/// archived; only emits a change (and bumps timestamps) when at least one moved (#23).
-#[tauri::command]
-pub fn archive_completed(state: State<'_, AppState>, app: AppHandle) -> Result<usize> {
-    let archived = state.write(|d| {
-        let ts = now_ms();
-        let mut count = 0usize;
-        for t in d.tasks.iter_mut() {
-            if t.done && !t.archived {
-                t.archived = true;
-                t.archived_at = Some(ts);
-                t.updated_at = ts;
-                count += 1;
-            }
-        }
-        Ok(count)
-    })?;
-    if archived > 0 {
-        emit_changed(&app);
-    }
-    Ok(archived)
 }
 
 #[tauri::command]

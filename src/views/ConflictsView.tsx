@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { api, Decision, Task, TaskDiff } from "../lib/tauri";
+import { api, Decision, Task, TaskDiff, isDone } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { BulkIntent, bulkAction, nextConflictPath } from "../state/conflictDecisions";
 
@@ -161,7 +161,7 @@ function ConflictRow(props: {
 function TaskSummary({ task }: { task: Task }) {
   return (
     <div className="conflict-summary">
-      {task.done && <span>✓ done</span>}
+      {isDone(task) && <span>✓ done</span>}
       {task.scheduled_date && <span>sched {task.scheduled_date}</span>}
       {task.due_date       && <span>due {task.due_date}</span>}
       {task.notes && <span className="conflict-notes">"{task.notes.slice(0, 80)}{task.notes.length > 80 ? "…" : ""}"</span>}

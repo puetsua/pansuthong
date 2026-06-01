@@ -140,8 +140,8 @@ fn decision_id(d: &Decision) -> &str {
 
 fn task_equal(a: &Task, b: &Task) -> bool {
     a.title == b.title
-        && a.done == b.done
-        && a.archived == b.archived
+        && a.done() == b.done()
+        && a.archived() == b.archived()
         && a.is_template == b.is_template
         && a.due_offset_days == b.due_offset_days
         && a.scheduled_offset_days == b.scheduled_offset_days
@@ -161,11 +161,10 @@ mod merge_tests {
 
     fn task_with_tags(id: &str, tag_ids: &[&str]) -> Task {
         Task {
-            id: id.into(), title: id.into(), done: false,
+            id: id.into(), title: id.into(),
             due_date: None, scheduled_date: None, notes: String::new(),
             tag_ids: tag_ids.iter().map(|s| s.to_string()).collect(),
             created_at: 0, completed_at: None, updated_at: 0,
-            archived: false, archived_at: None,
             is_template: false, due_offset_days: None, scheduled_offset_days: None,
         }
     }

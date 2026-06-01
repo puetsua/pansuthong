@@ -22,20 +22,26 @@ export type Tag = {
 export type Task = {
   id: string;
   title: string;
-  done: boolean;
   due_date?: string;       // YYYY-MM-DD
   scheduled_date?: string; // YYYY-MM-DD
   notes: string;
   tag_ids: string[];
   created_at: number;
+  // Epoch ms the task was completed. The single source of truth for completion
+  // AND archival: set = done and hidden from the active views; absent = active.
+  // Derive with isDone(t) / isArchived(t). Merged the former
+  // done/archived/archived_at fields (#23).
   completed_at?: number;
   updated_at: number; // epoch ms of last edit (0 for pre-existing tasks)
-  archived?: boolean; // true = non-destructively hidden from active views (#23)
-  archived_at?: number; // epoch ms the task was archived
   is_template?: boolean;          // true = reusable blueprint, hidden from active views (#71)
   due_offset_days?: number;       // template only: spawned task's due = today + N days
   scheduled_offset_days?: number; // template only: spawned task's scheduled = today + M days
 };
+
+/** A task is done — equivalently, archived — iff it carries a completion timestamp. */
+export function isDone(t: Task): boolean { return t.completed_at != null; }
+/** A task is archived (hidden from the active views) iff it is done. */
+export function isArchived(t: Task): boolean { return t.completed_at != null; }
 
 export type Document = {
   version: number;
@@ -88,8 +94,6 @@ export const api = {
   addTask:       (input: Partial<Task> & { title: string }) => invoke<Task>("add_task", { input }),
   updateTask:    (input: TaskUpdate)                         => invoke<Task>("update_task", { input }),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
-  /** Archive every completed-but-not-archived task; resolves to the number archived. */
-  archiveCompleted: ()                       => invoke<number>("archive_completed"),
   deleteTask:    (id: string)                => invoke<void>("delete_task", { id }),
   addTag:        (name: string, color: string, priority = 0, pinned = false) =>
                                                 invoke<Tag>("add_tag", { input: { name, color, priority, pinned } }),

@@ -35,7 +35,7 @@ describe("buildIndexes", () => {
 
 // All tasks are overdue (due < TODAY, not done) so they all land in today().
 function task(id: string, tag_ids: string[], due_date: string): Task {
-  return { id, title: id, done: false, due_date, notes: "", tag_ids, created_at: 0, updated_at: 0 };
+  return { id, title: id, due_date, notes: "", tag_ids, created_at: 0, updated_at: 0 };
 }
 
 function weightedDoc(order: SortOrder): Document {
@@ -135,7 +135,8 @@ describe("sort tiebreaks", () => {
 function doneDoc(order: SortOrder): Document {
   const TODAY_ISO = "2026-05-28";
   const t = (id: string, tags: string[], done: boolean): Task => ({
-    id, title: id, done, scheduled_date: TODAY_ISO, notes: "", tag_ids: tags, created_at: 0, updated_at: 0,
+    id, title: id, completed_at: done ? 1 : undefined,
+    scheduled_date: TODAY_ISO, notes: "", tag_ids: tags, created_at: 0, updated_at: 0,
   });
   return {
     version: 2,
@@ -154,26 +155,22 @@ function doneDoc(order: SortOrder): Document {
   };
 }
 
-describe("done-aware lists (#32)", () => {
-  it("priority mode: done tasks sink below all open tasks, even higher-weight done ones", () => {
+describe("completed tasks leave the active lists (#32, #23)", () => {
+  // Completing a task archives it (done == archived since the field merge), so it
+  // drops out of Today and into `archived` rather than lingering de-emphasized in
+  // the active list.
+  it("priority mode: only open tasks remain, highest-weight first", () => {
     const ix = buildIndexes(doneDoc("priority"));
-    expect(ix.today("2026-05-28").map(t => t.id))
-      .toEqual(["k_open_hi", "k_open_lo", "k_done_hi", "k_done_lo"]);
+    expect(ix.today("2026-05-28").map(t => t.id)).toEqual(["k_open_hi", "k_open_lo"]);
   });
 
-  it("date mode: done tasks also sink below open tasks", () => {
-    const ix = buildIndexes(doneDoc("date"));
-    const done = ix.today("2026-05-28").map(t => t.done);
-    // every open (false) comes before every done (true)
-    expect(done).toEqual([false, false, true, true]);
-  });
-
-  it("the list still contains the done tasks (de-emphasized, not removed)", () => {
+  it("the completed tasks move to the archived list", () => {
     const ix = buildIndexes(doneDoc("priority"));
-    expect(ix.today("2026-05-28").length).toBe(4);
+    expect(new Set(ix.archived.map(t => t.id))).toEqual(new Set(["k_done_hi", "k_done_lo"]));
+    expect(ix.today("2026-05-28").length).toBe(2);
   });
 
-  it("openCount counts only not-done tasks", () => {
+  it("openCount counts the remaining (all open) tasks", () => {
     const ix = buildIndexes(doneDoc("priority"));
     expect(openCount(ix.today("2026-05-28"))).toBe(2);
     expect(openCount([])).toBe(0);
@@ -185,8 +182,9 @@ describe("done-aware lists (#32)", () => {
 function archivedDoc(): Document {
   const TODAY_ISO = "2026-05-28";
   const t = (id: string, tags: string[], archived: boolean, archived_at?: number): Task => ({
-    id, title: id, done: archived, scheduled_date: TODAY_ISO, notes: "",
-    tag_ids: tags, created_at: 0, updated_at: 0, archived, archived_at,
+    id, title: id, scheduled_date: TODAY_ISO, notes: "",
+    tag_ids: tags, created_at: 0, updated_at: 0,
+    completed_at: archived ? (archived_at ?? 1) : undefined,
   });
   return {
     version: 2,
@@ -221,7 +219,7 @@ describe("archived tasks (#23)", () => {
 function templatesDoc(): Document {
   const TODAY_ISO = "2026-05-28";
   const t = (id: string, tags: string[], is_template: boolean): Task => ({
-    id, title: id, done: false, scheduled_date: TODAY_ISO, notes: "",
+    id, title: id, scheduled_date: TODAY_ISO, notes: "",
     tag_ids: tags, created_at: 0, updated_at: 0, is_template,
   });
   return {

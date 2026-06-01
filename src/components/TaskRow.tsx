@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Task, Tag } from "../lib/tauri";
+import { Task, Tag, isDone } from "../lib/tauri";
 import { api } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { addDaysIso } from "../lib/dates";
@@ -19,7 +19,7 @@ type Props = {
 function whenLabel(t: Task, today: string): { text: string; late: boolean } {
   if (t.due_date) {
     if (t.due_date === today)       return { text: "due today", late: false };
-    if (t.due_date < today && !t.done) return { text: `−${diffDays(t.due_date, today)}d`, late: true };
+    if (t.due_date < today && !isDone(t)) return { text: `−${diffDays(t.due_date, today)}d`, late: true };
     return { text: `due ${t.due_date.slice(5)}`, late: false };
   }
   if (t.scheduled_date === today) return { text: "today", late: false };
@@ -55,16 +55,16 @@ export function TaskRow({ task, tags, todayIso, archived = false, template = fal
 
   const toggle = () => {
     setError(null);
-    api.setTaskDone(task.id, !task.done).catch(err => {
-      // The checkbox reflects the persisted `task.done`, so it stays put on
+    api.setTaskDone(task.id, !isDone(task)).catch(err => {
+      // The checkbox reflects the persisted completion state, so it stays put on
       // failure; surface the error so the user knows the change didn't stick.
       setError(errorMessage(err));
     });
   };
 
-  // Restore = clear `done`, which un-archives via the done↔archived coupling.
-  // Always sets done=false (not a toggle) so it also rescues legacy tasks that
-  // were archived while still incomplete (done already false) (#23).
+  // Restore = clear completion, which un-archives the task (completion and
+  // archival are the same `completed_at` state now). Always clears (not a toggle)
+  // so it also rescues any legacy task that loaded as archived (#23).
   const restore = () => {
     setError(null);
     api.setTaskDone(task.id, false).catch(err => setError(errorMessage(err)));
@@ -83,10 +83,7 @@ export function TaskRow({ task, tags, todayIso, archived = false, template = fal
       scheduled_offset_days: undefined,
       due_date: task.due_offset_days != null ? addDaysIso(todayIso, task.due_offset_days) : undefined,
       scheduled_date: task.scheduled_offset_days != null ? addDaysIso(todayIso, task.scheduled_offset_days) : undefined,
-      done: false,
       completed_at: undefined,
-      archived: false,
-      archived_at: undefined,
     });
   };
 
@@ -94,7 +91,7 @@ export function TaskRow({ task, tags, todayIso, archived = false, template = fal
 
   return (
     <>
-      <div className="task-row" data-done={task.done}>
+      <div className="task-row" data-done={isDone(task)}>
         <button type="button" className="task-main" onClick={open}
                 aria-label={`Edit ${task.title}`}>
           <span className="task-title">{task.title}</span>
@@ -118,7 +115,7 @@ export function TaskRow({ task, tags, todayIso, archived = false, template = fal
             Restore
           </button>
         ) : (
-          <input type="checkbox" checked={task.done} onChange={toggle}
+          <input type="checkbox" checked={isDone(task)} onChange={toggle}
                  aria-label={`Toggle ${task.title}`} />
         )}
       </div>

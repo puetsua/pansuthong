@@ -45,12 +45,16 @@ impl AppState {
     }
 
     /// Mutate then persist. Returns the result of `f` after the file is on disk.
-    /// Bumps `last_modified` so every edit stamps the document with its edit time.
+    /// Bumps `last_modified` so every edit stamps the document with its edit time,
+    /// and stamps the current schema `version` so any save upgrades an
+    /// older-format file (the new shape drops the legacy `done`/`archived` keys, so
+    /// an older app build then correctly refuses the file via `parse_checked`).
     pub fn write<F, T>(&self, f: F) -> Result<T>
     where F: FnOnce(&mut Document) -> Result<T> {
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let value = f(&mut g.doc)?;
         g.doc.last_modified = crate::model::now_ms();
+        g.doc.version = CURRENT_VERSION;
         let bytes = serde_json::to_vec_pretty(&g.doc)?;
         atomic_write(&g.path, &bytes)?;
         g.last_written_hash = sha256(&bytes);
@@ -263,10 +267,9 @@ mod repoint_tests {
 
     fn sample_task(id: &str) -> crate::model::Task {
         crate::model::Task {
-            id: id.into(), title: id.into(), done: false,
+            id: id.into(), title: id.into(),
             due_date: None, scheduled_date: None, notes: String::new(),
             tag_ids: Vec::new(), created_at: 0, completed_at: None, updated_at: 0,
-            archived: false, archived_at: None,
             is_template: false, due_offset_days: None, scheduled_offset_days: None,
         }
     }

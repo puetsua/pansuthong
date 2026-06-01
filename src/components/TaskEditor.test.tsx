@@ -20,7 +20,7 @@ vi.mock("../lib/tauri", async (importOriginal) => {
 import { api } from "../lib/tauri";
 
 const baseTask: Task = {
-  id: "k_1", title: "Write report", done: false,
+  id: "k_1", title: "Write report",
   notes: "", tag_ids: ["t_a"], created_at: 0, updated_at: 0,
 };
 const tags = new Map<string, Tag>([
@@ -93,7 +93,7 @@ describe("TaskEditor archive (#23)", () => {
   });
 
   it("has no Unarchive button on an archived task", () => {
-    render(<TaskEditor task={{ ...baseTask, archived: true }} allTags={tags} onClose={vi.fn()} />);
+    render(<TaskEditor task={{ ...baseTask, completed_at: 1 }} allTags={tags} onClose={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Unarchive" })).toBeNull();
   });
 });

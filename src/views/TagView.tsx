@@ -4,6 +4,7 @@ import { Composer } from "../components/Composer";
 import { TaskList } from "../components/TaskList";
 import { TagEditor } from "../components/TagEditor";
 import { Indexes } from "../state/indexes";
+import { isDone } from "../lib/tauri";
 import { todayIso } from "../lib/dates";
 
 type Props = { indexes: Indexes };
@@ -19,7 +20,7 @@ export function TagView({ indexes }: Props) {
   if (!tag) return <p className="view-empty">Tag not found.</p>;
 
   const tasks = indexes.byTag.get(id) ?? [];
-  const open  = tasks.filter(t => !t.done).length;
+  const open  = tasks.filter(t => !isDone(t)).length;
 
   return (
     <section>

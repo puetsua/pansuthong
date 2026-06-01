@@ -3,7 +3,7 @@ import { Task, TaskDiff } from "../lib/tauri";
 import { bulkAction, nextConflictPath } from "./conflictDecisions";
 
 const t = (id: string): Task => ({
-  id, title: id, done: false, notes: "", tag_ids: [], created_at: 0, updated_at: 0,
+  id, title: id, notes: "", tag_ids: [], created_at: 0, updated_at: 0,
 });
 
 const differs:    TaskDiff = { kind: "differs",     id: "a", mine: t("a"), theirs: t("a") };

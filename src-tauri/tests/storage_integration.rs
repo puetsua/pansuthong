@@ -7,7 +7,6 @@ fn make_task(title: &str) -> Task {
     Task {
         id: new_task_id(),
         title: title.into(),
-        done: false,
         due_date: None,
         scheduled_date: None,
         notes: String::new(),
@@ -15,8 +14,6 @@ fn make_task(title: &str) -> Task {
         created_at: 0,
         completed_at: None,
         updated_at: 0,
-        archived: false,
-        archived_at: None,
         is_template: false,
         due_offset_days: None,
         scheduled_offset_days: None,
@@ -30,7 +27,7 @@ fn open_creates_default_document_when_missing() {
     let state = AppState::open(path.clone()).unwrap();
     assert!(path.exists());
     state.read(|d| {
-        assert_eq!(d.version, 2);
+        assert_eq!(d.version, 3);
         assert!(d.tasks.is_empty());
     });
 }

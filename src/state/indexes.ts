@@ -1,4 +1,4 @@
-import { Document, SortOrder, Tag, Task } from "../lib/tauri";
+import { Document, SortOrder, Tag, Task, isArchived, isDone } from "../lib/tauri";
 import { isoLt } from "../lib/dates";
 
 export type Indexes = {
@@ -44,13 +44,14 @@ function byDateAsc(a: Task, b: Task): number {
 
 /** Open tasks before done ones; equal `done` is a tie. */
 function byOpenFirst(a: Task, b: Task): number {
-  return a.done === b.done ? 0 : a.done ? 1 : -1;
+  const da = isDone(a), db = isDone(b);
+  return da === db ? 0 : da ? 1 : -1;
 }
 
 /** Number of not-yet-done ("remaining work") tasks in a list. */
 export function openCount(tasks: Task[]): number {
   let n = 0;
-  for (const t of tasks) if (!t.done) n++;
+  for (const t of tasks) if (!isDone(t)) n++;
   return n;
 }
 
@@ -79,7 +80,7 @@ export function buildIndexes(doc: Document): Indexes {
   // Archived tasks (#23) and templates (#71) are both non-destructively hidden:
   // every active list is built from this filtered set, so the exclusion happens
   // once, here.
-  const active = doc.tasks.filter(t => !t.archived && !t.is_template);
+  const active = doc.tasks.filter(t => !isArchived(t) && !t.is_template);
 
   const byTag = new Map<string, Task[]>();
   for (const tag of doc.tags) byTag.set(tag.id, []);
@@ -92,10 +93,10 @@ export function buildIndexes(doc: Document): Indexes {
 
   const inbox = sortTasks(active.filter(t => t.tag_ids.length === 0), order, tagsById);
 
-  // Most-recently-archived first (fall back to completion/insertion when unstamped).
+  // Most-recently-completed first (fall back to insertion order when unstamped).
   const archived = doc.tasks
-    .filter(t => t.archived)
-    .sort((a, b) => (b.archived_at ?? b.completed_at ?? 0) - (a.archived_at ?? a.completed_at ?? 0));
+    .filter(t => isArchived(t))
+    .sort((a, b) => (b.completed_at ?? 0) - (a.completed_at ?? 0));
 
   // Templates in document order; surfaced only in the Templates view.
   const templates = doc.tasks.filter(t => t.is_template);
@@ -108,7 +109,7 @@ export function buildIndexes(doc: Document): Indexes {
       if (t.scheduled_date === todayIso) return true;
       if (t.due_date) {
         if (t.due_date === todayIso) return true;
-        if (isoLt(t.due_date, todayIso) && !t.done) return true;
+        if (isoLt(t.due_date, todayIso) && !isDone(t)) return true;
       }
       return false;
     });

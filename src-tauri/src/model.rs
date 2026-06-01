@@ -38,10 +38,10 @@ pub struct Tag {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(from = "TaskCompat")]
 pub struct Task {
     pub id:    String,
     pub title: String,
-    pub done:  bool,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub due_date: Option<NaiveDate>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -51,27 +51,25 @@ pub struct Task {
     #[serde(default)]
     pub tag_ids: Vec<String>,
     pub created_at:   i64,
+    /// Epoch millis the task was completed. The **single source of truth** for
+    /// completion *and* archival: `Some` = done and swept out of the active views
+    /// (Today/Inbox/tag/Upcoming); `None` = active. The previously-separate
+    /// `done`/`archived`/`archived_at` fields collapsed into this one and are now
+    /// derived via `done()`/`archived()`/`archived_at()`. Legacy files that still
+    /// carry those keys are folded in on load by `TaskCompat`.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub completed_at: Option<i64>,
     /// Epoch millis of the last edit to this task. `#[serde(default)]` = 0 for
     /// tasks written before this field existed (UI falls back to created_at).
     #[serde(default)]
     pub updated_at:   i64,
-    /// Archived tasks are non-destructively removed from the active views
-    /// (Today / Inbox / tag / Upcoming) but remain recoverable and searchable.
-    /// `#[serde(default)]` = false for tasks written before this field existed.
-    #[serde(default)]
-    pub archived: bool,
-    /// Epoch millis the task was archived; cleared on unarchive.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub archived_at: Option<i64>,
     /// A template is a reusable blueprint, not real work to do. It lives in the
     /// `tasks` Vec (templates serve the task center rather than competing with it)
     /// but is excluded from every active view (Today/Inbox/tag/Upcoming) exactly
-    /// like `archived`, and additionally from search (unlike archived tasks, which
-    /// stay searchable). New tasks are spawned from it in the Templates view (the
-    /// frontend resolves the offsets and creates an ordinary task via `add_task`).
-    /// `#[serde(default)]` = false for older files.
+    /// like a completed task, and additionally from search (unlike completed tasks,
+    /// which stay searchable). New tasks are spawned from it in the Templates view
+    /// (the frontend resolves the offsets and creates an ordinary task via
+    /// `add_task`). `#[serde(default)]` = false for older files.
     #[serde(default)]
     pub is_template: bool,
     /// Template only: the instantiated task's due date is today + this many days.
@@ -84,7 +82,66 @@ pub struct Task {
     pub scheduled_offset_days: Option<i64>,
 }
 
-pub const CURRENT_VERSION: u32 = 2;
+/// Deserialization shim that accepts the legacy `done`/`archived`/`archived_at`
+/// keys and folds them into `completed_at`, so files written before those three
+/// fields were merged still load (AGENTS.md: model changes stay backward
+/// compatible). `completed_at` wins when present; otherwise a task flagged
+/// `done` or `archived` is preserved as completed — using `archived_at`, or epoch
+/// `0` as a "done, time unknown" sentinel. New files never write the legacy keys.
+#[derive(Deserialize)]
+struct TaskCompat {
+    id:    String,
+    title: String,
+    #[serde(default)]
+    done:  bool,
+    #[serde(default)]
+    due_date: Option<NaiveDate>,
+    #[serde(default)]
+    scheduled_date: Option<NaiveDate>,
+    #[serde(default)]
+    notes: String,
+    #[serde(default)]
+    tag_ids: Vec<String>,
+    created_at: i64,
+    #[serde(default)]
+    completed_at: Option<i64>,
+    #[serde(default)]
+    updated_at: i64,
+    #[serde(default)]
+    archived: bool,
+    #[serde(default)]
+    archived_at: Option<i64>,
+    #[serde(default)]
+    is_template: bool,
+    #[serde(default)]
+    due_offset_days: Option<i64>,
+    #[serde(default)]
+    scheduled_offset_days: Option<i64>,
+}
+
+impl From<TaskCompat> for Task {
+    fn from(c: TaskCompat) -> Self {
+        let completed_at = c.completed_at.or_else(|| {
+            if c.done || c.archived { c.archived_at.or(Some(0)) } else { None }
+        });
+        Task {
+            id: c.id,
+            title: c.title,
+            due_date: c.due_date,
+            scheduled_date: c.scheduled_date,
+            notes: c.notes,
+            tag_ids: c.tag_ids,
+            created_at: c.created_at,
+            completed_at,
+            updated_at: c.updated_at,
+            is_template: c.is_template,
+            due_offset_days: c.due_offset_days,
+            scheduled_offset_days: c.scheduled_offset_days,
+        }
+    }
+}
+
+pub const CURRENT_VERSION: u32 = 3;
 
 /// Files written before `version` existed are assumed compatible with the
 /// current schema (the model is additive/backward-compatible), so an absent
@@ -121,15 +178,24 @@ impl Default for Document {
 }
 
 impl Task {
-    /// Toggle completion. Finishing a task also archives it (sweeping it out of
-    /// the active Today/Inbox/tag views); reopening it clears the archive. Keeping
-    /// `done` and `archived` in lockstep is what makes "done" send a task to the
-    /// archive and un-checking it bring the task back.
+    /// True if the task is completed. Since `done`/`archived`/`archived_at`
+    /// merged into `completed_at`, "done" and "archived" are the same state: a
+    /// completed task is swept out of the active views.
+    pub fn done(&self) -> bool { self.completed_at.is_some() }
+
+    /// True if the task is archived — identical to `done()` now that completion
+    /// and archival are one state. Kept as a named accessor so call sites that
+    /// mean "hidden from active views" stay readable.
+    pub fn archived(&self) -> bool { self.completed_at.is_some() }
+
+    /// Epoch millis the task was archived (= completed), or `None` if active.
+    pub fn archived_at(&self) -> Option<i64> { self.completed_at }
+
+    /// Set or clear completion. Completing sweeps the task out of the active
+    /// views (Today/Inbox/tag); reopening restores it. `completed_at` is the
+    /// single field encoding both.
     pub fn set_done(&mut self, done: bool, ts: i64) {
-        self.done = done;
         self.completed_at = if done { Some(ts) } else { None };
-        self.archived = done;
-        self.archived_at = if done { Some(ts) } else { None };
         self.updated_at = ts;
     }
 }
@@ -144,23 +210,23 @@ impl Document {
     /// Archived tasks never appear in active views.
     pub fn tasks_today(&self, today: NaiveDate) -> Vec<&Task> {
         self.tasks.iter().filter(|t| {
-            if t.archived || t.is_template { return false; }
+            if t.archived() || t.is_template { return false; }
             if t.scheduled_date == Some(today) { return true; }
             if let Some(due) = t.due_date {
                 if due == today { return true; }
-                if due < today && !t.done { return true; }
+                if due < today && !t.done() { return true; }
             }
             false
         }).collect()
     }
 
     pub fn tasks_inbox(&self) -> Vec<&Task> {
-        self.tasks.iter().filter(|t| !t.archived && !t.is_template && self.task_in_inbox(t)).collect()
+        self.tasks.iter().filter(|t| !t.archived() && !t.is_template && self.task_in_inbox(t)).collect()
     }
 
     pub fn tasks_for_tag(&self, tag_id: &str) -> Vec<&Task> {
         self.tasks.iter()
-            .filter(|t| !t.archived && !t.is_template && t.tag_ids.iter().any(|id| id == tag_id))
+            .filter(|t| !t.archived() && !t.is_template && t.tag_ids.iter().any(|id| id == tag_id))
             .collect()
     }
 
@@ -179,7 +245,6 @@ mod tests {
         Task {
             id: "k_1".into(),
             title: "t".into(),
-            done: false,
             due_date: None,
             scheduled_date: None,
             notes: String::new(),
@@ -187,8 +252,6 @@ mod tests {
             created_at: 0,
             completed_at: None,
             updated_at: 0,
-            archived: false,
-            archived_at: None,
             is_template: false,
             due_offset_days: None,
             scheduled_offset_days: None,
@@ -212,10 +275,10 @@ mod tests {
     fn completing_a_task_archives_it() {
         let mut t = task();
         t.set_done(true, 100);
-        assert!(t.done);
+        assert!(t.done());
         assert_eq!(t.completed_at, Some(100));
-        assert!(t.archived, "finishing a task sends it to the archive");
-        assert_eq!(t.archived_at, Some(100));
+        assert!(t.archived(), "finishing a task sends it to the archive");
+        assert_eq!(t.archived_at(), Some(100));
         assert_eq!(t.updated_at, 100);
     }
 
@@ -224,11 +287,48 @@ mod tests {
         let mut t = task();
         t.set_done(true, 100);
         t.set_done(false, 200);
-        assert!(!t.done);
+        assert!(!t.done());
         assert_eq!(t.completed_at, None);
-        assert!(!t.archived, "reopening a task restores it to the active views");
-        assert_eq!(t.archived_at, None);
+        assert!(!t.archived(), "reopening a task restores it to the active views");
+        assert_eq!(t.archived_at(), None);
         assert_eq!(t.updated_at, 200);
+    }
+
+    #[test]
+    fn legacy_done_archived_keys_fold_into_completed_at() {
+        // A task written before the merge: `completed_at` is absent but the
+        // legacy `done`/`archived`/`archived_at` keys mark it complete. It must
+        // load as completed (archived_at supplies the timestamp).
+        let t: Task = serde_json::from_str(
+            r##"{"id":"k_1","title":"t","done":true,"created_at":0,"archived":true,"archived_at":123}"##,
+        ).unwrap();
+        assert_eq!(t.completed_at, Some(123));
+        assert!(t.done());
+        assert!(t.archived());
+
+        // Legacy done task with neither completed_at nor archived_at → preserved
+        // as completed with the epoch-0 "time unknown" sentinel, not un-completed.
+        let no_ts: Task =
+            serde_json::from_str(r##"{"id":"k_2","title":"t","done":true,"created_at":0}"##).unwrap();
+        assert_eq!(no_ts.completed_at, Some(0));
+        assert!(no_ts.done());
+
+        // A legacy active task stays active.
+        let active: Task =
+            serde_json::from_str(r##"{"id":"k_3","title":"t","done":false,"created_at":0,"archived":false}"##).unwrap();
+        assert_eq!(active.completed_at, None);
+        assert!(!active.done());
+    }
+
+    #[test]
+    fn completed_task_serializes_without_legacy_keys() {
+        let mut t = task();
+        t.set_done(true, 555);
+        let json = serde_json::to_string(&t).unwrap();
+        assert!(json.contains("\"completed_at\":555"), "{json}");
+        assert!(!json.contains("\"done\""), "no legacy done key: {json}");
+        assert!(!json.contains("\"archived\""), "no legacy archived key: {json}");
+        assert!(!json.contains("archived_at"), "no legacy archived_at key: {json}");
     }
 
     #[test]
