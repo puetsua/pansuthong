@@ -59,8 +59,8 @@ export function Sidebar({ doc, indexes }: Props) {
         ) : tags.map(t => (
           <li className="sidebar-tag-row" key={t.id}>
             <NavLink to={`/tag/${t.id}`} className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-              <span className="sidebar-dot" style={{ background: t.color }} />
-              #{t.name}
+              <span className="sidebar-hash" aria-hidden="true" style={{ color: t.color }}>#</span>
+              {t.name}
               <span className="sidebar-count">{indexes.byTag.get(t.id)?.length ?? 0}</span>
             </NavLink>
             <button type="button" className="sidebar-icon-btn tag-edit-btn" aria-label={`Edit #${t.name}`}
