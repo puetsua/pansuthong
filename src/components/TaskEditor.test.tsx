@@ -21,7 +21,7 @@ import { api } from "../lib/tauri";
 
 const baseTask: Task = {
   id: "k_1", title: "Write report",
-  notes: "", tag_ids: ["t_a"], created_at: 0, updated_at: 0,
+  notes: "", tag_ids: ["t_a"], created_at: "1970-01-01T00:00:00Z",
 };
 const tags = new Map<string, Tag>([
   ["t_a", { id: "t_a", name: "work", color: "#06b6d4", priority: 5 }],
@@ -93,7 +93,7 @@ describe("TaskEditor archive (#23)", () => {
   });
 
   it("has no Unarchive button on an archived task", () => {
-    render(<TaskEditor task={{ ...baseTask, completed_at: 1 }} allTags={tags} onClose={vi.fn()} />);
+    render(<TaskEditor task={{ ...baseTask, completed_at: "2026-05-28T10:00:00Z" }} allTags={tags} onClose={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Unarchive" })).toBeNull();
   });
 });

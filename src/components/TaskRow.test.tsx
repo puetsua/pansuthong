@@ -18,7 +18,7 @@ import { api } from "../lib/tauri";
 
 const baseTask: Task = {
   id: "k_1", title: "Write report",
-  notes: "", tag_ids: [], created_at: 0, updated_at: 0,
+  notes: "", tag_ids: [], created_at: "1970-01-01T00:00:00Z",
 };
 const tags = new Map<string, Tag>();
 
@@ -36,7 +36,7 @@ describe("TaskRow archived mode (#23)", () => {
   // In the Archived view the row offers a single "Restore" action instead of a
   // done-checkbox. Restoring always clears completion, which un-archives the task
   // (completion and archival are the same `completed_at` state).
-  const archivedTask: Task = { ...baseTask, completed_at: 1748000000000 };
+  const archivedTask: Task = { ...baseTask, completed_at: "2025-05-23T12:00:00Z" };
 
   it("shows a Restore button instead of a checkbox", () => {
     render(<TaskRow task={archivedTask} tags={tags} todayIso="2026-05-31" archived />);

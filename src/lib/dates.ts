@@ -1,11 +1,12 @@
 /**
- * Format an epoch-ms timestamp as full ISO 8601 in the local timezone, with
- * seconds and an explicit offset — e.g. `2026-05-30T16:08:42+09:00`. Returns an
- * em dash for a missing/zero timestamp (e.g. a document not yet edited).
+ * Format a timestamp as full ISO 8601 in the local timezone, with seconds and an
+ * explicit offset — e.g. `2026-05-30T16:08:42+09:00`. Accepts an ISO-8601 UTC
+ * string (the stored/wire form) or a raw epoch-ms number. Returns an em dash for
+ * a missing/empty/zero timestamp (e.g. a document not yet edited).
  */
-export function formatIsoLocal(epochMs: number | undefined | null): string {
-  if (!epochMs) return "—";
-  const d = new Date(epochMs);
+export function formatIsoLocal(ts: string | number | undefined | null): string {
+  if (!ts) return "—";
+  const d = new Date(ts);
   const pad = (n: number) => String(n).padStart(2, "0");
   const offMin = -d.getTimezoneOffset(); // minutes east of UTC
   const sign = offMin >= 0 ? "+" : "-";
