@@ -92,6 +92,7 @@ export function Sidebar({ doc, indexes }: Props) {
       {editor && (
         <TagEditor
           tag={editor.tag}
+          settings={doc.settings}
           onClose={() => setEditor(null)}
           onDeleted={() => {
             const deletedId = editor.tag?.id;

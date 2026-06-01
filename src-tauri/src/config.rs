@@ -1,5 +1,5 @@
 //! Device-local configuration: the user's chosen data-file folder plus all
-//! app settings (theme, sort order, Upcoming horizon).
+//! app settings (theme, sort order, Upcoming horizon, new-tag defaults).
 //!
 //! Stored in `<default app_data_dir>/config.json`, which is NEVER synced (it
 //! lives in app-private storage, separate from the possibly-relocated
@@ -31,6 +31,14 @@ pub struct Settings {
     /// How many days ahead the Upcoming view looks. The UI bounds it to 1..=365.
     #[serde(default = "default_upcoming_days")]
     pub upcoming_days: u32,
+    /// Color pre-filled when creating a new tag (#79). A hex string like
+    /// "#10b981". `#[serde(default)]` so older config.json files still load.
+    #[serde(default = "default_tag_color")]
+    pub default_tag_color: String,
+    /// Priority weight pre-filled when creating a new tag (#79). The UI bounds it
+    /// to the same -9999..=9999 range a tag weight may take; defaults to 0.
+    #[serde(default)]
+    pub default_tag_priority: i64,
 }
 
 fn default_theme() -> String {
@@ -45,12 +53,18 @@ fn default_upcoming_days() -> u32 {
     14
 }
 
+fn default_tag_color() -> String {
+    "#10b981".into()
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
             theme: "auto".into(),
             sort_order: default_sort_order(),
             upcoming_days: default_upcoming_days(),
+            default_tag_color: default_tag_color(),
+            default_tag_priority: 0,
         }
     }
 }
@@ -342,6 +356,36 @@ mod tests {
         assert_eq!(cfg.settings.theme, "auto");
         assert_eq!(cfg.settings.sort_order, "date");
         assert_eq!(cfg.settings.upcoming_days, 21);
+    }
+
+    #[test]
+    fn settings_default_includes_new_tag_defaults() {
+        let s = Settings::default();
+        assert_eq!(s.default_tag_color, "#10b981");
+        assert_eq!(s.default_tag_priority, 0);
+    }
+
+    #[test]
+    fn settings_missing_tag_defaults_load_with_fallbacks() {
+        // An older config.json predating #79 lacks the two new keys; they must
+        // default rather than fail the whole parse.
+        let s: Settings =
+            serde_json::from_str(r#"{"theme":"dark","sort_order":"date","upcoming_days":30}"#)
+                .unwrap();
+        assert_eq!(s.theme, "dark");
+        assert_eq!(s.default_tag_color, "#10b981");
+        assert_eq!(s.default_tag_priority, 0);
+    }
+
+    #[test]
+    fn settings_round_trip_preserves_tag_defaults() {
+        let mut s = Settings::default();
+        s.default_tag_color = "#ef4444".into();
+        s.default_tag_priority = 7;
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.default_tag_color, "#ef4444");
+        assert_eq!(back.default_tag_priority, 7);
     }
 
     #[test]

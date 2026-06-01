@@ -306,11 +306,25 @@ pub fn update_tag(input: UpdateTagInput, state: State<'_, AppState>, app: AppHan
 const UPCOMING_DAYS_MIN: u32 = 1;
 const UPCOMING_DAYS_MAX: u32 = 365;
 
+/// Bounds for a tag priority weight, mirrored by the configurable default (#79).
+const TAG_WEIGHT_MIN: i64 = -9999;
+const TAG_WEIGHT_MAX: i64 = 9999;
+
+/// True for a `#rgb` or `#rrggbb` hex color string. Guards the configurable
+/// default tag color (#79) so a malformed value can't be stored and then
+/// pre-filled into every new tag's swatch.
+fn is_hex_color(s: &str) -> bool {
+    let Some(hex) = s.strip_prefix('#') else { return false };
+    (hex.len() == 3 || hex.len() == 6) && hex.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
 #[derive(Deserialize)]
 pub struct UpdateSettingsInput {
     #[serde(default)] pub theme: Option<String>,
     #[serde(default)] pub sort_order: Option<String>,
     #[serde(default)] pub upcoming_days: Option<u32>,
+    #[serde(default)] pub default_tag_color: Option<String>,
+    #[serde(default)] pub default_tag_priority: Option<i64>,
 }
 
 #[tauri::command]
@@ -339,6 +353,20 @@ pub fn update_settings(
                 )));
             }
             s.upcoming_days = n;
+        }
+        if let Some(color) = input.default_tag_color {
+            if !is_hex_color(&color) {
+                return Err(AppError::Invalid(format!("invalid default_tag_color: {color}")));
+            }
+            s.default_tag_color = color;
+        }
+        if let Some(p) = input.default_tag_priority {
+            if !(TAG_WEIGHT_MIN..=TAG_WEIGHT_MAX).contains(&p) {
+                return Err(AppError::Invalid(format!(
+                    "default_tag_priority must be {TAG_WEIGHT_MIN}..={TAG_WEIGHT_MAX}, got {p}"
+                )));
+            }
+            s.default_tag_priority = p;
         }
         Ok(())
     })?;
@@ -783,6 +811,35 @@ mod tests {
         assert_eq!(v.upcoming_days, Some(30));
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.upcoming_days, None);
+    }
+
+    #[test]
+    fn update_settings_input_parses_new_tag_defaults() {
+        // Pins the snake_case keys the JS api sends (#79).
+        let v: UpdateSettingsInput =
+            serde_json::from_str(r##"{"default_tag_color":"#ef4444","default_tag_priority":7}"##)
+                .unwrap();
+        assert_eq!(v.default_tag_color.as_deref(), Some("#ef4444"));
+        assert_eq!(v.default_tag_priority, Some(7));
+        let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(absent.default_tag_color, None);
+        assert_eq!(absent.default_tag_priority, None);
+    }
+
+    #[test]
+    fn is_hex_color_accepts_short_and_long_forms() {
+        assert!(is_hex_color("#10b981"));
+        assert!(is_hex_color("#FFF"));
+        assert!(is_hex_color("#abcDEF"));
+    }
+
+    #[test]
+    fn is_hex_color_rejects_malformed_values() {
+        assert!(!is_hex_color("10b981")); // no leading '#'
+        assert!(!is_hex_color("#12g456")); // non-hex digit
+        assert!(!is_hex_color("#1234")); // wrong length
+        assert!(!is_hex_color("#")); // empty body
+        assert!(!is_hex_color("red")); // not hex at all
     }
 
     #[test]
