@@ -212,10 +212,12 @@ mod repoint_tests {
         let after = state.read(|d| d.last_modified);
         assert!(after > before, "write should bump last_modified ({after} !> {before})");
 
-        // The bump is persisted to disk, not just held in memory.
+        // The bump is persisted to disk, not just held in memory. On disk the
+        // stamp is ISO-8601 at second precision, so it equals the in-memory value
+        // only after truncating sub-second millis.
         let bytes = std::fs::read(dir.path().join("tasks.json")).unwrap();
         let on_disk: crate::model::Document = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(on_disk.last_modified, after);
+        assert_eq!(on_disk.last_modified, after - after % 1000);
     }
 
     #[test]

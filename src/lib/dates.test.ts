@@ -21,14 +21,23 @@ describe("formatIsoLocal", () => {
     expect(out).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
   });
 
+  it("accepts an ISO-8601 UTC string (the stored/wire form)", () => {
+    const out = formatIsoLocal("2026-06-01T12:34:56Z");
+    expect(out).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
+    // Same instant whether given as a string or its epoch-ms equivalent.
+    expect(out).toBe(formatIsoLocal(Date.parse("2026-06-01T12:34:56Z")));
+  });
+
   it("round-trips to the same instant (timezone-independent), truncated to seconds", () => {
     const ms = 1_748_589_722_123;
     const parsed = new Date(formatIsoLocal(ms)).getTime();
     expect(parsed).toBe(ms - (ms % 1000)); // second precision
   });
 
-  it("renders an em dash for a missing/zero timestamp", () => {
+  it("renders an em dash for a missing/empty/zero timestamp", () => {
     expect(formatIsoLocal(0)).toBe("—");
     expect(formatIsoLocal(undefined)).toBe("—");
+    expect(formatIsoLocal(null)).toBe("—");
+    expect(formatIsoLocal("")).toBe("—");
   });
 });

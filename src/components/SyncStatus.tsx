@@ -3,8 +3,8 @@ import { api } from "../lib/tauri";
 import { formatIsoLocal } from "../lib/dates";
 
 type Props = {
-  /** doc.last_modified — epoch ms of the last edit (0 = never). */
-  lastModified: number;
+  /** doc.last_modified — ISO-8601 UTC of the last edit (undefined = never). */
+  lastModified: string | undefined;
   /** Extra class for layout (e.g. "sync-status-mobile"). */
   className?: string;
 };
