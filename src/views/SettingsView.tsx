@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { api, DataLocation, Document, SyncStatus } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { isAndroid } from "../lib/platform";
-import { clampUpcomingDays, upcomingDays, UPCOMING_DAYS_MAX, UPCOMING_DAYS_MIN } from "../lib/settings";
+import {
+  clampUpcomingDays, upcomingDays, UPCOMING_DAYS_MAX, UPCOMING_DAYS_MIN,
+  defaultTagColor, defaultTagPriority,
+} from "../lib/settings";
+import { clampWeight, WEIGHT_MAX, WEIGHT_MIN } from "../lib/tags";
+import { ColorPicker } from "../components/ColorPicker";
 
 type Props = { doc: Document };
 
@@ -34,6 +39,18 @@ export function SettingsView({ doc }: Props) {
     const n = clampUpcomingDays(draftDays);
     setDraftDays(String(n));
     if (n !== days) setUpcoming(n);
+  };
+
+  // New-tag defaults (#79): color applies immediately; the weight commits on blur/Enter.
+  const newTagColor = defaultTagColor(doc.settings);
+  const setNewTagColor = (c: string) => { void applySettings({ default_tag_color: c }); };
+  const newTagWeight = defaultTagPriority(doc.settings);
+  const [draftTagWeight, setDraftTagWeight] = useState(String(newTagWeight));
+  useEffect(() => { setDraftTagWeight(String(newTagWeight)); }, [newTagWeight]);
+  const commitDraftTagWeight = () => {
+    const n = clampWeight(draftTagWeight);
+    setDraftTagWeight(String(n));
+    if (n !== newTagWeight) void applySettings({ default_tag_priority: n });
   };
 
   const [android, setAndroid] = useState(false);
@@ -150,6 +167,28 @@ export function SettingsView({ doc }: Props) {
             onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
           />
         </div>
+      </section>
+
+      <section className="settings-section">
+        <h2>New tag defaults</h2>
+        <p className="view-sub">The color and priority weight pre-filled when you create a new tag.</p>
+        <div className="te-field">
+          <span>Color</span>
+          <ColorPicker value={newTagColor} onChange={setNewTagColor} />
+        </div>
+        <label className="te-field">
+          <span>Weight</span>
+          <input
+            type="number"
+            className="weight-input"
+            min={WEIGHT_MIN}
+            max={WEIGHT_MAX}
+            value={draftTagWeight}
+            onChange={e => setDraftTagWeight(e.currentTarget.value)}
+            onBlur={commitDraftTagWeight}
+            onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+          />
+        </label>
       </section>
 
       <section className="settings-section">

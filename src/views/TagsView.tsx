@@ -57,7 +57,7 @@ export function TagsView({ doc, indexes }: Props) {
         })}
       </ul>
 
-      {editor && <TagEditor tag={editor.tag} onClose={() => setEditor(null)} />}
+      {editor && <TagEditor tag={editor.tag} settings={doc.settings} onClose={() => setEditor(null)} />}
     </section>
   );
 }

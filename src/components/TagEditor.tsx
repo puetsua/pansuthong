@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { api, Tag } from "../lib/tauri";
+import { api, Settings, Tag } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { clampWeight } from "../lib/tags";
+import { defaultTagColor, defaultTagPriority } from "../lib/settings";
 import { ColorPicker } from "./ColorPicker";
 
 type Props = {
   /** The tag to edit; omit (or null) to create a new one. */
   tag?: Tag | null;
+  /** Device settings, used to seed a new tag's color/weight defaults (#79). */
+  settings?: Settings;
   onClose: () => void;
   /** Called instead of onClose after a successful delete (falls back to onClose). */
   onDeleted?: () => void;
@@ -15,14 +18,12 @@ type Props = {
 
 type Form = { name: string; color: string; weight: string };
 
-const DEFAULT_COLOR = "#10b981";
-
-export function TagEditor({ tag, onClose, onDeleted }: Props) {
+export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
   const isEdit = !!tag;
   const initialRef = useRef<Form>({
     name: tag?.name ?? "",
-    color: tag?.color ?? DEFAULT_COLOR,
-    weight: tag ? String(tag.priority) : "0",
+    color: tag?.color ?? defaultTagColor(settings),
+    weight: tag ? String(tag.priority) : String(defaultTagPriority(settings)),
   });
   const [form, setForm] = useState<Form>(initialRef.current);
   const [error, setError] = useState<string | null>(null);

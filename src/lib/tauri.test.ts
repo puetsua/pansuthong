@@ -79,13 +79,17 @@ describe("api IPC wrappers — command names & arg keys", () => {
     expect(invokeMock).toHaveBeenCalledWith("update_tag", { input });
   });
 
-  it("updateSettings wraps theme/sort_order/upcoming_days under `input`", async () => {
+  it("updateSettings wraps theme/sort_order/upcoming_days/new-tag defaults under `input`", async () => {
     await api.updateSettings({ theme: "dark" });
     expect(invokeMock).toHaveBeenCalledWith("update_settings", { input: { theme: "dark" } });
     await api.updateSettings({ sort_order: "date" });
     expect(invokeMock).toHaveBeenCalledWith("update_settings", { input: { sort_order: "date" } });
     await api.updateSettings({ upcoming_days: 30 });
     expect(invokeMock).toHaveBeenCalledWith("update_settings", { input: { upcoming_days: 30 } });
+    await api.updateSettings({ default_tag_color: "#ef4444" });
+    expect(invokeMock).toHaveBeenCalledWith("update_settings", { input: { default_tag_color: "#ef4444" } });
+    await api.updateSettings({ default_tag_priority: 7 });
+    expect(invokeMock).toHaveBeenCalledWith("update_settings", { input: { default_tag_priority: 7 } });
   });
 
   it("listConflicts → list_conflicts", async () => {

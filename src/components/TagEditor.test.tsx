@@ -48,6 +48,31 @@ describe("TagEditor — create mode", () => {
     render(<TagEditor onClose={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
   });
+
+  it("seeds a new tag's weight and color from device settings (#79)", async () => {
+    const settings = {
+      theme: "auto" as const,
+      sort_order: "priority" as const,
+      default_tag_color: "#ef4444",
+      default_tag_priority: 7,
+    };
+    render(<TagEditor settings={settings} onClose={vi.fn()} />);
+
+    // Weight pre-fills to the configured default.
+    expect(weightInput().value).toBe("7");
+
+    fireEvent.change(nameInput(), { target: { value: "urgent" } });
+    fireEvent.click(button("Save"));
+
+    await waitFor(() =>
+      expect(api.addTag).toHaveBeenCalledWith("urgent", "#ef4444", 7),
+    );
+  });
+
+  it("falls back to the built-in defaults when no settings are provided", () => {
+    render(<TagEditor onClose={vi.fn()} />);
+    expect(weightInput().value).toBe("0");
+  });
 });
 
 describe("TagEditor — edit mode", () => {
