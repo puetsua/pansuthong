@@ -149,6 +149,18 @@ describe("TaskEditor backdrop auto-save (#66)", () => {
     expect(api.updateTask).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("does not save or close when a text selection starts inside and releases on the backdrop", () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.mouseDown(screen.getByLabelText("Title"));
+    fireEvent.mouseUp(backdrop());
+    fireEvent.click(backdrop());
+
+    expect(api.updateTask).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
 
 const templateTask: Task = { ...baseTask, is_template: true, scheduled_offset_days: 0, due_offset_days: 2 };

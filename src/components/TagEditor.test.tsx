@@ -17,6 +17,7 @@ const tag = { id: "tag_1", name: "work", color: "#06b6d4", priority: 5 };
 const nameInput = () => screen.getByLabelText("Name") as HTMLInputElement;
 const weightInput = () => screen.getByLabelText("Weight") as HTMLInputElement;
 const button = (name: string) => screen.getByRole("button", { name }) as HTMLButtonElement;
+const backdrop = () => document.querySelector(".modal-backdrop") as HTMLElement;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -119,5 +120,16 @@ describe("TagEditor — edit mode", () => {
     fireEvent.click(button("Delete"));
 
     expect(api.deleteTag).not.toHaveBeenCalled();
+  });
+
+  it("stays open when a text selection starts inside and releases on the backdrop", () => {
+    const onClose = vi.fn();
+    render(<TagEditor tag={tag} onClose={onClose} />);
+
+    fireEvent.mouseDown(nameInput());
+    fireEvent.mouseUp(backdrop());
+    fireEvent.click(backdrop());
+
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
