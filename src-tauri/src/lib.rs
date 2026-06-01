@@ -39,6 +39,16 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_dialog::init());
 
+    // Remember the main window's size, position, and maximized state across
+    // launches (desktop only — mobile has no movable window). The quick-capture
+    // window is fixed-size and centered, so it's excluded from persistence.
+    #[cfg(desktop)]
+    let builder = builder.plugin(
+        tauri_plugin_window_state::Builder::default()
+            .with_denylist(&["quick-capture"])
+            .build(),
+    );
+
     #[cfg(target_os = "android")]
     let builder = builder.plugin(tauri_plugin_android_fs::init());
 
