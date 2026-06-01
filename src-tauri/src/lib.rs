@@ -49,6 +49,19 @@ pub fn run() {
             .build(),
     );
 
+    // Closing the main window quits the app. Otherwise the hidden, always-on-top
+    // quick-capture window keeps the process alive (there's no tray and no way to
+    // reopen the main window), and tauri-plugin-window-state only flushes geometry
+    // to disk on RunEvent::Exit — which would then never fire. The plugin refreshes
+    // its cache on the preceding CloseRequested/move/resize, so the saved geometry
+    // is current.
+    #[cfg(desktop)]
+    let builder = builder.on_window_event(|window, event| {
+        if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+            window.app_handle().exit(0);
+        }
+    });
+
     #[cfg(target_os = "android")]
     let builder = builder.plugin(tauri_plugin_android_fs::init());
 
