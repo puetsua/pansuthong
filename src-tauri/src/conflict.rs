@@ -156,7 +156,7 @@ mod merge_tests {
     use super::*;
 
     fn tag(id: &str) -> Tag {
-        Tag { id: id.into(), name: id.into(), color: "#000".into(), priority: 5 }
+        Tag { id: id.into(), name: id.into(), color: "#000".into(), priority: 5, pinned: false }
     }
 
     fn task_with_tags(id: &str, tag_ids: &[&str]) -> Task {

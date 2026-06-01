@@ -16,7 +16,7 @@ type Props = {
   onDeleted?: () => void;
 };
 
-type Form = { name: string; color: string; weight: string };
+type Form = { name: string; color: string; weight: string; pinned: boolean };
 
 export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
   const isEdit = !!tag;
@@ -24,6 +24,11 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
     name: tag?.name ?? "",
     color: tag?.color ?? defaultTagColor(settings),
     weight: tag ? String(tag.priority) : String(defaultTagPriority(settings)),
+    // Tags start unpinned; the sidebar is an explicitly-curated subset, so a
+    // tag joins it only when the user ticks this box or pins it on the Tags
+    // screen (#78). This keeps every creation path consistent — tags typed
+    // inline as `#tag` are created unpinned too (see quickAdd's resolveTagIds).
+    pinned: tag?.pinned ?? false,
   });
   const [form, setForm] = useState<Form>(initialRef.current);
   const [error, setError] = useState<string | null>(null);
@@ -80,9 +85,9 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
     setBusy(true);
     try {
       if (tag) {
-        await api.updateTag({ id: tag.id, name, color: form.color, priority: clampWeight(form.weight) });
+        await api.updateTag({ id: tag.id, name, color: form.color, priority: clampWeight(form.weight), pinned: form.pinned });
       } else {
-        await api.addTag(name, form.color, clampWeight(form.weight));
+        await api.addTag(name, form.color, clampWeight(form.weight), form.pinned);
       }
       onClose();
     } catch (err) {
@@ -147,6 +152,12 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
           <input type="number" className="weight-input" value={form.weight}
                  min={-9999} max={9999}
                  onChange={e => set("weight", e.currentTarget.value)} />
+        </label>
+
+        <label className="te-field te-checkbox">
+          <span>Pin to sidebar</span>
+          <input type="checkbox" checked={form.pinned}
+                 onChange={e => set("pinned", e.currentTarget.checked)} />
         </label>
 
         {error && <p className="composer-error">{error}</p>}

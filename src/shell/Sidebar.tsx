@@ -20,9 +20,11 @@ export function Sidebar({ doc, indexes }: Props) {
   const location = useLocation();
   const [editor, setEditor] = useState<EditorState>(null);
 
-  const tags = [...doc.tags].sort(
-    (a, b) => b.priority - a.priority || a.name.localeCompare(b.name),
-  );
+  // Only pinned tags appear in the sidebar; the full set lives on the Tags
+  // screen, where tags are pinned/unpinned (#78).
+  const tags = doc.tags
+    .filter(t => t.pinned)
+    .sort((a, b) => b.priority - a.priority || a.name.localeCompare(b.name));
 
   return (
     <nav className="sidebar">
@@ -50,7 +52,11 @@ export function Sidebar({ doc, indexes }: Props) {
                 onClick={() => setEditor({ tag: null })}>+</button>
       </div>
       <ul className="sidebar-list">
-        {tags.map(t => (
+        {tags.length === 0 ? (
+          <li className="sidebar-empty">
+            No pinned tags. <NavLink to="/tags" className="sidebar-empty-link">Manage tags</NavLink>
+          </li>
+        ) : tags.map(t => (
           <li className="sidebar-tag-row" key={t.id}>
             <NavLink to={`/tag/${t.id}`} className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
               <span className="sidebar-dot" style={{ background: t.color }} />

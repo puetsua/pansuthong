@@ -244,11 +244,12 @@ pub struct NewTagInput {
     pub name: String,
     pub color: String,
     #[serde(default)] pub priority: i64,
+    #[serde(default)] pub pinned: bool,
 }
 
 #[tauri::command]
 pub fn add_tag(input: NewTagInput, state: State<'_, AppState>, app: AppHandle) -> Result<Tag> {
-    let t = Tag { id: new_tag_id(), name: input.name, color: input.color, priority: input.priority };
+    let t = Tag { id: new_tag_id(), name: input.name, color: input.color, priority: input.priority, pinned: input.pinned };
     let saved = state.write(|d| { d.tags.push(t.clone()); Ok(t) })?;
     emit_changed(&app);
     Ok(saved)
@@ -282,6 +283,7 @@ pub struct UpdateTagInput {
     #[serde(default)] pub name:     Option<String>,
     #[serde(default)] pub color:    Option<String>,
     #[serde(default)] pub priority: Option<i64>,
+    #[serde(default)] pub pinned:   Option<bool>,
 }
 
 #[tauri::command]
@@ -296,6 +298,7 @@ pub fn update_tag(input: UpdateTagInput, state: State<'_, AppState>, app: AppHan
         }
         if let Some(v) = input.color    { t.color = v; }
         if let Some(v) = input.priority { t.priority = v; }
+        if let Some(v) = input.pinned   { t.pinned = v; }
         Ok(t.clone())
     })?;
     emit_changed(&app);
@@ -771,15 +774,35 @@ mod tests {
     }
 
     #[test]
+    fn update_tag_input_pinned_parses() {
+        // An absent `pinned` leaves the tag's flag untouched (None); a present
+        // value drives the toggle (#78).
+        let absent: UpdateTagInput = serde_json::from_str(r#"{"id":"t_1"}"#).unwrap();
+        assert_eq!(absent.pinned, None);
+        let set: UpdateTagInput =
+            serde_json::from_str(r#"{"id":"t_1","pinned":true}"#).unwrap();
+        assert_eq!(set.pinned, Some(true));
+    }
+
+    #[test]
     fn new_tag_input_priority_defaults_zero() {
         let v: NewTagInput = serde_json::from_str(r##"{"name":"x","color":"#fff"}"##).unwrap();
         assert_eq!(v.priority, 0);
     }
 
     #[test]
+    fn new_tag_input_pinned_defaults_false() {
+        let v: NewTagInput = serde_json::from_str(r##"{"name":"x","color":"#fff"}"##).unwrap();
+        assert!(!v.pinned);
+        let pinned: NewTagInput =
+            serde_json::from_str(r##"{"name":"x","color":"#fff","pinned":true}"##).unwrap();
+        assert!(pinned.pinned);
+    }
+
+    #[test]
     fn retain_known_tags_strips_unknown_ids() {
         let tags = vec![
-            Tag { id: "t_known".into(), name: "k".into(), color: "#000".into(), priority: 0 },
+            Tag { id: "t_known".into(), name: "k".into(), color: "#000".into(), priority: 0, pinned: false },
         ];
         let out = retain_known_tags(
             vec!["t_known".into(), "t_unknown".into(), "t_known".into()],

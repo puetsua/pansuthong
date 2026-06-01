@@ -16,6 +16,7 @@ const tag = { id: "tag_1", name: "work", color: "#06b6d4", priority: 5 };
 
 const nameInput = () => screen.getByLabelText("Name") as HTMLInputElement;
 const weightInput = () => screen.getByLabelText("Weight") as HTMLInputElement;
+const pinInput = () => screen.getByLabelText("Pin to sidebar") as HTMLInputElement;
 const button = (name: string) => screen.getByRole("button", { name }) as HTMLButtonElement;
 const backdrop = () => document.querySelector(".modal-backdrop") as HTMLElement;
 
@@ -33,9 +34,23 @@ describe("TagEditor — create mode", () => {
     fireEvent.click(button("Save"));
 
     await waitFor(() =>
-      expect(api.addTag).toHaveBeenCalledWith("errands", expect.any(String), 9999),
+      expect(api.addTag).toHaveBeenCalledWith("errands", expect.any(String), 9999, false),
     );
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("leaves new tags unpinned by default, and lets you opt in (#78)", async () => {
+    render(<TagEditor onClose={vi.fn()} />);
+    // The sidebar is an explicitly-curated subset, so a fresh tag is unpinned.
+    expect(pinInput().checked).toBe(false);
+
+    fireEvent.change(nameInput(), { target: { value: "work" } });
+    fireEvent.click(pinInput()); // opt the tag into the sidebar
+    fireEvent.click(button("Save"));
+
+    await waitFor(() =>
+      expect(api.addTag).toHaveBeenCalledWith("work", expect.any(String), expect.any(Number), true),
+    );
   });
 
   it("disables Save until a name is entered", () => {
@@ -66,7 +81,7 @@ describe("TagEditor — create mode", () => {
     fireEvent.click(button("Save"));
 
     await waitFor(() =>
-      expect(api.addTag).toHaveBeenCalledWith("urgent", "#ef4444", 7),
+      expect(api.addTag).toHaveBeenCalledWith("urgent", "#ef4444", 7, false),
     );
   });
 
@@ -83,6 +98,11 @@ describe("TagEditor — edit mode", () => {
     expect(weightInput().value).toBe("5");
   });
 
+  it("reflects the tag's current pinned state (#78)", () => {
+    render(<TagEditor tag={{ ...tag, pinned: true }} onClose={vi.fn()} />);
+    expect(pinInput().checked).toBe(true);
+  });
+
   it("updates the tag on Save, then closes", async () => {
     const onClose = vi.fn();
     render(<TagEditor tag={tag} onClose={onClose} />);
@@ -96,6 +116,7 @@ describe("TagEditor — edit mode", () => {
         name: "office",
         color: "#06b6d4",
         priority: 5,
+        pinned: false,
       }),
     );
     await waitFor(() => expect(onClose).toHaveBeenCalled());

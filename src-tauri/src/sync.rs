@@ -178,6 +178,7 @@ mod poll_tests {
             name: "x".into(),
             color: "#fff".into(),
             priority: 0,
+            pinned: false,
         });
         std::fs::write(&path, serde_json::to_vec_pretty(&doc).unwrap()).unwrap();
 
