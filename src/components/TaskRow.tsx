@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Task, Tag, isDone } from "../lib/tauri";
 import { api } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
+import { readableTextColor } from "../lib/tags";
 import { TaskEditor } from "./TaskEditor";
 
 type Props = {
@@ -64,7 +65,7 @@ export function TaskRow({ task, tags, todayIso, archived = false }: Props) {
                 aria-label={`Edit ${task.title}`}>
           <span className="task-title">{task.title}</span>
           {taskTags.map(t => (
-            <span key={t.id} className="task-tag" style={{ background: t.color + "22", color: t.color }}>
+            <span key={t.id} className="task-tag" style={{ background: t.color, color: readableTextColor(t.color) }}>
               {t.name}
             </span>
           ))}

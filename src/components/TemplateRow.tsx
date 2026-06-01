@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Tag, Task, TemplateTask } from "../lib/tauri";
 import { addDaysIso } from "../lib/dates";
+import { readableTextColor } from "../lib/tags";
 import { TaskEditor } from "./TaskEditor";
 
 type Props = {
@@ -53,7 +54,7 @@ export function TemplateRow({ template, tags, todayIso }: Props) {
                 aria-label={`Edit ${template.title}`}>
           <span className="task-title">{template.title}</span>
           {tmplTags.map(t => (
-            <span key={t.id} className="task-tag" style={{ background: t.color + "22", color: t.color }}>
+            <span key={t.id} className="task-tag" style={{ background: t.color, color: readableTextColor(t.color) }}>
               {t.name}
             </span>
           ))}
