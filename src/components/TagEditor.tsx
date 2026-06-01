@@ -24,9 +24,11 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
     name: tag?.name ?? "",
     color: tag?.color ?? defaultTagColor(settings),
     weight: tag ? String(tag.priority) : String(defaultTagPriority(settings)),
-    // New tags pin to the sidebar by default, so creating one makes it appear
-    // there immediately; editing preserves whatever the tag already had (#78).
-    pinned: tag ? (tag.pinned ?? false) : true,
+    // Tags start unpinned; the sidebar is an explicitly-curated subset, so a
+    // tag joins it only when the user ticks this box or pins it on the Tags
+    // screen (#78). This keeps every creation path consistent — tags typed
+    // inline as `#tag` are created unpinned too (see quickAdd's resolveTagIds).
+    pinned: tag?.pinned ?? false,
   });
   const [form, setForm] = useState<Form>(initialRef.current);
   const [error, setError] = useState<string | null>(null);

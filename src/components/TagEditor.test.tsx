@@ -33,22 +33,22 @@ describe("TagEditor — create mode", () => {
     fireEvent.click(button("Save"));
 
     await waitFor(() =>
-      expect(api.addTag).toHaveBeenCalledWith("errands", expect.any(String), 9999, true),
+      expect(api.addTag).toHaveBeenCalledWith("errands", expect.any(String), 9999, false),
     );
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
-  it("pins new tags to the sidebar by default, and lets you opt out (#78)", async () => {
+  it("leaves new tags unpinned by default, and lets you opt in (#78)", async () => {
     render(<TagEditor onClose={vi.fn()} />);
-    // Default state: a fresh tag is pinned so it shows up in the sidebar.
-    expect(pinInput().checked).toBe(true);
+    // The sidebar is an explicitly-curated subset, so a fresh tag is unpinned.
+    expect(pinInput().checked).toBe(false);
 
-    fireEvent.change(nameInput(), { target: { value: "rare" } });
-    fireEvent.click(pinInput()); // opt the tag out of the sidebar
+    fireEvent.change(nameInput(), { target: { value: "work" } });
+    fireEvent.click(pinInput()); // opt the tag into the sidebar
     fireEvent.click(button("Save"));
 
     await waitFor(() =>
-      expect(api.addTag).toHaveBeenCalledWith("rare", expect.any(String), expect.any(Number), false),
+      expect(api.addTag).toHaveBeenCalledWith("work", expect.any(String), expect.any(Number), true),
     );
   });
 
@@ -80,7 +80,7 @@ describe("TagEditor — create mode", () => {
     fireEvent.click(button("Save"));
 
     await waitFor(() =>
-      expect(api.addTag).toHaveBeenCalledWith("urgent", "#ef4444", 7, true),
+      expect(api.addTag).toHaveBeenCalledWith("urgent", "#ef4444", 7, false),
     );
   });
 
