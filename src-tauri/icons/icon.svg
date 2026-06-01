@@ -1,35 +1,43 @@
-<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pansutong">
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Tag Tick App Icon</title>
+  <desc>A simple purple app icon with a white tag and purple check mark, designed for clarity at small sizes.</desc>
+
   <defs>
-    <!-- indigo -> deep violet tile: the gold+purple identity -->
-    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#5B53F0"/>
-      <stop offset="1" stop-color="#4326B0"/>
+    <linearGradient id="bg" x1="160" y1="120" x2="864" y2="920" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9B4DFF"/>
+      <stop offset="1" stop-color="#4B1AAE"/>
     </linearGradient>
-    <!-- soft top-left light for depth -->
-    <radialGradient id="sheen" cx="0.28" cy="0.18" r="0.9">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.20"/>
-      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
-    </radialGradient>
-    <!-- golden star fill -->
-    <linearGradient id="gold" x1="0.15" y1="0.05" x2="0.85" y2="1">
-      <stop offset="0" stop-color="#FDE68A"/>
-      <stop offset="0.5" stop-color="#FBBF24"/>
-      <stop offset="1" stop-color="#EA8C0B"/>
+    <linearGradient id="tag" x1="326" y1="230" x2="698" y2="800" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F1E8FF"/>
     </linearGradient>
+    <filter id="shadow" x="238" y="184" width="548" height="680" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="28" stdDeviation="28" flood-color="#2B0B62" flood-opacity="0.28"/>
+    </filter>
   </defs>
 
-  <!-- App tile -->
-  <rect width="512" height="512" rx="114" fill="url(#tile)"/>
-  <rect width="512" height="512" rx="114" fill="url(#sheen)"/>
+  <!-- App icon background -->
+  <rect x="64" y="64" width="896" height="896" rx="210" fill="url(#bg)"/>
 
-  <!-- Gold 5-pointed star, centered (cx=256 cy=262, R=180 r=74) -->
-  <path d="M256 82
-    L298.5 199.9 L427.2 202.5 L324.5 280.6 L361.8 401.6
-    L256 332.4 L150.2 401.6 L187.5 280.6 L84.8 202.5 L213.5 199.9 Z"
-    fill="url(#gold)" stroke="#B45309" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Main tag shape -->
+  <g filter="url(#shadow)">
+    <path d="M512 196
+             C538 196 563 206 582 224
+             L734 376
+             C754 396 765 424 765 452
+             V708
+             C765 774 711 828 645 828
+             H379
+             C313 828 259 774 259 708
+             V452
+             C259 424 270 396 290 376
+             L442 224
+             C461 206 486 196 512 196Z" fill="url(#tag)"/>
+  </g>
 
-  <!-- Purple checkmark nested in the star body -->
-  <path d="M206 262 L242 302 L320 214"
-    fill="none" stroke="#4326B0" stroke-width="30"
-    stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Tag hole -->
+  <circle cx="512" cy="337" r="54" fill="#5B20BF"/>
+
+  <!-- Check mark -->
+  <path d="M396 552 L489 645 L651 483" stroke="#7A35E8" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
