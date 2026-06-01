@@ -56,11 +56,11 @@ describe("api IPC wrappers — command names & arg keys", () => {
     expect(invokeMock).toHaveBeenCalledWith("delete_task", { id: "k_1" });
   });
 
-  it("addTag wraps name/color/priority under `input`, defaulting priority to 0", async () => {
+  it("addTag wraps name/color/priority/pinned under `input`, defaulting priority to 0 and pinned to false", async () => {
     await api.addTag("work", "#fff");
-    expect(invokeMock).toHaveBeenCalledWith("add_tag", { input: { name: "work", color: "#fff", priority: 0 } });
-    await api.addTag("work", "#fff", 5);
-    expect(invokeMock).toHaveBeenCalledWith("add_tag", { input: { name: "work", color: "#fff", priority: 5 } });
+    expect(invokeMock).toHaveBeenCalledWith("add_tag", { input: { name: "work", color: "#fff", priority: 0, pinned: false } });
+    await api.addTag("work", "#fff", 5, true);
+    expect(invokeMock).toHaveBeenCalledWith("add_tag", { input: { name: "work", color: "#fff", priority: 5, pinned: true } });
   });
 
   it("deleteTag → delete_tag { id }", async () => {

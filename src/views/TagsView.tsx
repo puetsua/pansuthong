@@ -23,6 +23,12 @@ export function TagsView({ doc, indexes }: Props) {
     catch (err) { setError(errorMessage(err)); }
   };
 
+  // Toggle whether the tag appears in the curated sidebar (#78).
+  const togglePinned = async (t: Tag) => {
+    try { await api.updateTag({ id: t.id, pinned: !t.pinned }); setError(null); }
+    catch (err) { setError(errorMessage(err)); }
+  };
+
   return (
     <section>
       <header className="view-header">
@@ -32,7 +38,8 @@ export function TagsView({ doc, indexes }: Props) {
                   onClick={() => { setError(null); setEditor({ tag: null }); }}>Add tag</button>
         </div>
         <p className="view-sub">
-          A task's priority is the highest weight among its tags.
+          A task's priority is the highest weight among its tags. Pin the tags you
+          use most to keep the sidebar focused.
         </p>
       </header>
 
@@ -46,6 +53,12 @@ export function TagsView({ doc, indexes }: Props) {
           const count = indexes.byTag.get(t.id)?.length ?? 0;
           return (
             <li key={t.id}>
+              <button type="button"
+                      className={t.pinned ? "tag-pin pinned" : "tag-pin"}
+                      aria-pressed={t.pinned ?? false}
+                      aria-label={t.pinned ? `Unpin #${t.name} from sidebar` : `Pin #${t.name} to sidebar`}
+                      title={t.pinned ? "Pinned to sidebar" : "Pin to sidebar"}
+                      onClick={() => togglePinned(t)}>{t.pinned ? "★" : "☆"}</button>
               <span className="color-dot" style={{ background: t.color }} />
               <span className="settings-name">#{t.name}</span>
               <span className="tag-count">{count} {count === 1 ? "task" : "tasks"}</span>

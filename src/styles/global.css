@@ -690,6 +690,14 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 /* Keep the weight field compact inside the tag editor (the .settings-row width
    rule is scoped to settings, so the modal needs its own). */
 .te-field input.weight-input { width: 5.5rem; }
+/* The "Pin to sidebar" toggle reads as a row (label beside the box), unlike the
+   stacked text fields above it. */
+.te-field.te-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+.te-field.te-checkbox input { width: auto; }
 
 /* --- Sidebar tag controls (add / edit) --- */
 .sidebar-icon-btn {
@@ -724,6 +732,25 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 
 /* Tags manager page: per-row task count next to the weight. */
 .tag-count { color: var(--c-text-muted); font-size: 0.8rem; }
+
+/* Tags manager page: the pin toggle that curates which tags reach the sidebar. */
+.tag-pin {
+  flex-shrink: 0;
+  color: var(--c-text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.tag-pin:hover { color: var(--c-text); background: transparent; }
+.tag-pin.pinned { color: var(--c-accent); }
+
+/* Sidebar empty state when the user hasn't pinned any tags yet (#78). */
+.sidebar-empty {
+  color: var(--c-text-muted);
+  font-size: 0.8rem;
+  padding: var(--space-1) var(--space-2);
+}
+.sidebar-empty-link { color: var(--c-accent); }
 
 /* The sidebar "Tags" section heading is a link to the manager page. */
 .sidebar-section-link { color: inherit; text-decoration: none; }

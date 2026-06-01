@@ -376,6 +376,7 @@ mod tests {
             name: "remote".into(),
             color: "#fff".into(),
             priority: 0,
+            pinned: false,
         });
         let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
         let backend = FakeBackend::with(&[("tasks.json", &remote)]);
@@ -401,6 +402,7 @@ mod tests {
                     name: "local".into(),
                     color: "#fff".into(),
                     priority: 0,
+                    pinned: false,
                 });
                 Ok(())
             })
@@ -435,6 +437,7 @@ mod tests {
                     name: "t".into(),
                     color: "#fff".into(),
                     priority: 0,
+                    pinned: false,
                 });
                 Ok(())
             })
@@ -448,6 +451,7 @@ mod tests {
             name: "remote".into(),
             color: "#fff".into(),
             priority: 0,
+            pinned: false,
         });
         let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
         let backend = FakeBackend::with(&[("tasks.json", &remote)]);

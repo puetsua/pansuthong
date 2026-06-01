@@ -28,6 +28,13 @@ pub struct Tag {
     /// this field existed. Range enforced by the UI to -9999..=9999.
     #[serde(default)]
     pub priority: i64,
+    /// Whether this tag is pinned to the sidebar's curated tag list (#78). The
+    /// sidebar shows only pinned tags; the full set stays reachable on the Tags
+    /// screen. `#[serde(default)]` = false for tags written before this field
+    /// existed, so an upgrade hides every legacy tag until the user pins some.
+    /// Synced like the rest of the tag, so a curated sidebar follows across devices.
+    #[serde(default)]
+    pub pinned: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -186,6 +193,19 @@ mod tests {
             due_offset_days: None,
             scheduled_offset_days: None,
         }
+    }
+
+    #[test]
+    fn tag_pinned_defaults_to_false_for_legacy_data() {
+        // A tag written before `pinned` existed (no key) must load as unpinned,
+        // so an upgrade keeps legacy tags out of the curated sidebar rather than
+        // failing the parse.
+        let t: Tag = serde_json::from_str(r##"{"id":"t_1","name":"work","color":"#000"}"##).unwrap();
+        assert!(!t.pinned);
+        // And a present value round-trips.
+        let pinned: Tag =
+            serde_json::from_str(r##"{"id":"t_2","name":"home","color":"#111","pinned":true}"##).unwrap();
+        assert!(pinned.pinned);
     }
 
     #[test]

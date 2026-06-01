@@ -16,6 +16,7 @@ export type Tag = {
   name: string;
   color: string;
   priority: number; // weight; -9999..9999. A task's priority = max weight of its tags.
+  pinned?: boolean; // shown in the curated sidebar tag list; absent = false (#78)
 };
 
 export type Task = {
@@ -90,11 +91,11 @@ export const api = {
   /** Archive every completed-but-not-archived task; resolves to the number archived. */
   archiveCompleted: ()                       => invoke<number>("archive_completed"),
   deleteTask:    (id: string)                => invoke<void>("delete_task", { id }),
-  addTag:        (name: string, color: string, priority = 0) =>
-                                                invoke<Tag>("add_tag", { input: { name, color, priority } }),
+  addTag:        (name: string, color: string, priority = 0, pinned = false) =>
+                                                invoke<Tag>("add_tag", { input: { name, color, priority, pinned } }),
   deleteTag:     (id: string)                => invoke<void>("delete_tag", { id }),
   searchTasks:     (query: string) => invoke<Task[]>("search_tasks", { query }),
-  updateTag:       (input: { id: string; name?: string; color?: string; priority?: number }) =>
+  updateTag:       (input: { id: string; name?: string; color?: string; priority?: number; pinned?: boolean }) =>
                                      invoke<Tag>("update_tag", { input }),
   updateSettings: (input: { theme?: "auto" | "light" | "dark"; sort_order?: SortOrder; upcoming_days?: number;
                             default_tag_color?: string; default_tag_priority?: number }) =>
