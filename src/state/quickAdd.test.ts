@@ -22,12 +22,14 @@ describe("resolveTagIds", () => {
     expect(addTag).not.toHaveBeenCalled();
   });
 
-  it("creates an unknown tag (lowercased) with a palette color", async () => {
+  it("creates an unknown tag in the typed case, with a case-stable palette color", async () => {
     const byName = new Map<string, Tag>();
     const addTag = vi.fn(async (name: string, _color: string) => mkTag("t_new", name));
     const ids = await resolveTagIds(["Errand"], byName, addTag);
     expect(ids).toEqual(["t_new"]);
-    expect(addTag).toHaveBeenCalledWith("errand", pickPaletteColor("errand"));
+    // Name keeps its case; the color is seeded from the lowercased name so
+    // "Errand" and "errand" would resolve to the same palette color.
+    expect(addTag).toHaveBeenCalledWith("Errand", pickPaletteColor("errand"));
   });
 
   it("preserves order across mixed existing/new tags", async () => {

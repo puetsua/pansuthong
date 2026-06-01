@@ -19,9 +19,10 @@ export function pickPaletteColor(seed: string): string {
 
 /**
  * Resolve parsed #tag names to tag IDs, creating any that don't exist yet.
- * Tag matching is case-insensitive; created tags are stored lowercased.
- * `addTag` is injected (pass `api.addTag`) so this stays unit-testable
- * without the Tauri bridge.
+ * Tag matching is case-insensitive; a newly created tag keeps the case the
+ * user typed (its palette color is seeded from the lowercased name so case
+ * variants would map to the same color). `addTag` is injected (pass
+ * `api.addTag`) so this stays unit-testable without the Tauri bridge.
  */
 export async function resolveTagIds(
   tagNames: string[],
@@ -35,7 +36,7 @@ export async function resolveTagIds(
     if (existing) {
       ids.push(existing.id);
     } else {
-      const created = await addTag(key, pickPaletteColor(key));
+      const created = await addTag(name, pickPaletteColor(key));
       ids.push(created.id);
     }
   }

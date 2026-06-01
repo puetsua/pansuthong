@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 describe("TagEditor — create mode", () => {
-  it("adds a tag with a trimmed, lowercased name and clamped weight, then closes", async () => {
+  it("adds a tag with a trimmed name in the typed case and clamped weight, then closes", async () => {
     const onClose = vi.fn();
     render(<TagEditor onClose={onClose} />);
 
@@ -34,7 +34,7 @@ describe("TagEditor — create mode", () => {
     fireEvent.click(button("Save"));
 
     await waitFor(() =>
-      expect(api.addTag).toHaveBeenCalledWith("errands", expect.any(String), 9999, false),
+      expect(api.addTag).toHaveBeenCalledWith("Errands", expect.any(String), 9999, false),
     );
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
@@ -113,7 +113,7 @@ describe("TagEditor — edit mode", () => {
     await waitFor(() =>
       expect(api.updateTag).toHaveBeenCalledWith({
         id: "tag_1",
-        name: "office",
+        name: "Office",
         color: "#06b6d4",
         priority: 5,
         pinned: false,

@@ -42,21 +42,25 @@ export function TagInput({
     .filter((t): t is Tag => t !== undefined)
     .sort(byWeightDesc);
 
-  const q = query.trim().toLowerCase();
+  // `raw` keeps the typed case for display/creation; `q` is the lowercased form
+  // used for all matching so case never spawns a duplicate.
+  const raw = query.trim();
+  const q = raw.toLowerCase();
   const unassigned = [...allTags.values()]
     .filter(t => !tagIds.includes(t.id))
     .filter(t => !q || t.name.toLowerCase().includes(q))
     .sort(byWeightDesc);
 
   // A name "exists" if any tag carries it or it's already a pending new chip —
-  // in either case we don't offer to create a duplicate.
+  // in either case we don't offer to create a duplicate (compared case-insensitively).
   const nameTaken =
-    [...allTags.values()].some(t => t.name.toLowerCase() === q) || newNames.includes(q);
+    [...allTags.values()].some(t => t.name.toLowerCase() === q)
+    || newNames.some(n => n.toLowerCase() === q);
   const showCreate = q.length > 0 && !nameTaken;
 
   const options: Option[] = [
     ...unassigned.map((tag): Option => ({ kind: "existing", tag })),
-    ...(showCreate ? [{ kind: "create", name: q } as Option] : []),
+    ...(showCreate ? [{ kind: "create", name: raw } as Option] : []),
   ];
 
   const active = Math.min(highlight, Math.max(options.length - 1, 0));
@@ -101,7 +105,7 @@ export function TagInput({
           </button>
         ))}
         {newNames.map(name => {
-          const color = pickPaletteColor(name);
+          const color = pickPaletteColor(name.toLowerCase());
           const ink = readableTextColor(color);
           return (
             <button type="button" key={`new:${name}`} className="te-tag on te-tag-new"

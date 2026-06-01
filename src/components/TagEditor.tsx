@@ -80,7 +80,7 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
     setForm(f => ({ ...f, [k]: v }));
 
   const save = async () => {
-    const name = form.name.trim().toLowerCase();
+    const name = form.name.trim();
     if (!name) { setError("Name can't be empty."); return; }
     setBusy(true);
     try {

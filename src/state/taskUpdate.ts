@@ -8,7 +8,8 @@ export type EditorForm = {
   tag_ids: string[];
   // Names typed into the tag input that don't exist yet. Held here (not created
   // immediately) so they're only persisted as real tags when the user clicks
-  // Save, and discarded on Cancel. Stored lowercased and deduped.
+  // Save, and discarded on Cancel. Kept in the typed case and deduped
+  // case-insensitively (matching never spawns a case-variant duplicate).
   new_tag_names?: string[];
   // Template fields (#71). When the editor is in template mode it shows
   // relative-offset inputs ("in N days") instead of absolute date pickers; the

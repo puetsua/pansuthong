@@ -56,7 +56,7 @@ describe("TagInput", () => {
     expect(h.onAddNew).not.toHaveBeenCalled();
   });
 
-  it("offers a Create row for an unknown name and adds it lowercased", () => {
+  it("offers a Create row for an unknown name and adds it in the typed case", () => {
     const h = handlers();
     render(<TagInput allTags={tags} tagIds={[]} newNames={[]} {...h} />);
 
@@ -65,7 +65,18 @@ describe("TagInput", () => {
     fireEvent.change(input, { target: { value: "Errand" } });
     fireEvent.click(button(/create/i));
 
-    expect(h.onAddNew).toHaveBeenCalledWith("errand");
+    expect(h.onAddNew).toHaveBeenCalledWith("Errand");
+  });
+
+  it("does not offer Create when the name matches an existing tag in a different case", () => {
+    const h = handlers();
+    render(<TagInput allTags={tags} tagIds={[]} newNames={[]} {...h} />);
+
+    const input = screen.getByLabelText("Add tag");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "WORK" } });
+
+    expect(screen.queryByRole("button", { name: /create/i })).toBeNull();
   });
 
   it("does not offer Create when the name matches an existing tag", () => {

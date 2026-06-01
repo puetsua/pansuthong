@@ -114,7 +114,8 @@ export function TaskEditor(props: Props) {
   const addNewTag = (name: string) =>
     setForm(f => {
       const names = f.new_tag_names ?? [];
-      return names.includes(name) ? f : { ...f, new_tag_names: [...names, name] };
+      const dup = names.some(n => n.toLowerCase() === name.toLowerCase());
+      return dup ? f : { ...f, new_tag_names: [...names, name] };
     });
   const removeNewTag = (name: string) =>
     setForm(f => ({ ...f, new_tag_names: (f.new_tag_names ?? []).filter(n => n !== name) }));
