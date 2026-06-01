@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, Tag, Task } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
@@ -40,6 +40,8 @@ export function TaskEditor({ task, allTags, onClose, creating = false }: Props) 
   const [busy, setBusy] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
+  const backdropPressStartedRef = useRef<boolean | null>(null);
+  const backdropPressEndedRef = useRef<boolean | null>(null);
   // The element focused before the modal opened (the triggering row button),
   // captured on first render so focus can be restored on close.
   const restoreFocusRef = useRef<HTMLElement | null>(null);
@@ -215,8 +217,30 @@ export function TaskEditor({ task, allTags, onClose, creating = false }: Props) 
     else onClose();
   };
 
+  const onBackdropMouseDown = (e: MouseEvent<HTMLDivElement>) => {
+    backdropPressStartedRef.current = e.target === e.currentTarget;
+    backdropPressEndedRef.current = null;
+  };
+
+  const onBackdropMouseUp = (e: MouseEvent<HTMLDivElement>) => {
+    backdropPressEndedRef.current = e.target === e.currentTarget;
+  };
+
+  const onBackdropClick = (e: MouseEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    const startedOnBackdrop = backdropPressStartedRef.current;
+    const endedOnBackdrop = backdropPressEndedRef.current;
+    backdropPressStartedRef.current = null;
+    backdropPressEndedRef.current = null;
+    if (startedOnBackdrop === false || endedOnBackdrop === false) return;
+    saveOnBackdrop();
+  };
+
   return createPortal(
-    <div className="modal-backdrop" onClick={saveOnBackdrop}>
+    <div className="modal-backdrop"
+         onMouseDown={onBackdropMouseDown}
+         onMouseUp={onBackdropMouseUp}
+         onClick={onBackdropClick}>
       <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true"
            aria-label={creating ? "New task" : isTemplate ? "Edit template" : "Edit task"}
            onClick={e => e.stopPropagation()}>
