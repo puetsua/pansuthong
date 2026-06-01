@@ -56,6 +56,7 @@ See https://tauri.app/start/prerequisites/ and https://v2.tauri.app/develop/#mob
 - Persisted data goes through `app.path().app_data_dir()` — never `std::env::current_dir()` or absolute paths. On Android this resolves to app-private storage; on Windows it's `%APPDATA%\<identifier>\`.
 - New Tauri commands must be added to the `tauri::generate_handler![...]` list in `lib.rs` AND will need a matching `permissions` entry in `src-tauri/capabilities/default.json` if they expose anything beyond the default core set.
 - Don't reintroduce the scaffolded `greet` command or sample logos — they were intentionally removed.
+- **Adding a new section to the Settings screen requires the user's explicit approval first.** The Settings screen is deliberately kept minimal; do not introduce a new settings section or control without asking and getting an OK.
 
 ## Code style
 

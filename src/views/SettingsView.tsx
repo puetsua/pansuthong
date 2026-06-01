@@ -4,10 +4,9 @@ import { errorMessage } from "../lib/errors";
 import { isAndroid } from "../lib/platform";
 import {
   clampUpcomingDays, upcomingDays, UPCOMING_DAYS_MAX, UPCOMING_DAYS_MIN,
-  defaultTagColor, defaultTagPriority,
+  defaultTagPriority,
 } from "../lib/settings";
 import { clampWeight, WEIGHT_MAX, WEIGHT_MIN } from "../lib/tags";
-import { ColorPicker } from "../components/ColorPicker";
 
 type Props = { doc: Document };
 
@@ -41,9 +40,8 @@ export function SettingsView({ doc }: Props) {
     if (n !== days) setUpcoming(n);
   };
 
-  // New-tag defaults (#79): color applies immediately; the weight commits on blur/Enter.
-  const newTagColor = defaultTagColor(doc.settings);
-  const setNewTagColor = (c: string) => { void applySettings({ default_tag_color: c }); };
+  // New-tag default weight (#79): commits on blur/Enter. (The default color is
+  // fixed, not user-configurable — new tags start from a neutral gray.)
   const newTagWeight = defaultTagPriority(doc.settings);
   const [draftTagWeight, setDraftTagWeight] = useState(String(newTagWeight));
   useEffect(() => { setDraftTagWeight(String(newTagWeight)); }, [newTagWeight]);
@@ -170,12 +168,8 @@ export function SettingsView({ doc }: Props) {
       </section>
 
       <section className="settings-section">
-        <h2>New tag defaults</h2>
-        <p className="view-sub">The color and priority weight pre-filled when you create a new tag.</p>
-        <div className="te-field">
-          <span>Color</span>
-          <ColorPicker value={newTagColor} onChange={setNewTagColor} />
-        </div>
+        <h2>New tag weight</h2>
+        <p className="view-sub">The priority weight pre-filled when you create a new tag.</p>
         <label className="te-field">
           <span>Weight</span>
           <input
