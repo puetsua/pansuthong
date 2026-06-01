@@ -32,7 +32,7 @@ pub struct Settings {
     #[serde(default = "default_upcoming_days")]
     pub upcoming_days: u32,
     /// Color pre-filled when creating a new tag (#79). A hex string like
-    /// "#10b981". `#[serde(default)]` so older config.json files still load.
+    /// "#475569". `#[serde(default)]` so older config.json files still load.
     #[serde(default = "default_tag_color")]
     pub default_tag_color: String,
     /// Priority weight pre-filled when creating a new tag (#79). The UI bounds it
@@ -54,7 +54,7 @@ fn default_upcoming_days() -> u32 {
 }
 
 fn default_tag_color() -> String {
-    "#10b981".into()
+    "#475569".into()
 }
 
 impl Default for Settings {
@@ -361,7 +361,7 @@ mod tests {
     #[test]
     fn settings_default_includes_new_tag_defaults() {
         let s = Settings::default();
-        assert_eq!(s.default_tag_color, "#10b981");
+        assert_eq!(s.default_tag_color, "#475569");
         assert_eq!(s.default_tag_priority, 0);
     }
 
@@ -373,7 +373,7 @@ mod tests {
             serde_json::from_str(r#"{"theme":"dark","sort_order":"date","upcoming_days":30}"#)
                 .unwrap();
         assert_eq!(s.theme, "dark");
-        assert_eq!(s.default_tag_color, "#10b981");
+        assert_eq!(s.default_tag_color, "#475569");
         assert_eq!(s.default_tag_priority, 0);
     }
 
