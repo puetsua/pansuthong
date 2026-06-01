@@ -1,7 +1,7 @@
 use crate::config::{ConfigState, Settings};
 use crate::conflict::{apply_decisions, diff_tasks, tags_to_merge, Decision, TaskDiff};
 use crate::error::{AppError, Result};
-use crate::model::{new_tag_id, new_task_id, now_ms, Tag, Task};
+use crate::model::{new_tag_id, new_task_id, now_ms, Tag, Task, TemplateTask};
 use crate::search::search as search_doc;
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
@@ -30,6 +30,7 @@ pub struct DocumentView {
     settings: Settings,
     tags: Vec<Tag>,
     tasks: Vec<Task>,
+    template_tasks: Vec<TemplateTask>,
 }
 
 fn document_view(state: &AppState, config: &ConfigState) -> DocumentView {
@@ -39,6 +40,7 @@ fn document_view(state: &AppState, config: &ConfigState) -> DocumentView {
         settings: config.settings(),
         tags: d.tags.clone(),
         tasks: d.tasks.clone(),
+        template_tasks: d.template_tasks.clone(),
     })
 }
 
@@ -70,9 +72,6 @@ pub struct NewTaskInput {
     #[serde(default)] pub scheduled_date: Option<NaiveDate>,
     #[serde(default)] pub notes: String,
     #[serde(default)] pub tag_ids: Vec<String>,
-    #[serde(default)] pub is_template: bool,
-    #[serde(default)] pub due_offset_days: Option<i64>,
-    #[serde(default)] pub scheduled_offset_days: Option<i64>,
 }
 
 /// Drop tag ids that don't exist in the document so tasks never persist dangling
@@ -105,8 +104,6 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
     if title.is_empty() {
         return Err(AppError::Invalid("title is empty".into()));
     }
-    validate_offset_days(input.due_offset_days)?;
-    validate_offset_days(input.scheduled_offset_days)?;
     let ts = now_ms();
     let saved = state.write(|d| {
         let task = Task {
@@ -119,9 +116,6 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
             created_at: ts,
             completed_at: None,
             updated_at: ts,
-            is_template: input.is_template,
-            due_offset_days: input.due_offset_days,
-            scheduled_offset_days: input.scheduled_offset_days,
         };
         d.tasks.push(task.clone());
         Ok(task)
@@ -152,9 +146,6 @@ pub struct UpdateTaskInput {
     #[serde(default, deserialize_with = "double_option")] pub scheduled_date: Option<Option<NaiveDate>>,
     #[serde(default)] pub notes: Option<String>,
     #[serde(default)] pub tag_ids: Option<Vec<String>>,
-    #[serde(default)] pub is_template: Option<bool>,
-    #[serde(default, deserialize_with = "double_option")] pub due_offset_days: Option<Option<i64>>,
-    #[serde(default, deserialize_with = "double_option")] pub scheduled_offset_days: Option<Option<i64>>,
 }
 
 #[tauri::command]
@@ -179,9 +170,6 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
         if let Some(v) = input.tag_ids        {
             t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
         }
-        if let Some(v) = input.is_template    { t.is_template = v; }
-        if let Some(v) = input.due_offset_days       { validate_offset_days(v)?; t.due_offset_days = v; }
-        if let Some(v) = input.scheduled_offset_days { validate_offset_days(v)?; t.scheduled_offset_days = v; }
         t.updated_at = now_ms();
         Ok(t.clone())
     })?;
@@ -217,6 +205,98 @@ pub fn delete_task(id: String, state: State<'_, AppState>, app: AppHandle) -> Re
     Ok(())
 }
 
+// ───────────────────────────── Templates (#71) ─────────────────────────────
+// Reusable blueprints live in their own `template_tasks` list. They carry relative
+// date offsets (resolved to absolute dates when a task is spawned, client-side via
+// add_task) rather than completion or absolute dates.
+
+#[derive(Deserialize)]
+pub struct NewTemplateInput {
+    pub title: String,
+    #[serde(default)] pub notes: String,
+    #[serde(default)] pub tag_ids: Vec<String>,
+    #[serde(default)] pub due_offset_days: Option<i64>,
+    #[serde(default)] pub scheduled_offset_days: Option<i64>,
+}
+
+#[tauri::command]
+pub fn add_template(input: NewTemplateInput, state: State<'_, AppState>, app: AppHandle) -> Result<TemplateTask> {
+    let title = input.title.trim().to_string();
+    if title.is_empty() {
+        return Err(AppError::Invalid("title is empty".into()));
+    }
+    validate_offset_days(input.due_offset_days)?;
+    validate_offset_days(input.scheduled_offset_days)?;
+    let ts = now_ms();
+    let saved = state.write(|d| {
+        let tmpl = TemplateTask {
+            id: new_task_id(),
+            title,
+            notes: input.notes,
+            tag_ids: retain_known_tags(input.tag_ids, &d.tags),
+            created_at: ts,
+            updated_at: ts,
+            due_offset_days: input.due_offset_days,
+            scheduled_offset_days: input.scheduled_offset_days,
+        };
+        d.template_tasks.push(tmpl.clone());
+        Ok(tmpl)
+    })?;
+    emit_changed(&app);
+    Ok(saved)
+}
+
+#[derive(Deserialize)]
+pub struct UpdateTemplateInput {
+    pub id: String,
+    #[serde(default)] pub title: Option<String>,
+    #[serde(default)] pub notes: Option<String>,
+    #[serde(default)] pub tag_ids: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "double_option")] pub due_offset_days: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")] pub scheduled_offset_days: Option<Option<i64>>,
+}
+
+#[tauri::command]
+pub fn update_template(input: UpdateTemplateInput, state: State<'_, AppState>, app: AppHandle) -> Result<TemplateTask> {
+    let updated = state.write(|d| {
+        let known: std::collections::HashSet<String> =
+            d.tags.iter().map(|t| t.id.clone()).collect();
+        let t = d.template_tasks.iter_mut().find(|t| t.id == input.id)
+            .ok_or_else(|| AppError::NotFound(format!("template {}", input.id)))?;
+        if let Some(v) = input.title {
+            let trimmed = v.trim().to_string();
+            if trimmed.is_empty() {
+                return Err(AppError::Invalid("title is empty".into()));
+            }
+            t.title = trimmed;
+        }
+        if let Some(v) = input.notes   { t.notes = v; }
+        if let Some(v) = input.tag_ids {
+            t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
+        }
+        if let Some(v) = input.due_offset_days       { validate_offset_days(v)?; t.due_offset_days = v; }
+        if let Some(v) = input.scheduled_offset_days { validate_offset_days(v)?; t.scheduled_offset_days = v; }
+        t.updated_at = now_ms();
+        Ok(t.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
+}
+
+#[tauri::command]
+pub fn delete_template(id: String, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
+    state.write(|d| {
+        let before = d.template_tasks.len();
+        d.template_tasks.retain(|t| t.id != id);
+        if d.template_tasks.len() == before {
+            return Err(AppError::NotFound(format!("template {id}")));
+        }
+        Ok(())
+    })?;
+    emit_changed(&app);
+    Ok(())
+}
+
 #[derive(Deserialize)]
 pub struct NewTagInput {
     pub name: String,
@@ -243,6 +323,9 @@ pub fn delete_tag(id: String, state: State<'_, AppState>, app: AppHandle) -> Res
         }
         for task in d.tasks.iter_mut() {
             task.tag_ids.retain(|tid| tid != &id);
+        }
+        for tmpl in d.template_tasks.iter_mut() {
+            tmpl.tag_ids.retain(|tid| tid != &id);
         }
         Ok(())
     })?;
@@ -880,32 +963,33 @@ mod tests {
     }
 
     #[test]
-    fn new_task_input_parses_template_fields() {
+    fn new_template_input_parses_offset_fields() {
         // Pins the snake_case keys the JS api sends for a template (#71).
-        let v: NewTaskInput = serde_json::from_str(
-            r#"{"title":"t","is_template":true,"due_offset_days":3,"scheduled_offset_days":0}"#,
+        let v: NewTemplateInput = serde_json::from_str(
+            r#"{"title":"t","due_offset_days":3,"scheduled_offset_days":0,"notes":"n","tag_ids":["t_x"]}"#,
         ).unwrap();
-        assert!(v.is_template);
         assert_eq!(v.due_offset_days, Some(3));
         assert_eq!(v.scheduled_offset_days, Some(0));
-        // Absent template fields default to a plain task.
-        let plain: NewTaskInput = serde_json::from_str(r#"{"title":"t"}"#).unwrap();
-        assert!(!plain.is_template);
+        assert_eq!(v.notes, "n");
+        assert_eq!(v.tag_ids, ["t_x"]);
+        // Absent offsets default to None (no spawned date).
+        let plain: NewTemplateInput = serde_json::from_str(r#"{"title":"t"}"#).unwrap();
         assert_eq!(plain.due_offset_days, None);
+        assert_eq!(plain.scheduled_offset_days, None);
     }
 
     #[test]
-    fn update_task_input_offset_double_option_distinguishes_absent_null_value() {
+    fn update_template_input_offset_double_option_distinguishes_absent_null_value() {
         // Mirrors the due_date double_option semantics for offsets.
-        let absent: UpdateTaskInput = serde_json::from_str(r#"{"id":"k_1"}"#).unwrap();
+        let absent: UpdateTemplateInput = serde_json::from_str(r#"{"id":"k_1"}"#).unwrap();
         assert_eq!(absent.due_offset_days, None);
-        assert_eq!(absent.is_template, None);
-        let cleared: UpdateTaskInput =
+        assert_eq!(absent.title, None);
+        let cleared: UpdateTemplateInput =
             serde_json::from_str(r#"{"id":"k_1","due_offset_days":null}"#).unwrap();
         assert_eq!(cleared.due_offset_days, Some(None));
-        let set: UpdateTaskInput =
-            serde_json::from_str(r#"{"id":"k_1","is_template":true,"due_offset_days":5}"#).unwrap();
-        assert_eq!(set.is_template, Some(true));
+        let set: UpdateTemplateInput =
+            serde_json::from_str(r#"{"id":"k_1","title":"x","due_offset_days":5}"#).unwrap();
+        assert_eq!(set.title.as_deref(), Some("x"));
         assert_eq!(set.due_offset_days, Some(Some(5)));
     }
 

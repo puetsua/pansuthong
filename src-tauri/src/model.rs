@@ -148,23 +148,50 @@ pub struct Task {
     /// `skip_serializing_if` then omits the key rather than writing a 1970 ISO date.
     #[serde(default, skip_serializing_if = "is_zero", serialize_with = "iso_secs::serialize")]
     pub updated_at:   i64,
-    /// A template is a reusable blueprint, not real work to do. It lives in the
-    /// `tasks` Vec (templates serve the task center rather than competing with it)
-    /// but is excluded from every active view (Today/Inbox/tag/Upcoming) exactly
-    /// like a completed task, and additionally from search (unlike completed tasks,
-    /// which stay searchable). New tasks are spawned from it in the Templates view
-    /// (the frontend resolves the offsets and creates an ordinary task via
-    /// `add_task`). `#[serde(default)]` = false for older files.
+}
+
+/// A reusable blueprint, not real work to do (#71). Lives in its own
+/// `Document::template_tasks` list — separate from active `tasks` (v5+) — so a
+/// template never competes with the task center or shows up in any active view or
+/// search. New ordinary tasks are spawned from it in the Templates view (the
+/// frontend resolves the relative offsets to absolute dates and creates a task via
+/// `add_task`). Carries only blueprint fields: no completion/dates of its own.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateTask {
+    pub id:    String,
+    pub title: String,
     #[serde(default)]
-    pub is_template: bool,
-    /// Template only: the instantiated task's due date is today + this many days.
-    /// `None` = the spawned task has no due date. Meaningless on non-template tasks.
+    pub notes: String,
+    #[serde(default)]
+    pub tag_ids: Vec<String>,
+    #[serde(with = "iso_secs")]
+    pub created_at: i64,
+    #[serde(default, skip_serializing_if = "is_zero", with = "iso_secs")]
+    pub updated_at: i64,
+    /// The spawned task's due date is today + this many days. `None` = no due date.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub due_offset_days: Option<i64>,
-    /// Template only: the instantiated task's scheduled date is today + this many
-    /// days. `None` = the spawned task has no scheduled date.
+    /// The spawned task's scheduled date is today + this many days. `None` = none.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub scheduled_offset_days: Option<i64>,
+}
+
+impl TemplateTask {
+    /// Build a template from a legacy `is_template` task carried in the old `tasks`
+    /// list, so v<5 files migrate cleanly. Completion/absolute-date fields a
+    /// template never had are simply dropped.
+    fn from_legacy(c: TaskCompat) -> Self {
+        TemplateTask {
+            id:    c.id,
+            title: c.title,
+            notes: c.notes,
+            tag_ids: c.tag_ids,
+            created_at: c.created_at,
+            updated_at: c.updated_at,
+            due_offset_days: c.due_offset_days,
+            scheduled_offset_days: c.scheduled_offset_days,
+        }
+    }
 }
 
 /// Deserialization shim that accepts the legacy `done`/`archived`/`archived_at`
@@ -220,19 +247,21 @@ impl From<TaskCompat> for Task {
             created_at: c.created_at,
             completed_at,
             updated_at: c.updated_at,
-            is_template: c.is_template,
-            due_offset_days: c.due_offset_days,
-            scheduled_offset_days: c.scheduled_offset_days,
         }
     }
 }
 
 /// Bumped to 4 when on-disk timestamps switched from integer epoch-millis to
-/// ISO-8601 local-time strings (`created_at`/`updated_at`/`completed_at`/`last_modified`).
-/// A pre-4 build can't parse the ISO strings, so the higher version also lets
-/// `parse_checked` reject the file with a clear "update the app" message where it
-/// can. New builds still read old integer-millis files (see `iso_secs`).
-pub const CURRENT_VERSION: u32 = 4;
+/// ISO-8601 local-time strings (`created_at`/`updated_at`/`completed_at`/`last_modified`),
+/// and to 5 when reusable templates moved out of the `tasks` list into a separate
+/// `template_tasks` list (legacy `is_template` tasks are migrated on load by
+/// `DocumentCompat`). A pre-N build can't parse the newer shape, so the higher
+/// version lets `parse_checked` reject the file with a clear "update the app"
+/// message where it can — crucially, a v4 build would otherwise drop the separate
+/// `template_tasks` (losing every template) on its next write. New builds still
+/// read old files (integer-millis timestamps via `iso_secs`; `is_template` tasks
+/// via `DocumentCompat`).
+pub const CURRENT_VERSION: u32 = 5;
 
 /// Files written before `version` existed are assumed compatible with the
 /// current schema (the model is additive/backward-compatible), so an absent
@@ -243,8 +272,8 @@ fn default_version() -> u32 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(from = "DocumentCompat")]
 pub struct Document {
-    #[serde(default = "default_version")]
     pub version:  u32,
     /// Epoch millis of the last edit to the document (any task/tag change).
     /// Bumped by `AppState::write`. Shown as "Last synced"; identical on all
@@ -257,6 +286,10 @@ pub struct Document {
     pub tags:     Vec<Tag>,
     #[serde(default)]
     pub tasks:    Vec<Task>,
+    /// Reusable blueprints, kept separate from active `tasks` (v5+). Older files
+    /// have none here; their `is_template` tasks are lifted in by `DocumentCompat`.
+    #[serde(default)]
+    pub template_tasks: Vec<TemplateTask>,
 }
 
 impl Default for Document {
@@ -266,6 +299,53 @@ impl Default for Document {
             last_modified: 0,
             tags:     Vec::new(),
             tasks:    Vec::new(),
+            template_tasks: Vec::new(),
+        }
+    }
+}
+
+/// Deserialization shim that migrates legacy files (AGENTS.md: model changes stay
+/// backward compatible). It reads `tasks` as raw `TaskCompat` *before* the
+/// `TaskCompat -> Task` conversion drops the template fields, so any task flagged
+/// `is_template` is lifted out into `template_tasks` rather than silently becoming
+/// an ordinary (always-hidden) task. Files already in the v5 shape pass through:
+/// their explicit `template_tasks` are kept and concatenated after any migrated
+/// ones. An absent `version` loads as `CURRENT_VERSION` (the model is additive, so
+/// a missing version shouldn't downgrade the file on the next write).
+#[derive(Deserialize)]
+struct DocumentCompat {
+    #[serde(default = "default_version")]
+    version: u32,
+    #[serde(default, deserialize_with = "iso_secs::deserialize")]
+    last_modified: i64,
+    #[serde(default)]
+    tags: Vec<Tag>,
+    #[serde(default)]
+    tasks: Vec<TaskCompat>,
+    #[serde(default)]
+    template_tasks: Vec<TemplateTask>,
+}
+
+impl From<DocumentCompat> for Document {
+    fn from(c: DocumentCompat) -> Self {
+        let mut tasks = Vec::with_capacity(c.tasks.len());
+        // Migrated templates come first (document order), then any already stored
+        // in the v5 `template_tasks` list.
+        let mut template_tasks = Vec::new();
+        for tc in c.tasks {
+            if tc.is_template {
+                template_tasks.push(TemplateTask::from_legacy(tc));
+            } else {
+                tasks.push(Task::from(tc));
+            }
+        }
+        template_tasks.extend(c.template_tasks);
+        Document {
+            version: c.version,
+            last_modified: c.last_modified,
+            tags: c.tags,
+            tasks,
+            template_tasks,
         }
     }
 }
@@ -300,10 +380,11 @@ impl Document {
     }
 
     /// Today: scheduled today, OR (due < today AND !done), OR due == today.
-    /// Archived tasks never appear in active views.
+    /// Archived tasks never appear in active views. (Templates live in their own
+    /// list, so `tasks` no longer contains any.)
     pub fn tasks_today(&self, today: NaiveDate) -> Vec<&Task> {
         self.tasks.iter().filter(|t| {
-            if t.archived() || t.is_template { return false; }
+            if t.archived() { return false; }
             if t.scheduled_date == Some(today) { return true; }
             if let Some(due) = t.due_date {
                 if due == today { return true; }
@@ -314,19 +395,19 @@ impl Document {
     }
 
     pub fn tasks_inbox(&self) -> Vec<&Task> {
-        self.tasks.iter().filter(|t| !t.archived() && !t.is_template && self.task_in_inbox(t)).collect()
+        self.tasks.iter().filter(|t| !t.archived() && self.task_in_inbox(t)).collect()
     }
 
     pub fn tasks_for_tag(&self, tag_id: &str) -> Vec<&Task> {
         self.tasks.iter()
-            .filter(|t| !t.archived() && !t.is_template && t.tag_ids.iter().any(|id| id == tag_id))
+            .filter(|t| !t.archived() && t.tag_ids.iter().any(|id| id == tag_id))
             .collect()
     }
 
-    /// Templates (reusable blueprints). The complement of the active views above —
-    /// these are the only place templates surface.
-    pub fn tasks_templates(&self) -> Vec<&Task> {
-        self.tasks.iter().filter(|t| t.is_template).collect()
+    /// Templates (reusable blueprints) in document order — the only place
+    /// templates surface. They live in their own list, never in `tasks`.
+    pub fn tasks_templates(&self) -> &[TemplateTask] {
+        &self.template_tasks
     }
 }
 
@@ -345,9 +426,6 @@ mod tests {
             created_at: 0,
             completed_at: None,
             updated_at: 0,
-            is_template: false,
-            due_offset_days: None,
-            scheduled_offset_days: None,
         }
     }
 
@@ -491,36 +569,93 @@ mod tests {
         assert_eq!(legacy.completed_at, Some(1_780_317_296_000));
     }
 
+    fn template(id: &str) -> TemplateTask {
+        TemplateTask {
+            id: id.into(),
+            title: id.into(),
+            notes: String::new(),
+            tag_ids: Vec::new(),
+            created_at: 0,
+            updated_at: 0,
+            due_offset_days: None,
+            scheduled_offset_days: None,
+        }
+    }
+
     #[test]
-    fn templates_are_excluded_from_every_active_view() {
+    fn templates_live_in_their_own_list_and_never_in_active_views() {
         let today = NaiveDate::from_ymd_opt(2026, 5, 31).unwrap();
         let mut doc = Document::default();
-        // A template that — were it a normal task — would show in Today (scheduled
-        // today), Inbox (untagged), and a tag view.
-        let mut tmpl = task();
-        tmpl.id = "k_tmpl".into();
-        tmpl.is_template = true;
-        tmpl.scheduled_date = Some(today);
+        // Templates carry tags/offsets but live in `template_tasks`, so they can't
+        // land in Today/Inbox/tag views no matter what they reference.
+        let mut tmpl = template("k_tmpl");
         tmpl.tag_ids = vec!["t_work".into()];
-        // A normal task sharing the same shape, to prove the views aren't simply empty.
+        tmpl.scheduled_offset_days = Some(0);
+        doc.template_tasks.push(tmpl);
+        doc.template_tasks.push(template("k_tmpl2"));
+        // A normal task sharing the same scheduled date + tag, to prove the views
+        // aren't simply empty.
         let mut real = task();
         real.id = "k_real".into();
         real.scheduled_date = Some(today);
         real.tag_ids = vec!["t_work".into()];
-        doc.tasks.push(tmpl);
         doc.tasks.push(real);
 
         let ids = |v: Vec<&Task>| v.into_iter().map(|t| t.id.clone()).collect::<Vec<_>>();
         assert_eq!(ids(doc.tasks_today(today)), ["k_real"]);
         assert_eq!(ids(doc.tasks_for_tag("t_work")), ["k_real"]);
-        // The template has a tag, but a tagged template must still not count as Inbox
-        // material either way — confirm an untagged template is kept out of Inbox.
-        let mut untagged_tmpl = task();
-        untagged_tmpl.id = "k_tmpl2".into();
-        untagged_tmpl.is_template = true;
-        doc.tasks.push(untagged_tmpl);
+        // The real task is tagged, so Inbox is empty — and the untagged template
+        // must not leak into Inbox either.
         assert!(ids(doc.tasks_inbox()).is_empty());
-        // ...and templates are the only thing tasks_templates surfaces.
-        assert_eq!(ids(doc.tasks_templates()), ["k_tmpl", "k_tmpl2"]);
+        // ...and templates surface only through tasks_templates, in document order.
+        let tmpl_ids: Vec<_> = doc.tasks_templates().iter().map(|t| t.id.clone()).collect();
+        assert_eq!(tmpl_ids, ["k_tmpl", "k_tmpl2"]);
+    }
+
+    #[test]
+    fn legacy_is_template_tasks_migrate_into_template_tasks() {
+        // A v4 file: the template lives in `tasks` with is_template=true and its
+        // offset fields; the ordinary task sits beside it. On load the template is
+        // lifted into `template_tasks`, leaving `tasks` with only real work.
+        let doc: Document = serde_json::from_str(
+            r##"{
+                "version": 4,
+                "tasks": [
+                    {"id":"k_tmpl","title":"Weekly review","created_at":0,
+                     "is_template":true,"due_offset_days":3,"scheduled_offset_days":0,
+                     "tag_ids":["t_work"],"notes":"check inbox"},
+                    {"id":"k_real","title":"real","created_at":0}
+                ]
+            }"##,
+        ).unwrap();
+
+        assert_eq!(doc.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>(), ["k_real"]);
+        assert_eq!(doc.template_tasks.len(), 1);
+        let t = &doc.template_tasks[0];
+        assert_eq!(t.id, "k_tmpl");
+        assert_eq!(t.title, "Weekly review");
+        assert_eq!(t.notes, "check inbox");
+        assert_eq!(t.tag_ids, ["t_work"]);
+        assert_eq!(t.due_offset_days, Some(3));
+        assert_eq!(t.scheduled_offset_days, Some(0));
+    }
+
+    #[test]
+    fn v5_document_round_trips_template_tasks_without_is_template() {
+        let mut doc = Document::default();
+        doc.tasks.push({ let mut t = task(); t.id = "k_real".into(); t });
+        let mut tmpl = template("k_tmpl");
+        tmpl.due_offset_days = Some(2);
+        doc.template_tasks.push(tmpl);
+
+        let json = serde_json::to_string(&doc).unwrap();
+        // Templates serialize under template_tasks; a task never carries is_template.
+        assert!(json.contains("\"template_tasks\""), "{json}");
+        assert!(!json.contains("is_template"), "no legacy is_template key: {json}");
+
+        let back: Document = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>(), ["k_real"]);
+        assert_eq!(back.template_tasks.len(), 1);
+        assert_eq!(back.template_tasks[0].due_offset_days, Some(2));
     }
 }

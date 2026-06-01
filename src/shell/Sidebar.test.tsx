@@ -18,6 +18,7 @@ const doc = (tags: Tag[]): Document => ({
   settings: { theme: "auto", sort_order: "priority" },
   tags,
   tasks: [],
+  template_tasks: [],
 });
 
 const renderSidebar = (tags: Tag[]) => {

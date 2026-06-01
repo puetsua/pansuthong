@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { Tag, Task } from "../lib/tauri";
+import { Tag, Task, TemplateTask } from "../lib/tauri";
 import { TaskEditor } from "./TaskEditor";
 
 vi.mock("../lib/tauri", async (importOriginal) => {
@@ -11,6 +11,9 @@ vi.mock("../lib/tauri", async (importOriginal) => {
       updateTask: vi.fn().mockResolvedValue({}),
       addTask: vi.fn().mockResolvedValue({}),
       deleteTask: vi.fn().mockResolvedValue(undefined),
+      addTemplate: vi.fn().mockResolvedValue({}),
+      updateTemplate: vi.fn().mockResolvedValue({}),
+      deleteTemplate: vi.fn().mockResolvedValue(undefined),
       addTag: vi.fn((name: string, color: string) =>
         Promise.resolve({ id: `t_new_${name}`, name, color, priority: 0 })),
     },
@@ -163,33 +166,39 @@ describe("TaskEditor backdrop auto-save (#66)", () => {
   });
 });
 
-const templateTask: Task = { ...baseTask, is_template: true, scheduled_offset_days: 0, due_offset_days: 2 };
+const templateTask: TemplateTask = {
+  id: "k_1", title: "Write report", notes: "", tag_ids: ["t_a"],
+  created_at: "1970-01-01T00:00:00Z", scheduled_offset_days: 0, due_offset_days: 2,
+};
 
 describe("TaskEditor template editing (#71)", () => {
   it("a template shows relative-offset inputs instead of absolute date pickers", () => {
-    render(<TaskEditor task={templateTask} allTags={tags} onClose={vi.fn()} />);
+    render(<TaskEditor kind="template" template={templateTask} allTags={tags} onClose={vi.fn()} />);
     expect(screen.queryByLabelText("Scheduled")).toBeNull();
     expect(screen.getByLabelText(/scheduled in \(days\)/i)).toBeTruthy();
     expect(screen.getByLabelText(/due in \(days\)/i)).toBeTruthy();
   });
 
-  it("saves a template's offsets and clears absolute dates", async () => {
+  it("saves a template's offsets via update_template (no absolute dates)", async () => {
     const onClose = vi.fn();
-    render(<TaskEditor task={templateTask} allTags={tags} onClose={onClose} />);
+    render(<TaskEditor kind="template" template={templateTask} allTags={tags} onClose={onClose} />);
 
     fireEvent.change(screen.getByLabelText(/due in \(days\)/i), { target: { value: "5" } });
     fireEvent.click(button("Save"));
 
     await waitFor(() =>
-      expect(api.updateTask).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "k_1", is_template: true, due_offset_days: 5, due_date: null }),
+      expect(api.updateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "k_1", due_offset_days: 5, scheduled_offset_days: 0 }),
       ),
     );
+    // It's a template payload — no task fields leak in.
+    expect(api.updateTask).not.toHaveBeenCalled();
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
   it("blocks Save when a template's due offset precedes its scheduled offset (mirrors #51)", () => {
-    render(<TaskEditor task={{ ...templateTask, scheduled_offset_days: 10, due_offset_days: 3 }}
+    render(<TaskEditor kind="template"
+                       template={{ ...templateTask, scheduled_offset_days: 10, due_offset_days: 3 }}
                        allTags={tags} onClose={vi.fn()} />);
     expect(screen.getByText(/due offset can.?t be before/i)).toBeTruthy();
     expect(button("Save").disabled).toBe(true);
@@ -206,8 +215,8 @@ describe("TaskEditor 'Save as template' option (#71)", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: /save as template/i }));
 
     await waitFor(() =>
-      expect(api.addTask).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Write report", is_template: true }),
+      expect(api.addTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Write report" }),
       ),
     );
     // The original task is untouched — saving-as-template does not convert it.

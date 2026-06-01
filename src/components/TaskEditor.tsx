@@ -1,37 +1,44 @@
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { api, Tag, Task } from "../lib/tauri";
+import { api, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { buildTaskUpdate, dueBeforeScheduled, EditorForm, isEditorDirty, offsetFormError } from "../state/taskUpdate";
+import { buildTaskUpdate, buildTemplateUpdate, dueBeforeScheduled, EditorForm, isEditorDirty, offsetFormError } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
 import { TagInput } from "./TagInput";
 
+// The editor edits either a real task (absolute dates) or a template (relative
+// offsets), fixed by `kind`. A task is never converted in place; "Save as
+// template" creates a separate template copy instead (#71). `creating` makes Save
+// add a brand-new entity (api.addTask / api.addTemplate) rather than update one —
+// used for "New task from template" (a task draft pre-filled from the template)
+// and "New template".
 type Props = {
-  task: Task;
   allTags: Map<string, Tag>;
   onClose: () => void;
-  // Create a brand-new task on save (api.addTask) instead of editing `task`. Used
-  // for "New task from template": the row pre-fills `task` with the template's
-  // resolved values and the user finishes before the task is created (#71).
   creating?: boolean;
-};
+} & (
+  | { kind?: "task"; task: Task }
+  | { kind: "template"; template: TemplateTask }
+);
 
-export function TaskEditor({ task, allTags, onClose, creating = false }: Props) {
-  // Whether this editor is for a template entity (offset inputs) vs a real task
-  // (absolute dates). Fixed by the entity — a task is never converted in place;
-  // "Save as template" creates a separate copy instead (#71).
-  const isTemplate = (task.is_template ?? false) && !creating;
+export function TaskEditor(props: Props) {
+  const { allTags, onClose, creating = false } = props;
+  const isTemplate = props.kind === "template";
+  const taskEntity = props.kind === "template" ? null : props.task;
+  const tmplEntity = props.kind === "template" ? props.template : null;
+  const entity: Task | TemplateTask = tmplEntity ?? taskEntity!;
+
   const initialRef = useRef<EditorForm>({
-    title: task.title,
-    scheduled_date: task.scheduled_date ?? "",
-    due_date: task.due_date ?? "",
-    notes: task.notes ?? "",
-    tag_ids: task.tag_ids,
+    title: entity.title,
+    scheduled_date: taskEntity?.scheduled_date ?? "",
+    due_date: taskEntity?.due_date ?? "",
+    notes: entity.notes ?? "",
+    tag_ids: entity.tag_ids,
     new_tag_names: [],
-    is_template: task.is_template ?? false,
-    due_offset_days: task.due_offset_days != null ? String(task.due_offset_days) : "",
-    scheduled_offset_days: task.scheduled_offset_days != null ? String(task.scheduled_offset_days) : "",
+    is_template: isTemplate,
+    due_offset_days: tmplEntity?.due_offset_days != null ? String(tmplEntity.due_offset_days) : "",
+    scheduled_offset_days: tmplEntity?.scheduled_offset_days != null ? String(tmplEntity.scheduled_offset_days) : "",
   });
   const [form, setForm] = useState<EditorForm>(initialRef.current);
   const [error, setError] = useState<string | null>(null);
@@ -136,6 +143,12 @@ export function TaskEditor({ task, allTags, onClose, creating = false }: Props) 
     return [...form.tag_ids, ...newIds.filter(id => !form.tag_ids.includes(id))];
   };
 
+  /** "" => undefined (no offset); otherwise the parsed integer. */
+  const offsetNum = (s: string): number | undefined => {
+    const n = parseInt(s.trim(), 10);
+    return Number.isNaN(n) ? undefined : n;
+  };
+
   const save = async () => {
     if (!form.title.trim()) { setError("Title can't be empty."); return; }
     if (dateError) { setError(dateError); return; }
@@ -143,7 +156,19 @@ export function TaskEditor({ task, allTags, onClose, creating = false }: Props) 
     setBusy(true);
     try {
       const tagIds = await resolveTags();
-      if (creating) {
+      if (isTemplate) {
+        if (creating) {
+          await api.addTemplate({
+            title: form.title.trim(),
+            notes: form.notes,
+            tag_ids: tagIds,
+            scheduled_offset_days: offsetNum(form.scheduled_offset_days),
+            due_offset_days: offsetNum(form.due_offset_days),
+          });
+        } else {
+          await api.updateTemplate(buildTemplateUpdate(entity.id, { ...form, tag_ids: tagIds }));
+        }
+      } else if (creating) {
         // A brand-new task (e.g. spawned from a template): create it now.
         await api.addTask({
           title: form.title.trim(),
@@ -153,7 +178,7 @@ export function TaskEditor({ task, allTags, onClose, creating = false }: Props) 
           tag_ids: tagIds,
         });
       } else {
-        await api.updateTask(buildTaskUpdate(task.id, { ...form, tag_ids: tagIds }));
+        await api.updateTask(buildTaskUpdate(entity.id, { ...form, tag_ids: tagIds }));
       }
       onClose();
     } catch (err) {
@@ -174,11 +199,10 @@ export function TaskEditor({ task, allTags, onClose, creating = false }: Props) 
       const tagIds = await resolveTags();
       const today = todayIso();
       const offset = (d: string) => (d ? Math.max(0, daysBetweenIso(today, d)) : undefined);
-      await api.addTask({
+      await api.addTemplate({
         title: form.title.trim(),
         notes: form.notes,
         tag_ids: tagIds,
-        is_template: true,
         scheduled_offset_days: offset(form.scheduled_date),
         due_offset_days: offset(form.due_date),
       });
@@ -192,10 +216,11 @@ export function TaskEditor({ task, allTags, onClose, creating = false }: Props) 
   };
 
   const remove = async () => {
-    if (!window.confirm(`Delete "${task.title}"? This can't be undone.`)) return;
+    if (!window.confirm(`Delete "${entity.title}"? This can't be undone.`)) return;
     setBusy(true);
     try {
-      await api.deleteTask(task.id);
+      if (isTemplate) await api.deleteTemplate(entity.id);
+      else            await api.deleteTask(entity.id);
       onClose();
     } catch (err) {
       setError(errorMessage(err));

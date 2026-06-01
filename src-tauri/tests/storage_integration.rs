@@ -14,9 +14,6 @@ fn make_task(title: &str) -> Task {
         created_at: 0,
         completed_at: None,
         updated_at: 0,
-        is_template: false,
-        due_offset_days: None,
-        scheduled_offset_days: None,
     }
 }
 
@@ -27,7 +24,7 @@ fn open_creates_default_document_when_missing() {
     let state = AppState::open(path.clone()).unwrap();
     assert!(path.exists());
     state.read(|d| {
-        assert_eq!(d.version, 4);
+        assert_eq!(d.version, 5);
         assert!(d.tasks.is_empty());
     });
 }

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Task, Tag, isDone } from "../lib/tauri";
 import { api } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { addDaysIso } from "../lib/dates";
 import { TaskEditor } from "./TaskEditor";
 
 type Props = {
@@ -11,9 +10,6 @@ type Props = {
   todayIso: string;
   // Archived view: show a single "Restore" action instead of the done-checkbox.
   archived?: boolean;
-  // Templates view: show a "New task" action instead of the done-checkbox, and
-  // summarise the relative date offsets instead of absolute dates.
-  template?: boolean;
 };
 
 function whenLabel(t: Task, today: string): { text: string; late: boolean } {
@@ -27,24 +23,13 @@ function whenLabel(t: Task, today: string): { text: string; late: boolean } {
   return { text: "", late: false };
 }
 
-/** Compact summary of a template's relative offsets, e.g. "start +0d · due +3d". */
-function offsetLabel(t: Task): string {
-  const parts: string[] = [];
-  if (t.scheduled_offset_days != null) parts.push(`start +${t.scheduled_offset_days}d`);
-  if (t.due_offset_days != null)       parts.push(`due +${t.due_offset_days}d`);
-  return parts.join(" · ");
-}
-
 function diffDays(a: string, b: string): number {
   const da = Date.parse(a), db = Date.parse(b);
   return Math.round((db - da) / 86400000);
 }
 
-export function TaskRow({ task, tags, todayIso, archived = false, template = false }: Props) {
+export function TaskRow({ task, tags, todayIso, archived = false }: Props) {
   const [editing, setEditing] = useState(false);
-  // A draft task pre-filled from this template, shown in the editor so the user can
-  // finish it before it's actually created (#71). null = not creating.
-  const [creatingDraft, setCreatingDraft] = useState<Task | null>(null);
   const [error, setError] = useState<string | null>(null);
   const w = whenLabel(task, todayIso);
   // All of the task's tags as chips, highest-weight (priority) first.
@@ -70,23 +55,6 @@ export function TaskRow({ task, tags, todayIso, archived = false, template = fal
     api.setTaskDone(task.id, false).catch(err => setError(errorMessage(err)));
   };
 
-  // Build a draft task from this template (relative offsets resolved to absolute
-  // dates: today + offset) and open the editor so the user can finish it before it
-  // is created (#71). Creation happens on the editor's "Add task".
-  const newFromTemplate = () => {
-    setError(null);
-    setCreatingDraft({
-      ...task,
-      id: "",
-      is_template: false,
-      due_offset_days: undefined,
-      scheduled_offset_days: undefined,
-      due_date: task.due_offset_days != null ? addDaysIso(todayIso, task.due_offset_days) : undefined,
-      scheduled_date: task.scheduled_offset_days != null ? addDaysIso(todayIso, task.scheduled_offset_days) : undefined,
-      completed_at: undefined,
-    });
-  };
-
   const open = () => setEditing(true);
 
   return (
@@ -100,16 +68,9 @@ export function TaskRow({ task, tags, todayIso, archived = false, template = fal
               {t.name}
             </span>
           ))}
-          {template
-            ? offsetLabel(task) && <span className="task-when">{offsetLabel(task)}</span>
-            : w.text && <span className={w.late ? "task-when late" : "task-when"}>{w.text}</span>}
+          {w.text && <span className={w.late ? "task-when late" : "task-when"}>{w.text}</span>}
         </button>
-        {template ? (
-          <button type="button" className="task-restore" onClick={newFromTemplate}
-                  aria-label={`New task from ${task.title}`}>
-            New task
-          </button>
-        ) : archived ? (
+        {archived ? (
           <button type="button" className="task-restore" onClick={restore}
                   aria-label={`Restore ${task.title}`}>
             Restore
@@ -121,9 +82,6 @@ export function TaskRow({ task, tags, todayIso, archived = false, template = fal
       </div>
       {error && <p className="composer-error" role="alert">Couldn’t update: {error}</p>}
       {editing && <TaskEditor task={task} allTags={tags} onClose={() => setEditing(false)} />}
-      {creatingDraft && (
-        <TaskEditor task={creatingDraft} allTags={tags} creating onClose={() => setCreatingDraft(null)} />
-      )}
     </>
   );
 }

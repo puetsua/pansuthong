@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, Document } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { TaskList } from "../components/TaskList";
+import { TemplateRow } from "../components/TemplateRow";
 import { Indexes } from "../state/indexes";
 import { todayIso } from "../lib/dates";
 
@@ -12,13 +12,12 @@ export function TemplatesView({ indexes }: Props) {
   const [busy, setBusy] = useState(false);
 
   // Create a blank template the user then opens to fill in (title, tags, notes,
-  // date offsets). It's a normal task with is_template=true, so it lives in the
-  // tasks list but only ever surfaces here.
+  // date offsets). Templates live in their own list (#71).
   const newTemplate = async () => {
     setError(null);
     setBusy(true);
     try {
-      await api.addTask({ title: "New template", is_template: true });
+      await api.addTemplate({ title: "New template" });
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -26,7 +25,9 @@ export function TemplatesView({ indexes }: Props) {
     }
   };
 
-  const count = indexes.templates.length;
+  const templates = indexes.templates;
+  const count = templates.length;
+  const today = todayIso();
   return (
     <section>
       <header className="view-header">
@@ -41,9 +42,17 @@ export function TemplatesView({ indexes }: Props) {
         </p>
       </header>
       {error && <p className="composer-error" role="alert">{error}</p>}
-      <TaskList tasks={indexes.templates} tags={indexes.tagsById} todayIso={todayIso()}
-                emptyText="No templates yet. Open one's editor to set its title, tags, notes, and date offsets."
-                template />
+      {count === 0 ? (
+        <p className="task-empty">
+          No templates yet. Open one's editor to set its title, tags, notes, and date offsets.
+        </p>
+      ) : (
+        <div>
+          {templates.map(t => (
+            <TemplateRow key={t.id} template={t} tags={indexes.tagsById} todayIso={today} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }

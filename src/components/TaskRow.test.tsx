@@ -50,24 +50,3 @@ describe("TaskRow archived mode (#23)", () => {
     await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", false));
   });
 });
-
-describe("TaskRow template mode (#71)", () => {
-  it("shows a 'New task' button instead of a checkbox", () => {
-    render(<TaskRow task={{ ...baseTask, is_template: true }} tags={tags} todayIso="2026-05-31" template />);
-    expect(screen.queryByRole("checkbox")).toBeNull();
-    expect(screen.getByRole("button", { name: /new task from/i })).toBeTruthy();
-  });
-
-  it("opens a pre-filled create editor (does not create the task instantly)", () => {
-    render(
-      <TaskRow task={{ ...baseTask, title: "Weekly report", is_template: true, due_offset_days: 3 }}
-               tags={tags} todayIso="2026-05-31" template />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /new task from/i }));
-    // Editor opens in create mode (dialog labelled "New task"), pre-filled from the
-    // template — nothing is added until the user confirms with "Add task".
-    expect(screen.getByRole("dialog", { name: /new task/i })).toBeTruthy();
-    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Weekly report");
-    expect(api.addTask).not.toHaveBeenCalled();
-  });
-});

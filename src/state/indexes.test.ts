@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sample from "../tests/fixtures/sample.json";
-import { Document, SortOrder, Task } from "../lib/tauri";
+import { Document, SortOrder, Task, TemplateTask } from "../lib/tauri";
 import { buildIndexes, effectivePriority, openCount } from "./indexes";
 
 const TODAY = "2026-05-28";
@@ -54,6 +54,7 @@ function weightedDoc(order: SortOrder): Document {
       task("k_c", [],        "2026-05-10"), // weight 0 (untagged)
       task("k_d", ["t_neg"], "2026-05-15"), // weight -5
     ],
+    template_tasks: [],
   };
 }
 
@@ -114,6 +115,7 @@ function tieDoc(order: SortOrder): Document {
       task("k_first",  ["t_x"], "2026-05-19"),  // same date AND weight as k_second
       task("k_second", ["t_x"], "2026-05-19"),
     ],
+    template_tasks: [],
   };
 }
 
@@ -152,6 +154,7 @@ function doneDoc(order: SortOrder): Document {
       t("k_open_hi", ["t_hi"], false),  // open,  weight 9
       t("k_done_lo", ["t_lo"], true),   // done,  weight 1
     ],
+    template_tasks: [],
   };
 }
 
@@ -196,6 +199,7 @@ function archivedDoc(): Document {
       t("k_arch1", ["t_w"], true, "2026-05-28T10:00:00Z"),
       t("k_arch2", [],      true, "2026-05-28T11:00:00Z"),
     ],
+    template_tasks: [],
   };
 }
 
@@ -228,28 +232,31 @@ describe("archived tasks (#23)", () => {
         t("k_early", "2026-06-01T23:00:00+09:00"),
         t("k_late",  "2026-06-01T16:00:00+00:00"),
       ],
+      template_tasks: [],
     };
     expect(buildIndexes(doc).archived.map(x => x.id)).toEqual(["k_late", "k_early"]);
   });
 });
 
-// A real task plus two templates (a tagged one + an untagged one), all scheduled
-// today so they'd otherwise land in the active lists.
+// A real task plus two templates (a tagged one + an untagged one). Templates live
+// in their own list, so they can never reach the active lists regardless.
 function templatesDoc(): Document {
   const TODAY_ISO = "2026-05-28";
-  const t = (id: string, tags: string[], is_template: boolean): Task => ({
-    id, title: id, scheduled_date: TODAY_ISO, notes: "",
-    tag_ids: tags, created_at: "1970-01-01T00:00:00Z", is_template,
+  const tmpl = (id: string, tags: string[]): TemplateTask => ({
+    id, title: id, notes: "", tag_ids: tags, created_at: "1970-01-01T00:00:00Z",
   });
   return {
-    version: 2,
+    version: 5,
     last_modified: undefined,
     settings: { theme: "auto", sort_order: "priority" },
     tags: [{ id: "t_w", name: "w", color: "#000", priority: 1 }],
     tasks: [
-      t("k_real",       ["t_w"], false),
-      t("k_tmpl",       ["t_w"], true),
-      t("k_tmpl_inbox", [],      true),
+      { id: "k_real", title: "k_real", scheduled_date: TODAY_ISO, notes: "",
+        tag_ids: ["t_w"], created_at: "1970-01-01T00:00:00Z" },
+    ],
+    template_tasks: [
+      tmpl("k_tmpl",       ["t_w"]),
+      tmpl("k_tmpl_inbox", []),
     ],
   };
 }
@@ -257,7 +264,7 @@ function templatesDoc(): Document {
 describe("templates (#71)", () => {
   const ix = buildIndexes(templatesDoc());
 
-  it("are excluded from today / inbox / byTag / tasks", () => {
+  it("are not part of today / inbox / byTag / tasks", () => {
     expect(ix.today("2026-05-28").map(t => t.id)).toEqual(["k_real"]);
     expect(ix.inbox.map(t => t.id)).toEqual([]);
     expect(ix.byTag.get("t_w")?.map(t => t.id)).toEqual(["k_real"]);

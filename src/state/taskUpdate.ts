@@ -1,4 +1,4 @@
-import { TaskUpdate } from "../lib/tauri";
+import { TaskUpdate, TemplateUpdate } from "../lib/tauri";
 
 export type EditorForm = {
   title: string;
@@ -10,8 +10,9 @@ export type EditorForm = {
   // immediately) so they're only persisted as real tags when the user clicks
   // Save, and discarded on Cancel. Stored lowercased and deduped.
   new_tag_names?: string[];
-  // Template fields (#71). When is_template, the editor shows relative-offset
-  // inputs ("in N days") instead of absolute date pickers; "" = no offset.
+  // Template fields (#71). When the editor is in template mode it shows
+  // relative-offset inputs ("in N days") instead of absolute date pickers; the
+  // absolute date fields are then unused (and vice-versa). "" = no offset.
   is_template: boolean;
   due_offset_days: string;
   scheduled_offset_days: string;
@@ -26,10 +27,8 @@ function offsetOrNull(s: string): number | null {
 }
 
 /**
- * Map editor form state to an update_task payload. A template carries relative
- * offsets and no absolute dates; a normal task is the reverse. Whichever kind the
- * form isn't gets cleared (null) so toggling template ↔ task never leaves stale
- * values of the other kind behind. Empty date/offset => null (clear).
+ * Map editor form state to an update_task payload (a normal task: absolute dates,
+ * no offsets). Empty date => null (clear). Templates use buildTemplateUpdate.
  */
 export function buildTaskUpdate(id: string, form: EditorForm): TaskUpdate {
   return {
@@ -37,11 +36,23 @@ export function buildTaskUpdate(id: string, form: EditorForm): TaskUpdate {
     title: form.title.trim(),
     notes: form.notes,
     tag_ids: form.tag_ids,
-    is_template: form.is_template,
-    scheduled_date: form.is_template ? null : (form.scheduled_date || null),
-    due_date:       form.is_template ? null : (form.due_date || null),
-    scheduled_offset_days: form.is_template ? offsetOrNull(form.scheduled_offset_days) : null,
-    due_offset_days:       form.is_template ? offsetOrNull(form.due_offset_days) : null,
+    scheduled_date: form.scheduled_date || null,
+    due_date:       form.due_date || null,
+  };
+}
+
+/**
+ * Map editor form state to an update_template payload (relative offsets, no
+ * absolute dates and no completion). Empty offset => null (clear).
+ */
+export function buildTemplateUpdate(id: string, form: EditorForm): TemplateUpdate {
+  return {
+    id,
+    title: form.title.trim(),
+    notes: form.notes,
+    tag_ids: form.tag_ids,
+    scheduled_offset_days: offsetOrNull(form.scheduled_offset_days),
+    due_offset_days:       offsetOrNull(form.due_offset_days),
   };
 }
 

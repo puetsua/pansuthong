@@ -26,6 +26,7 @@ function makeDoc(theme: "auto" | "light" | "dark" = "auto"): Document {
     settings: { theme, sort_order: "priority" },
     tags: [],
     tasks: [],
+    template_tasks: [],
   };
 }
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildTaskUpdate,
+  buildTemplateUpdate,
   dueBeforeScheduled,
   EditorForm,
   isEditorDirty,
@@ -42,31 +43,34 @@ describe("buildTaskUpdate", () => {
     expect(p.tag_ids).toEqual(["tag_a"]);
   });
 
-  it("a normal task clears offsets and keeps absolute dates (#71)", () => {
+  it("a task payload carries no template fields (#71)", () => {
     const p = buildTaskUpdate("t_1", { ...base, due_date: "2026-06-01" });
-    expect(p.is_template).toBe(false);
     expect(p.due_date).toBe("2026-06-01");
-    expect(p.due_offset_days).toBeNull();
-    expect(p.scheduled_offset_days).toBeNull();
+    expect("is_template" in p).toBe(false);
+    expect("due_offset_days" in p).toBe(false);
+    expect("scheduled_offset_days" in p).toBe(false);
+  });
+});
+
+describe("buildTemplateUpdate (#71)", () => {
+  it("trims the title and passes through notes/tag_ids/id", () => {
+    const p = buildTemplateUpdate("k_9", { ...base, title: "  weekly  ", notes: "n", tag_ids: ["tag_a"] });
+    expect(p.id).toBe("k_9");
+    expect(p.title).toBe("weekly");
+    expect(p.notes).toBe("n");
+    expect(p.tag_ids).toEqual(["tag_a"]);
   });
 
-  it("a template sends relative offsets and clears absolute dates (#71)", () => {
-    const p = buildTaskUpdate("t_1", {
-      ...base,
-      is_template: true,
-      due_date: "2026-06-01",        // ignored for templates
-      due_offset_days: "3",
-      scheduled_offset_days: "0",
-    });
-    expect(p.is_template).toBe(true);
-    expect(p.due_date).toBeNull();
-    expect(p.scheduled_date).toBeNull();
+  it("sends relative offsets and never absolute dates", () => {
+    const p = buildTemplateUpdate("k_1", { ...base, due_offset_days: "3", scheduled_offset_days: "0" });
     expect(p.due_offset_days).toBe(3);
     expect(p.scheduled_offset_days).toBe(0);
+    expect("due_date" in p).toBe(false);
+    expect("scheduled_date" in p).toBe(false);
   });
 
-  it("an empty or non-numeric offset becomes null (#71)", () => {
-    const p = buildTaskUpdate("t_1", { ...base, is_template: true, due_offset_days: "", scheduled_offset_days: "x" });
+  it("an empty or non-numeric offset becomes null (clear)", () => {
+    const p = buildTemplateUpdate("k_1", { ...base, due_offset_days: "", scheduled_offset_days: "x" });
     expect(p.due_offset_days).toBeNull();
     expect(p.scheduled_offset_days).toBeNull();
   });

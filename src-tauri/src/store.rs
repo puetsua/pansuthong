@@ -272,7 +272,6 @@ mod repoint_tests {
             id: id.into(), title: id.into(),
             due_date: None, scheduled_date: None, notes: String::new(),
             tag_ids: Vec::new(), created_at: 0, completed_at: None, updated_at: 0,
-            is_template: false, due_offset_days: None, scheduled_offset_days: None,
         }
     }
 

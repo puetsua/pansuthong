@@ -1,4 +1,4 @@
-import { Document, SortOrder, Tag, Task, isArchived, isDone } from "../lib/tauri";
+import { Document, SortOrder, Tag, Task, TemplateTask, isArchived, isDone } from "../lib/tauri";
 import { isoLt } from "../lib/dates";
 
 export type Indexes = {
@@ -7,8 +7,8 @@ export type Indexes = {
   inbox:     Task[];
   /** Archived tasks (newest-archived first); excluded from every active list above. */
   archived:     Task[];
-  /** Template tasks (reusable blueprints); excluded from every active list above. */
-  templates:    Task[];
+  /** Reusable templates (their own list); never part of the active lists above. */
+  templates:    TemplateTask[];
   tagsById:     Map<string, Tag>;
   tagsByName:   Map<string, Tag>;
   /** Active (non-archived) tasks in document order. */
@@ -77,10 +77,10 @@ export function buildIndexes(doc: Document): Indexes {
   const tagsById = new Map(doc.tags.map(t => [t.id, t]));
   const order: SortOrder = doc.settings.sort_order === "date" ? "date" : "priority";
 
-  // Archived tasks (#23) and templates (#71) are both non-destructively hidden:
-  // every active list is built from this filtered set, so the exclusion happens
-  // once, here.
-  const active = doc.tasks.filter(t => !isArchived(t) && !t.is_template);
+  // Archived tasks (#23) are non-destructively hidden: every active list is built
+  // from this filtered set, so the exclusion happens once, here. Templates (#71)
+  // live in their own list (doc.template_tasks), so they're never in doc.tasks.
+  const active = doc.tasks.filter(t => !isArchived(t));
 
   const byTag = new Map<string, Task[]>();
   for (const tag of doc.tags) byTag.set(tag.id, []);
@@ -102,7 +102,7 @@ export function buildIndexes(doc: Document): Indexes {
     .sort((a, b) => instant(b) - instant(a));
 
   // Templates in document order; surfaced only in the Templates view.
-  const templates = doc.tasks.filter(t => t.is_template);
+  const templates = doc.template_tasks;
 
   const tagsByName = new Map<string, Tag>();
   for (const t of doc.tags) tagsByName.set(t.name.toLowerCase(), t);

@@ -33,9 +33,6 @@ export type Task = {
   // the former done/archived/archived_at fields (#23).
   completed_at?: string;
   updated_at?: string; // ISO-8601 local time w/ offset of last edit; omitted for pre-existing tasks
-  is_template?: boolean;          // true = reusable blueprint, hidden from active views (#71)
-  due_offset_days?: number;       // template only: spawned task's due = today + N days
-  scheduled_offset_days?: number; // template only: spawned task's scheduled = today + M days
 };
 
 /** A task is done — equivalently, archived — iff it carries a completion timestamp. */
@@ -43,12 +40,29 @@ export function isDone(t: Task): boolean { return t.completed_at != null; }
 /** A task is archived (hidden from the active views) iff it is done. */
 export function isArchived(t: Task): boolean { return t.completed_at != null; }
 
+/**
+ * A reusable blueprint, stored in its own `Document.template_tasks` list — separate
+ * from active tasks (#71). Carries relative date offsets (resolved to absolute
+ * dates when a task is spawned from it) instead of completion or absolute dates.
+ */
+export type TemplateTask = {
+  id: string;
+  title: string;
+  notes: string;
+  tag_ids: string[];
+  created_at: string; // ISO-8601 local time w/ offset
+  updated_at?: string; // ISO-8601 local time w/ offset of last edit; omitted if never edited
+  due_offset_days?: number;       // spawned task's due = today + N days
+  scheduled_offset_days?: number; // spawned task's scheduled = today + M days
+};
+
 export type Document = {
   version: number;
   last_modified?: string; // ISO-8601 local time w/ offset of last edit; omitted if never edited
   settings: Settings;
   tags: Tag[];
   tasks: Task[];
+  template_tasks: TemplateTask[];
 };
 
 // `null` clears an optional field; an omitted key leaves it unchanged.
@@ -59,7 +73,22 @@ export type TaskUpdate = {
   scheduled_date?: string | null;
   notes?: string;
   tag_ids?: string[];
-  is_template?: boolean;
+};
+
+export type NewTemplate = {
+  title: string;
+  notes?: string;
+  tag_ids?: string[];
+  due_offset_days?: number;
+  scheduled_offset_days?: number;
+};
+
+// `null` clears an optional offset; an omitted key leaves the field unchanged.
+export type TemplateUpdate = {
+  id: string;
+  title?: string;
+  notes?: string;
+  tag_ids?: string[];
   due_offset_days?: number | null;
   scheduled_offset_days?: number | null;
 };
@@ -95,6 +124,9 @@ export const api = {
   updateTask:    (input: TaskUpdate)                         => invoke<Task>("update_task", { input }),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
   deleteTask:    (id: string)                => invoke<void>("delete_task", { id }),
+  addTemplate:    (input: NewTemplate)    => invoke<TemplateTask>("add_template", { input }),
+  updateTemplate: (input: TemplateUpdate) => invoke<TemplateTask>("update_template", { input }),
+  deleteTemplate: (id: string)            => invoke<void>("delete_template", { id }),
   addTag:        (name: string, color: string, priority = 0, pinned = false) =>
                                                 invoke<Tag>("add_tag", { input: { name, color, priority, pinned } }),
   deleteTag:     (id: string)                => invoke<void>("delete_tag", { id }),

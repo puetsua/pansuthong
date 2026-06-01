@@ -12,9 +12,6 @@ fn mk(id: &str, title: &str, done: bool) -> Task {
         created_at: 0,
         completed_at: done.then_some(0),
         updated_at: 0,
-        is_template: false,
-        due_offset_days: None,
-        scheduled_offset_days: None,
     }
 }
 
