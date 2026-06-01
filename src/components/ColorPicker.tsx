@@ -1,12 +1,14 @@
 import clsx from "clsx";
 
-// A curated palette spanning the hue wheel at a couple of lightness levels so
-// users can tell many tags apart at a glance. `tag.color` is a free-form string,
-// so the custom <input type="color"> below covers anything not in this set.
+// A curated palette spanning the hue wheel so users can tell many tags apart at
+// a glance. Every swatch is dark enough that the chip's auto-contrast text lands
+// on white (see readableTextColor), keeping chips legible. `tag.color` is a
+// free-form string, so the custom <input type="color"> below covers anything not
+// in this set.
 const SWATCHES = [
-  "#4338ca", "#3b82f6", "#06b6d4", "#14b8a6", "#10b981", "#84cc16",
-  "#eab308", "#f59e0b", "#f97316", "#ef4444", "#ec4899", "#d946ef",
-  "#a855f7", "#8b5cf6", "#0ea5e9", "#22c55e", "#64748b", "#78716c",
+  "#4338ca", "#1d4ed8", "#0891b2", "#0d9488", "#059669", "#4d7c0f",
+  "#a16207", "#b45309", "#c2410c", "#dc2626", "#db2777", "#c026d3",
+  "#9333ea", "#7c3aed", "#0284c7", "#16a34a", "#475569", "#57534e",
 ];
 
 const HEX = /^#[0-9a-f]{6}$/;

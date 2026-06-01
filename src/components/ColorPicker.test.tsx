@@ -16,20 +16,20 @@ describe("ColorPicker", () => {
   it("calls onChange with the swatch color when a swatch is clicked", () => {
     const onChange = vi.fn();
     render(<ColorPicker value="#4338ca" onChange={onChange} />);
-    fireEvent.click(screen.getByRole("button", { name: "Color #10b981" }));
-    expect(onChange).toHaveBeenCalledWith("#10b981");
+    fireEvent.click(screen.getByRole("button", { name: "Color #059669" }));
+    expect(onChange).toHaveBeenCalledWith("#059669");
   });
 
   it("marks the swatch matching the current value as active", () => {
-    render(<ColorPicker value="#10b981" onChange={vi.fn()} />);
-    const active = screen.getByRole("button", { name: "Color #10b981" });
+    render(<ColorPicker value="#059669" onChange={vi.fn()} />);
+    const active = screen.getByRole("button", { name: "Color #059669" });
     expect(active.className).toContain("swatch-active");
     expect(active.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("matches the active swatch case-insensitively", () => {
-    render(<ColorPicker value="#10B981" onChange={vi.fn()} />);
-    const active = screen.getByRole("button", { name: "Color #10b981" });
+    render(<ColorPicker value="#DC2626" onChange={vi.fn()} />);
+    const active = screen.getByRole("button", { name: "Color #dc2626" });
     expect(active.className).toContain("swatch-active");
   });
 

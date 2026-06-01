@@ -1,9 +1,13 @@
 import { Tag } from "../lib/tauri";
 
-/** Built-in palette for auto-created tags. */
+/**
+ * Built-in palette for auto-created tags. Every color is dark enough that the
+ * chip's auto-contrast text resolves to white (see readableTextColor), so an
+ * auto-created tag's chip is legible from the start.
+ */
 export const TAG_PALETTE = [
-  "#4338ca", "#10b981", "#f59e0b", "#ef4444",
-  "#06b6d4", "#a855f7", "#ec4899", "#84cc16",
+  "#4338ca", "#059669", "#b45309", "#dc2626",
+  "#0891b2", "#9333ea", "#db2777", "#4d7c0f",
 ];
 
 /** Deterministic palette color from a seed string (stable per tag name). */

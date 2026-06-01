@@ -20,7 +20,7 @@ export function clampUpcomingDays(raw: string | number): number {
 }
 
 /** Color a new tag starts with when the user hasn't set a preference (#79). */
-export const DEFAULT_TAG_COLOR = "#10b981";
+export const DEFAULT_TAG_COLOR = "#059669";
 /** Priority weight a new tag starts with when unset (#79). */
 export const DEFAULT_TAG_PRIORITY = 0;
 
