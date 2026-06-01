@@ -21,11 +21,12 @@ describe("formatIsoLocal", () => {
     expect(out).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
   });
 
-  it("accepts an ISO-8601 UTC string (the stored/wire form)", () => {
+  it("accepts an ISO-8601 string in any offset (local is the stored/wire form; UTC stays back-compatible)", () => {
     const out = formatIsoLocal("2026-06-01T12:34:56Z");
     expect(out).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
-    // Same instant whether given as a string or its epoch-ms equivalent.
+    // Same instant whether given as a UTC string, an offset string, or epoch ms.
     expect(out).toBe(formatIsoLocal(Date.parse("2026-06-01T12:34:56Z")));
+    expect(out).toBe(formatIsoLocal("2026-06-01T20:34:56+08:00"));
   });
 
   it("round-trips to the same instant (timezone-independent), truncated to seconds", () => {

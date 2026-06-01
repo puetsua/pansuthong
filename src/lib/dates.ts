@@ -1,8 +1,9 @@
 /**
  * Format a timestamp as full ISO 8601 in the local timezone, with seconds and an
- * explicit offset — e.g. `2026-05-30T16:08:42+09:00`. Accepts an ISO-8601 UTC
- * string (the stored/wire form) or a raw epoch-ms number. Returns an em dash for
- * a missing/empty/zero timestamp (e.g. a document not yet edited).
+ * explicit offset — e.g. `2026-05-30T16:08:42+09:00`. Accepts an ISO-8601 string
+ * in any offset (the stored/wire form is local time with an offset; UTC `Z`
+ * strings from older files still parse) or a raw epoch-ms number. Returns an em
+ * dash for a missing/empty/zero timestamp (e.g. a document not yet edited).
  */
 export function formatIsoLocal(ts: string | number | undefined | null): string {
   if (!ts) return "—";

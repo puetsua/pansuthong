@@ -212,6 +212,25 @@ describe("archived tasks (#23)", () => {
   it("are collected into `archived`, most-recently-archived first", () => {
     expect(ix.archived.map(t => t.id)).toEqual(["k_arch2", "k_arch1"]);
   });
+
+  it("orders `archived` by instant, not lexically, across timezone offsets", () => {
+    // Same completion times expressed in different local offsets, chosen so that a
+    // lexical compare disagrees with chronological order: k_early's instant
+    // (2026-06-01T14:00:00Z) precedes k_late's (2026-06-01T16:00:00Z), yet its
+    // string sorts *after* lexically ("...T23..." > "...T16...").
+    const t = (id: string, completed_at: string): Task => ({
+      id, title: id, notes: "", tag_ids: [], created_at: "1970-01-01T00:00:00Z", completed_at,
+    });
+    const doc: Document = {
+      version: 2, last_modified: undefined,
+      settings: { theme: "auto", sort_order: "priority" }, tags: [],
+      tasks: [
+        t("k_early", "2026-06-01T23:00:00+09:00"),
+        t("k_late",  "2026-06-01T16:00:00+00:00"),
+      ],
+    };
+    expect(buildIndexes(doc).archived.map(x => x.id)).toEqual(["k_late", "k_early"]);
+  });
 });
 
 // A real task plus two templates (a tagged one + an untagged one), all scheduled

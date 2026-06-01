@@ -22,9 +22,9 @@ fn emit_changed(app: &AppHandle) {
 #[derive(Serialize)]
 pub struct DocumentView {
     version: u32,
-    // ISO-8601 UTC (second precision), consistent with the on-disk file and the
-    // frontend's string-typed `last_modified`. Omitted when 0 (never edited), so
-    // the UI shows an em dash instead of a 1970 date.
+    // ISO-8601 local time with offset (second precision), consistent with the
+    // on-disk file and the frontend's string-typed `last_modified`. Omitted when 0
+    // (never edited), so the UI shows an em dash instead of a 1970 date.
     #[serde(skip_serializing_if = "crate::model::is_zero", serialize_with = "crate::model::iso_secs::serialize")]
     last_modified: i64,
     settings: Settings,

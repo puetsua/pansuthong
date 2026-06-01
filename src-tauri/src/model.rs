@@ -13,9 +13,10 @@ pub fn new_tag_id()     -> String { short_id("t") }
 
 /// Epoch milliseconds. Used in memory for created_at/updated_at/last_modified and
 /// for unique conflict-file names. UTC-based, so it's stable across devices and
-/// timezone changes. On disk these stamps are written as ISO-8601 UTC strings
-/// truncated to the second (see `iso_secs`); the in-memory value keeps full
-/// millisecond resolution.
+/// timezone changes. On disk these stamps are written as ISO-8601 strings in the
+/// writer's local time with an explicit offset, truncated to the second (see
+/// `iso_secs`); the offset keeps the instant unambiguous and the in-memory value
+/// keeps full millisecond resolution.
 pub fn now_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
@@ -23,24 +24,28 @@ pub fn now_ms() -> i64 {
 
 /// True when a timestamp is the epoch-0 "unset" sentinel. Used by
 /// `skip_serializing_if` so a never-edited document / pre-`updated_at` task omits
-/// the key entirely rather than writing a misleading `1970-01-01T00:00:00Z`.
+/// the key entirely rather than writing a misleading 1970 timestamp.
 pub(crate) fn is_zero(ms: &i64) -> bool { *ms == 0 }
 
-/// Serde for an `i64` epoch-millis field stored as an ISO-8601 UTC string at
-/// second precision (e.g. `2026-06-01T12:34:56Z`). Deserialization accepts either
-/// representation, so integer-millis files written by older builds (or other
-/// devices still on the old format) keep loading — the model stays backward
-/// compatible (AGENTS.md). Serialization always writes the ISO string.
+/// Serde for an `i64` epoch-millis field stored as an ISO-8601 local-time string
+/// at second precision (e.g. `2026-06-01T20:34:56+08:00`). Deserialization accepts
+/// either representation and any offset, so integer-millis files written by older
+/// builds (or other devices, in their own timezones) keep loading — the model
+/// stays backward compatible (AGENTS.md). Serialization always writes the ISO
+/// string.
 pub(crate) mod iso_secs {
-    use chrono::{DateTime, SecondsFormat, TimeZone, Utc};
+    use chrono::{DateTime, Local, SecondsFormat, TimeZone};
     use serde::{Deserialize, Deserializer, Serializer};
 
-    /// Epoch millis -> ISO-8601 UTC, truncated to the second. Falls back to the
-    /// raw integer string for an out-of-range instant (chrono can't represent it),
-    /// which still round-trips through the integer arm of `deserialize`.
+    /// Epoch millis -> ISO-8601 in the machine's local time with an explicit offset,
+    /// truncated to the second (e.g. `2026-06-01T20:34:56+08:00`). The offset keeps
+    /// the instant unambiguous, so `from_iso` recovers the same `ms` regardless of
+    /// where the file is later read. Falls back to the raw integer string for an
+    /// out-of-range instant (chrono can't represent it), which still round-trips
+    /// through the integer arm of `deserialize`.
     pub(super) fn to_iso(ms: i64) -> String {
-        match Utc.timestamp_millis_opt(ms).single() {
-            Some(dt) => dt.to_rfc3339_opts(SecondsFormat::Secs, true),
+        match Local.timestamp_millis_opt(ms).single() {
+            Some(dt) => dt.to_rfc3339_opts(SecondsFormat::Secs, false),
             None      => ms.to_string(),
         }
     }
@@ -223,7 +228,7 @@ impl From<TaskCompat> for Task {
 }
 
 /// Bumped to 4 when on-disk timestamps switched from integer epoch-millis to
-/// ISO-8601 UTC strings (`created_at`/`updated_at`/`completed_at`/`last_modified`).
+/// ISO-8601 local-time strings (`created_at`/`updated_at`/`completed_at`/`last_modified`).
 /// A pre-4 build can't parse the ISO strings, so the higher version also lets
 /// `parse_checked` reject the file with a clear "update the app" message where it
 /// can. New builds still read old integer-millis files (see `iso_secs`).
@@ -415,32 +420,51 @@ mod tests {
         // losslessly through the second-precision ISO form).
         t.set_done(true, 1_780_317_296_000);
         let json = serde_json::to_string(&t).unwrap();
-        assert!(json.contains("\"completed_at\":\"2026-06-01T12:34:56Z\""), "{json}");
+        // completed_at is present as an ISO string for the same instant (rendered in
+        // local time — see timestamps_serialize_as_iso_local_seconds); this test
+        // guards only that the legacy keys are gone.
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let completed = v["completed_at"].as_str().expect("completed_at is an ISO string");
+        assert_eq!(
+            chrono::DateTime::parse_from_rfc3339(completed).unwrap().timestamp_millis(),
+            1_780_317_296_000,
+        );
         assert!(!json.contains("\"done\""), "no legacy done key: {json}");
         assert!(!json.contains("\"archived\""), "no legacy archived key: {json}");
         assert!(!json.contains("archived_at"), "no legacy archived_at key: {json}");
     }
 
     #[test]
-    fn timestamps_serialize_as_iso_utc_seconds() {
+    fn timestamps_serialize_as_iso_local_seconds() {
+        use chrono::{DateTime, Local, SecondsFormat, TimeZone};
+        let ms = 1_780_317_296_000; // 2026-06-01T12:34:56Z
+        // The instant rendered in the machine's local time, e.g. 2026-06-01T20:34:56+08:00.
+        let expect = |ms: i64| Local.timestamp_millis_opt(ms).single().unwrap()
+            .to_rfc3339_opts(SecondsFormat::Secs, false);
+
         let mut t = task();
-        t.created_at = 1_780_317_296_000; // 2026-06-01T12:34:56Z
-        t.updated_at = 1_780_317_296_000;
+        t.created_at = ms;
+        t.updated_at = ms;
         let json = serde_json::to_string(&t).unwrap();
-        assert!(json.contains("\"created_at\":\"2026-06-01T12:34:56Z\""), "{json}");
-        assert!(json.contains("\"updated_at\":\"2026-06-01T12:34:56Z\""), "{json}");
+        assert!(json.contains(&format!("\"created_at\":\"{}\"", expect(ms))), "{json}");
+        assert!(json.contains(&format!("\"updated_at\":\"{}\"", expect(ms))), "{json}");
+
+        // Whatever offset is written, the string round-trips to the same instant.
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let created = v["created_at"].as_str().unwrap();
+        assert_eq!(DateTime::parse_from_rfc3339(created).unwrap().timestamp_millis(), ms);
 
         // updated_at == 0 (the "never edited" sentinel) is omitted, not written as 1970.
         t.updated_at = 0;
         let json = serde_json::to_string(&t).unwrap();
         assert!(!json.contains("updated_at"), "zero updated_at is skipped: {json}");
 
-        // Document.last_modified == 0 is likewise omitted, but a real stamp is ISO.
+        // Document.last_modified == 0 is likewise omitted, but a real stamp is ISO local.
         let mut doc = Document::default();
         assert!(!serde_json::to_string(&doc).unwrap().contains("last_modified"));
-        doc.last_modified = 1_780_317_296_000;
+        doc.last_modified = ms;
         assert!(serde_json::to_string(&doc).unwrap()
-            .contains("\"last_modified\":\"2026-06-01T12:34:56Z\""));
+            .contains(&format!("\"last_modified\":\"{}\"", expect(ms))));
     }
 
     #[test]

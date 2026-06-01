@@ -13,7 +13,7 @@
     },
     "last_modified": {
       "$ref": "#/$defs/timestamp",
-      "description": "Last task, template task, or tag edit, as an ISO-8601 UTC timestamp (e.g. 2026-06-01T12:34:56Z). Legacy files may store integer epoch milliseconds; older files may omit it, loading as 0.",
+      "description": "Last task, template task, or tag edit, as an ISO-8601 timestamp in local time with an offset (e.g. 2026-06-01T20:34:56+08:00). Legacy files may store integer epoch milliseconds or a UTC 'Z' timestamp; older files may omit it, loading as 0.",
       "default": 0
     },
     "tags": {
@@ -44,7 +44,7 @@
   "additionalProperties": true,
   "$defs": {
     "timestamp": {
-      "description": "A point in time. Written as an ISO-8601 UTC timestamp at second precision (e.g. 2026-06-01T12:34:56Z); legacy files may store it as a non-negative integer count of epoch milliseconds. Both forms load.",
+      "description": "A point in time. Written as an ISO-8601 timestamp in local time with an offset at second precision (e.g. 2026-06-01T20:34:56+08:00); legacy files may store a UTC 'Z' timestamp or a non-negative integer count of epoch milliseconds. All forms load (the offset keeps the instant unambiguous).",
       "oneOf": [
         {
           "type": "string",
@@ -152,7 +152,7 @@
           "$ref": "#/$defs/timestamp"
         },
         "completed_at": {
-          "description": "When the task was completed, as an ISO-8601 UTC timestamp (legacy files may store epoch milliseconds). Null and missing both load as incomplete.",
+          "description": "When the task was completed, as an ISO-8601 local-time timestamp with an offset (legacy files may store a UTC 'Z' timestamp or epoch milliseconds). Null and missing both load as incomplete.",
           "oneOf": [
             {
               "$ref": "#/$defs/timestamp"
@@ -164,7 +164,7 @@
         },
         "updated_at": {
           "$ref": "#/$defs/timestamp",
-          "description": "Last task edit, as an ISO-8601 UTC timestamp (legacy files may store epoch milliseconds). Omitted or 0 for tasks written before this field existed.",
+          "description": "Last task edit, as an ISO-8601 local-time timestamp with an offset (legacy files may store a UTC 'Z' timestamp or epoch milliseconds). Omitted or 0 for tasks written before this field existed.",
           "default": 0
         },
         "archived": {
@@ -173,7 +173,7 @@
           "default": false
         },
         "archived_at": {
-          "description": "When the task was archived, as an ISO-8601 UTC timestamp (legacy files may store epoch milliseconds). Null and missing both load as not archived.",
+          "description": "When the task was archived, as an ISO-8601 local-time timestamp with an offset (legacy files may store a UTC 'Z' timestamp or epoch milliseconds). Null and missing both load as not archived.",
           "oneOf": [
             {
               "$ref": "#/$defs/timestamp"
@@ -227,7 +227,7 @@
         },
         "updated_at": {
           "$ref": "#/$defs/timestamp",
-          "description": "Last template edit, as an ISO-8601 UTC timestamp (legacy files may store epoch milliseconds). Omitted or 0 for templates written before this field existed.",
+          "description": "Last template edit, as an ISO-8601 local-time timestamp with an offset (legacy files may store a UTC 'Z' timestamp or epoch milliseconds). Omitted or 0 for templates written before this field existed.",
           "default": 0
         },
         "due_offset_days": {
