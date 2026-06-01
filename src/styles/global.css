@@ -124,7 +124,7 @@ button {
 .sidebar-link:hover { background: var(--c-surface); text-decoration: none; }
 .sidebar-link.active { background: var(--c-accent-bg); color: var(--c-accent); font-weight: 600; }
 .sidebar-count { margin-left: auto; font-size: 0.72rem; color: var(--c-text-subtle); }
-.sidebar-dot { width: 8px; height: 8px; border-radius: 50%; }
+.sidebar-hash { font-weight: 700; line-height: 1; }
 
 .desktop-main {
   padding: var(--space-5) var(--space-6);

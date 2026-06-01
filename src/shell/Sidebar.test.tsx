@@ -38,9 +38,10 @@ describe("Sidebar — tag curation (#78)", () => {
       tag({ id: "t_legacy", name: "legacy" }), // pinned absent => hidden
     ]);
 
-    expect(screen.getByText("#work")).toBeTruthy();
-    expect(screen.queryByText("#someday")).toBeNull();
-    expect(screen.queryByText("#legacy")).toBeNull();
+    // The name renders plain; the colored "#" is a separate decorative glyph (#68).
+    expect(screen.getByText("work")).toBeTruthy();
+    expect(screen.queryByText("someday")).toBeNull();
+    expect(screen.queryByText("legacy")).toBeNull();
   });
 
   it("shows a manage-tags hint when nothing is pinned", () => {

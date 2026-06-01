@@ -1,5 +1,6 @@
 import { KeyboardEvent, useState } from "react";
 import { Tag } from "../lib/tauri";
+import { readableTextColor } from "../lib/tags";
 import { pickPaletteColor } from "../state/quickAdd";
 
 type Props = {
@@ -93,7 +94,7 @@ export function TagInput({
       <div className="te-tags">
         {assigned.map(t => (
           <button type="button" key={t.id} className="te-tag on"
-                  style={{ borderColor: t.color, color: t.color }}
+                  style={{ background: t.color, borderColor: t.color, color: readableTextColor(t.color) }}
                   onClick={() => onRemoveExisting(t.id)}
                   aria-label={`Remove ${t.name}`} title={`Remove ${t.name}`}>
             {t.name} <span aria-hidden="true">×</span>
@@ -101,9 +102,10 @@ export function TagInput({
         ))}
         {newNames.map(name => {
           const color = pickPaletteColor(name);
+          const ink = readableTextColor(color);
           return (
             <button type="button" key={`new:${name}`} className="te-tag on te-tag-new"
-                    style={{ borderColor: color, color }}
+                    style={{ background: color, borderColor: ink, color: ink }}
                     onClick={() => onRemoveNew(name)}
                     aria-label={`Remove ${name} (new)`} title={`Remove ${name} (new tag)`}>
               {name} <span aria-hidden="true">×</span>
