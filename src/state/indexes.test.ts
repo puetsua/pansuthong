@@ -13,8 +13,11 @@ describe("buildIndexes", () => {
     expect(ids).toEqual(["k_overdue1", "k_today1", "k_today2", "k_reno1"]);
   });
 
-  it("inbox contains only untagged tasks", () => {
-    expect(ix.inbox.map(t => t.id)).toEqual(["k_future1"]);
+  it("inbox contains tasks with no pinned tag (untagged or unpinned-only)", () => {
+    // t_work and t_errand are pinned, so their tasks are surfaced in the sidebar
+    // and excluded. k_reno1 (only the unpinned t_reno) and k_future1 (untagged)
+    // have no pinned tag, so they fall to Inbox.
+    expect(ix.inbox.map(t => t.id)).toEqual(["k_reno1", "k_future1"]);
   });
 
   it("byTag for t_urgent returns one task", () => {
@@ -193,7 +196,9 @@ function archivedDoc(): Document {
     version: 2,
     last_modified: undefined,
     settings: { theme: "auto", sort_order: "priority" },
-    tags: [{ id: "t_w", name: "w", color: "#000", priority: 1 }],
+    // Pinned so the active k_open is surfaced via its tag view, keeping Inbox
+    // empty — this test is about archived exclusion, not inbox membership.
+    tags: [{ id: "t_w", name: "w", color: "#000", priority: 1, pinned: true }],
     tasks: [
       t("k_open",  ["t_w"], false),
       t("k_arch1", ["t_w"], true, "2026-05-28T10:00:00Z"),
@@ -249,7 +254,9 @@ function templatesDoc(): Document {
     version: 5,
     last_modified: undefined,
     settings: { theme: "auto", sort_order: "priority" },
-    tags: [{ id: "t_w", name: "w", color: "#000", priority: 1 }],
+    // Pinned so the active k_real is surfaced via its tag view, keeping Inbox
+    // empty — this test is about template exclusion, not inbox membership.
+    tags: [{ id: "t_w", name: "w", color: "#000", priority: 1, pinned: true }],
     tasks: [
       { id: "k_real", title: "k_real", scheduled_date: TODAY_ISO, notes: "",
         tag_ids: ["t_w"], created_at: "1970-01-01T00:00:00Z" },

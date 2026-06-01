@@ -374,9 +374,13 @@ impl Task {
 }
 
 impl Document {
-    /// True if the task is in Inbox (has no tags).
+    /// True if the task belongs in Inbox: none of its tags are pinned, so no
+    /// pinned-tag sidebar view surfaces it. Untagged tasks qualify trivially; a
+    /// task tagged only with unpinned tags lands here too (otherwise it would be
+    /// invisible). An unknown tag id counts as unpinned, matching its
+    /// "behaves as untagged" handling.
     pub fn task_in_inbox(&self, task: &Task) -> bool {
-        task.tag_ids.is_empty()
+        !task.tag_ids.iter().any(|id| self.tags.iter().any(|t| t.id == *id && t.pinned))
     }
 
     /// Today: scheduled today, OR (due < today AND !done), OR due == today.
@@ -586,6 +590,12 @@ mod tests {
     fn templates_live_in_their_own_list_and_never_in_active_views() {
         let today = NaiveDate::from_ymd_opt(2026, 5, 31).unwrap();
         let mut doc = Document::default();
+        // A pinned tag, so the real task below is surfaced in its tag view and
+        // stays out of Inbox (Inbox now catches tasks with no pinned tag).
+        doc.tags.push(Tag {
+            id: "t_work".into(), name: "work".into(), color: "#000".into(),
+            priority: 0, pinned: true,
+        });
         // Templates carry tags/offsets but live in `template_tasks`, so they can't
         // land in Today/Inbox/tag views no matter what they reference.
         let mut tmpl = template("k_tmpl");
@@ -604,8 +614,8 @@ mod tests {
         let ids = |v: Vec<&Task>| v.into_iter().map(|t| t.id.clone()).collect::<Vec<_>>();
         assert_eq!(ids(doc.tasks_today(today)), ["k_real"]);
         assert_eq!(ids(doc.tasks_for_tag("t_work")), ["k_real"]);
-        // The real task is tagged, so Inbox is empty — and the untagged template
-        // must not leak into Inbox either.
+        // The real task has a pinned tag, so Inbox is empty — and the untagged
+        // template must not leak into Inbox either.
         assert!(ids(doc.tasks_inbox()).is_empty());
         // ...and templates surface only through tasks_templates, in document order.
         let tmpl_ids: Vec<_> = doc.tasks_templates().iter().map(|t| t.id.clone()).collect();

@@ -91,7 +91,14 @@ export function buildIndexes(doc: Document): Indexes {
   }
   for (const arr of byTag.values()) sortTasks(arr, order, tagsById);
 
-  const inbox = sortTasks(active.filter(t => t.tag_ids.length === 0), order, tagsById);
+  // Inbox catches tasks that no pinned-tag sidebar view surfaces: those with no
+  // pinned tag. Untagged tasks qualify trivially; a task tagged only with
+  // unpinned tags lands here too (otherwise it would be invisible). An unknown
+  // tag id is treated as unpinned, matching its "behaves as untagged" handling.
+  const inbox = sortTasks(
+    active.filter(t => !t.tag_ids.some(id => tagsById.get(id)?.pinned)),
+    order, tagsById,
+  );
 
   // Most-recently-completed first (fall back to insertion order when unstamped).
   // completed_at is an ISO-8601 string carrying a local offset, so compare by the

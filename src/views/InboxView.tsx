@@ -12,7 +12,7 @@ export function InboxView({ indexes }: Props) {
     <section>
       <header className="view-header">
         <h1>Inbox</h1>
-        <p className="view-sub">Untagged tasks</p>
+        <p className="view-sub">Tasks with no pinned tag</p>
       </header>
       <Composer tagsByName={indexes.tagsByName} />
       <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={todayIso()}

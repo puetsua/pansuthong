@@ -6,10 +6,10 @@
     { "id": "p_reno",     "name": "Renovation", "color": "#ef4444" }
   ],
   "tags": [
-    { "id": "t_work",     "name": "work",       "color": "#4338ca", "project_id": "p_work" },
+    { "id": "t_work",     "name": "work",       "color": "#4338ca", "project_id": "p_work", "pinned": true },
     { "id": "t_reno",     "name": "renovation", "color": "#f59e0b", "project_id": "p_reno" },
     { "id": "t_urgent",   "name": "urgent",     "color": "#dc2626" },
-    { "id": "t_errand",   "name": "errand",     "color": "#10b981" }
+    { "id": "t_errand",   "name": "errand",     "color": "#10b981", "pinned": true }
   ],
   "tasks": [
     {
