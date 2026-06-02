@@ -189,7 +189,7 @@ export function SettingsView({ doc }: Props) {
         <label className="te-field">
           <span>Day starts at</span>
           <select
-            className="weight-input"
+            className="select-input"
             aria-label="Day start hour"
             value={startHour}
             onChange={e => setStartHour(Number(e.currentTarget.value))}

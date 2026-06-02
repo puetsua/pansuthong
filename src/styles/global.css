@@ -333,6 +333,16 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   padding: var(--space-2);
 }
 .settings-row input.weight-input { flex: 0 0 4.5rem; }
+/* Like .weight-input, but sized to its options (e.g. the Day-start dropdown). */
+.select-input {
+  width: auto;
+  min-width: 11rem;
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+}
 .tag-edit-row { flex-wrap: wrap; }
 .tag-edit-name {
   flex: 1;
