@@ -45,6 +45,41 @@ pub fn is_conflict_filename(name: &str, base_stem: &str, base_filename: &str) ->
         && name.contains(CONFLICT_NEEDLE)
 }
 
+/// What a first link to a picked folder should do, decided **fail-safe**.
+#[derive(Debug, PartialEq, Eq)]
+pub enum LinkAction {
+    /// The folder already holds a `tasks.json` — adopt it (pull). Diverged local
+    /// in-memory data is preserved as a conflict file to merge, or discarded
+    /// cleanly when it is empty or already matches.
+    Pull,
+    /// The folder is confirmed to have no `tasks.json` — seed it from the local
+    /// document (the only case where writing is safe).
+    Seed,
+    /// The folder's state could not be determined — do nothing destructive.
+    Abort,
+}
+
+/// True if the picked folder already contains a `tasks.json`. Uses directory
+/// enumeration (`list_file_names`), which works across SAF providers including
+/// Google Drive, and **propagates errors** so a caller never mistakes "couldn't
+/// read the folder" for "the folder is empty" — the latter is what overwrote a
+/// real remote on first link (the Drive data-loss bug).
+pub fn remote_has_tasks(backend: &dyn SafBackend) -> Result<bool> {
+    Ok(backend.list_file_names()?.iter().any(|n| n == BASE_FILENAME))
+}
+
+/// Decide a first link's action without ever risking the remote: only `Seed`
+/// when the folder is positively known to be empty of `tasks.json`; `Pull` when
+/// it already has one; `Abort` when the folder can't be read (so the existing
+/// remote is left untouched and the error is surfaced instead).
+pub fn first_link_action(backend: &dyn SafBackend) -> LinkAction {
+    match remote_has_tasks(backend) {
+        Ok(true)  => LinkAction::Pull,
+        Ok(false) => LinkAction::Seed,
+        Err(_)    => LinkAction::Abort,
+    }
+}
+
 /// Push the current document to the folder unless it equals `last_synced_hash`.
 /// Returns `Some(new_hash)` if a write happened, `None` if suppressed.
 pub fn push_out(
@@ -80,15 +115,7 @@ pub fn pull_in(
     let dir = data_path.parent().unwrap_or_else(|| Path::new("."));
 
     // 1. Mirror conflict files first (independent of main-file validity).
-    let mut conflict_count = 0usize;
-    for name in backend.list_file_names()? {
-        if is_conflict_filename(&name, BASE_STEM, BASE_FILENAME) {
-            if let Ok(bytes) = backend.read_file(&name) {
-                let _ = std::fs::write(dir.join(&name), bytes);
-                conflict_count += 1;
-            }
-        }
-    }
+    let conflict_count = mirror_conflict_files(backend, dir)?;
 
     // 2. Adopt a changed, VALID remote tasks.json (last-write-wins), preserving
     //    any diverged local edits as a conflict file (#34) and writing the remote
@@ -112,6 +139,42 @@ pub fn pull_in(
     }
 
     Ok(PullOutcome { imported, new_synced_hash: new_hash, conflict_count })
+}
+
+/// Copy every conflict file from the folder into the app-private `dir` so the
+/// existing conflict UI can surface them. Returns how many were mirrored. Shared
+/// by `pull_in` (routine sync) and `switch_to_remote` (data-source change).
+fn mirror_conflict_files(backend: &dyn SafBackend, dir: &Path) -> Result<usize> {
+    let mut count = 0usize;
+    for name in backend.list_file_names()? {
+        if is_conflict_filename(&name, BASE_STEM, BASE_FILENAME) {
+            if let Ok(bytes) = backend.read_file(&name) {
+                let _ = std::fs::write(dir.join(&name), bytes);
+                count += 1;
+            }
+        }
+    }
+    Ok(count)
+}
+
+/// Switch the master to the folder's `tasks.json`, **discarding** the current
+/// local in-memory document (no conflict file). For the explicit "change data
+/// source" action, where the user wants the new folder's data loaded outright.
+/// The remote is read and validated before anything is replaced, so local data is
+/// only dropped once the new data is successfully loaded; remote conflict files
+/// are still mirrored so they stay visible.
+pub fn switch_to_remote(
+    state: &AppState,
+    backend: &dyn SafBackend,
+    data_path: &Path,
+) -> Result<PullOutcome> {
+    let dir = data_path.parent().unwrap_or_else(|| Path::new("."));
+    let conflict_count = mirror_conflict_files(backend, dir)?;
+    let (imported, new_synced_hash) = match backend.read_tasks()? {
+        Some(remote) => (true, Some(state.load_replacing_local(&remote)?)),
+        None => (false, None),
+    };
+    Ok(PullOutcome { imported, new_synced_hash, conflict_count })
 }
 
 /// Status surfaced to the UI.
@@ -226,13 +289,22 @@ pub mod android {
     impl<'a> SafBackend for AndroidSafBackend<'a> {
         fn read_tasks(&self) -> Result<Option<Vec<u8>>> {
             let fs = self.app.android_fs();
-            match fs.resolve_file_uri(&self.folder, BASE_FILENAME) {
-                Ok(uri) => match fs.read(&uri) {
-                    Ok(b) => Ok(Some(b)),
-                    Err(_) => Ok(None),
-                },
-                Err(_) => Ok(None),
+            // Decide existence by enumeration (reliable across SAF providers,
+            // including Google Drive) rather than by path resolution, then only
+            // treat a true absence as `None`. A file that exists but can't be
+            // read (e.g. a Drive file not yet materialized) must surface as an
+            // error, never as "no remote" — collapsing that to `None` is what let
+            // a transient failure overwrite an existing remote.
+            let present = fs
+                .read_dir(&self.folder)
+                .map_err(saferr)?
+                .into_iter()
+                .any(|e| matches!(e, Entry::File { name, .. } if name == BASE_FILENAME));
+            if !present {
+                return Ok(None);
             }
+            let uri = fs.resolve_file_uri(&self.folder, BASE_FILENAME).map_err(saferr)?;
+            Ok(Some(fs.read(&uri).map_err(saferr)?))
         }
         fn write_tasks(&self, bytes: &[u8]) -> Result<()> {
             let fs = self.app.android_fs();
@@ -337,11 +409,97 @@ mod tests {
         }
     }
 
+    /// A backend whose folder listing fails — models a SAF/Google Drive provider
+    /// that errors (or is momentarily unreachable) when we probe the folder. Used
+    /// to prove the link decision is fail-safe under uncertainty.
+    struct UnreadableBackend;
+    impl SafBackend for UnreadableBackend {
+        fn read_tasks(&self) -> crate::error::Result<Option<Vec<u8>>> {
+            Err(crate::error::AppError::Invalid("saf: read failed".into()))
+        }
+        fn write_tasks(&self, _bytes: &[u8]) -> crate::error::Result<()> {
+            panic!("write_tasks must never be called when the folder state is unknown");
+        }
+        fn list_file_names(&self) -> crate::error::Result<Vec<String>> {
+            Err(crate::error::AppError::Invalid("saf: list failed".into()))
+        }
+        fn read_file(&self, name: &str) -> crate::error::Result<Vec<u8>> {
+            Err(crate::error::AppError::NotFound(name.into()))
+        }
+        fn delete_file(&self, _name: &str) -> crate::error::Result<()> { Ok(()) }
+    }
+
     fn temp_state() -> (tempfile::TempDir, AppState, std::path::PathBuf) {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("tasks.json");
         let state = AppState::open(path.clone()).unwrap();
         (dir, state, path)
+    }
+
+    #[test]
+    fn remote_has_tasks_detects_presence_via_enumeration() {
+        let present = FakeBackend::with(&[("tasks.json", b"{\"tasks\":[],\"tags\":[]}")]);
+        assert_eq!(remote_has_tasks(&present).unwrap(), true);
+
+        let absent = FakeBackend::with(&[("notes.txt", b"x")]);
+        assert_eq!(remote_has_tasks(&absent).unwrap(), false);
+    }
+
+    #[test]
+    fn remote_has_tasks_propagates_listing_errors() {
+        // A folder we can't read must NOT look empty — the error has to surface.
+        assert!(remote_has_tasks(&UnreadableBackend).is_err());
+    }
+
+    #[test]
+    fn first_link_pulls_when_remote_present() {
+        let backend = FakeBackend::with(&[("tasks.json", b"{\"tasks\":[],\"tags\":[]}")]);
+        assert_eq!(first_link_action(&backend), LinkAction::Pull);
+    }
+
+    #[test]
+    fn first_link_seeds_only_when_folder_confirmed_empty() {
+        let backend = FakeBackend::default();
+        assert_eq!(first_link_action(&backend), LinkAction::Seed);
+    }
+
+    #[test]
+    fn switch_to_remote_discards_local_and_loads_remote() {
+        let (_d, state, path) = temp_state();
+        // Local has un-synced data. The OLD pull behavior preserved it as a
+        // conflict file; switching the data source must DISCARD it instead.
+        state.write(|d| {
+            d.tags.push(crate::model::Tag {
+                id: "g_local".into(), name: "local".into(), color: "#fff".into(),
+                priority: 0, pinned: false,
+            });
+            Ok(())
+        }).unwrap();
+
+        // The new folder holds a different document — this is what should load.
+        let mut remote_doc = crate::model::Document::default();
+        remote_doc.tags.push(crate::model::Tag {
+            id: "g_remote".into(), name: "remote".into(), color: "#fff".into(),
+            priority: 0, pinned: false,
+        });
+        let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
+        let backend = FakeBackend::with(&[("tasks.json", &remote)]);
+
+        let out = switch_to_remote(&state, &backend, &path).unwrap();
+        assert!(out.imported);
+        // Remote loaded outright.
+        assert_eq!(state.read(|d| d.tags.iter().map(|t| t.id.clone()).collect::<Vec<_>>()), ["g_remote"]);
+        // Local discarded — no conflict file (unlike routine pull_in).
+        assert!(crate::sync::scan_conflict_files(&path).is_empty(),
+                "switching data source discards local without a conflict file");
+    }
+
+    #[test]
+    fn first_link_aborts_rather_than_seed_when_state_unknown() {
+        // The regression guard for the Google Drive data-loss bug: when we can't
+        // tell whether the folder already holds a tasks.json, we must NOT seed
+        // (which would overwrite the remote). Abort and surface the error instead.
+        assert_eq!(first_link_action(&UnreadableBackend), LinkAction::Abort);
     }
 
     #[test]

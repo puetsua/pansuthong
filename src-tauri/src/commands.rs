@@ -636,8 +636,13 @@ fn saf_persist(state: &AppState, saf: &crate::safsync::SafSync) {
     let _ = crate::safsync::save_config(&state.path(), &cfg);
 }
 
+/// Pull the remote into the app-private master. Returns `(ok, status)` where
+/// `ok` is false when the remote couldn't be read — callers MUST NOT push after
+/// a failed pull, or a transient unreadable remote would be overwritten by this
+/// device's copy (the Google Drive data-loss bug). A folder that simply has no
+/// remote yet pulls cleanly (`ok = true`).
 #[cfg(target_os = "android")]
-fn saf_run_pull(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync) -> crate::safsync::SyncStatus {
+fn saf_run_pull(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync) -> (bool, crate::safsync::SyncStatus) {
     use crate::safsync::{self, android::AndroidSafBackend};
     let path = state.path();
     let (folder_json, last_hash) = {
@@ -645,6 +650,7 @@ fn saf_run_pull(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync
         (g.folder_uri_json.clone(), g.last_synced_hash)
     };
     let mut conflicts = 0usize;
+    let mut ok = true;
     if let Some(json) = folder_json {
         match AndroidSafBackend::from_json(app, &json) {
             Ok(backend) => match safsync::pull_in(state, &backend, &path, last_hash) {
@@ -660,6 +666,40 @@ fn saf_run_pull(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync
                         let _ = app.emit(STORE_CHANGED, ());
                     }
                     saf_persist(state, saf); // persist the advanced last_synced_hash
+                    let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
+                }
+                Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); ok = false; }
+            },
+            Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); ok = false; }
+        }
+    }
+    (ok, saf.status(conflicts))
+}
+
+/// Switch the data source to the linked folder: discard the local in-memory
+/// document and load the folder's `tasks.json` outright (no conflict file). Used
+/// only by the explicit folder-pick action, not routine sync.
+#[cfg(target_os = "android")]
+fn saf_run_switch(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync) -> crate::safsync::SyncStatus {
+    use crate::safsync::{self, android::AndroidSafBackend};
+    let path = state.path();
+    let folder_json = saf.inner.lock().unwrap().folder_uri_json.clone();
+    let mut conflicts = 0usize;
+    if let Some(json) = folder_json {
+        match AndroidSafBackend::from_json(app, &json) {
+            Ok(backend) => match safsync::switch_to_remote(state, &backend, &path) {
+                Ok(out) => {
+                    {
+                        let mut g = saf.inner.lock().unwrap();
+                        g.last_synced_hash = out.new_synced_hash;
+                        g.last_synced_ms = Some(now_ms());
+                        g.last_error = None;
+                    }
+                    conflicts = out.conflict_count;
+                    if out.imported {
+                        let _ = app.emit(STORE_CHANGED, ());
+                    }
+                    saf_persist(state, saf);
                     let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
                 }
                 Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); }
@@ -706,7 +746,7 @@ pub async fn saf_pick_folder(
     state: State<'_, AppState>,
     saf: State<'_, crate::safsync::SafSync>,
 ) -> Result<crate::safsync::SyncStatus> {
-    use crate::safsync::{self, SafBackend as _};
+    use crate::safsync::{self, LinkAction};
     let picked = safsync::android::pick_and_persist(&app).await?;
     if let Some((json, label)) = picked {
         {
@@ -722,12 +762,23 @@ pub async fn saf_pick_folder(
             folder_label: Some(label),
             last_synced_hash: None, // the seed/pull below persists the real hash
         })?;
-        // First link: pull if the folder already has tasks.json, else push to seed it.
-        let has_remote = safsync::android::AndroidSafBackend::from_json(&app, &json)
-            .ok()
-            .and_then(|b| b.read_tasks().ok().flatten())
-            .is_some();
-        return Ok(if has_remote { saf_run_pull(&app, &state, &saf) } else { saf_run_push(&app, &state, &saf) });
+        // Choosing a folder, decided fail-safe. If it already has a tasks.json,
+        // SWITCH to it: discard the local in-memory document and load the folder's
+        // data outright (no conflict file). If the folder is confirmed empty, SEED
+        // it from this device's document. If the folder can't be read, ABORT rather
+        // than risk overwriting an existing remote (the Google Drive data-loss
+        // bug): surface the error and leave the remote untouched.
+        let backend = safsync::android::AndroidSafBackend::from_json(&app, &json)?;
+        return Ok(match safsync::first_link_action(&backend) {
+            LinkAction::Pull => saf_run_switch(&app, &state, &saf),
+            LinkAction::Seed => saf_run_push(&app, &state, &saf),
+            LinkAction::Abort => {
+                let msg = "Couldn't read the selected folder, so its contents were left untouched. \
+                           Check the folder is reachable and try linking again.";
+                saf.inner.lock().unwrap().last_error = Some(msg.into());
+                saf.status(saf_conflict_count(&state.path()))
+            }
+        });
     }
     Ok(saf.status(saf_conflict_count(&state.path())))
 }
@@ -769,8 +820,14 @@ pub fn saf_sync_now(
     // Pull first so a remote another device updated is adopted (diverged local
     // edits are preserved as a conflict file) BEFORE we push — otherwise a cold
     // start would push this device's stale copy over the newer remote (#Phase 4B).
-    let _ = saf_run_pull(&app, &state, &saf);
-    saf_run_push(&app, &state, &saf)
+    // Only push if the pull SUCCEEDED: if the remote couldn't be read, pushing now
+    // would overwrite it with this device's copy (the Google Drive data-loss bug).
+    let (pull_ok, status) = saf_run_pull(&app, &state, &saf);
+    if pull_ok {
+        saf_run_push(&app, &state, &saf)
+    } else {
+        status
+    }
 }
 
 #[cfg(target_os = "android")]

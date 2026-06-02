@@ -82,23 +82,21 @@ impl AppState {
     }
 
     /// Relocate the master data file to `new_path`. If `new_path` already exists,
-    /// adopt its contents; otherwise seed it from the current in-memory document.
-    /// Adopting no longer silently discards local data: if the current document
-    /// holds tasks/tags, it is first written to a conflict file in the target
-    /// directory so the conflict UI can reconcile it (#34). Updates the stored
-    /// path and the loop-suppression hash.
+    /// load its contents outright — the user is switching data source, so the
+    /// current in-memory document is discarded (no conflict file). If `new_path`
+    /// is absent, seed it from the current document instead (nothing to load).
+    /// The target is validated before anything is replaced, so an invalid file
+    /// leaves the master intact. Updates the stored path and loop-suppression hash.
     pub fn repoint(&self, new_path: std::path::PathBuf) -> Result<()> {
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         if new_path.exists() {
             let bytes = std::fs::read(&new_path)?;
             let target_doc = parse_checked(&bytes)?;
-            // Preserve local-only data instead of dropping it (#34).
-            if doc_has_data(&g.doc) {
-                let local_bytes = serde_json::to_vec_pretty(&g.doc)?;
-                if local_bytes != bytes {
-                    write_local_conflict(&new_path, &local_bytes)?;
-                }
-            }
+            // Changing the data source discards the current in-memory document and
+            // loads the target folder's data outright (validated above, so an
+            // invalid target leaves the master intact). The local doc is not
+            // preserved as a conflict file — the user is deliberately switching
+            // sources.
             g.doc = target_doc;
             g.last_written_hash = sha256(&bytes);
             g.path = new_path;
@@ -136,6 +134,23 @@ impl AppState {
                 write_local_conflict(&g.path, &local_bytes)?;
             }
         }
+        atomic_write(&g.path, bytes)?;
+        g.doc = doc;
+        g.last_written_hash = hash;
+        Ok(hash)
+    }
+
+    /// Replace the master with externally-synced `bytes`, DISCARDING the current
+    /// local document without preserving it as a conflict file. Used when the user
+    /// switches data source (picks a new sync folder) and wants that folder's data
+    /// loaded outright. Like `adopt_synced` but without the #34 conflict guard:
+    /// validates before touching anything (so invalid/newer bytes leave the master
+    /// intact) and writes the bytes verbatim so file, in-memory doc, and returned
+    /// hash all agree. Returns the adopted bytes' hash.
+    pub fn load_replacing_local(&self, bytes: &[u8]) -> Result<[u8; 32]> {
+        let doc = parse_checked(bytes)?; // validate before mutating the master
+        let hash = sha256(bytes);
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         atomic_write(&g.path, bytes)?;
         g.doc = doc;
         g.last_written_hash = hash;
@@ -298,13 +313,14 @@ mod repoint_tests {
     }
 
     #[test]
-    fn repoint_preserves_local_data_as_conflict_file() {
+    fn repoint_discards_local_and_loads_the_target() {
         let dir = tempdir().unwrap();
         let state = AppState::open(dir.path().join("tasks.json")).unwrap();
-        // Local-only data that a naive adopt would discard.
+        // Local-only data. Changing the data source discards it in favor of the
+        // target folder's data — no conflict file is written.
         state.write(|d| { d.tasks.push(sample_task("k_local")); Ok(()) }).unwrap();
 
-        // Target folder already holds a different tasks.json (from another device).
+        // Target folder already holds a different tasks.json (the new source).
         let target_dir = tempdir().unwrap();
         let new_path = target_dir.path().join("tasks.json");
         let mut other = Document::default();
@@ -313,14 +329,11 @@ mod repoint_tests {
 
         state.repoint(new_path.clone()).unwrap();
 
-        // The target was adopted...
+        // The target's data was loaded outright...
         assert_eq!(state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()), ["k_theirs"]);
-        // ...and the local doc was preserved as a conflict file, not discarded.
-        let conflicts = crate::sync::scan_conflict_files(&new_path);
-        assert_eq!(conflicts.len(), 1, "local data should be saved to a conflict file");
-        let bytes = std::fs::read(&conflicts[0]).unwrap();
-        let preserved: Document = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(preserved.tasks.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["k_local"]);
+        // ...and the local doc was discarded, NOT preserved as a conflict file.
+        assert!(crate::sync::scan_conflict_files(&new_path).is_empty(),
+                "changing the data source discards local data without a conflict file");
     }
 
     #[test]
