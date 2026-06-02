@@ -5,7 +5,6 @@ pub mod error;
 pub mod model;
 pub mod parse;
 pub mod safsync;
-pub mod search;
 pub mod store;
 pub mod sync;
 
@@ -166,7 +165,6 @@ pub fn run() {
             commands::delete_template,
             commands::add_tag,
             commands::delete_tag,
-            commands::search_tasks,
             commands::update_tag,
             commands::update_settings,
             commands::list_conflicts,

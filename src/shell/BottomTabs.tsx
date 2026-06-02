@@ -8,7 +8,6 @@ const TABS = [
   { to: "/today",    label: "Today",    icon: "●" },
   { to: "/inbox",    label: "Inbox",    icon: "▣" },
   { to: "/upcoming", label: "Upcoming", icon: "◔" },
-  { to: "/search",   label: "Search",   icon: "⌕" },
 ] as const;
 
 export function BottomTabs({ indexes }: Props) {

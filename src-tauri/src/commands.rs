@@ -2,7 +2,6 @@ use crate::config::{ConfigState, Settings};
 use crate::conflict::{apply_decisions, diff_tasks, tags_to_merge, Decision, TaskDiff};
 use crate::error::{AppError, Result};
 use crate::model::{new_tag_id, new_task_id, now_ms, Tag, Task, TemplateTask};
-use crate::search::search as search_doc;
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
 use chrono::NaiveDate;
@@ -331,11 +330,6 @@ pub fn delete_tag(id: String, state: State<'_, AppState>, app: AppHandle) -> Res
     })?;
     emit_changed(&app);
     Ok(())
-}
-
-#[tauri::command]
-pub fn search_tasks(query: String, state: State<'_, AppState>) -> Vec<crate::model::Task> {
-    state.read(|d| search_doc(d, &query).into_iter().cloned().collect())
 }
 
 #[derive(Deserialize)]

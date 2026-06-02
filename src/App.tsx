@@ -6,7 +6,6 @@ import { TodayView } from "./views/TodayView";
 import { InboxView } from "./views/InboxView";
 import { TagView } from "./views/TagView";
 import { UpcomingView } from "./views/UpcomingView";
-import { SearchView } from "./views/SearchView";
 import { SettingsView } from "./views/SettingsView";
 import { TagsView } from "./views/TagsView";
 import { ArchivedView } from "./views/ArchivedView";
@@ -40,7 +39,6 @@ export default function App() {
           <Route path="/inbox" element={<InboxView doc={doc} indexes={indexes} />} />
           <Route path="/tag/:id"     element={<TagView indexes={indexes} />} />
           <Route path="/upcoming" element={<UpcomingView doc={doc} indexes={indexes} />} />
-          <Route path="/search" element={<SearchView indexes={indexes} />} />
           <Route path="/settings" element={<SettingsView doc={doc} />} />
           <Route path="/tags" element={<TagsView doc={doc} indexes={indexes} />} />
           <Route path="/archived" element={<ArchivedView doc={doc} indexes={indexes} />} />
