@@ -4,23 +4,27 @@ import { Composer } from "../components/Composer";
 import { TaskList } from "../components/TaskList";
 import { TagEditor } from "../components/TagEditor";
 import { Indexes } from "../state/indexes";
-import { isDone } from "../lib/tauri";
+import { useHeldCompletions, withHeld } from "../state/heldCompletions";
+import { Document, isDone } from "../lib/tauri";
 import { todayIso } from "../lib/dates";
 
-type Props = { indexes: Indexes };
+type Props = { doc: Document; indexes: Indexes };
 
-export function TagView({ indexes }: Props) {
+export function TagView({ doc, indexes }: Props) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
+  // Hold just-completed tasks visible until this view is left/refreshed (#recover).
+  const { held, onCompleted, onReopened } = useHeldCompletions(doc.tasks);
 
   if (!id) return <Navigate to="/today" replace />;
 
   const tag = indexes.tagsById.get(id);
   if (!tag) return <p className="view-empty">Tag not found.</p>;
 
-  const tasks = indexes.byTag.get(id) ?? [];
-  const open  = tasks.filter(t => !isDone(t)).length;
+  const active = indexes.byTag.get(id) ?? [];
+  const tasks = withHeld(active, held);
+  const open  = active.filter(t => !isDone(t)).length;
 
   return (
     <section>
@@ -34,7 +38,8 @@ export function TagView({ indexes }: Props) {
       </header>
       <Composer tagsByName={indexes.tagsByName} />
       <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={todayIso()}
-                emptyText="No tasks with this tag yet." />
+                emptyText="No tasks with this tag yet."
+                onCompleted={onCompleted} onReopened={onReopened} />
       {editing && (
         <TagEditor
           tag={tag}

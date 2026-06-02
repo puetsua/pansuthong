@@ -2,12 +2,16 @@ import { Composer } from "../components/Composer";
 import { TaskList } from "../components/TaskList";
 import { Document } from "../lib/tauri";
 import { Indexes } from "../state/indexes";
+import { useHeldCompletions, withHeld } from "../state/heldCompletions";
 import { todayIso } from "../lib/dates";
 
 type Props = { doc: Document; indexes: Indexes };
 
-export function InboxView({ indexes }: Props) {
-  const tasks = indexes.inbox;
+export function InboxView({ doc, indexes }: Props) {
+  // Keep a just-completed task visible (at the bottom) until this view is left or
+  // the page is refreshed, so a mis-click can be undone in place (#recover).
+  const { held, onCompleted, onReopened } = useHeldCompletions(doc.tasks);
+  const tasks = withHeld(indexes.inbox, held);
   return (
     <section>
       <header className="view-header">
@@ -16,7 +20,7 @@ export function InboxView({ indexes }: Props) {
       </header>
       <Composer tagsByName={indexes.tagsByName} />
       <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={todayIso()}
-                emptyText="Inbox is empty." />
+                emptyText="Inbox is empty." onCompleted={onCompleted} onReopened={onReopened} />
     </section>
   );
 }

@@ -161,36 +161,57 @@ function doneDoc(order: SortOrder): Document {
   };
 }
 
-describe("completed tasks leave the active lists (#32, #23)", () => {
-  // Completing a task archives it (done == archived since the field merge), so it
-  // drops out of Today and into `archived` rather than lingering de-emphasized in
-  // the active list.
-  it("priority mode: only open tasks remain, highest-weight first", () => {
+describe("completed-today tasks linger in Today, at the bottom (#recover)", () => {
+  // Completing a task archives it, but in Today it stays until the day rolls over —
+  // de-emphasised and sorted below the open tasks — so a mis-click can be undone.
+  it("priority mode: open tasks first (by weight), then today's completions", () => {
     const ix = buildIndexes(doneDoc("priority"));
-    expect(ix.today("2026-05-28").map(t => t.id)).toEqual(["k_open_hi", "k_open_lo"]);
+    expect(ix.today("2026-05-28").map(t => t.id))
+      .toEqual(["k_open_hi", "k_open_lo", "k_done_hi", "k_done_lo"]);
   });
 
-  it("the completed tasks move to the archived list", () => {
+  it("the completed tasks are also in the archived list", () => {
     const ix = buildIndexes(doneDoc("priority"));
     expect(new Set(ix.archived.map(t => t.id))).toEqual(new Set(["k_done_hi", "k_done_lo"]));
-    expect(ix.today("2026-05-28").length).toBe(2);
+    expect(ix.today("2026-05-28").length).toBe(4);
   });
 
-  it("openCount counts the remaining (all open) tasks", () => {
+  it("openCount counts only the open tasks, not the lingering completions", () => {
     const ix = buildIndexes(doneDoc("priority"));
     expect(openCount(ix.today("2026-05-28"))).toBe(2);
     expect(openCount([])).toBe(0);
   });
+
+  it("a completion from an earlier day is gone; today's lingers at the bottom", () => {
+    const mk = (id: string, completed_at?: string): Task => ({
+      id, title: id, start_date: "2026-05-28", notes: "", tag_ids: [],
+      created_at: "1970-01-01T00:00:00Z", completed_at,
+    });
+    const doc: Document = {
+      version: 2, last_modified: undefined,
+      settings: { theme: "auto", sort_order: "priority" }, tags: [],
+      tasks: [
+        mk("k_open"),
+        mk("k_done_today", "2026-05-28T10:00:00Z"),
+        mk("k_done_yesterday", "2026-05-27T10:00:00Z"),
+      ],
+      template_tasks: [],
+    };
+    expect(buildIndexes(doc).today("2026-05-28").map(t => t.id))
+      .toEqual(["k_open", "k_done_today"]);
+  });
 });
 
 // One open tagged task plus two archived ones (a tagged + an untagged), all
-// scheduled today so they'd otherwise land in the active lists.
+// scheduled today so they'd otherwise land in the active lists. The archived ones
+// were completed on a PRIOR day, so they don't linger in Today (#recover) and the
+// exclusion under test is purely about being archived.
 function archivedDoc(): Document {
   const TODAY_ISO = "2026-05-28";
   const t = (id: string, tags: string[], archived: boolean, archived_at?: string): Task => ({
     id, title: id, start_date: TODAY_ISO, notes: "",
     tag_ids: tags, created_at: "1970-01-01T00:00:00Z",
-    completed_at: archived ? (archived_at ?? "2026-05-28T09:00:00Z") : undefined,
+    completed_at: archived ? (archived_at ?? "2026-05-27T09:00:00Z") : undefined,
   });
   return {
     version: 2,
@@ -201,8 +222,8 @@ function archivedDoc(): Document {
     tags: [{ id: "t_w", name: "w", color: "#000", priority: 1, pinned: true }],
     tasks: [
       t("k_open",  ["t_w"], false),
-      t("k_arch1", ["t_w"], true, "2026-05-28T10:00:00Z"),
-      t("k_arch2", [],      true, "2026-05-28T11:00:00Z"),
+      t("k_arch1", ["t_w"], true, "2026-05-27T10:00:00Z"),
+      t("k_arch2", [],      true, "2026-05-27T11:00:00Z"),
     ],
     template_tasks: [],
   };

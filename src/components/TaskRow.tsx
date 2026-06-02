@@ -11,6 +11,10 @@ type Props = {
   todayIso: string;
   // Archived view: show a single "Restore" action instead of the done-checkbox.
   archived?: boolean;
+  // Notified after a successful toggle so a view can keep a just-completed task
+  // visible (for recovery) and drop it again on reopen (#recover).
+  onCompleted?: (id: string) => void;
+  onReopened?: (id: string) => void;
 };
 
 function whenLabel(t: Task, today: string): { text: string; late: boolean } {
@@ -32,7 +36,7 @@ function diffDays(a: string, b: string): number {
   return Math.round((db - da) / 86400000);
 }
 
-export function TaskRow({ task, tags, todayIso, archived = false }: Props) {
+export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, onReopened }: Props) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const w = whenLabel(task, todayIso);
@@ -44,11 +48,14 @@ export function TaskRow({ task, tags, todayIso, archived = false }: Props) {
 
   const toggle = () => {
     setError(null);
-    api.setTaskDone(task.id, !isDone(task)).catch(err => {
-      // The checkbox reflects the persisted completion state, so it stays put on
-      // failure; surface the error so the user knows the change didn't stick.
-      setError(errorMessage(err));
-    });
+    const next = !isDone(task);
+    api.setTaskDone(task.id, next)
+      .then(() => { if (next) onCompleted?.(task.id); else onReopened?.(task.id); })
+      .catch(err => {
+        // The checkbox reflects the persisted completion state, so it stays put on
+        // failure; surface the error so the user knows the change didn't stick.
+        setError(errorMessage(err));
+      });
   };
 
   // Restore = clear completion, which un-archives the task (completion and

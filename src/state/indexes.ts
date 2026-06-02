@@ -120,17 +120,27 @@ export function buildIndexes(doc: Document): Indexes {
   const tagsByName = new Map<string, Tag>();
   for (const t of doc.tags) tagsByName.set(t.name.toLowerCase(), t);
 
-  const today = (todayIso: string): Task[] => {
-    const list = active.filter(t => {
-      if (t.start_date === todayIso) return true;
-      if (t.due_date) {
-        if (t.due_date === todayIso) return true;
-        if (isoLt(t.due_date, todayIso) && !isDone(t)) return true;
-      }
-      return false;
-    });
-    return sortTasks(list, order, tagsById);
+  // A task completed today lingers in Today (de-emphasised, sorted to the bottom)
+  // until the day rolls over, so a mistaken completion can be undone in place;
+  // older completions are gone. Built from `doc.tasks` (not `active`) so done
+  // tasks are reachable. Other views drop completed tasks on the next visit
+  // instead — that's view-local state, not here.
+  const inToday = (t: Task, todayIso: string): boolean => {
+    if (isDone(t)) {
+      if (t.completed_at?.slice(0, 10) !== todayIso) return false;
+      // Only keep it if it belonged to Today: scheduled today, or due on/before today.
+      return t.start_date === todayIso || (t.due_date != null && t.due_date <= todayIso);
+    }
+    if (t.start_date === todayIso) return true;
+    if (t.due_date) {
+      if (t.due_date === todayIso) return true;
+      if (isoLt(t.due_date, todayIso)) return true; // overdue, still open
+    }
+    return false;
   };
+
+  const today = (todayIso: string): Task[] =>
+    sortTasks(doc.tasks.filter(t => inToday(t, todayIso)), order, tagsById);
 
   return { byTag, today, inbox, archived, templates, tagsById, tagsByName, tasks: active };
 }
