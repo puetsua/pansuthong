@@ -204,7 +204,7 @@ describe("ArchivedView — date-range filter (#92)", () => {
     expect(screen.getByRole("alert")).toBeTruthy();
   });
 
-  it("clears the date range to show all archived tasks", () => {
+  it("shows nothing once the date range is cleared and the search is empty", () => {
     const today = todayIso();
     renderView([
       dated({ id: "r", title: "Recent", completed_at: `${addDaysIso(today, -5)}T12:00:00+08:00` }),
@@ -214,7 +214,22 @@ describe("ArchivedView — date-range filter (#92)", () => {
     expect(rowCount()).toBe(1); // default window hides the old one
     fireEvent.click(screen.getByRole("button", { name: /clear dates/i }));
 
-    expect(rowCount()).toBe(2);
-    expect(screen.getByText("Old")).toBeTruthy();
+    expect(rowCount()).toBe(0);
+    expect(screen.getByText(/list archived tasks/i)).toBeTruthy();
+  });
+
+  it("brings tasks back when a search is typed after clearing the dates", () => {
+    const today = todayIso();
+    renderView([
+      dated({ id: "r", title: "Recent", completed_at: `${addDaysIso(today, -5)}T12:00:00+08:00` }),
+      dated({ id: "o", title: "Old apple", completed_at: `${addDaysIso(today, -300)}T12:00:00+08:00` }),
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /clear dates/i }));
+    expect(rowCount()).toBe(0);
+
+    fireEvent.change(screen.getByLabelText(/search archived/i), { target: { value: "apple" } });
+    expect(rowCount()).toBe(1);
+    expect(screen.getByText("Old apple")).toBeTruthy();
   });
 });

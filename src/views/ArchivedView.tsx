@@ -39,6 +39,9 @@ export function ArchivedView({ indexes }: Props) {
   const invalidRange = from !== "" && to !== "" && from > to;
 
   const filtered = useMemo(() => {
+    // With no search and no date bound, the archive could be enormous — require
+    // an active filter before listing anything.
+    if (!filtering) return [];
     const q = trimmed.toLowerCase();
     return archived.filter(t => {
       if (q && !(t.title.toLowerCase().includes(q) || t.notes.toLowerCase().includes(q))) return false;
@@ -77,7 +80,7 @@ export function ArchivedView({ indexes }: Props) {
         <p className="view-sub">
           {filtering
             ? `${filtered.length} of ${archived.length} archived match the filter`
-            : `${archived.length} archived · Restore brings a task back to the active lists`}
+            : `${archived.length} archived · search or pick a date range to list them`}
         </p>
       </header>
 
@@ -119,7 +122,7 @@ export function ArchivedView({ indexes }: Props) {
       )}
 
       <TaskList tasks={pageItems} tags={indexes.tagsById} todayIso={today}
-                emptyText={filtering ? "No archived tasks match the filter." : "No archived tasks yet."}
+                emptyText={filtering ? "No archived tasks match the filter." : "Search or pick a date range to list archived tasks."}
                 archived />
 
       {totalPages > 1 && (
