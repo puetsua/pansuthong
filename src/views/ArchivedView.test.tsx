@@ -110,18 +110,18 @@ const setDate = (label: RegExp, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
 describe("ArchivedView — date-range filter (#92)", () => {
-  it("defaults to the last 30 days of completions on entry", () => {
+  it("defaults to today's completions only on entry", () => {
     const today = todayIso();
     renderView([
-      dated({ id: "r", title: "Recent", completed_at: `${addDaysIso(today, -5)}T12:00:00+08:00` }),
-      dated({ id: "o", title: "Old", completed_at: `${addDaysIso(today, -60)}T12:00:00+08:00` }),
+      dated({ id: "n", title: "Today done", completed_at: `${today}T12:00:00+08:00` }),
+      dated({ id: "y", title: "Yesterday done", completed_at: `${addDaysIso(today, -1)}T12:00:00+08:00` }),
     ]);
 
     expect(rowCount()).toBe(1);
-    expect(screen.getByText("Recent")).toBeTruthy();
-    expect(screen.queryByText("Old")).toBeNull();
-    // The inputs are pre-filled with the 30-day window.
-    expect((screen.getByLabelText(/from date/i) as HTMLInputElement).value).toBe(addDaysIso(today, -30));
+    expect(screen.getByText("Today done")).toBeTruthy();
+    expect(screen.queryByText("Yesterday done")).toBeNull();
+    // Both inputs are pre-filled with today (a single-day window).
+    expect((screen.getByLabelText(/from date/i) as HTMLInputElement).value).toBe(today);
     expect((screen.getByLabelText(/to date/i) as HTMLInputElement).value).toBe(today);
   });
 
@@ -207,7 +207,7 @@ describe("ArchivedView — date-range filter (#92)", () => {
   it("shows nothing once the date range is cleared and the search is empty", () => {
     const today = todayIso();
     renderView([
-      dated({ id: "r", title: "Recent", completed_at: `${addDaysIso(today, -5)}T12:00:00+08:00` }),
+      dated({ id: "r", title: "Recent", completed_at: `${today}T12:00:00+08:00` }),
       dated({ id: "o", title: "Old", completed_at: `${addDaysIso(today, -300)}T12:00:00+08:00` }),
     ]);
 
@@ -221,7 +221,7 @@ describe("ArchivedView — date-range filter (#92)", () => {
   it("brings tasks back when a search is typed after clearing the dates", () => {
     const today = todayIso();
     renderView([
-      dated({ id: "r", title: "Recent", completed_at: `${addDaysIso(today, -5)}T12:00:00+08:00` }),
+      dated({ id: "r", title: "Recent", completed_at: `${today}T12:00:00+08:00` }),
       dated({ id: "o", title: "Old apple", completed_at: `${addDaysIso(today, -300)}T12:00:00+08:00` }),
     ]);
 

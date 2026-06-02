@@ -8,9 +8,9 @@ type Props = { doc: Document; indexes: Indexes };
 
 // Page sizes offered for the archived list (#92).
 const PAGE_SIZES = [10, 30, 50] as const;
-// On entry, show only the last month's completions; the reader widens via the
-// date inputs or "Clear dates".
-const DEFAULT_RANGE_DAYS = 30;
+// On entry, show only today's completions; the reader widens via the date inputs
+// or "Clear dates".
+const DEFAULT_RANGE_DAYS = 0;
 
 type DateField = "completed" | "due" | "created";
 
