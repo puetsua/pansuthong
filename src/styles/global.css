@@ -86,7 +86,12 @@ button {
   font-weight: 600;
 }
 .task-timer-total { flex-shrink: 0; font-size: 0.72rem; color: var(--c-text-muted); font-variant-numeric: tabular-nums; }
-.task-row[data-timing="true"] { border-color: var(--c-accent); }
+/* A running timer highlights the whole row so it stands out at a glance (#81). */
+.task-row[data-timing="true"] {
+  border-color: var(--c-accent);
+  background: var(--c-accent-bg);
+  box-shadow: inset 3px 0 0 var(--c-accent);
+}
 
 .task-empty { color: var(--c-text-subtle); text-align: center; padding: var(--space-6) 0; }
 
