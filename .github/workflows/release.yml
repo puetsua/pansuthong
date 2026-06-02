@@ -93,10 +93,20 @@ jobs:
 
       - run: npm run tauri android build -- --apk
 
+      # Tauri names the APK `app-universal-release-unsigned.apk`; stage it under a
+      # versioned name so the release asset matches the desktop installer.
+      - name: Stage APK with versioned name
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          mkdir -p dist-apk
+          cp src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk \
+             "dist-apk/Pansutong_${VERSION}_universal-unsigned.apk"
+
       - name: Publish APK to the release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           prerelease: ${{ contains(github.ref_name, '-') }}
           fail_on_unmatched_files: true
-          files: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          files: dist-apk/*.apk
