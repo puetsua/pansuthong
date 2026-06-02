@@ -45,7 +45,9 @@ export function TimeTracking({ task }: Props) {
 
   const openAdd = () => {
     setEditingId(null);
-    setDraft({ start: toLocalInput(now - 30 * 60_000), end: toLocalInput(now) });
+    // Sample the clock now: `now` only ticks while a timer runs, so it can be stale.
+    const t = Date.now();
+    setDraft({ start: toLocalInput(t - 30 * 60_000), end: toLocalInput(t) });
     setAdding(true);
   };
   const submitAdd = () => {

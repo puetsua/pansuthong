@@ -312,13 +312,17 @@ pub fn update_time_entry(input: UpdateTimeEntryInput, state: State<'_, AppState>
         let t = task_mut(d, &input.task_id)?;
         let e = t.time_entries.iter_mut().find(|e| e.id == input.entry_id)
             .ok_or_else(|| AppError::NotFound(format!("time entry {}", input.entry_id)))?;
-        if let Some(s) = input.start { e.start = s; }
-        if let Some(en) = input.end  { e.end = Some(en); }
-        if let Some(en) = e.end {
-            if en <= e.start {
+        // Validate the *candidate* values before mutating, so a rejected edit leaves
+        // the entry untouched — `AppState::write` doesn't roll back on Err.
+        let new_start = input.start.unwrap_or(e.start);
+        let new_end = match input.end { Some(en) => Some(en), None => e.end };
+        if let Some(en) = new_end {
+            if en <= new_start {
                 return Err(AppError::Invalid("time entry end must be after start".into()));
             }
         }
+        e.start = new_start;
+        e.end = new_end;
         t.updated_at = now_ms();
         Ok(t.clone())
     })?;
