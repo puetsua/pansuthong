@@ -189,6 +189,21 @@ describe("ArchivedView — date-range filter (#92)", () => {
     expect(screen.queryByText("Buy eggs")).toBeNull();
   });
 
+  it("constrains the pickers so To can't precede From (and vice versa)", () => {
+    renderView([dated({})]);
+    setDate(/from date/i, "2026-05-01");
+    setDate(/to date/i, "2026-06-01");
+    expect(screen.getByLabelText(/from date/i).getAttribute("max")).toBe("2026-06-01");
+    expect(screen.getByLabelText(/to date/i).getAttribute("min")).toBe("2026-05-01");
+  });
+
+  it("flags an invalid range where To is before From", () => {
+    renderView([dated({ completed_at: "2026-05-15T12:00:00+08:00" })]);
+    setDate(/from date/i, "2026-06-01");
+    setDate(/to date/i, "2026-05-01");
+    expect(screen.getByRole("alert")).toBeTruthy();
+  });
+
   it("clears the date range to show all archived tasks", () => {
     const today = todayIso();
     renderView([

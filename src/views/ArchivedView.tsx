@@ -34,6 +34,9 @@ export function ArchivedView({ indexes }: Props) {
 
   const trimmed = query.trim();
   const filtering = trimmed !== "" || from !== "" || to !== "";
+  // A bounded range running backwards matches nothing; flag it instead of
+  // silently showing an empty list.
+  const invalidRange = from !== "" && to !== "" && from > to;
 
   const filtered = useMemo(() => {
     const q = trimmed.toLowerCase();
@@ -98,18 +101,22 @@ export function ArchivedView({ indexes }: Props) {
         </label>
         <label className="archived-filter">
           <span>From</span>
-          <input type="date" aria-label="From date" value={from}
+          <input type="date" aria-label="From date" value={from} max={to || undefined}
                  onChange={e => onFrom(e.currentTarget.value)} />
         </label>
         <label className="archived-filter">
           <span>To</span>
-          <input type="date" aria-label="To date" value={to}
+          <input type="date" aria-label="To date" value={to} min={from || undefined}
                  onChange={e => onTo(e.currentTarget.value)} />
         </label>
         {(from || to) && (
           <button type="button" className="archived-clear" onClick={clearDates}>Clear dates</button>
         )}
       </div>
+
+      {invalidRange && (
+        <p className="composer-error" role="alert">“To” date can’t be earlier than “From” date.</p>
+      )}
 
       <TaskList tasks={pageItems} tags={indexes.tagsById} todayIso={today}
                 emptyText={filtering ? "No archived tasks match the filter." : "No archived tasks yet."}
