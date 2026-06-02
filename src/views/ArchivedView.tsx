@@ -53,7 +53,7 @@ export function ArchivedView({ indexes }: Props) {
       }
       return true;
     });
-  }, [archived, trimmed, dateField, from, to]);
+  }, [archived, filtering, trimmed, dateField, from, to]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   // Clamp: the list can shrink under the current page when a filter narrows it
