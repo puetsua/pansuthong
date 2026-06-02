@@ -19,25 +19,27 @@
   <!-- App icon background -->
   <rect x="64" y="64" width="896" height="896" rx="210" fill="url(#bg)"/>
 
-  <!-- Main tag shape -->
-  <g filter="url(#shadow)">
-    <path d="M512 196
-             C538 196 563 206 582 224
-             L734 376
-             C754 396 765 424 765 452
-             V708
-             C765 774 711 828 645 828
-             H379
-             C313 828 259 774 259 708
-             V452
-             C259 424 270 396 290 376
-             L442 224
-             C461 206 486 196 512 196Z" fill="url(#tag)"/>
+  <g transform="translate(512 512) scale(0.82) translate(-512 -512)">
+    <!-- Main tag shape -->
+    <g filter="url(#shadow)">
+      <path d="M512 196
+               C538 196 563 206 582 224
+               L734 376
+               C754 396 765 424 765 452
+               V708
+               C765 774 711 828 645 828
+               H379
+               C313 828 259 774 259 708
+               V452
+               C259 424 270 396 290 376
+               L442 224
+               C461 206 486 196 512 196Z" fill="url(#tag)"/>
+    </g>
+
+    <!-- Tag hole -->
+    <circle cx="512" cy="337" r="54" fill="#5B20BF"/>
+
+    <!-- Check mark -->
+    <path d="M396 552 L489 645 L651 483" stroke="#7A35E8" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
-
-  <!-- Tag hole -->
-  <circle cx="512" cy="337" r="54" fill="#5B20BF"/>
-
-  <!-- Check mark -->
-  <path d="M396 552 L489 645 L651 483" stroke="#7A35E8" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
