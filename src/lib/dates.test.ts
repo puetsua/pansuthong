@@ -1,5 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { addDaysIso, daysBetweenIso, formatIsoLocal } from "./dates";
+import { addDaysIso, daysBetweenIso, formatIsoLocal, todayIso } from "./dates";
+
+describe("todayIso (day-start hour)", () => {
+  it("returns the plain calendar date with the default (midnight) rollover", () => {
+    expect(todayIso(new Date(2026, 5, 2, 3, 0, 0))).toBe("2026-06-02");
+    expect(todayIso(new Date(2026, 5, 2, 3, 0, 0), 0)).toBe("2026-06-02");
+  });
+
+  it("counts the hours before the start hour as still the previous day", () => {
+    // 03:00 with a 4am day start -> the day hasn't rolled over yet.
+    expect(todayIso(new Date(2026, 5, 2, 3, 0, 0), 4)).toBe("2026-06-01");
+    // 03:59 is the last minute of the previous logical day.
+    expect(todayIso(new Date(2026, 5, 2, 3, 59, 0), 4)).toBe("2026-06-01");
+  });
+
+  it("rolls the day over exactly at the start hour", () => {
+    expect(todayIso(new Date(2026, 5, 2, 4, 0, 0), 4)).toBe("2026-06-02");
+    expect(todayIso(new Date(2026, 5, 2, 5, 30, 0), 4)).toBe("2026-06-02");
+  });
+
+  it("treats the rest of the day (up to midnight) as the same logical day", () => {
+    expect(todayIso(new Date(2026, 5, 2, 23, 59, 0), 4)).toBe("2026-06-02");
+  });
+});
 
 describe("addDaysIso / daysBetweenIso (#71)", () => {
   it("addDaysIso adds days across month boundaries", () => {

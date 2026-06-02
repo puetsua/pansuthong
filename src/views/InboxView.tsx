@@ -3,7 +3,6 @@ import { TaskList } from "../components/TaskList";
 import { Document } from "../lib/tauri";
 import { Indexes } from "../state/indexes";
 import { useHeldCompletions, withHeld } from "../state/heldCompletions";
-import { todayIso } from "../lib/dates";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -18,8 +17,8 @@ export function InboxView({ doc, indexes }: Props) {
         <h1>Inbox</h1>
         <p className="view-sub">Tasks with no pinned tag</p>
       </header>
-      <Composer tagsByName={indexes.tagsByName} />
-      <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={todayIso()}
+      <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} />
+      <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={indexes.todayIso}
                 emptyText="Inbox is empty." onCompleted={onCompleted} onReopened={onReopened} />
     </section>
   );

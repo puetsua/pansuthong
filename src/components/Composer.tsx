@@ -8,14 +8,16 @@ import { resolveTagIds } from "../state/quickAdd";
 
 type Props = {
   startDate?: string;
+  /** The logical "today" used to resolve relative dates ("today"/"tomorrow"). */
+  todayIso?: string;
   tagsByName: Map<string, Tag>;
 };
 
-export function Composer({ startDate, tagsByName }: Props) {
+export function Composer({ startDate, todayIso: today = todayIso(), tagsByName }: Props) {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const parsed = useMemo(() => parseComposer(input, todayIso()), [input]);
+  const parsed = useMemo(() => parseComposer(input, today), [input, today]);
   // The user typed something, but it parsed to only tags/dates with no title —
   // explain why Enter/Add does nothing instead of failing silently (#51).
   const needsTitle = input.trim().length > 0 && !parsed.title;

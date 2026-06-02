@@ -20,11 +20,18 @@ export function formatIsoLocal(ts: string | number | undefined | null): string {
   );
 }
 
-/** YYYY-MM-DD in local time. */
-export function todayIso(now: Date = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
+/**
+ * YYYY-MM-DD of the current logical day in local time. `dayStartHour` (0–23, the
+ * user's configured day-start) shifts when the day rolls over: with hour 4, the
+ * stretch from 00:00 to 03:59 still counts as the previous calendar day, so the
+ * Today view rotates at 4am instead of midnight. The default (0) is plain
+ * midnight rollover, identical to a normal calendar date.
+ */
+export function todayIso(now: Date = new Date(), dayStartHour = 0): string {
+  const at = dayStartHour ? new Date(now.getTime() - dayStartHour * 3_600_000) : now;
+  const y = at.getFullYear();
+  const m = String(at.getMonth() + 1).padStart(2, "0");
+  const d = String(at.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 

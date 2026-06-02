@@ -3,7 +3,6 @@ import { api, Document } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { TemplateRow } from "../components/TemplateRow";
 import { Indexes } from "../state/indexes";
-import { todayIso } from "../lib/dates";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -27,7 +26,7 @@ export function TemplatesView({ indexes }: Props) {
 
   const templates = indexes.templates;
   const count = templates.length;
-  const today = todayIso();
+  const today = indexes.todayIso;
   return (
     <section>
       <header className="view-header">

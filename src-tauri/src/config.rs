@@ -31,6 +31,11 @@ pub struct Settings {
     /// How many days ahead the Upcoming view looks. The UI bounds it to 1..=365.
     #[serde(default = "default_upcoming_days")]
     pub upcoming_days: u32,
+    /// Hour (0..=23) at which the logical day rolls over in the Today view. 0 =
+    /// midnight (the default and prior behavior); 4 = a 4am rollover for night
+    /// owls. `#[serde(default)]` so older config.json files still load.
+    #[serde(default)]
+    pub day_start_hour: u32,
     /// Color pre-filled when creating a new tag (#79). A hex string like
     /// "#475569". `#[serde(default)]` so older config.json files still load.
     #[serde(default = "default_tag_color")]
@@ -63,6 +68,7 @@ impl Default for Settings {
             theme: "auto".into(),
             sort_order: default_sort_order(),
             upcoming_days: default_upcoming_days(),
+            day_start_hour: 0,
             default_tag_color: default_tag_color(),
             default_tag_priority: 0,
         }
@@ -375,6 +381,17 @@ mod tests {
         assert_eq!(s.theme, "dark");
         assert_eq!(s.default_tag_color, "#475569");
         assert_eq!(s.default_tag_priority, 0);
+        // A config.json predating the day-start-hour setting defaults to midnight (0).
+        assert_eq!(s.day_start_hour, 0);
+    }
+
+    #[test]
+    fn settings_round_trip_preserves_day_start_hour() {
+        let mut s = Settings::default();
+        s.day_start_hour = 4;
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.day_start_hour, 4);
     }
 
     #[test]

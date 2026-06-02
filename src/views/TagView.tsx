@@ -6,7 +6,6 @@ import { TagEditor } from "../components/TagEditor";
 import { Indexes } from "../state/indexes";
 import { useHeldCompletions, withHeld } from "../state/heldCompletions";
 import { Document, isDone } from "../lib/tauri";
-import { todayIso } from "../lib/dates";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -36,8 +35,8 @@ export function TagView({ doc, indexes }: Props) {
         </div>
         <p className="view-sub">{open} open / {tasks.length} total</p>
       </header>
-      <Composer tagsByName={indexes.tagsByName} />
-      <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={todayIso()}
+      <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} />
+      <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={indexes.todayIso}
                 emptyText="No tasks with this tag yet."
                 onCompleted={onCompleted} onReopened={onReopened} />
       {editing && (

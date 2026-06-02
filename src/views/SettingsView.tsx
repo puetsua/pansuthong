@@ -4,11 +4,19 @@ import { errorMessage } from "../lib/errors";
 import { isAndroid } from "../lib/platform";
 import {
   clampUpcomingDays, upcomingDays, UPCOMING_DAYS_MAX, UPCOMING_DAYS_MIN,
+  dayStartHour, DAY_START_HOUR_MAX, DAY_START_HOUR_MIN,
   defaultTagPriority,
 } from "../lib/settings";
 import { clampWeight, WEIGHT_MAX, WEIGHT_MIN } from "../lib/tags";
 
 type Props = { doc: Document };
+
+/** A 24-hour clock hour as a friendly label, e.g. 0 -> "12:00 AM", 16 -> "4:00 PM". */
+function hourLabel(h: number): string {
+  const period = h < 12 ? "AM" : "PM";
+  const twelve = h % 12 === 0 ? 12 : h % 12;
+  return `${twelve}:00 ${period}`;
+}
 
 export function SettingsView({ doc }: Props) {
   // Settings writes used to be fire-and-forget; surface a failure so a click that
@@ -39,6 +47,11 @@ export function SettingsView({ doc }: Props) {
     setDraftDays(String(n));
     if (n !== days) setUpcoming(n);
   };
+
+  // Day-start hour: the Today view rolls over at this hour instead of midnight,
+  // for people who treat the late-night hours as still "yesterday".
+  const startHour = dayStartHour(doc.settings);
+  const setStartHour = (h: number) => { void applySettings({ day_start_hour: h }); };
 
   // New-tag default weight (#79): commits on blur/Enter. (The default color is
   // fixed, not user-configurable — new tags start from a neutral gray.)
@@ -165,6 +178,29 @@ export function SettingsView({ doc }: Props) {
             onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
           />
         </div>
+      </section>
+
+      <section className="settings-section">
+        <h2>Day start</h2>
+        <p className="view-sub">
+          When the Today view rolls over to the next day. Set this later than midnight if
+          you work past midnight and still consider it the same day.
+        </p>
+        <label className="te-field">
+          <span>Day starts at</span>
+          <select
+            className="weight-input"
+            aria-label="Day start hour"
+            value={startHour}
+            onChange={e => setStartHour(Number(e.currentTarget.value))}
+          >
+            {Array.from({ length: DAY_START_HOUR_MAX - DAY_START_HOUR_MIN + 1 }, (_, i) => i + DAY_START_HOUR_MIN).map(h => (
+              <option key={h} value={h}>
+                {hourLabel(h)}{h === 0 ? " (midnight)" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
       </section>
 
       <section className="settings-section">

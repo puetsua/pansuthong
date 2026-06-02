@@ -6,22 +6,25 @@ import { errorMessage } from "../lib/errors";
 import { parseComposer } from "../state/parse";
 import { resolveTagIds } from "../state/quickAdd";
 import { todayIso } from "../lib/dates";
+import { dayStartHour } from "../lib/settings";
 import { ComposerPreview } from "../components/ComposerPreview";
 
 export function QuickCapture() {
   const [input, setInput] = useState("");
   const [tagsByName, setTagsByName] = useState<Map<string, Tag>>(new Map());
+  const [startHour, setStartHour] = useState(0);
   const [error, setError] = useState<string | null>(null);
   // Confirmation shown after a "keep open" (Shift+Enter) save, since the only
   // other signal is the input clearing — easy to miss when capturing rapidly (#51).
   const [savedFlash, setSavedFlash] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const parsed = useMemo(() => parseComposer(input, todayIso()), [input]);
+  // Resolve "today"/"tomorrow" against the logical day (honors the day-start hour).
+  const parsed = useMemo(() => parseComposer(input, todayIso(new Date(), startHour)), [input, startHour]);
   // Typed something that's only tags/dates — tell the user a title is required (#51).
   const needsTitle = input.trim().length > 0 && !parsed.title;
 
-  // Load tags (for #tag de-dup) on mount and whenever the store changes.
+  // Load tags (for #tag de-dup) and the day-start hour on mount and on each store change.
   useEffect(() => {
     const loadTags = async () => {
       try {
@@ -29,6 +32,7 @@ export function QuickCapture() {
         const m = new Map<string, Tag>();
         for (const t of doc.tags) m.set(t.name.toLowerCase(), t);
         setTagsByName(m);
+        setStartHour(dayStartHour(doc.settings));
       } catch (err) {
         setError(errorMessage(err));
       }

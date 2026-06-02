@@ -19,6 +19,24 @@ export function clampUpcomingDays(raw: string | number): number {
   return Math.max(UPCOMING_DAYS_MIN, Math.min(UPCOMING_DAYS_MAX, n));
 }
 
+/** Default hour the logical day rolls over at (0 = midnight, current behavior). */
+export const DAY_START_HOUR_DEFAULT = 0;
+/** Inclusive bounds for the configurable day-start hour (mirrors the Rust check). */
+export const DAY_START_HOUR_MIN = 0;
+export const DAY_START_HOUR_MAX = 23;
+
+/** The hour (0–23) at which "today" rolls over for this document (default midnight). */
+export function dayStartHour(settings: Settings): number {
+  return clampDayStartHour(settings.day_start_hour ?? DAY_START_HOUR_DEFAULT);
+}
+
+/** Parse a free-typed hour to an integer clamped to 0..23. */
+export function clampDayStartHour(raw: string | number): number {
+  const n = typeof raw === "number" ? Math.trunc(raw) : parseInt(raw, 10);
+  if (Number.isNaN(n)) return DAY_START_HOUR_DEFAULT;
+  return Math.max(DAY_START_HOUR_MIN, Math.min(DAY_START_HOUR_MAX, n));
+}
+
 /** Color a new tag starts with when the user hasn't set a preference (#79). */
 export const DEFAULT_TAG_COLOR = "#475569";
 /** Priority weight a new tag starts with when unset (#79). */

@@ -389,6 +389,7 @@ pub fn update_tag(input: UpdateTagInput, state: State<'_, AppState>, app: AppHan
 /// Bounds for the configurable Upcoming horizon (#25).
 const UPCOMING_DAYS_MIN: u32 = 1;
 const UPCOMING_DAYS_MAX: u32 = 365;
+const DAY_START_HOUR_MAX: u32 = 23;
 
 /// Bounds for a tag priority weight, mirrored by the configurable default (#79).
 const TAG_WEIGHT_MIN: i64 = -9999;
@@ -407,6 +408,7 @@ pub struct UpdateSettingsInput {
     #[serde(default)] pub theme: Option<String>,
     #[serde(default)] pub sort_order: Option<String>,
     #[serde(default)] pub upcoming_days: Option<u32>,
+    #[serde(default)] pub day_start_hour: Option<u32>,
     #[serde(default)] pub default_tag_color: Option<String>,
     #[serde(default)] pub default_tag_priority: Option<i64>,
 }
@@ -437,6 +439,14 @@ pub fn update_settings(
                 )));
             }
             s.upcoming_days = n;
+        }
+        if let Some(h) = input.day_start_hour {
+            if h > DAY_START_HOUR_MAX {
+                return Err(AppError::Invalid(format!(
+                    "day_start_hour must be 0..={DAY_START_HOUR_MAX}, got {h}"
+                )));
+            }
+            s.day_start_hour = h;
         }
         if let Some(color) = input.default_tag_color {
             if !is_hex_color(&color) {
@@ -1001,6 +1011,15 @@ mod tests {
         assert_eq!(v.upcoming_days, Some(30));
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.upcoming_days, None);
+    }
+
+    #[test]
+    fn update_settings_input_parses_day_start_hour() {
+        // Pins the snake_case `day_start_hour` key that the JS api sends.
+        let v: UpdateSettingsInput = serde_json::from_str(r#"{"day_start_hour":4}"#).unwrap();
+        assert_eq!(v.day_start_hour, Some(4));
+        let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(absent.day_start_hour, None);
     }
 
     #[test]

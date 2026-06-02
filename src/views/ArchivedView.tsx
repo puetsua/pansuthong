@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Document, Task } from "../lib/tauri";
 import { TaskList } from "../components/TaskList";
 import { Indexes } from "../state/indexes";
-import { todayIso, addDaysIso } from "../lib/dates";
+import { addDaysIso } from "../lib/dates";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -23,7 +23,7 @@ function taskDate(t: Task, field: DateField): string | undefined {
 
 export function ArchivedView({ indexes }: Props) {
   const archived = indexes.archived;
-  const today = todayIso();
+  const today = indexes.todayIso;
 
   const [query, setQuery] = useState("");
   const [dateField, setDateField] = useState<DateField>("completed");

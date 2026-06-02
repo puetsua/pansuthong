@@ -1,6 +1,5 @@
 import { NavLink } from "react-router-dom";
 import { Indexes, openCount } from "../state/indexes";
-import { todayIso } from "../lib/dates";
 
 type Props = { indexes: Indexes };
 
@@ -11,7 +10,7 @@ const TABS = [
 ] as const;
 
 export function BottomTabs({ indexes }: Props) {
-  const todayCount = openCount(indexes.today(todayIso()));
+  const todayCount = openCount(indexes.today(indexes.todayIso));
   const inboxCount = openCount(indexes.inbox);
 
   return (

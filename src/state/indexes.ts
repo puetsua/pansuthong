@@ -1,9 +1,12 @@
 import { Document, SortOrder, Tag, Task, TemplateTask, isArchived, isDone } from "../lib/tauri";
-import { isoLt } from "../lib/dates";
+import { isoLt, todayIso as computeTodayIso } from "../lib/dates";
+import { dayStartHour } from "../lib/settings";
 
 export type Indexes = {
   byTag:     Map<string, Task[]>;
   today:     (todayIso: string) => Task[];
+  /** The current logical day (YYYY-MM-DD), honoring the day-start-hour setting. */
+  todayIso:  string;
   inbox:     Task[];
   /** Archived tasks (newest-archived first); excluded from every active list above. */
   archived:     Task[];
@@ -142,5 +145,8 @@ export function buildIndexes(doc: Document): Indexes {
   const today = (todayIso: string): Task[] =>
     sortTasks(doc.tasks.filter(t => inToday(t, todayIso)), order, tagsById);
 
-  return { byTag, today, inbox, archived, templates, tagsById, tagsByName, tasks: active };
+  // One logical "today" for the whole app, rolling over at the configured hour.
+  const todayIso = computeTodayIso(new Date(), dayStartHour(doc.settings));
+
+  return { byTag, today, todayIso, inbox, archived, templates, tagsById, tagsByName, tasks: active };
 }

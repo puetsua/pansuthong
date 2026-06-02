@@ -7,6 +7,7 @@ export type Settings = {
   theme: "auto" | "light" | "dark";
   sort_order: SortOrder;
   upcoming_days?: number; // how many days ahead Upcoming looks; 1..365, default 14
+  day_start_hour?: number; // hour the logical day rolls over; 0..23, default 0 (midnight)
   default_tag_color?: string;    // color pre-filled for a new tag; hex, default "#10b981" (#79)
   default_tag_priority?: number; // weight pre-filled for a new tag; -9999..9999, default 0 (#79)
 };
@@ -137,6 +138,7 @@ export const api = {
   updateTag:       (input: { id: string; name?: string; color?: string; priority?: number; pinned?: boolean }) =>
                                      invoke<Tag>("update_tag", { input }),
   updateSettings: (input: { theme?: "auto" | "light" | "dark"; sort_order?: SortOrder; upcoming_days?: number;
+                            day_start_hour?: number;
                             default_tag_color?: string; default_tag_priority?: number }) =>
                                    invoke<void>("update_settings", { input }),
   listConflicts:    ()             => invoke<string[]>("list_conflicts"),

@@ -3,13 +3,12 @@ import { TaskList } from "../components/TaskList";
 import { effectivePriority, Indexes } from "../state/indexes";
 import { useHeldCompletions } from "../state/heldCompletions";
 import { Document, Task } from "../lib/tauri";
-import { todayIso } from "../lib/dates";
 import { upcomingDays } from "../lib/settings";
 
 type Props = { doc: Document; indexes: Indexes };
 
 export function UpcomingView({ doc, indexes }: Props) {
-  const today = todayIso();
+  const today = indexes.todayIso;
   const horizon = upcomingDays(doc.settings);
   // Hold just-completed tasks visible (at the bottom of their day) until this view
   // is left or refreshed, so a mis-click can be undone in place (#recover).

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Document, Tag } from "../lib/tauri";
 import { Indexes, openCount } from "../state/indexes";
-import { todayIso } from "../lib/dates";
 import { SyncStatus } from "../components/SyncStatus";
 import { TagEditor } from "../components/TagEditor";
 
@@ -12,7 +11,7 @@ type Props = { doc: Document; indexes: Indexes };
 type EditorState = { tag: Tag | null } | null;
 
 export function Sidebar({ doc, indexes }: Props) {
-  const today = todayIso();
+  const today = indexes.todayIso;
   const todayCount = openCount(indexes.today(today));
   const inboxCount = openCount(indexes.inbox);
 

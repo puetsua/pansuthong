@@ -10,6 +10,11 @@ import {
   defaultTagPriority,
   DEFAULT_TAG_COLOR,
   DEFAULT_TAG_PRIORITY,
+  clampDayStartHour,
+  dayStartHour,
+  DAY_START_HOUR_DEFAULT,
+  DAY_START_HOUR_MAX,
+  DAY_START_HOUR_MIN,
 } from "./settings";
 import { WEIGHT_MAX } from "./tags";
 
@@ -49,6 +54,44 @@ describe("upcomingDays", () => {
 
   it("clamps an out-of-range stored value defensively", () => {
     expect(upcomingDays(settings(99999))).toBe(UPCOMING_DAYS_MAX);
+  });
+});
+
+describe("clampDayStartHour", () => {
+  it("keeps in-range hours", () => {
+    expect(clampDayStartHour("0")).toBe(0);
+    expect(clampDayStartHour(4)).toBe(4);
+    expect(clampDayStartHour("23")).toBe(23);
+  });
+
+  it("clamps below/above the 0..23 range", () => {
+    expect(clampDayStartHour(-1)).toBe(DAY_START_HOUR_MIN);
+    expect(clampDayStartHour("24")).toBe(DAY_START_HOUR_MAX);
+    expect(clampDayStartHour(99)).toBe(DAY_START_HOUR_MAX);
+  });
+
+  it("falls back to the default on non-numeric input", () => {
+    expect(clampDayStartHour("abc")).toBe(DAY_START_HOUR_DEFAULT);
+    expect(clampDayStartHour("")).toBe(DAY_START_HOUR_DEFAULT);
+  });
+
+  it("truncates fractional input", () => {
+    expect(clampDayStartHour(4.9)).toBe(4);
+  });
+});
+
+describe("dayStartHour", () => {
+  it("defaults to midnight (0) when unset (older documents)", () => {
+    expect(dayStartHour(settings())).toBe(DAY_START_HOUR_DEFAULT);
+    expect(DAY_START_HOUR_DEFAULT).toBe(0);
+  });
+
+  it("uses the configured hour when present", () => {
+    expect(dayStartHour({ ...settings(), day_start_hour: 4 })).toBe(4);
+  });
+
+  it("clamps an out-of-range stored value defensively", () => {
+    expect(dayStartHour({ ...settings(), day_start_hour: 99 })).toBe(DAY_START_HOUR_MAX);
   });
 });
 
