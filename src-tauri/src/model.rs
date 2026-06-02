@@ -132,10 +132,10 @@ pub struct Task {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub due_time: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub scheduled_date: Option<NaiveDate>,
-    /// Optional time-of-day for `scheduled_date`, "HH:MM" local wall-clock (#93).
+    pub start_date: Option<NaiveDate>,
+    /// Optional time-of-day for `start_date`, "HH:MM" local wall-clock (#93).
     #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub scheduled_time: Option<String>,
+    pub start_time: Option<String>,
     #[serde(default)]
     pub notes: String,
     #[serde(default)]
@@ -178,9 +178,10 @@ pub struct TemplateTask {
     /// The spawned task's due date is today + this many days. `None` = no due date.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub due_offset_days: Option<i64>,
-    /// The spawned task's scheduled date is today + this many days. `None` = none.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub scheduled_offset_days: Option<i64>,
+    /// The spawned task's start date is today + this many days. `None` = none.
+    /// Legacy files wrote `scheduled_offset_days`; the alias keeps them loading (#renamed).
+    #[serde(skip_serializing_if = "Option::is_none", default, alias = "scheduled_offset_days")]
+    pub start_offset_days: Option<i64>,
 }
 
 impl TemplateTask {
@@ -196,7 +197,7 @@ impl TemplateTask {
             created_at: c.created_at,
             updated_at: c.updated_at,
             due_offset_days: c.due_offset_days,
-            scheduled_offset_days: c.scheduled_offset_days,
+            start_offset_days: c.start_offset_days,
         }
     }
 }
@@ -217,10 +218,11 @@ struct TaskCompat {
     due_date: Option<NaiveDate>,
     #[serde(default)]
     due_time: Option<String>,
-    #[serde(default)]
-    scheduled_date: Option<NaiveDate>,
-    #[serde(default)]
-    scheduled_time: Option<String>,
+    // Legacy files wrote `scheduled_date`/`scheduled_time`; aliases keep them loading (#renamed).
+    #[serde(default, alias = "scheduled_date")]
+    start_date: Option<NaiveDate>,
+    #[serde(default, alias = "scheduled_time")]
+    start_time: Option<String>,
     #[serde(default)]
     notes: String,
     #[serde(default)]
@@ -239,8 +241,8 @@ struct TaskCompat {
     is_template: bool,
     #[serde(default)]
     due_offset_days: Option<i64>,
-    #[serde(default)]
-    scheduled_offset_days: Option<i64>,
+    #[serde(default, alias = "scheduled_offset_days")]
+    start_offset_days: Option<i64>,
 }
 
 impl From<TaskCompat> for Task {
@@ -253,8 +255,8 @@ impl From<TaskCompat> for Task {
             title: c.title,
             due_date: c.due_date,
             due_time: c.due_time,
-            scheduled_date: c.scheduled_date,
-            scheduled_time: c.scheduled_time,
+            start_date: c.start_date,
+            start_time: c.start_time,
             notes: c.notes,
             tag_ids: c.tag_ids,
             created_at: c.created_at,
@@ -396,13 +398,13 @@ impl Document {
         !task.tag_ids.iter().any(|id| self.tags.iter().any(|t| t.id == *id && t.pinned))
     }
 
-    /// Today: scheduled today, OR (due < today AND !done), OR due == today.
+    /// Today: starting today, OR (due < today AND !done), OR due == today.
     /// Archived tasks never appear in active views. (Templates live in their own
     /// list, so `tasks` no longer contains any.)
     pub fn tasks_today(&self, today: NaiveDate) -> Vec<&Task> {
         self.tasks.iter().filter(|t| {
             if t.archived() { return false; }
-            if t.scheduled_date == Some(today) { return true; }
+            if t.start_date == Some(today) { return true; }
             if let Some(due) = t.due_date {
                 if due == today { return true; }
                 if due < today && !t.done() { return true; }
@@ -438,8 +440,8 @@ mod tests {
             title: "t".into(),
             due_date: None,
             due_time: None,
-            scheduled_date: None,
-            scheduled_time: None,
+            start_date: None,
+            start_time: None,
             notes: String::new(),
             tag_ids: Vec::new(),
             created_at: 0,
@@ -508,6 +510,24 @@ mod tests {
             serde_json::from_str(r##"{"id":"k_3","title":"t","done":false,"created_at":0,"archived":false}"##).unwrap();
         assert_eq!(active.completed_at, None);
         assert!(!active.done());
+    }
+
+    #[test]
+    fn legacy_scheduled_keys_load_into_start_fields_and_serialize_renamed() {
+        // A task written before the scheduled->start rename: the legacy
+        // `scheduled_date`/`scheduled_time` keys must load into start_date/start_time
+        // via the serde alias, and re-serialize under the new names (no migration).
+        let t: Task = serde_json::from_str(
+            r##"{"id":"k_1","title":"t","created_at":0,"scheduled_date":"2026-06-05","scheduled_time":"09:30"}"##,
+        ).unwrap();
+        assert_eq!(t.start_date, NaiveDate::from_ymd_opt(2026, 6, 5));
+        assert_eq!(t.start_time.as_deref(), Some("09:30"));
+
+        let json = serde_json::to_string(&t).unwrap();
+        assert!(json.contains("\"start_date\":\"2026-06-05\""), "{json}");
+        assert!(json.contains("\"start_time\":\"09:30\""), "{json}");
+        assert!(!json.contains("scheduled_date"), "no legacy key written: {json}");
+        assert!(!json.contains("scheduled_time"), "no legacy key written: {json}");
     }
 
     #[test]
@@ -597,7 +617,7 @@ mod tests {
             created_at: 0,
             updated_at: 0,
             due_offset_days: None,
-            scheduled_offset_days: None,
+            start_offset_days: None,
         }
     }
 
@@ -615,14 +635,14 @@ mod tests {
         // land in Today/Inbox/tag views no matter what they reference.
         let mut tmpl = template("k_tmpl");
         tmpl.tag_ids = vec!["t_work".into()];
-        tmpl.scheduled_offset_days = Some(0);
+        tmpl.start_offset_days = Some(0);
         doc.template_tasks.push(tmpl);
         doc.template_tasks.push(template("k_tmpl2"));
         // A normal task sharing the same scheduled date + tag, to prove the views
         // aren't simply empty.
         let mut real = task();
         real.id = "k_real".into();
-        real.scheduled_date = Some(today);
+        real.start_date = Some(today);
         real.tag_ids = vec!["t_work".into()];
         doc.tasks.push(real);
 
@@ -662,7 +682,8 @@ mod tests {
         assert_eq!(t.notes, "check inbox");
         assert_eq!(t.tag_ids, ["t_work"]);
         assert_eq!(t.due_offset_days, Some(3));
-        assert_eq!(t.scheduled_offset_days, Some(0));
+        // Legacy v4 key `scheduled_offset_days` loads via the serde alias (#renamed).
+        assert_eq!(t.start_offset_days, Some(0));
     }
 
     #[test]

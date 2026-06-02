@@ -141,7 +141,7 @@ function doneDoc(order: SortOrder): Document {
   const TODAY_ISO = "2026-05-28";
   const t = (id: string, tags: string[], done: boolean): Task => ({
     id, title: id, completed_at: done ? "2026-05-28T10:00:00Z" : undefined,
-    scheduled_date: TODAY_ISO, notes: "", tag_ids: tags, created_at: "1970-01-01T00:00:00Z",
+    start_date: TODAY_ISO, notes: "", tag_ids: tags, created_at: "1970-01-01T00:00:00Z",
   });
   return {
     version: 2,
@@ -188,7 +188,7 @@ describe("completed tasks leave the active lists (#32, #23)", () => {
 function archivedDoc(): Document {
   const TODAY_ISO = "2026-05-28";
   const t = (id: string, tags: string[], archived: boolean, archived_at?: string): Task => ({
-    id, title: id, scheduled_date: TODAY_ISO, notes: "",
+    id, title: id, start_date: TODAY_ISO, notes: "",
     tag_ids: tags, created_at: "1970-01-01T00:00:00Z",
     completed_at: archived ? (archived_at ?? "2026-05-28T09:00:00Z") : undefined,
   });
@@ -258,7 +258,7 @@ function templatesDoc(): Document {
     // empty — this test is about template exclusion, not inbox membership.
     tags: [{ id: "t_w", name: "w", color: "#000", priority: 1, pinned: true }],
     tasks: [
-      { id: "k_real", title: "k_real", scheduled_date: TODAY_ISO, notes: "",
+      { id: "k_real", title: "k_real", start_date: TODAY_ISO, notes: "",
         tag_ids: ["t_w"], created_at: "1970-01-01T00:00:00Z" },
     ],
     template_tasks: [

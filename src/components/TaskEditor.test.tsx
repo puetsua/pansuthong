@@ -105,10 +105,10 @@ describe("TaskEditor date validation (#51)", () => {
   it("blocks Save when the due date precedes the scheduled date", () => {
     render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
 
-    fireEvent.change(screen.getByLabelText("Scheduled"), { target: { value: "2026-06-10" } });
-    fireEvent.change(screen.getByLabelText("Due"), { target: { value: "2026-06-01" } });
+    fireEvent.change(screen.getByLabelText("Start Date"), { target: { value: "2026-06-10" } });
+    fireEvent.change(screen.getByLabelText("Due Date"), { target: { value: "2026-06-01" } });
 
-    expect(screen.getByText(/can.?t be before the scheduled date/i)).toBeTruthy();
+    expect(screen.getByText(/can.?t be before the start date/i)).toBeTruthy();
     expect(button("Save").disabled).toBe(true);
   });
 });
@@ -117,17 +117,17 @@ describe("TaskEditor time-of-day (#93)", () => {
   it("disables the time input until a date is set, then saves the time", async () => {
     render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
 
-    const schedTime = screen.getByLabelText("Scheduled time") as HTMLInputElement;
+    const schedTime = screen.getByLabelText("Start time") as HTMLInputElement;
     expect(schedTime.disabled).toBe(true); // no date yet
 
-    fireEvent.change(screen.getByLabelText("Scheduled"), { target: { value: "2026-06-05" } });
-    expect((screen.getByLabelText("Scheduled time") as HTMLInputElement).disabled).toBe(false);
-    fireEvent.change(screen.getByLabelText("Scheduled time"), { target: { value: "09:30" } });
+    fireEvent.change(screen.getByLabelText("Start Date"), { target: { value: "2026-06-05" } });
+    expect((screen.getByLabelText("Start time") as HTMLInputElement).disabled).toBe(false);
+    fireEvent.change(screen.getByLabelText("Start time"), { target: { value: "09:30" } });
     fireEvent.click(button("Save"));
 
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(
-        expect.objectContaining({ scheduled_date: "2026-06-05", scheduled_time: "09:30" }),
+        expect.objectContaining({ start_date: "2026-06-05", start_time: "09:30" }),
       ),
     );
   });
@@ -135,12 +135,12 @@ describe("TaskEditor time-of-day (#93)", () => {
   it("blocks Save when due precedes scheduled on the same day by time", () => {
     render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
 
-    fireEvent.change(screen.getByLabelText("Scheduled"), { target: { value: "2026-06-05" } });
-    fireEvent.change(screen.getByLabelText("Scheduled time"), { target: { value: "14:00" } });
-    fireEvent.change(screen.getByLabelText("Due"), { target: { value: "2026-06-05" } });
+    fireEvent.change(screen.getByLabelText("Start Date"), { target: { value: "2026-06-05" } });
+    fireEvent.change(screen.getByLabelText("Start time"), { target: { value: "14:00" } });
+    fireEvent.change(screen.getByLabelText("Due Date"), { target: { value: "2026-06-05" } });
     fireEvent.change(screen.getByLabelText("Due time"), { target: { value: "09:00" } });
 
-    expect(screen.getByText(/can.?t be before the scheduled date/i)).toBeTruthy();
+    expect(screen.getByText(/can.?t be before the start date/i)).toBeTruthy();
     expect(button("Save").disabled).toBe(true);
   });
 });
@@ -200,14 +200,14 @@ describe("TaskEditor backdrop auto-save (#66)", () => {
 
 const templateTask: TemplateTask = {
   id: "k_1", title: "Write report", notes: "", tag_ids: ["t_a"],
-  created_at: "1970-01-01T00:00:00Z", scheduled_offset_days: 0, due_offset_days: 2,
+  created_at: "1970-01-01T00:00:00Z", start_offset_days: 0, due_offset_days: 2,
 };
 
 describe("TaskEditor template editing (#71)", () => {
   it("a template shows relative-offset inputs instead of absolute date pickers", () => {
     render(<TaskEditor kind="template" template={templateTask} allTags={tags} onClose={vi.fn()} />);
-    expect(screen.queryByLabelText("Scheduled")).toBeNull();
-    expect(screen.getByLabelText(/scheduled in \(days\)/i)).toBeTruthy();
+    expect(screen.queryByLabelText("Start Date")).toBeNull();
+    expect(screen.getByLabelText(/start in \(days\)/i)).toBeTruthy();
     expect(screen.getByLabelText(/due in \(days\)/i)).toBeTruthy();
   });
 
@@ -220,7 +220,7 @@ describe("TaskEditor template editing (#71)", () => {
 
     await waitFor(() =>
       expect(api.updateTemplate).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "k_1", due_offset_days: 5, scheduled_offset_days: 0 }),
+        expect.objectContaining({ id: "k_1", due_offset_days: 5, start_offset_days: 0 }),
       ),
     );
     // It's a template payload — no task fields leak in.
@@ -230,7 +230,7 @@ describe("TaskEditor template editing (#71)", () => {
 
   it("blocks Save when a template's due offset precedes its scheduled offset (mirrors #51)", () => {
     render(<TaskEditor kind="template"
-                       template={{ ...templateTask, scheduled_offset_days: 10, due_offset_days: 3 }}
+                       template={{ ...templateTask, start_offset_days: 10, due_offset_days: 3 }}
                        allTags={tags} onClose={vi.fn()} />);
     expect(screen.getByText(/due offset can.?t be before/i)).toBeTruthy();
     expect(button("Save").disabled).toBe(true);

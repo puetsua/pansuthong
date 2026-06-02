@@ -32,9 +32,9 @@ function moment(date?: string, time?: string): string | undefined {
   return date ? `${date}T${time || "00:00"}` : undefined;
 }
 
-/** Earliest of scheduled/due as a comparable moment; undefined when the task has neither. */
+/** Earliest of start/due as a comparable moment; undefined when the task has neither. */
 function sortDate(task: Task): string | undefined {
-  const s = moment(task.scheduled_date, task.scheduled_time);
+  const s = moment(task.start_date, task.start_time);
   const d = moment(task.due_date, task.due_time);
   if (s && d) return s < d ? s : d;
   return s ?? d;
@@ -122,7 +122,7 @@ export function buildIndexes(doc: Document): Indexes {
 
   const today = (todayIso: string): Task[] => {
     const list = active.filter(t => {
-      if (t.scheduled_date === todayIso) return true;
+      if (t.start_date === todayIso) return true;
       if (t.due_date) {
         if (t.due_date === todayIso) return true;
         if (isoLt(t.due_date, todayIso) && !isDone(t)) return true;

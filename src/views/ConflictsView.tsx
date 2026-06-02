@@ -162,7 +162,7 @@ function TaskSummary({ task }: { task: Task }) {
   return (
     <div className="conflict-summary">
       {isDone(task) && <span>✓ done</span>}
-      {task.scheduled_date && <span>sched {task.scheduled_date}</span>}
+      {task.start_date && <span>start {task.start_date}</span>}
       {task.due_date       && <span>due {task.due_date}</span>}
       {task.notes && <span className="conflict-notes">"{task.notes.slice(0, 80)}{task.notes.length > 80 ? "…" : ""}"</span>}
     </div>

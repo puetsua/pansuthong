@@ -69,8 +69,8 @@ pub struct NewTaskInput {
     pub title: String,
     #[serde(default)] pub due_date: Option<NaiveDate>,
     #[serde(default)] pub due_time: Option<String>,
-    #[serde(default)] pub scheduled_date: Option<NaiveDate>,
-    #[serde(default)] pub scheduled_time: Option<String>,
+    #[serde(default)] pub start_date: Option<NaiveDate>,
+    #[serde(default)] pub start_time: Option<String>,
     #[serde(default)] pub notes: String,
     #[serde(default)] pub tag_ids: Vec<String>,
 }
@@ -116,7 +116,7 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
         return Err(AppError::Invalid("title is empty".into()));
     }
     validate_time(input.due_time.as_deref())?;
-    validate_time(input.scheduled_time.as_deref())?;
+    validate_time(input.start_time.as_deref())?;
     let ts = now_ms();
     let saved = state.write(|d| {
         let task = Task {
@@ -125,8 +125,8 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
             due_date: input.due_date,
             // A time without its date is meaningless; drop it (all-day).
             due_time:       input.due_date.and(input.due_time),
-            scheduled_date: input.scheduled_date,
-            scheduled_time: input.scheduled_date.and(input.scheduled_time),
+            start_date: input.start_date,
+            start_time: input.start_date.and(input.start_time),
             notes: input.notes,
             tag_ids: retain_known_tags(input.tag_ids, &d.tags),
             created_at: ts,
@@ -151,7 +151,7 @@ where
     Option::<T>::deserialize(de).map(Some)
 }
 
-// `due_date` and `scheduled_date` are `Option<Option<_>>` decoded with the
+// `due_date` and `start_date` are `Option<Option<_>>` decoded with the
 // `double_option` deserializer above, so the edit UI can distinguish "field absent
 // (don't change)" from "field is null (clear it)".
 #[derive(Deserialize)]
@@ -160,8 +160,8 @@ pub struct UpdateTaskInput {
     #[serde(default)] pub title: Option<String>,
     #[serde(default, deserialize_with = "double_option")] pub due_date: Option<Option<NaiveDate>>,
     #[serde(default, deserialize_with = "double_option")] pub due_time: Option<Option<String>>,
-    #[serde(default, deserialize_with = "double_option")] pub scheduled_date: Option<Option<NaiveDate>>,
-    #[serde(default, deserialize_with = "double_option")] pub scheduled_time: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")] pub start_date: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "double_option")] pub start_time: Option<Option<String>>,
     #[serde(default)] pub notes: Option<String>,
     #[serde(default)] pub tag_ids: Option<Vec<String>>,
 }
@@ -183,18 +183,18 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
             t.title = trimmed;
         }
         if let Some(ref v) = input.due_time       { validate_time(v.as_deref())?; }
-        if let Some(ref v) = input.scheduled_time { validate_time(v.as_deref())?; }
+        if let Some(ref v) = input.start_time { validate_time(v.as_deref())?; }
         if let Some(v) = input.due_date       { t.due_date = v; }
         if let Some(v) = input.due_time       { t.due_time = v; }
-        if let Some(v) = input.scheduled_date { t.scheduled_date = v; }
-        if let Some(v) = input.scheduled_time { t.scheduled_time = v; }
+        if let Some(v) = input.start_date { t.start_date = v; }
+        if let Some(v) = input.start_time { t.start_time = v; }
         if let Some(v) = input.notes          { t.notes = v; }
         if let Some(v) = input.tag_ids        {
             t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
         }
         // A time without its date is meaningless; clearing a date drops its time.
         if t.due_date.is_none()       { t.due_time = None; }
-        if t.scheduled_date.is_none() { t.scheduled_time = None; }
+        if t.start_date.is_none() { t.start_time = None; }
         t.updated_at = now_ms();
         Ok(t.clone())
     })?;
@@ -241,7 +241,7 @@ pub struct NewTemplateInput {
     #[serde(default)] pub notes: String,
     #[serde(default)] pub tag_ids: Vec<String>,
     #[serde(default)] pub due_offset_days: Option<i64>,
-    #[serde(default)] pub scheduled_offset_days: Option<i64>,
+    #[serde(default)] pub start_offset_days: Option<i64>,
 }
 
 #[tauri::command]
@@ -251,7 +251,7 @@ pub fn add_template(input: NewTemplateInput, state: State<'_, AppState>, app: Ap
         return Err(AppError::Invalid("title is empty".into()));
     }
     validate_offset_days(input.due_offset_days)?;
-    validate_offset_days(input.scheduled_offset_days)?;
+    validate_offset_days(input.start_offset_days)?;
     let ts = now_ms();
     let saved = state.write(|d| {
         let tmpl = TemplateTask {
@@ -262,7 +262,7 @@ pub fn add_template(input: NewTemplateInput, state: State<'_, AppState>, app: Ap
             created_at: ts,
             updated_at: ts,
             due_offset_days: input.due_offset_days,
-            scheduled_offset_days: input.scheduled_offset_days,
+            start_offset_days: input.start_offset_days,
         };
         d.template_tasks.push(tmpl.clone());
         Ok(tmpl)
@@ -278,7 +278,7 @@ pub struct UpdateTemplateInput {
     #[serde(default)] pub notes: Option<String>,
     #[serde(default)] pub tag_ids: Option<Vec<String>>,
     #[serde(default, deserialize_with = "double_option")] pub due_offset_days: Option<Option<i64>>,
-    #[serde(default, deserialize_with = "double_option")] pub scheduled_offset_days: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")] pub start_offset_days: Option<Option<i64>>,
 }
 
 #[tauri::command]
@@ -300,7 +300,7 @@ pub fn update_template(input: UpdateTemplateInput, state: State<'_, AppState>, a
             t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
         }
         if let Some(v) = input.due_offset_days       { validate_offset_days(v)?; t.due_offset_days = v; }
-        if let Some(v) = input.scheduled_offset_days { validate_offset_days(v)?; t.scheduled_offset_days = v; }
+        if let Some(v) = input.start_offset_days { validate_offset_days(v)?; t.start_offset_days = v; }
         t.updated_at = now_ms();
         Ok(t.clone())
     })?;
@@ -884,15 +884,15 @@ mod tests {
     fn update_task_input_absent_field_stays_none() {
         let v: UpdateTaskInput = serde_json::from_str(r#"{"id":"t_1"}"#).unwrap();
         assert_eq!(v.due_date, None);
-        assert_eq!(v.scheduled_date, None);
+        assert_eq!(v.start_date, None);
     }
 
     #[test]
     fn update_task_input_null_field_clears() {
         let v: UpdateTaskInput =
-            serde_json::from_str(r#"{"id":"t_1","due_date":null,"scheduled_date":null}"#).unwrap();
+            serde_json::from_str(r#"{"id":"t_1","due_date":null,"start_date":null}"#).unwrap();
         assert_eq!(v.due_date, Some(None));
-        assert_eq!(v.scheduled_date, Some(None));
+        assert_eq!(v.start_date, Some(None));
     }
 
     #[test]
@@ -906,15 +906,15 @@ mod tests {
     fn task_time_fields_round_trip_and_clear(/* #93 */) {
         // Absent -> None (leave), null -> Some(None) (clear), value -> Some(Some) (set).
         let absent: UpdateTaskInput = serde_json::from_str(r#"{"id":"t_1"}"#).unwrap();
-        assert_eq!(absent.scheduled_time, None);
+        assert_eq!(absent.start_time, None);
         assert_eq!(absent.due_time, None);
         let cleared: UpdateTaskInput =
-            serde_json::from_str(r#"{"id":"t_1","scheduled_time":null,"due_time":null}"#).unwrap();
-        assert_eq!(cleared.scheduled_time, Some(None));
+            serde_json::from_str(r#"{"id":"t_1","start_time":null,"due_time":null}"#).unwrap();
+        assert_eq!(cleared.start_time, Some(None));
         assert_eq!(cleared.due_time, Some(None));
         let set: UpdateTaskInput =
-            serde_json::from_str(r#"{"id":"t_1","scheduled_time":"09:30"}"#).unwrap();
-        assert_eq!(set.scheduled_time, Some(Some("09:30".to_string())));
+            serde_json::from_str(r#"{"id":"t_1","start_time":"09:30"}"#).unwrap();
+        assert_eq!(set.start_time, Some(Some("09:30".to_string())));
         let new: NewTaskInput =
             serde_json::from_str(r#"{"title":"t","due_time":"23:59"}"#).unwrap();
         assert_eq!(new.due_time.as_deref(), Some("23:59"));
@@ -1072,16 +1072,16 @@ mod tests {
     fn new_template_input_parses_offset_fields() {
         // Pins the snake_case keys the JS api sends for a template (#71).
         let v: NewTemplateInput = serde_json::from_str(
-            r#"{"title":"t","due_offset_days":3,"scheduled_offset_days":0,"notes":"n","tag_ids":["t_x"]}"#,
+            r#"{"title":"t","due_offset_days":3,"start_offset_days":0,"notes":"n","tag_ids":["t_x"]}"#,
         ).unwrap();
         assert_eq!(v.due_offset_days, Some(3));
-        assert_eq!(v.scheduled_offset_days, Some(0));
+        assert_eq!(v.start_offset_days, Some(0));
         assert_eq!(v.notes, "n");
         assert_eq!(v.tag_ids, ["t_x"]);
         // Absent offsets default to None (no spawned date).
         let plain: NewTemplateInput = serde_json::from_str(r#"{"title":"t"}"#).unwrap();
         assert_eq!(plain.due_offset_days, None);
-        assert_eq!(plain.scheduled_offset_days, None);
+        assert_eq!(plain.start_offset_days, None);
     }
 
     #[test]

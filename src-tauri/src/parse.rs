@@ -6,7 +6,7 @@ pub struct ParsedInput {
     pub title: String,
     pub tag_names: Vec<String>,
     pub due_date: Option<NaiveDate>,
-    pub scheduled_date: Option<NaiveDate>,
+    pub start_date: Option<NaiveDate>,
 }
 
 /// Pure: takes the composer's raw string and "today" reference; returns structured tokens.
@@ -26,10 +26,11 @@ pub fn parse(input: &str, today: NaiveDate) -> ParsedInput {
                 continue;
             }
         }
-        if (tok == "due" || tok == "sched" || tok == "scheduled") && i + 1 < tokens.len() {
+        // "start" is the current keyword; "sched"/"scheduled" stay as aliases (#renamed).
+        if (tok == "due" || tok == "start" || tok == "sched" || tok == "scheduled") && i + 1 < tokens.len() {
             if let Some(d) = parse_date(tokens[i + 1], today) {
                 if tok == "due" { out.due_date = Some(d); }
-                else            { out.scheduled_date = Some(d); }
+                else            { out.start_date = Some(d); }
                 i += 2;
                 continue;
             }

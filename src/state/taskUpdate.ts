@@ -2,8 +2,8 @@ import { TaskUpdate, TemplateUpdate } from "../lib/tauri";
 
 export type EditorForm = {
   title: string;
-  scheduled_date: string;   // "" = none
-  scheduled_time: string;   // "HH:MM"; "" = all-day (only meaningful with scheduled_date) (#93)
+  start_date: string;   // "" = none
+  start_time: string;   // "HH:MM"; "" = all-day (only meaningful with start_date) (#93)
   due_date: string;         // "" = none
   due_time: string;         // "HH:MM"; "" = all-day (#93)
   notes: string;
@@ -18,7 +18,7 @@ export type EditorForm = {
   // absolute date fields are then unused (and vice-versa). "" = no offset.
   is_template: boolean;
   due_offset_days: string;
-  scheduled_offset_days: string;
+  start_offset_days: string;
 };
 
 /** "" => null (no offset); otherwise the parsed integer, NaN guarded to null. */
@@ -39,9 +39,9 @@ export function buildTaskUpdate(id: string, form: EditorForm): TaskUpdate {
     title: form.title.trim(),
     notes: form.notes,
     tag_ids: form.tag_ids,
-    scheduled_date: form.scheduled_date || null,
+    start_date: form.start_date || null,
     // A time is only meaningful with its date; no date => clear the time too (#93).
-    scheduled_time: form.scheduled_date && form.scheduled_time ? form.scheduled_time : null,
+    start_time: form.start_date && form.start_time ? form.start_time : null,
     due_date:       form.due_date || null,
     due_time:       form.due_date && form.due_time ? form.due_time : null,
   };
@@ -57,7 +57,7 @@ export function buildTemplateUpdate(id: string, form: EditorForm): TemplateUpdat
     title: form.title.trim(),
     notes: form.notes,
     tag_ids: form.tag_ids,
-    scheduled_offset_days: offsetOrNull(form.scheduled_offset_days),
+    start_offset_days: offsetOrNull(form.start_offset_days),
     due_offset_days:       offsetOrNull(form.due_offset_days),
   };
 }
@@ -77,15 +77,15 @@ export function sameTagSet(a: string[], b: string[]): boolean {
  */
 export function isEditorDirty(form: EditorForm, initial: EditorForm): boolean {
   return form.title !== initial.title
-    || form.scheduled_date !== initial.scheduled_date
-    || form.scheduled_time !== initial.scheduled_time
+    || form.start_date !== initial.start_date
+    || form.start_time !== initial.start_time
     || form.due_date !== initial.due_date
     || form.due_time !== initial.due_time
     || form.notes !== initial.notes
     || !sameTagSet(form.tag_ids, initial.tag_ids)
     || form.is_template !== initial.is_template
     || form.due_offset_days !== initial.due_offset_days
-    || form.scheduled_offset_days !== initial.scheduled_offset_days
+    || form.start_offset_days !== initial.start_offset_days
     || (form.new_tag_names?.length ?? 0) > 0;
 }
 
@@ -95,15 +95,15 @@ function moment(date: string, time: string): string {
 }
 
 /**
- * True when both dates are set and the due moment precedes the scheduled moment
+ * True when both dates are set and the due moment precedes the start moment
  * (#51). Compares to the minute when times are present, and stays equivalent to
  * the old day-only check when both times are empty (#93).
  */
-export function dueBeforeScheduled(
-  form: Pick<EditorForm, "scheduled_date" | "scheduled_time" | "due_date" | "due_time">,
+export function dueBeforeStart(
+  form: Pick<EditorForm, "start_date" | "start_time" | "due_date" | "due_time">,
 ): boolean {
-  if (!form.scheduled_date || !form.due_date) return false;
-  return moment(form.due_date, form.due_time) < moment(form.scheduled_date, form.scheduled_time);
+  if (!form.start_date || !form.due_date) return false;
+  return moment(form.due_date, form.due_time) < moment(form.start_date, form.start_time);
 }
 
 /** Upper bound for a template's relative date offset; mirrors the Rust
@@ -112,14 +112,14 @@ export const OFFSET_DAYS_MAX = 3650;
 
 /**
  * Validation message for a template's offset inputs, or null when valid. Bounds each
- * offset to 0..=OFFSET_DAYS_MAX and mirrors the #51 due-before-scheduled guard for
+ * offset to 0..=OFFSET_DAYS_MAX and mirrors the #51 due-before-start guard for
  * relative offsets, so a template can't silently spawn out-of-range or
- * due-before-scheduled tasks. Empty inputs are "no offset" and always valid.
+ * due-before-start tasks. Empty inputs are "no offset" and always valid.
  */
 export function offsetFormError(
-  form: Pick<EditorForm, "due_offset_days" | "scheduled_offset_days">,
+  form: Pick<EditorForm, "due_offset_days" | "start_offset_days">,
 ): string | null {
-  for (const [label, raw] of [["Scheduled", form.scheduled_offset_days], ["Due", form.due_offset_days]] as const) {
+  for (const [label, raw] of [["Start", form.start_offset_days], ["Due", form.due_offset_days]] as const) {
     const t = raw.trim();
     if (t === "") continue;
     const n = Number(t);
@@ -127,10 +127,10 @@ export function offsetFormError(
       return `${label} offset must be a whole number of days between 0 and ${OFFSET_DAYS_MAX}.`;
     }
   }
-  const s = form.scheduled_offset_days.trim();
+  const s = form.start_offset_days.trim();
   const d = form.due_offset_days.trim();
   if (s !== "" && d !== "" && Number(d) < Number(s)) {
-    return "Due offset can't be before the scheduled offset.";
+    return "Due offset can't be before the start offset.";
   }
   return null;
 }

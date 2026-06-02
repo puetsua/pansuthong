@@ -144,8 +144,8 @@ fn task_equal(a: &Task, b: &Task) -> bool {
         && a.archived() == b.archived()
         && a.due_date == b.due_date
         && a.due_time == b.due_time
-        && a.scheduled_date == b.scheduled_date
-        && a.scheduled_time == b.scheduled_time
+        && a.start_date == b.start_date
+        && a.start_time == b.start_time
         && a.notes == b.notes
         && a.tag_ids == b.tag_ids
 }
@@ -161,7 +161,7 @@ mod merge_tests {
     fn task_with_tags(id: &str, tag_ids: &[&str]) -> Task {
         Task {
             id: id.into(), title: id.into(),
-            due_date: None, due_time: None, scheduled_date: None, scheduled_time: None, notes: String::new(),
+            due_date: None, due_time: None, start_date: None, start_time: None, notes: String::new(),
             tag_ids: tag_ids.iter().map(|s| s.to_string()).collect(),
             created_at: 0, completed_at: None, updated_at: 0,
         }

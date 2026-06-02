@@ -3,8 +3,8 @@ import dayjs from "dayjs";
 export type ParsedInput = {
   title: string;
   tag_names: string[];
-  due_date?: string;       // YYYY-MM-DD
-  scheduled_date?: string; // YYYY-MM-DD
+  due_date?: string;   // YYYY-MM-DD
+  start_date?: string; // YYYY-MM-DD
 };
 
 const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -26,11 +26,12 @@ export function parseComposer(input: string, todayIso: string): ParsedInput {
       out.tag_names.push(tok.slice(1));
       continue;
     }
-    if ((tok === "due" || tok === "sched" || tok === "scheduled") && i + 1 < tokens.length) {
+    // "start" is the current keyword; "sched"/"scheduled" stay as aliases (#renamed).
+    if ((tok === "due" || tok === "start" || tok === "sched" || tok === "scheduled") && i + 1 < tokens.length) {
       const date = parseDateWord(tokens[i + 1], todayIso);
       if (date) {
         if (tok === "due") out.due_date = date;
-        else                out.scheduled_date = date;
+        else                out.start_date = date;
         i++; // consume the date word
         continue;
       }

@@ -24,8 +24,8 @@ export type Task = {
   title: string;
   due_date?: string;       // YYYY-MM-DD
   due_time?: string;       // "HH:MM" local; companion to due_date, absent = all-day (#93)
-  scheduled_date?: string; // YYYY-MM-DD
-  scheduled_time?: string; // "HH:MM" local; companion to scheduled_date, absent = all-day (#93)
+  start_date?: string; // YYYY-MM-DD
+  start_time?: string; // "HH:MM" local; companion to start_date, absent = all-day (#93)
   notes: string;
   tag_ids: string[];
   created_at: string; // ISO-8601 local time w/ offset, e.g. 2026-06-01T20:34:56+08:00
@@ -55,7 +55,7 @@ export type TemplateTask = {
   created_at: string; // ISO-8601 local time w/ offset
   updated_at?: string; // ISO-8601 local time w/ offset of last edit; omitted if never edited
   due_offset_days?: number;       // spawned task's due = today + N days
-  scheduled_offset_days?: number; // spawned task's scheduled = today + M days
+  start_offset_days?: number; // spawned task's start date = today + M days
 };
 
 export type Document = {
@@ -73,8 +73,8 @@ export type TaskUpdate = {
   title?: string;
   due_date?: string | null;
   due_time?: string | null;
-  scheduled_date?: string | null;
-  scheduled_time?: string | null;
+  start_date?: string | null;
+  start_time?: string | null;
   notes?: string;
   tag_ids?: string[];
 };
@@ -84,7 +84,7 @@ export type NewTemplate = {
   notes?: string;
   tag_ids?: string[];
   due_offset_days?: number;
-  scheduled_offset_days?: number;
+  start_offset_days?: number;
 };
 
 // `null` clears an optional offset; an omitted key leaves the field unchanged.
@@ -94,7 +94,7 @@ export type TemplateUpdate = {
   notes?: string;
   tag_ids?: string[];
   due_offset_days?: number | null;
-  scheduled_offset_days?: number | null;
+  start_offset_days?: number | null;
 };
 
 export type DataLocation = { folder: string | null; effective_path: string };

@@ -285,7 +285,7 @@ mod repoint_tests {
     fn sample_task(id: &str) -> crate::model::Task {
         crate::model::Task {
             id: id.into(), title: id.into(),
-            due_date: None, due_time: None, scheduled_date: None, scheduled_time: None, notes: String::new(),
+            due_date: None, due_time: None, start_date: None, start_time: None, notes: String::new(),
             tag_ids: Vec::new(), created_at: 0, completed_at: None, updated_at: 0,
         }
     }

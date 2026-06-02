@@ -10,7 +10,7 @@ export function ComposerPreview({ parsed, tagsByName }: Props) {
   const anything =
     parsed.tag_names.length > 0 ||
     parsed.due_date ||
-    parsed.scheduled_date;
+    parsed.start_date;
   if (!anything) return null;
 
   return (
@@ -26,7 +26,7 @@ export function ComposerPreview({ parsed, tagsByName }: Props) {
           </span>
         );
       })}
-      {parsed.scheduled_date && <span className="composer-chip">sched {parsed.scheduled_date.slice(5)}</span>}
+      {parsed.start_date && <span className="composer-chip">start {parsed.start_date.slice(5)}</span>}
       {parsed.due_date       && <span className="composer-chip">due {parsed.due_date.slice(5)}</span>}
     </div>
   );

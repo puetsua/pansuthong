@@ -59,7 +59,7 @@ export function QuickCapture() {
         title: parsed.title,
         due_date: parsed.due_date,
         // No today-default here (unlike the Today composer): undated tasks land in Inbox.
-        scheduled_date: parsed.scheduled_date,
+        start_date: parsed.start_date,
         tag_ids: tagIds,
       });
       setInput("");

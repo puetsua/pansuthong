@@ -43,9 +43,10 @@ describe("parseComposer", () => {
     expect(parseComposer("Bday due 6/10", TODAY).due_date).toBe("2026-06-10");
   });
 
-  it("sched alias", () => {
-    expect(parseComposer("Task sched today", TODAY).scheduled_date).toBe(TODAY);
-    expect(parseComposer("Task scheduled today", TODAY).scheduled_date).toBe(TODAY);
+  it("start keyword sets the start date; sched/scheduled stay as aliases", () => {
+    expect(parseComposer("Task start today", TODAY).start_date).toBe(TODAY);
+    expect(parseComposer("Task sched today", TODAY).start_date).toBe(TODAY);
+    expect(parseComposer("Task scheduled today", TODAY).start_date).toBe(TODAY);
   });
 
   it("unrecognized due word stays in title", () => {

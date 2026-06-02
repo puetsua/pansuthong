@@ -34,7 +34,7 @@ describe("TaskRow active mode", () => {
 
 describe("TaskRow time-of-day (#93)", () => {
   it("shows the scheduled time when present", () => {
-    render(<TaskRow task={{ ...baseTask, scheduled_date: "2026-06-05", scheduled_time: "09:30" }}
+    render(<TaskRow task={{ ...baseTask, start_date: "2026-06-05", start_time: "09:30" }}
                     tags={tags} todayIso="2026-05-31" />);
     expect(screen.getByText(/06-05 09:30/)).toBeTruthy();
   });
@@ -46,7 +46,7 @@ describe("TaskRow time-of-day (#93)", () => {
   });
 
   it("stays all-day (no time text) when no time is set", () => {
-    render(<TaskRow task={{ ...baseTask, scheduled_date: "2026-06-05" }}
+    render(<TaskRow task={{ ...baseTask, start_date: "2026-06-05" }}
                     tags={tags} todayIso="2026-05-31" />);
     expect(screen.getByText("06-05")).toBeTruthy();
   });

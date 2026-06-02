@@ -42,7 +42,7 @@ function buildGroups(indexes: Indexes, todayStr: string, horizon: number): Group
     const iso = day.format("YYYY-MM-DD");
     // All tasks in a group share this date, so order them by priority (weight desc).
     const tasks = indexes.tasks
-      .filter(t => t.scheduled_date === iso || t.due_date === iso)
+      .filter(t => t.start_date === iso || t.due_date === iso)
       .sort((a, b) => effectivePriority(b, indexes.tagsById) - effectivePriority(a, indexes.tagsById));
     if (tasks.length > 0) result.push({ date: iso, label: labelFor(day, today), tasks });
   }

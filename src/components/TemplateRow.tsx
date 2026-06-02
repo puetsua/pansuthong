@@ -13,7 +13,7 @@ type Props = {
 /** Compact summary of a template's relative offsets, e.g. "start +0d · due +3d". */
 function offsetLabel(t: TemplateTask): string {
   const parts: string[] = [];
-  if (t.scheduled_offset_days != null) parts.push(`start +${t.scheduled_offset_days}d`);
+  if (t.start_offset_days != null) parts.push(`start +${t.start_offset_days}d`);
   if (t.due_offset_days != null)       parts.push(`due +${t.due_offset_days}d`);
   return parts.join(" · ");
 }
@@ -40,7 +40,7 @@ export function TemplateRow({ template, tags, todayIso }: Props) {
       tag_ids: template.tag_ids,
       created_at: "",
       due_date: template.due_offset_days != null ? addDaysIso(todayIso, template.due_offset_days) : undefined,
-      scheduled_date: template.scheduled_offset_days != null ? addDaysIso(todayIso, template.scheduled_offset_days) : undefined,
+      start_date: template.start_offset_days != null ? addDaysIso(todayIso, template.start_offset_days) : undefined,
       completed_at: undefined,
     });
   };

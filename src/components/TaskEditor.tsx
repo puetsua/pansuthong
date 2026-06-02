@@ -2,7 +2,7 @@ import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { buildTaskUpdate, buildTemplateUpdate, dueBeforeScheduled, EditorForm, isEditorDirty, offsetFormError } from "../state/taskUpdate";
+import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, isEditorDirty, offsetFormError } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
 import { TagInput } from "./TagInput";
@@ -31,8 +31,8 @@ export function TaskEditor(props: Props) {
 
   const initialRef = useRef<EditorForm>({
     title: entity.title,
-    scheduled_date: taskEntity?.scheduled_date ?? "",
-    scheduled_time: taskEntity?.scheduled_time ?? "",
+    start_date: taskEntity?.start_date ?? "",
+    start_time: taskEntity?.start_time ?? "",
     due_date: taskEntity?.due_date ?? "",
     due_time: taskEntity?.due_time ?? "",
     notes: entity.notes ?? "",
@@ -40,7 +40,7 @@ export function TaskEditor(props: Props) {
     new_tag_names: [],
     is_template: isTemplate,
     due_offset_days: tmplEntity?.due_offset_days != null ? String(tmplEntity.due_offset_days) : "",
-    scheduled_offset_days: tmplEntity?.scheduled_offset_days != null ? String(tmplEntity.scheduled_offset_days) : "",
+    start_offset_days: tmplEntity?.start_offset_days != null ? String(tmplEntity.start_offset_days) : "",
   });
   const [form, setForm] = useState<EditorForm>(initialRef.current);
   const [error, setError] = useState<string | null>(null);
@@ -122,12 +122,12 @@ export function TaskEditor(props: Props) {
   const removeNewTag = (name: string) =>
     setForm(f => ({ ...f, new_tag_names: (f.new_tag_names ?? []).filter(n => n !== name) }));
 
-  // Cross-field guard: a due date before the scheduled date is almost always a
+  // Cross-field guard: a due date before the start date is almost always a
   // mistake, so it's surfaced and blocks Save rather than persisting silently (#51).
   // Only meaningful for real tasks — templates use relative offsets, not absolute
   // dates, so the guard doesn't apply when editing a template (#71).
-  const dateError = !isTemplate && dueBeforeScheduled(form)
-    ? "Due date can't be before the scheduled date."
+  const dateError = !isTemplate && dueBeforeStart(form)
+    ? "Due date can't be before the start date."
     : null;
   // Templates use relative offsets instead of absolute dates; validate them (range
   // and due-before-scheduled ordering) the same way #51 validates dates, so a
@@ -165,7 +165,7 @@ export function TaskEditor(props: Props) {
             title: form.title.trim(),
             notes: form.notes,
             tag_ids: tagIds,
-            scheduled_offset_days: offsetNum(form.scheduled_offset_days),
+            start_offset_days: offsetNum(form.start_offset_days),
             due_offset_days: offsetNum(form.due_offset_days),
           });
         } else {
@@ -175,8 +175,8 @@ export function TaskEditor(props: Props) {
         // A brand-new task (e.g. spawned from a template): create it now.
         await api.addTask({
           title: form.title.trim(),
-          scheduled_date: form.scheduled_date || undefined,
-          scheduled_time: form.scheduled_date && form.scheduled_time ? form.scheduled_time : undefined,
+          start_date: form.start_date || undefined,
+          start_time: form.start_date && form.start_time ? form.start_time : undefined,
           due_date: form.due_date || undefined,
           due_time: form.due_date && form.due_time ? form.due_time : undefined,
           notes: form.notes,
@@ -208,7 +208,7 @@ export function TaskEditor(props: Props) {
         title: form.title.trim(),
         notes: form.notes,
         tag_ids: tagIds,
-        scheduled_offset_days: offset(form.scheduled_date),
+        start_offset_days: offset(form.start_date),
         due_offset_days: offset(form.due_date),
       });
       setBusy(false);
@@ -284,10 +284,10 @@ export function TaskEditor(props: Props) {
           <>
             <div className="te-row">
               <label className="te-field">
-                <span>Scheduled in (days)</span>
+                <span>Start in (days)</span>
                 <input type="number" min={0} max={3650} inputMode="numeric" placeholder="—"
-                       value={form.scheduled_offset_days}
-                       onChange={e => set("scheduled_offset_days", e.currentTarget.value)} />
+                       value={form.start_offset_days}
+                       onChange={e => set("start_offset_days", e.currentTarget.value)} />
               </label>
               <label className="te-field">
                 <span>Due in (days)</span>
@@ -302,22 +302,22 @@ export function TaskEditor(props: Props) {
           <>
             <div className="te-row">
               <label className="te-field">
-                <span>Scheduled</span>
+                <span>Start Date</span>
                 <div className="te-datetime">
-                  <input type="date" value={form.scheduled_date}
+                  <input type="date" value={form.start_date}
                          onChange={e => { const v = e.currentTarget.value; setForm(f => ({
                            ...f,
-                           scheduled_date: v,
+                           start_date: v,
                            // Clearing the date drops its time (time needs a date) (#93).
-                           scheduled_time: v ? f.scheduled_time : "",
+                           start_time: v ? f.start_time : "",
                          })); }} />
-                  <input type="time" aria-label="Scheduled time" className="te-time"
-                         value={form.scheduled_time} disabled={!form.scheduled_date}
-                         onChange={e => set("scheduled_time", e.currentTarget.value)} />
+                  <input type="time" aria-label="Start time" className="te-time"
+                         value={form.start_time} disabled={!form.start_date}
+                         onChange={e => set("start_time", e.currentTarget.value)} />
                 </div>
               </label>
               <label className="te-field">
-                <span>Due</span>
+                <span>Due Date</span>
                 <div className="te-datetime">
                   <input type="date" value={form.due_date}
                          onChange={e => { const v = e.currentTarget.value; setForm(f => ({

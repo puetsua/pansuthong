@@ -9,7 +9,7 @@ fn plain_title_passes_through() {
     assert_eq!(p.title, "Buy milk");
     assert!(p.tag_names.is_empty());
     assert_eq!(p.due_date, None);
-    assert_eq!(p.scheduled_date, None);
+    assert_eq!(p.start_date, None);
 }
 
 #[test]
@@ -55,12 +55,14 @@ fn due_tomorrow() {
 }
 
 #[test]
-fn scheduled_keyword_alias() {
+fn start_keyword_with_sched_scheduled_aliases() {
+    let p0 = parse("Task start today", today());
     let p1 = parse("Task sched today", today());
     let p2 = parse("Task scheduled today", today());
-    assert_eq!(p1.scheduled_date, Some(today()));
-    assert_eq!(p2.scheduled_date, Some(today()));
-    assert_eq!(p1.title, "Task");
+    assert_eq!(p0.start_date, Some(today()));
+    assert_eq!(p1.start_date, Some(today()));
+    assert_eq!(p2.start_date, Some(today()));
+    assert_eq!(p0.title, "Task");
 }
 
 #[test]

@@ -14,31 +14,31 @@
   "tasks": [
     {
       "id": "k_overdue1", "title": "Reply to Anna", "done": false,
-      "due_date": "2026-05-26", "scheduled_date": null, "priority": "high",
+      "due_date": "2026-05-26", "start_date": null, "priority": "high",
       "notes": "", "tag_ids": ["t_work", "t_urgent"],
       "created_at": 1748390000000, "completed_at": null
     },
     {
       "id": "k_today1", "title": "Pick up dry cleaning", "done": false,
-      "due_date": null, "scheduled_date": "2026-05-28", "priority": "med",
+      "due_date": null, "start_date": "2026-05-28", "priority": "med",
       "notes": "", "tag_ids": ["t_errand"],
       "created_at": 1748390100000, "completed_at": null
     },
     {
       "id": "k_today2", "title": "Review PR #248", "done": false,
-      "due_date": "2026-05-28", "scheduled_date": null, "priority": "high",
+      "due_date": "2026-05-28", "start_date": null, "priority": "high",
       "notes": "", "tag_ids": ["t_work"],
       "created_at": 1748390200000, "completed_at": null
     },
     {
       "id": "k_reno1",  "title": "Call electrician", "done": false,
-      "due_date": "2026-05-30", "scheduled_date": "2026-05-28", "priority": "low",
+      "due_date": "2026-05-30", "start_date": "2026-05-28", "priority": "low",
       "notes": "Three-way switch.", "tag_ids": ["t_reno"],
       "created_at": 1748390300000, "completed_at": null
     },
     {
       "id": "k_future1", "title": "Plan vacation", "done": false,
-      "due_date": "2026-06-10", "scheduled_date": "2026-06-05", "priority": null,
+      "due_date": "2026-06-10", "start_date": "2026-06-05", "priority": null,
       "notes": "", "tag_ids": [],
       "created_at": 1748390400000, "completed_at": null
     }

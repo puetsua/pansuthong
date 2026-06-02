@@ -121,11 +121,35 @@
             }
           ]
         },
-        "scheduled_date": {
-          "description": "Scheduled date. Null and missing both load as no scheduled date.",
+        "start_date": {
+          "description": "Start date. Null and missing both load as no start date. Legacy files' scheduled_date is accepted as an alias on load.",
           "oneOf": [
             {
               "$ref": "#/$defs/date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start_time": {
+          "description": "Optional time-of-day for start_date, 'HH:MM' local. Absent = all-day. Legacy files' scheduled_time is accepted as an alias on load.",
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{2}:\\d{2}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "due_time": {
+          "description": "Optional time-of-day for due_date, 'HH:MM' local. Absent = all-day.",
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{2}:\\d{2}$"
             },
             {
               "type": "null"
@@ -174,7 +198,7 @@
             "required": ["due_offset_days"]
           },
           {
-            "required": ["scheduled_offset_days"]
+            "required": ["start_offset_days"]
           }
         ]
       },
@@ -222,8 +246,8 @@
             }
           ]
         },
-        "scheduled_offset_days": {
-          "description": "Spawned task scheduled date offset from today. Null and missing both mean no scheduled date.",
+        "start_offset_days": {
+          "description": "Spawned task start date offset from today. Null and missing both mean no start date. Legacy files' scheduled_offset_days is accepted as an alias on load.",
           "oneOf": [
             {
               "type": "integer"

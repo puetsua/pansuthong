@@ -7,11 +7,11 @@ import { ComposerPreview } from "./ComposerPreview";
 import { resolveTagIds } from "../state/quickAdd";
 
 type Props = {
-  scheduledDate?: string;
+  startDate?: string;
   tagsByName: Map<string, Tag>;
 };
 
-export function Composer({ scheduledDate, tagsByName }: Props) {
+export function Composer({ startDate, tagsByName }: Props) {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +29,7 @@ export function Composer({ scheduledDate, tagsByName }: Props) {
 
       await api.addTask({
         title: parsed.title,
-        scheduled_date: parsed.scheduled_date ?? scheduledDate,
+        start_date: parsed.start_date ?? startDate,
         due_date: parsed.due_date,
         tag_ids: resolvedTagIds,
       });
