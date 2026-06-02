@@ -63,11 +63,6 @@ describe("api IPC wrappers — command names & arg keys", () => {
     expect(invokeMock).toHaveBeenCalledWith("delete_tag", { id: "t_1" });
   });
 
-  it("searchTasks → search_tasks { query }", async () => {
-    await api.searchTasks("milk");
-    expect(invokeMock).toHaveBeenCalledWith("search_tasks", { query: "milk" });
-  });
-
   it("updateTag wraps under `input`", async () => {
     const input = { id: "t_1", name: "office", color: "#000", priority: 3 };
     await api.updateTag(input);

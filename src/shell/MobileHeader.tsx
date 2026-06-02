@@ -8,7 +8,6 @@ const ROUTE_TITLES: Record<string, string> = {
   "/inbox":    "Inbox",
   "/upcoming": "Upcoming",
   "/templates": "Templates",
-  "/search":   "Search",
   "/tags":     "Tags",
   "/archived": "Archived",
   "/settings": "Settings",

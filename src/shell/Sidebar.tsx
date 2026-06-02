@@ -72,11 +72,6 @@ export function Sidebar({ doc, indexes }: Props) {
       <div style={{ marginTop: "auto" }}>
         <ul className="sidebar-list">
           <li>
-            <NavLink to="/search" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-              Search
-            </NavLink>
-          </li>
-          <li>
             <NavLink to="/archived" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
               Archived <span className="sidebar-count">{indexes.archived.length}</span>
             </NavLink>
