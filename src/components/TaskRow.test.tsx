@@ -32,6 +32,26 @@ describe("TaskRow active mode", () => {
   });
 });
 
+describe("TaskRow time-of-day (#93)", () => {
+  it("shows the scheduled time when present", () => {
+    render(<TaskRow task={{ ...baseTask, scheduled_date: "2026-06-05", scheduled_time: "09:30" }}
+                    tags={tags} todayIso="2026-05-31" />);
+    expect(screen.getByText(/06-05 09:30/)).toBeTruthy();
+  });
+
+  it("appends the due time to the due label", () => {
+    render(<TaskRow task={{ ...baseTask, due_date: "2026-06-05", due_time: "17:00" }}
+                    tags={tags} todayIso="2026-05-31" />);
+    expect(screen.getByText(/due 06-05 17:00/)).toBeTruthy();
+  });
+
+  it("stays all-day (no time text) when no time is set", () => {
+    render(<TaskRow task={{ ...baseTask, scheduled_date: "2026-06-05" }}
+                    tags={tags} todayIso="2026-05-31" />);
+    expect(screen.getByText("06-05")).toBeTruthy();
+  });
+});
+
 describe("TaskRow archived mode (#23)", () => {
   // In the Archived view the row offers a single "Restore" action instead of a
   // done-checkbox. Restoring always clears completion, which un-archives the task

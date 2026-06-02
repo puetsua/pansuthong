@@ -113,6 +113,38 @@ describe("TaskEditor date validation (#51)", () => {
   });
 });
 
+describe("TaskEditor time-of-day (#93)", () => {
+  it("disables the time input until a date is set, then saves the time", async () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+
+    const schedTime = screen.getByLabelText("Scheduled time") as HTMLInputElement;
+    expect(schedTime.disabled).toBe(true); // no date yet
+
+    fireEvent.change(screen.getByLabelText("Scheduled"), { target: { value: "2026-06-05" } });
+    expect((screen.getByLabelText("Scheduled time") as HTMLInputElement).disabled).toBe(false);
+    fireEvent.change(screen.getByLabelText("Scheduled time"), { target: { value: "09:30" } });
+    fireEvent.click(button("Save"));
+
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        expect.objectContaining({ scheduled_date: "2026-06-05", scheduled_time: "09:30" }),
+      ),
+    );
+  });
+
+  it("blocks Save when due precedes scheduled on the same day by time", () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("Scheduled"), { target: { value: "2026-06-05" } });
+    fireEvent.change(screen.getByLabelText("Scheduled time"), { target: { value: "14:00" } });
+    fireEvent.change(screen.getByLabelText("Due"), { target: { value: "2026-06-05" } });
+    fireEvent.change(screen.getByLabelText("Due time"), { target: { value: "09:00" } });
+
+    expect(screen.getByText(/can.?t be before the scheduled date/i)).toBeTruthy();
+    expect(button("Save").disabled).toBe(true);
+  });
+});
+
 const backdrop = () => document.querySelector(".modal-backdrop") as HTMLElement;
 
 describe("TaskEditor backdrop auto-save (#66)", () => {

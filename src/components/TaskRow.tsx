@@ -14,13 +14,16 @@ type Props = {
 };
 
 function whenLabel(t: Task, today: string): { text: string; late: boolean } {
+  // A trailing " HH:MM" when the field carries a time, else "" (all-day) (#93).
+  const dueT = t.due_time ? ` ${t.due_time}` : "";
+  const schedT = t.scheduled_time ? ` ${t.scheduled_time}` : "";
   if (t.due_date) {
-    if (t.due_date === today)       return { text: "due today", late: false };
+    if (t.due_date === today)       return { text: `due today${dueT}`, late: false };
     if (t.due_date < today && !isDone(t)) return { text: `−${diffDays(t.due_date, today)}d`, late: true };
-    return { text: `due ${t.due_date.slice(5)}`, late: false };
+    return { text: `due ${t.due_date.slice(5)}${dueT}`, late: false };
   }
-  if (t.scheduled_date === today) return { text: "today", late: false };
-  if (t.scheduled_date)           return { text: t.scheduled_date.slice(5), late: false };
+  if (t.scheduled_date === today) return { text: `today${schedT}`, late: false };
+  if (t.scheduled_date)           return { text: `${t.scheduled_date.slice(5)}${schedT}`, late: false };
   return { text: "", late: false };
 }
 

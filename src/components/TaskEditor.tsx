@@ -32,7 +32,9 @@ export function TaskEditor(props: Props) {
   const initialRef = useRef<EditorForm>({
     title: entity.title,
     scheduled_date: taskEntity?.scheduled_date ?? "",
+    scheduled_time: taskEntity?.scheduled_time ?? "",
     due_date: taskEntity?.due_date ?? "",
+    due_time: taskEntity?.due_time ?? "",
     notes: entity.notes ?? "",
     tag_ids: entity.tag_ids,
     new_tag_names: [],
@@ -174,7 +176,9 @@ export function TaskEditor(props: Props) {
         await api.addTask({
           title: form.title.trim(),
           scheduled_date: form.scheduled_date || undefined,
+          scheduled_time: form.scheduled_date && form.scheduled_time ? form.scheduled_time : undefined,
           due_date: form.due_date || undefined,
+          due_time: form.due_date && form.due_time ? form.due_time : undefined,
           notes: form.notes,
           tag_ids: tagIds,
         });
@@ -299,13 +303,32 @@ export function TaskEditor(props: Props) {
             <div className="te-row">
               <label className="te-field">
                 <span>Scheduled</span>
-                <input type="date" value={form.scheduled_date}
-                       onChange={e => set("scheduled_date", e.currentTarget.value)} />
+                <div className="te-datetime">
+                  <input type="date" value={form.scheduled_date}
+                         onChange={e => { const v = e.currentTarget.value; setForm(f => ({
+                           ...f,
+                           scheduled_date: v,
+                           // Clearing the date drops its time (time needs a date) (#93).
+                           scheduled_time: v ? f.scheduled_time : "",
+                         })); }} />
+                  <input type="time" aria-label="Scheduled time" className="te-time"
+                         value={form.scheduled_time} disabled={!form.scheduled_date}
+                         onChange={e => set("scheduled_time", e.currentTarget.value)} />
+                </div>
               </label>
               <label className="te-field">
                 <span>Due</span>
-                <input type="date" value={form.due_date}
-                       onChange={e => set("due_date", e.currentTarget.value)} />
+                <div className="te-datetime">
+                  <input type="date" value={form.due_date}
+                         onChange={e => { const v = e.currentTarget.value; setForm(f => ({
+                           ...f,
+                           due_date: v,
+                           due_time: v ? f.due_time : "",
+                         })); }} />
+                  <input type="time" aria-label="Due time" className="te-time"
+                         value={form.due_time} disabled={!form.due_date}
+                         onChange={e => set("due_time", e.currentTarget.value)} />
+                </div>
               </label>
             </div>
             {dateError && <p className="te-warn" role="alert">{dateError}</p>}
