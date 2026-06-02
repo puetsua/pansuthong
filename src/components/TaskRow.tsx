@@ -3,6 +3,8 @@ import { Task, Tag, isDone } from "../lib/tauri";
 import { api } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { readableTextColor } from "../lib/tags";
+import { elapsedMs, formatClock, formatDurationShort, isTiming } from "../lib/time";
+import { useNow } from "../lib/useNow";
 import { TaskEditor } from "./TaskEditor";
 
 type Props = {
@@ -68,9 +70,19 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
 
   const open = () => setEditing(true);
 
+  // Time tracking (#81): tick once a second only while this task's timer runs.
+  const running = isTiming(task);
+  const now = useNow(running);
+  const total = elapsedMs(task, now);
+  const toggleTimer = () => {
+    setError(null);
+    (running ? api.stopTimer(task.id) : api.startTimer(task.id))
+      .catch(err => setError(errorMessage(err)));
+  };
+
   return (
     <>
-      <div className="task-row" data-done={isDone(task)}>
+      <div className="task-row" data-done={isDone(task)} data-timing={running}>
         <button type="button" className="task-main" onClick={open}
                 aria-label={`Edit ${task.title}`}>
           <span className="task-title">{task.title}</span>
@@ -82,13 +94,26 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
           {w.text && <span className={w.late ? "task-when late" : "task-when"}>{w.text}</span>}
         </button>
         {archived ? (
-          <button type="button" className="task-restore" onClick={restore}
-                  aria-label={`Restore ${task.title}`}>
-            Restore
-          </button>
+          <>
+            {total > 0 && <span className="task-timer-total" title="Time tracked">{formatDurationShort(total)}</span>}
+            <button type="button" className="task-restore" onClick={restore}
+                    aria-label={`Restore ${task.title}`}>
+              Restore
+            </button>
+          </>
         ) : (
-          <input type="checkbox" checked={isDone(task)} onChange={toggle}
-                 aria-label={`Toggle ${task.title}`} />
+          <>
+            <button type="button" className="task-timer" data-running={running} onClick={toggleTimer}
+                    aria-label={running ? `Stop timer for ${task.title}` : `Start timer for ${task.title}`}
+                    title={running ? "Stop timer" : "Start timer"}>
+              <span className="task-timer-icon" aria-hidden>{running ? "■" : "▶"}</span>
+              {(running || total > 0) && (
+                <span className="task-timer-time">{running ? formatClock(total) : formatDurationShort(total)}</span>
+              )}
+            </button>
+            <input type="checkbox" checked={isDone(task)} onChange={toggle}
+                   aria-label={`Toggle ${task.title}`} />
+          </>
         )}
       </div>
       {error && <p className="composer-error" role="alert">Couldn’t update: {error}</p>}

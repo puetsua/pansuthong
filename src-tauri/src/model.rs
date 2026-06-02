@@ -10,6 +10,7 @@ fn short_id(prefix: &str) -> String {
 
 pub fn new_task_id()    -> String { short_id("k") }
 pub fn new_tag_id()     -> String { short_id("t") }
+pub fn new_time_entry_id() -> String { short_id("te") }
 
 /// Epoch milliseconds. Used in memory for created_at/updated_at/last_modified and
 /// for unique conflict-file names. UTC-based, so it's stable across devices and
@@ -101,6 +102,19 @@ mod iso_secs_opt {
     }
 }
 
+/// One stretch of time worked on a task (#81). `start`/`end` are epoch millis in
+/// memory, written as ISO-8601 local-time strings on disk (see `iso_secs`). An
+/// `end` of `None` is the **running** timer — the open interval; closed entries
+/// are finished sessions. Stored on the task, so it syncs like the rest.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeEntry {
+    pub id: String,
+    #[serde(with = "iso_secs")]
+    pub start: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "iso_secs_opt")]
+    pub end: Option<i64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tag {
     pub id:    String,
@@ -155,6 +169,12 @@ pub struct Task {
     /// `skip_serializing_if` then omits the key rather than writing a 1970 ISO date.
     #[serde(default, skip_serializing_if = "is_zero", serialize_with = "iso_secs::serialize")]
     pub updated_at:   i64,
+    /// Recorded time-tracking sessions (#81). An entry with no `end` is the running
+    /// timer. `#[serde(default)]` = empty for tasks written before this field
+    /// existed; `skip_serializing_if` then omits the key entirely so untracked
+    /// tasks serialize byte-for-byte as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub time_entries: Vec<TimeEntry>,
 }
 
 /// A reusable blueprint, not real work to do (#71). Lives in its own
@@ -234,6 +254,8 @@ struct TaskCompat {
     #[serde(default, deserialize_with = "iso_secs::deserialize")]
     updated_at: i64,
     #[serde(default)]
+    time_entries: Vec<TimeEntry>,
+    #[serde(default)]
     archived: bool,
     #[serde(default, deserialize_with = "iso_secs_opt::deserialize")]
     archived_at: Option<i64>,
@@ -262,21 +284,24 @@ impl From<TaskCompat> for Task {
             created_at: c.created_at,
             completed_at,
             updated_at: c.updated_at,
+            time_entries: c.time_entries,
         }
     }
 }
 
 /// Bumped to 4 when on-disk timestamps switched from integer epoch-millis to
 /// ISO-8601 local-time strings (`created_at`/`updated_at`/`completed_at`/`last_modified`),
-/// and to 5 when reusable templates moved out of the `tasks` list into a separate
+/// to 5 when reusable templates moved out of the `tasks` list into a separate
 /// `template_tasks` list (legacy `is_template` tasks are migrated on load by
-/// `DocumentCompat`). A pre-N build can't parse the newer shape, so the higher
+/// `DocumentCompat`), and to 6 when tasks gained per-task time-tracking entries
+/// (`time_entries`, #81). A pre-N build can't parse the newer shape, so the higher
 /// version lets `parse_checked` reject the file with a clear "update the app"
-/// message where it can — crucially, a v4 build would otherwise drop the separate
-/// `template_tasks` (losing every template) on its next write. New builds still
-/// read old files (integer-millis timestamps via `iso_secs`; `is_template` tasks
-/// via `DocumentCompat`).
-pub const CURRENT_VERSION: u32 = 5;
+/// message where it can — crucially, an older build would otherwise drop the
+/// newer fields (losing every template, or every recorded time entry) on its next
+/// write. New builds still read old files (integer-millis timestamps via
+/// `iso_secs`; `is_template` tasks via `DocumentCompat`; absent `time_entries`
+/// defaults to empty).
+pub const CURRENT_VERSION: u32 = 6;
 
 /// Files written before `version` existed are assumed compatible with the
 /// current schema (the model is additive/backward-compatible), so an absent
@@ -384,7 +409,25 @@ impl Task {
     /// single field encoding both.
     pub fn set_done(&mut self, done: bool, ts: i64) {
         self.completed_at = if done { Some(ts) } else { None };
+        // Finishing a task stops its clock; you're no longer working on it (#81).
+        if done { self.stop_timer(ts); }
         self.updated_at = ts;
+    }
+
+    /// The running time entry (the open interval with no `end`), if any (#81).
+    pub fn running_entry(&self) -> Option<&TimeEntry> {
+        self.time_entries.iter().find(|e| e.end.is_none())
+    }
+
+    /// Close any open interval at `ts`, returning whether one was running. `end` is
+    /// clamped to at least `start` so a backwards clock can't record negative time.
+    pub fn stop_timer(&mut self, ts: i64) -> bool {
+        let mut stopped = false;
+        for e in self.time_entries.iter_mut().filter(|e| e.end.is_none()) {
+            e.end = Some(ts.max(e.start));
+            stopped = true;
+        }
+        stopped
     }
 }
 
@@ -447,6 +490,7 @@ mod tests {
             created_at: 0,
             completed_at: None,
             updated_at: 0,
+            time_entries: Vec::new(),
         }
     }
 
@@ -484,6 +528,59 @@ mod tests {
         assert!(!t.archived(), "reopening a task restores it to the active views");
         assert_eq!(t.archived_at(), None);
         assert_eq!(t.updated_at, 200);
+    }
+
+    #[test]
+    fn stop_timer_closes_the_open_interval_and_clamps_end() {
+        let mut t = task();
+        t.time_entries.push(TimeEntry { id: "te_1".into(), start: 1_000, end: None });
+        assert!(t.running_entry().is_some());
+        assert!(t.stop_timer(5_000));
+        assert_eq!(t.time_entries[0].end, Some(5_000));
+        assert!(t.running_entry().is_none());
+        // A second stop with nothing running is a no-op.
+        assert!(!t.stop_timer(9_000));
+        // A backwards clock can't record negative time: end is clamped to start.
+        t.time_entries.push(TimeEntry { id: "te_2".into(), start: 8_000, end: None });
+        assert!(t.stop_timer(2_000));
+        assert_eq!(t.time_entries[1].end, Some(8_000));
+    }
+
+    #[test]
+    fn completing_a_task_stops_its_running_timer() {
+        let mut t = task();
+        t.time_entries.push(TimeEntry { id: "te_1".into(), start: 1_000, end: None });
+        t.set_done(true, 4_000);
+        assert!(t.done());
+        assert_eq!(t.time_entries[0].end, Some(4_000), "finishing the task closes the open interval");
+        assert!(t.running_entry().is_none());
+    }
+
+    #[test]
+    fn time_entries_round_trip_and_omit_when_empty() {
+        // Empty: the key is omitted entirely (untracked tasks serialize as before).
+        let bare = task();
+        let json = serde_json::to_string(&bare).unwrap();
+        assert!(!json.contains("time_entries"), "empty time_entries must not be written");
+
+        // Open + closed entries round-trip; the open one omits `end`.
+        let mut t = task();
+        t.time_entries.push(TimeEntry { id: "te_1".into(), start: 1_000, end: Some(2_000) });
+        t.time_entries.push(TimeEntry { id: "te_2".into(), start: 3_000, end: None });
+        let json = serde_json::to_string(&t).unwrap();
+        let back: Task = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.time_entries.len(), 2);
+        assert_eq!(back.time_entries[0].end, Some(2_000));
+        assert_eq!(back.time_entries[1].end, None);
+    }
+
+    #[test]
+    fn task_without_time_entries_loads_with_empty_list() {
+        // A file written before #81 has no `time_entries` key; it must default to
+        // empty rather than failing the parse.
+        let t: Task =
+            serde_json::from_str(r##"{"id":"k_1","title":"t","created_at":0}"##).unwrap();
+        assert!(t.time_entries.is_empty());
     }
 
     #[test]

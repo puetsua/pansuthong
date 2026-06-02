@@ -6,10 +6,10 @@
   "type": "object",
   "properties": {
     "version": {
-      "description": "Document schema version. Missing versions load as the current app version. Version 4+ stores timestamps as ISO-8601 strings; version 5+ stores reusable templates in a separate template_tasks list instead of as is_template tasks.",
+      "description": "Document schema version. Missing versions load as the current app version. Version 4+ stores timestamps as ISO-8601 strings; version 5+ stores reusable templates in a separate template_tasks list instead of as is_template tasks; version 6+ records per-task time-tracking entries in time_entries.",
       "type": "integer",
       "minimum": 1,
-      "default": 5
+      "default": 6
     },
     "last_modified": {
       "$ref": "#/$defs/timestamp",
@@ -71,6 +71,33 @@
       "description": "Task identifier. New app-created tasks use k_ followed by 12 hex characters.",
       "type": "string",
       "minLength": 1
+    },
+    "timeEntry": {
+      "description": "One time-tracking session on a task (#81). An entry without an 'end' is the running timer (open interval); closed entries are finished sessions.",
+      "type": "object",
+      "required": ["id", "start"],
+      "properties": {
+        "id": {
+          "description": "Time-entry identifier. New app-created entries use te_ followed by 12 hex characters.",
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "end": {
+          "description": "When the session ended. Null and missing both mean the timer is still running.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
     },
     "hexColor": {
       "description": "CSS hex color.",
@@ -187,6 +214,14 @@
           "$ref": "#/$defs/timestamp",
           "description": "Last task edit, as an ISO-8601 local-time timestamp with an offset (legacy files may store a UTC 'Z' timestamp or epoch milliseconds). Omitted or 0 for tasks written before this field existed.",
           "default": 0
+        },
+        "time_entries": {
+          "description": "Recorded time-tracking sessions (#81). Omitted for tasks with no tracked time. An entry without an 'end' is the running timer.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/timeEntry"
+          },
+          "default": []
         }
       },
       "not": {

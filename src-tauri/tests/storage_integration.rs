@@ -16,6 +16,7 @@ fn make_task(title: &str) -> Task {
         created_at: 0,
         completed_at: None,
         updated_at: 0,
+        time_entries: Vec::new(),
     }
 }
 
@@ -26,7 +27,7 @@ fn open_creates_default_document_when_missing() {
     let state = AppState::open(path.clone()).unwrap();
     assert!(path.exists());
     state.read(|d| {
-        assert_eq!(d.version, 5);
+        assert_eq!(d.version, 6);
         assert!(d.tasks.is_empty());
     });
 }

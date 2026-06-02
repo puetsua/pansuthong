@@ -6,6 +6,7 @@ import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, isEdi
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
 import { TagInput } from "./TagInput";
+import { TimeTracking } from "./TimeTracking";
 
 // The editor edits either a real task (absolute dates) or a template (relative
 // offsets), fixed by `kind`. A task is never converted in place; "Save as
@@ -379,6 +380,8 @@ export function TaskEditor(props: Props) {
           <textarea value={form.notes} rows={4}
                     onChange={e => set("notes", e.currentTarget.value)} />
         </label>
+
+        {canComplete && taskEntity && <TimeTracking task={taskEntity} />}
 
         {error && <p className="composer-error">{error}</p>}
         {notice && <p className="te-notice" role="status">{notice}</p>}

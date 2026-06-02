@@ -5,9 +5,12 @@ use std::collections::{HashMap, HashSet};
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TaskDiff {
-    Differs { id: String, mine: Task, theirs: Task },
-    OnlyMine   { id: String, mine: Task },
-    OnlyTheirs { id: String, theirs: Task },
+    // `Task` is boxed so the variants stay uniform in size (a `Task` grew once it
+    // carried time entries, #81); `Box<Task>` serializes identically to `Task`, so
+    // the wire shape the frontend consumes is unchanged.
+    Differs { id: String, mine: Box<Task>, theirs: Box<Task> },
+    OnlyMine   { id: String, mine: Box<Task> },
+    OnlyTheirs { id: String, theirs: Box<Task> },
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -31,14 +34,14 @@ pub fn diff_tasks(mine: &Document, theirs: &Document) -> Vec<TaskDiff> {
         match theirs_by_id.get(t.id.as_str()) {
             Some(theirs_t) if task_equal(t, theirs_t) => continue,
             Some(theirs_t) => out.push(TaskDiff::Differs {
-                id: t.id.clone(), mine: t.clone(), theirs: (*theirs_t).clone(),
+                id: t.id.clone(), mine: Box::new(t.clone()), theirs: Box::new((*theirs_t).clone()),
             }),
-            None => out.push(TaskDiff::OnlyMine { id: t.id.clone(), mine: t.clone() }),
+            None => out.push(TaskDiff::OnlyMine { id: t.id.clone(), mine: Box::new(t.clone()) }),
         }
     }
     for t in &theirs.tasks {
         if !mine_by_id.contains_key(t.id.as_str()) {
-            out.push(TaskDiff::OnlyTheirs { id: t.id.clone(), theirs: t.clone() });
+            out.push(TaskDiff::OnlyTheirs { id: t.id.clone(), theirs: Box::new(t.clone()) });
         }
     }
     out
@@ -163,7 +166,7 @@ mod merge_tests {
             id: id.into(), title: id.into(),
             due_date: None, due_time: None, start_date: None, start_time: None, notes: String::new(),
             tag_ids: tag_ids.iter().map(|s| s.to_string()).collect(),
-            created_at: 0, completed_at: None, updated_at: 0,
+            created_at: 0, completed_at: None, updated_at: 0, time_entries: Vec::new(),
         }
     }
 

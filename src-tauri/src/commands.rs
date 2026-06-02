@@ -1,7 +1,7 @@
 use crate::config::{ConfigState, Settings};
 use crate::conflict::{apply_decisions, diff_tasks, tags_to_merge, Decision, TaskDiff};
 use crate::error::{AppError, Result};
-use crate::model::{new_tag_id, new_task_id, now_ms, Tag, Task, TemplateTask};
+use crate::model::{new_tag_id, new_task_id, new_time_entry_id, now_ms, Tag, Task, TemplateTask, TimeEntry};
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
 use chrono::NaiveDate;
@@ -132,6 +132,7 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
             created_at: ts,
             completed_at: None,
             updated_at: ts,
+            time_entries: Vec::new(),
         };
         d.tasks.push(task.clone());
         Ok(task)
@@ -228,6 +229,124 @@ pub fn delete_task(id: String, state: State<'_, AppState>, app: AppHandle) -> Re
     })?;
     emit_changed(&app);
     Ok(())
+}
+
+// ─────────────────────────── Time tracking (#81) ───────────────────────────
+// Each task carries a list of {start, end} intervals; the open one (no end) is the
+// running timer. A single task has at most one open interval, but different tasks
+// may run at once. Every command persists, emits store-changed, and returns the
+// updated task.
+
+/// Look up a task by id for a mutating command, or a NotFound error.
+fn task_mut<'a>(d: &'a mut crate::model::Document, id: &str) -> Result<&'a mut Task> {
+    d.tasks.iter_mut().find(|t| t.id == id)
+        .ok_or_else(|| AppError::NotFound(format!("task {id}")))
+}
+
+/// Start the clock on a task: append an open interval. Starting one that's already
+/// running is a no-op (a task never holds two open intervals).
+#[tauri::command]
+pub fn start_timer(id: String, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
+    let updated = state.write(|d| {
+        let t = task_mut(d, &id)?;
+        if t.running_entry().is_none() {
+            let ts = now_ms();
+            t.time_entries.push(TimeEntry { id: new_time_entry_id(), start: ts, end: None });
+            t.updated_at = ts;
+        }
+        Ok(t.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
+}
+
+/// Stop the clock on a task: close its open interval. A no-op if none is running.
+#[tauri::command]
+pub fn stop_timer(id: String, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
+    let updated = state.write(|d| {
+        let t = task_mut(d, &id)?;
+        let ts = now_ms();
+        if t.stop_timer(ts) { t.updated_at = ts; }
+        Ok(t.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
+}
+
+#[derive(Deserialize)]
+pub struct AddTimeEntryInput {
+    pub task_id: String,
+    pub start: i64, // epoch millis
+    pub end: i64,   // epoch millis
+}
+
+/// Manually add a finished session (#81). Closed only: both ends required, `end > start`.
+#[tauri::command]
+pub fn add_time_entry(input: AddTimeEntryInput, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
+    if input.end <= input.start {
+        return Err(AppError::Invalid("time entry end must be after start".into()));
+    }
+    let updated = state.write(|d| {
+        let t = task_mut(d, &input.task_id)?;
+        t.time_entries.push(TimeEntry { id: new_time_entry_id(), start: input.start, end: Some(input.end) });
+        t.updated_at = now_ms();
+        Ok(t.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
+}
+
+#[derive(Deserialize)]
+pub struct UpdateTimeEntryInput {
+    pub task_id: String,
+    pub entry_id: String,
+    #[serde(default)] pub start: Option<i64>,
+    #[serde(default)] pub end: Option<i64>,
+}
+
+/// Edit an existing entry's start and/or end (#81). A closed entry must keep
+/// `end > start`; the running entry's start can be moved (its `end` stays open).
+#[tauri::command]
+pub fn update_time_entry(input: UpdateTimeEntryInput, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
+    let updated = state.write(|d| {
+        let t = task_mut(d, &input.task_id)?;
+        let e = t.time_entries.iter_mut().find(|e| e.id == input.entry_id)
+            .ok_or_else(|| AppError::NotFound(format!("time entry {}", input.entry_id)))?;
+        if let Some(s) = input.start { e.start = s; }
+        if let Some(en) = input.end  { e.end = Some(en); }
+        if let Some(en) = e.end {
+            if en <= e.start {
+                return Err(AppError::Invalid("time entry end must be after start".into()));
+            }
+        }
+        t.updated_at = now_ms();
+        Ok(t.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
+}
+
+#[derive(Deserialize)]
+pub struct DeleteTimeEntryInput {
+    pub task_id: String,
+    pub entry_id: String,
+}
+
+/// Remove a time entry (#81). Deleting the open interval simply stops timing.
+#[tauri::command]
+pub fn delete_time_entry(input: DeleteTimeEntryInput, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
+    let updated = state.write(|d| {
+        let t = task_mut(d, &input.task_id)?;
+        let before = t.time_entries.len();
+        t.time_entries.retain(|e| e.id != input.entry_id);
+        if t.time_entries.len() == before {
+            return Err(AppError::NotFound(format!("time entry {}", input.entry_id)));
+        }
+        t.updated_at = now_ms();
+        Ok(t.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
 }
 
 // ───────────────────────────── Templates (#71) ─────────────────────────────
@@ -895,6 +1014,24 @@ mod tests {
         let v: UpdateTaskInput = serde_json::from_str(r#"{"id":"t_1"}"#).unwrap();
         assert_eq!(v.due_date, None);
         assert_eq!(v.start_date, None);
+    }
+
+    #[test]
+    fn time_entry_inputs_parse_the_keys_the_js_sends(/* #81 */) {
+        let add: AddTimeEntryInput =
+            serde_json::from_str(r#"{"task_id":"k_1","start":1000,"end":2000}"#).unwrap();
+        assert_eq!((add.task_id.as_str(), add.start, add.end), ("k_1", 1000, 2000));
+
+        // Update: start and/or end are optional; absent stays None.
+        let upd: UpdateTimeEntryInput =
+            serde_json::from_str(r#"{"task_id":"k_1","entry_id":"te_1","start":5}"#).unwrap();
+        assert_eq!(upd.entry_id, "te_1");
+        assert_eq!(upd.start, Some(5));
+        assert_eq!(upd.end, None);
+
+        let del: DeleteTimeEntryInput =
+            serde_json::from_str(r#"{"task_id":"k_1","entry_id":"te_1"}"#).unwrap();
+        assert_eq!((del.task_id.as_str(), del.entry_id.as_str()), ("k_1", "te_1"));
     }
 
     #[test]

@@ -20,6 +20,17 @@ export type Tag = {
   pinned?: boolean; // shown in the curated sidebar tag list; absent = false (#78)
 };
 
+/**
+ * One time-tracking session on a task (#81). `start`/`end` are ISO-8601 local-time
+ * strings with an offset (legacy files may carry epoch ms). `end` absent = the
+ * running timer (open interval); present = a finished session.
+ */
+export type TimeEntry = {
+  id: string;
+  start: string;
+  end?: string;
+};
+
 export type Task = {
   id: string;
   title: string;
@@ -36,6 +47,7 @@ export type Task = {
   // the former done/archived/archived_at fields (#23).
   completed_at?: string;
   updated_at?: string; // ISO-8601 local time w/ offset of last edit; omitted for pre-existing tasks
+  time_entries?: TimeEntry[]; // recorded time-tracking sessions (#81); absent = none tracked
 };
 
 /** A task is done — equivalently, archived — iff it carries a completion timestamp. */
@@ -129,6 +141,16 @@ export const api = {
   updateTask:    (input: TaskUpdate)                         => invoke<Task>("update_task", { input }),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
   deleteTask:    (id: string)                => invoke<void>("delete_task", { id }),
+  // Time tracking (#81). Each returns the updated task. start/stop are no-ops when
+  // already in that state; manual entry times are epoch millis.
+  startTimer:      (id: string) => invoke<Task>("start_timer", { id }),
+  stopTimer:       (id: string) => invoke<Task>("stop_timer", { id }),
+  addTimeEntry:    (taskId: string, start: number, end: number) =>
+                                   invoke<Task>("add_time_entry", { input: { task_id: taskId, start, end } }),
+  updateTimeEntry: (taskId: string, entryId: string, patch: { start?: number; end?: number }) =>
+                                   invoke<Task>("update_time_entry", { input: { task_id: taskId, entry_id: entryId, ...patch } }),
+  deleteTimeEntry: (taskId: string, entryId: string) =>
+                                   invoke<Task>("delete_time_entry", { input: { task_id: taskId, entry_id: entryId } }),
   addTemplate:    (input: NewTemplate)    => invoke<TemplateTask>("add_template", { input }),
   updateTemplate: (input: TemplateUpdate) => invoke<TemplateTask>("update_template", { input }),
   deleteTemplate: (id: string)            => invoke<void>("delete_template", { id }),
