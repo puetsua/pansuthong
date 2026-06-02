@@ -1,37 +1,69 @@
 import { useMemo, useState } from "react";
-import { Document } from "../lib/tauri";
+import { Document, Task } from "../lib/tauri";
 import { TaskList } from "../components/TaskList";
 import { Indexes } from "../state/indexes";
-import { todayIso } from "../lib/dates";
+import { todayIso, addDaysIso } from "../lib/dates";
 
 type Props = { doc: Document; indexes: Indexes };
 
 // Page sizes offered for the archived list (#92).
 const PAGE_SIZES = [10, 30, 50] as const;
+// On entry, show only the last month's completions; the reader widens via the
+// date inputs or "Clear dates".
+const DEFAULT_RANGE_DAYS = 30;
+
+type DateField = "completed" | "due" | "created";
+
+// The YYYY-MM-DD a task carries for the chosen field, or undefined if it has none.
+function taskDate(t: Task, field: DateField): string | undefined {
+  if (field === "due") return t.due_date;
+  if (field === "created") return t.created_at?.slice(0, 10);
+  return t.completed_at?.slice(0, 10);
+}
 
 export function ArchivedView({ indexes }: Props) {
   const archived = indexes.archived;
+  const today = todayIso();
+
   const [query, setQuery] = useState("");
+  const [dateField, setDateField] = useState<DateField>("completed");
+  const [from, setFrom] = useState(() => addDaysIso(today, -DEFAULT_RANGE_DAYS));
+  const [to, setTo] = useState(() => today);
   const [pageSize, setPageSize] = useState<number>(PAGE_SIZES[0]);
   const [page, setPage] = useState(1); // 1-based
 
   const trimmed = query.trim();
+  const filtering = trimmed !== "" || from !== "" || to !== "";
+
   const filtered = useMemo(() => {
     const q = trimmed.toLowerCase();
-    if (!q) return archived;
-    return archived.filter(t => t.title.toLowerCase().includes(q) || t.notes.toLowerCase().includes(q));
-  }, [archived, trimmed]);
+    return archived.filter(t => {
+      if (q && !(t.title.toLowerCase().includes(q) || t.notes.toLowerCase().includes(q))) return false;
+      if (from || to) {
+        const d = taskDate(t, dateField);
+        if (!d) return false; // no date for this field can't sit in a bounded range
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+      }
+      return true;
+    });
+  }, [archived, trimmed, dateField, from, to]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  // Clamp: the list can shrink under the current page when a query narrows it
+  // Clamp: the list can shrink under the current page when a filter narrows it
   // or a task is restored away.
   const current = Math.min(page, totalPages);
   const start = (current - 1) * pageSize;
   const pageItems = filtered.slice(start, start + pageSize);
 
   // Any change that reshapes the result set sends the reader back to page 1.
-  const onQuery = (v: string) => { setQuery(v); setPage(1); };
-  const onPageSize = (v: number) => { setPageSize(v); setPage(1); };
+  const reset = () => setPage(1);
+  const onQuery = (v: string) => { setQuery(v); reset(); };
+  const onDateField = (v: DateField) => { setDateField(v); reset(); };
+  const onFrom = (v: string) => { setFrom(v); reset(); };
+  const onTo = (v: string) => { setTo(v); reset(); };
+  const onPageSize = (v: number) => { setPageSize(v); reset(); };
+  const clearDates = () => { setFrom(""); setTo(""); reset(); };
 
   return (
     <section>
@@ -40,8 +72,8 @@ export function ArchivedView({ indexes }: Props) {
           <h1>Archived</h1>
         </div>
         <p className="view-sub">
-          {trimmed
-            ? `${filtered.length} of ${archived.length} archived match “${trimmed}”`
+          {filtering
+            ? `${filtered.length} of ${archived.length} archived match the filter`
             : `${archived.length} archived · Restore brings a task back to the active lists`}
         </p>
       </header>
@@ -54,8 +86,33 @@ export function ArchivedView({ indexes }: Props) {
         aria-label="Search archived tasks"
       />
 
-      <TaskList tasks={pageItems} tags={indexes.tagsById} todayIso={todayIso()}
-                emptyText={trimmed ? "No archived tasks match your search." : "No archived tasks yet."}
+      <div className="archived-filters">
+        <label className="archived-filter">
+          <span>Date</span>
+          <select aria-label="Date field" value={dateField}
+                  onChange={e => onDateField(e.currentTarget.value as DateField)}>
+            <option value="completed">Completed</option>
+            <option value="due">Due</option>
+            <option value="created">Created</option>
+          </select>
+        </label>
+        <label className="archived-filter">
+          <span>From</span>
+          <input type="date" aria-label="From date" value={from}
+                 onChange={e => onFrom(e.currentTarget.value)} />
+        </label>
+        <label className="archived-filter">
+          <span>To</span>
+          <input type="date" aria-label="To date" value={to}
+                 onChange={e => onTo(e.currentTarget.value)} />
+        </label>
+        {(from || to) && (
+          <button type="button" className="archived-clear" onClick={clearDates}>Clear dates</button>
+        )}
+      </div>
+
+      <TaskList tasks={pageItems} tags={indexes.tagsById} todayIso={today}
+                emptyText={filtering ? "No archived tasks match the filter." : "No archived tasks yet."}
                 archived />
 
       {totalPages > 1 && (
