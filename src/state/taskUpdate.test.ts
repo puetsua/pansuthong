@@ -12,7 +12,9 @@ import {
 const base: EditorForm = {
   title: "Write report",
   scheduled_date: "",
+  scheduled_time: "",
   due_date: "",
+  due_time: "",
   notes: "",
   tag_ids: [],
   is_template: false,
@@ -116,13 +118,53 @@ describe("offsetFormError (#71)", () => {
 });
 
 describe("dueBeforeScheduled (#51)", () => {
+  const noTimes = { scheduled_time: "", due_time: "" };
   it("flags a due date earlier than the scheduled date", () => {
-    expect(dueBeforeScheduled({ scheduled_date: "2026-06-10", due_date: "2026-06-01" })).toBe(true);
+    expect(dueBeforeScheduled({ scheduled_date: "2026-06-10", due_date: "2026-06-01", ...noTimes })).toBe(true);
   });
   it("allows due on/after scheduled, or either side missing", () => {
-    expect(dueBeforeScheduled({ scheduled_date: "2026-06-01", due_date: "2026-06-10" })).toBe(false);
-    expect(dueBeforeScheduled({ scheduled_date: "2026-06-01", due_date: "2026-06-01" })).toBe(false);
-    expect(dueBeforeScheduled({ scheduled_date: "", due_date: "2026-06-01" })).toBe(false);
-    expect(dueBeforeScheduled({ scheduled_date: "2026-06-01", due_date: "" })).toBe(false);
+    expect(dueBeforeScheduled({ scheduled_date: "2026-06-01", due_date: "2026-06-10", ...noTimes })).toBe(false);
+    expect(dueBeforeScheduled({ scheduled_date: "2026-06-01", due_date: "2026-06-01", ...noTimes })).toBe(false);
+    expect(dueBeforeScheduled({ scheduled_date: "", due_date: "2026-06-01", ...noTimes })).toBe(false);
+    expect(dueBeforeScheduled({ scheduled_date: "2026-06-01", due_date: "", ...noTimes })).toBe(false);
+  });
+});
+
+describe("time-of-day on scheduled/due (#93)", () => {
+  it("buildTaskUpdate sends times, and clears a time with no date", () => {
+    const p = buildTaskUpdate("t_1", {
+      ...base, scheduled_date: "2026-06-01", scheduled_time: "09:30",
+      due_date: "2026-06-02", due_time: "17:00",
+    });
+    expect(p.scheduled_time).toBe("09:30");
+    expect(p.due_time).toBe("17:00");
+    // A time with no date is meaningless -> null.
+    const q = buildTaskUpdate("t_1", { ...base, scheduled_date: "", scheduled_time: "09:30" });
+    expect(q.scheduled_time).toBeNull();
+  });
+
+  it("dueBeforeScheduled compares to the minute on the same day", () => {
+    // Same day, due earlier in the day than scheduled -> flagged.
+    expect(dueBeforeScheduled({
+      scheduled_date: "2026-06-01", scheduled_time: "14:00",
+      due_date: "2026-06-01", due_time: "09:00",
+    })).toBe(true);
+    // Same day, due later -> allowed.
+    expect(dueBeforeScheduled({
+      scheduled_date: "2026-06-01", scheduled_time: "09:00",
+      due_date: "2026-06-01", due_time: "14:00",
+    })).toBe(false);
+    // A missing time counts as start-of-day, so day-only stays equivalent.
+    expect(dueBeforeScheduled({
+      scheduled_date: "2026-06-01", scheduled_time: "",
+      due_date: "2026-06-01", due_time: "",
+    })).toBe(false);
+  });
+
+  it("a time-only change makes the form dirty", () => {
+    expect(isEditorDirty({ ...base, scheduled_date: "2026-06-01", scheduled_time: "09:00" },
+                         { ...base, scheduled_date: "2026-06-01", scheduled_time: "" })).toBe(true);
+    expect(isEditorDirty({ ...base, due_date: "2026-06-01", due_time: "17:00" },
+                         { ...base, due_date: "2026-06-01", due_time: "" })).toBe(true);
   });
 });

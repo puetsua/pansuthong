@@ -68,9 +68,21 @@ pub fn sync_now(
 pub struct NewTaskInput {
     pub title: String,
     #[serde(default)] pub due_date: Option<NaiveDate>,
+    #[serde(default)] pub due_time: Option<String>,
     #[serde(default)] pub scheduled_date: Option<NaiveDate>,
+    #[serde(default)] pub scheduled_time: Option<String>,
     #[serde(default)] pub notes: String,
     #[serde(default)] pub tag_ids: Vec<String>,
+}
+
+/// Reject a time-of-day that isn't a valid "HH:MM" (#93). `None` (all-day) is
+/// always fine. Keeps malformed times from ever reaching tasks.json.
+fn validate_time(t: Option<&str>) -> Result<()> {
+    if let Some(s) = t {
+        chrono::NaiveTime::parse_from_str(s, "%H:%M")
+            .map_err(|_| AppError::Invalid(format!("time must be HH:MM, got {s:?}")))?;
+    }
+    Ok(())
 }
 
 /// Drop tag ids that don't exist in the document so tasks never persist dangling
@@ -103,13 +115,18 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
     if title.is_empty() {
         return Err(AppError::Invalid("title is empty".into()));
     }
+    validate_time(input.due_time.as_deref())?;
+    validate_time(input.scheduled_time.as_deref())?;
     let ts = now_ms();
     let saved = state.write(|d| {
         let task = Task {
             id: new_task_id(),
             title,
             due_date: input.due_date,
+            // A time without its date is meaningless; drop it (all-day).
+            due_time:       input.due_date.and(input.due_time),
             scheduled_date: input.scheduled_date,
+            scheduled_time: input.scheduled_date.and(input.scheduled_time),
             notes: input.notes,
             tag_ids: retain_known_tags(input.tag_ids, &d.tags),
             created_at: ts,
@@ -142,7 +159,9 @@ pub struct UpdateTaskInput {
     pub id: String,
     #[serde(default)] pub title: Option<String>,
     #[serde(default, deserialize_with = "double_option")] pub due_date: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "double_option")] pub due_time: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")] pub scheduled_date: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "double_option")] pub scheduled_time: Option<Option<String>>,
     #[serde(default)] pub notes: Option<String>,
     #[serde(default)] pub tag_ids: Option<Vec<String>>,
 }
@@ -163,12 +182,19 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
             }
             t.title = trimmed;
         }
+        if let Some(ref v) = input.due_time       { validate_time(v.as_deref())?; }
+        if let Some(ref v) = input.scheduled_time { validate_time(v.as_deref())?; }
         if let Some(v) = input.due_date       { t.due_date = v; }
+        if let Some(v) = input.due_time       { t.due_time = v; }
         if let Some(v) = input.scheduled_date { t.scheduled_date = v; }
+        if let Some(v) = input.scheduled_time { t.scheduled_time = v; }
         if let Some(v) = input.notes          { t.notes = v; }
         if let Some(v) = input.tag_ids        {
             t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
         }
+        // A time without its date is meaningless; clearing a date drops its time.
+        if t.due_date.is_none()       { t.due_time = None; }
+        if t.scheduled_date.is_none() { t.scheduled_time = None; }
         t.updated_at = now_ms();
         Ok(t.clone())
     })?;
@@ -874,6 +900,35 @@ mod tests {
         let v: UpdateTaskInput =
             serde_json::from_str(r#"{"id":"t_1","due_date":"2026-06-01"}"#).unwrap();
         assert_eq!(v.due_date, Some(Some(NaiveDate::from_ymd_opt(2026, 6, 1).unwrap())));
+    }
+
+    #[test]
+    fn task_time_fields_round_trip_and_clear(/* #93 */) {
+        // Absent -> None (leave), null -> Some(None) (clear), value -> Some(Some) (set).
+        let absent: UpdateTaskInput = serde_json::from_str(r#"{"id":"t_1"}"#).unwrap();
+        assert_eq!(absent.scheduled_time, None);
+        assert_eq!(absent.due_time, None);
+        let cleared: UpdateTaskInput =
+            serde_json::from_str(r#"{"id":"t_1","scheduled_time":null,"due_time":null}"#).unwrap();
+        assert_eq!(cleared.scheduled_time, Some(None));
+        assert_eq!(cleared.due_time, Some(None));
+        let set: UpdateTaskInput =
+            serde_json::from_str(r#"{"id":"t_1","scheduled_time":"09:30"}"#).unwrap();
+        assert_eq!(set.scheduled_time, Some(Some("09:30".to_string())));
+        let new: NewTaskInput =
+            serde_json::from_str(r#"{"title":"t","due_time":"23:59"}"#).unwrap();
+        assert_eq!(new.due_time.as_deref(), Some("23:59"));
+    }
+
+    #[test]
+    fn validate_time_accepts_hh_mm_and_rejects_garbage(/* #93 */) {
+        assert!(validate_time(None).is_ok());          // all-day
+        assert!(validate_time(Some("00:00")).is_ok());
+        assert!(validate_time(Some("09:30")).is_ok());
+        assert!(validate_time(Some("23:59")).is_ok());
+        assert!(validate_time(Some("24:00")).is_err());    // hour out of range
+        assert!(validate_time(Some("5pm")).is_err());      // not HH:MM
+        assert!(validate_time(Some("09:30:00")).is_err()); // trailing seconds
     }
 
     #[test]

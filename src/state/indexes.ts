@@ -27,9 +27,15 @@ export function effectivePriority(task: Task, tagsById: Map<string, Tag>): numbe
   return max;
 }
 
-/** Earliest of scheduled/due as an ISO string; undefined when the task has neither. */
+/** "date[Ttime]" so same-day tasks order by time; missing time = start-of-day (#93). */
+function moment(date?: string, time?: string): string | undefined {
+  return date ? `${date}T${time || "00:00"}` : undefined;
+}
+
+/** Earliest of scheduled/due as a comparable moment; undefined when the task has neither. */
 function sortDate(task: Task): string | undefined {
-  const s = task.scheduled_date, d = task.due_date;
+  const s = moment(task.scheduled_date, task.scheduled_time);
+  const d = moment(task.due_date, task.due_time);
   if (s && d) return s < d ? s : d;
   return s ?? d;
 }

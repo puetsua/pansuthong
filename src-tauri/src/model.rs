@@ -127,8 +127,15 @@ pub struct Task {
     pub title: String,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub due_date: Option<NaiveDate>,
+    /// Optional time-of-day for `due_date`, "HH:MM" local wall-clock. `None` =
+    /// all-day (the only state before #93); only meaningful when `due_date` is set.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub due_time: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub scheduled_date: Option<NaiveDate>,
+    /// Optional time-of-day for `scheduled_date`, "HH:MM" local wall-clock (#93).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub scheduled_time: Option<String>,
     #[serde(default)]
     pub notes: String,
     #[serde(default)]
@@ -209,7 +216,11 @@ struct TaskCompat {
     #[serde(default)]
     due_date: Option<NaiveDate>,
     #[serde(default)]
+    due_time: Option<String>,
+    #[serde(default)]
     scheduled_date: Option<NaiveDate>,
+    #[serde(default)]
+    scheduled_time: Option<String>,
     #[serde(default)]
     notes: String,
     #[serde(default)]
@@ -241,7 +252,9 @@ impl From<TaskCompat> for Task {
             id: c.id,
             title: c.title,
             due_date: c.due_date,
+            due_time: c.due_time,
             scheduled_date: c.scheduled_date,
+            scheduled_time: c.scheduled_time,
             notes: c.notes,
             tag_ids: c.tag_ids,
             created_at: c.created_at,
@@ -424,7 +437,9 @@ mod tests {
             id: "k_1".into(),
             title: "t".into(),
             due_date: None,
+            due_time: None,
             scheduled_date: None,
+            scheduled_time: None,
             notes: String::new(),
             tag_ids: Vec::new(),
             created_at: 0,

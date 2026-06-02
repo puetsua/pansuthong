@@ -23,7 +23,9 @@ export type Task = {
   id: string;
   title: string;
   due_date?: string;       // YYYY-MM-DD
+  due_time?: string;       // "HH:MM" local; companion to due_date, absent = all-day (#93)
   scheduled_date?: string; // YYYY-MM-DD
+  scheduled_time?: string; // "HH:MM" local; companion to scheduled_date, absent = all-day (#93)
   notes: string;
   tag_ids: string[];
   created_at: string; // ISO-8601 local time w/ offset, e.g. 2026-06-01T20:34:56+08:00
@@ -70,7 +72,9 @@ export type TaskUpdate = {
   id: string;
   title?: string;
   due_date?: string | null;
+  due_time?: string | null;
   scheduled_date?: string | null;
+  scheduled_time?: string | null;
   notes?: string;
   tag_ids?: string[];
 };
