@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { TagsView } from "./TagsView";
 import { buildIndexes } from "../state/indexes";
 import { Document, Tag } from "../lib/tauri";
@@ -28,7 +29,11 @@ const doc = (tags: Tag[]): Document => ({
 
 const renderView = (tags: Tag[]) => {
   const d = doc(tags);
-  render(<TagsView doc={d} indexes={buildIndexes(d)} />);
+  render(
+    <MemoryRouter>
+      <TagsView doc={d} indexes={buildIndexes(d)} />
+    </MemoryRouter>,
+  );
 };
 
 beforeEach(() => vi.clearAllMocks());
@@ -58,5 +63,27 @@ describe("TagsView — pin toggle (#78)", () => {
     renderView([tag({ id: "t_a", name: "work", pinned: true })]);
     const btn = screen.getByRole("button", { name: /unpin #work from sidebar/i });
     expect(btn.getAttribute("aria-pressed")).toBe("true");
+  });
+});
+
+describe("TagsView — tag name links to its task list (#91)", () => {
+  it("renders each tag name as a link to /tag/:id", () => {
+    renderView([tag({ id: "t_a", name: "work" })]);
+    const link = screen.getByRole("link", { name: /work/i });
+    expect(link.getAttribute("href")).toBe("/tag/t_a");
+  });
+
+  it("keeps the pin/edit/delete controls outside the link so they still fire", () => {
+    renderView([tag({ id: "t_a", name: "work", pinned: false })]);
+
+    // The row's controls are siblings of the link, not nested in it.
+    const link = screen.getByRole("link", { name: /work/i });
+    const pin = screen.getByRole("button", { name: /pin #work to sidebar/i });
+    expect(link.contains(pin)).toBe(false);
+
+    fireEvent.click(pin);
+    return waitFor(() =>
+      expect(api.updateTag).toHaveBeenCalledWith({ id: "t_a", pinned: true }),
+    );
   });
 });
