@@ -10,6 +10,8 @@ vi.mock("../lib/tauri", async (importOriginal) => {
     api: {
       setTaskDone: vi.fn().mockResolvedValue({}),
       addTask: vi.fn().mockResolvedValue({}),
+      startTimer: vi.fn().mockResolvedValue({}),
+      stopTimer: vi.fn().mockResolvedValue({}),
     },
   };
 });
@@ -29,6 +31,32 @@ describe("TaskRow active mode", () => {
     render(<TaskRow task={baseTask} tags={tags} todayIso="2026-05-31" />);
     fireEvent.click(screen.getByRole("checkbox", { name: /toggle/i }));
     await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", true));
+  });
+});
+
+describe("TaskRow time tracking (#81)", () => {
+  it("starts a timer when not running", async () => {
+    render(<TaskRow task={baseTask} tags={tags} todayIso="2026-05-31" />);
+    fireEvent.click(screen.getByRole("button", { name: /start timer/i }));
+    await waitFor(() => expect(api.startTimer).toHaveBeenCalledWith("k_1"));
+  });
+
+  it("stops the running timer and shows the live elapsed clock", async () => {
+    const running: Task = { ...baseTask, time_entries: [{ id: "te_1", start: "2026-05-31T10:00:00+08:00" }] };
+    render(<TaskRow task={running} tags={tags} todayIso="2026-05-31" />);
+    // The button is labelled "Stop timer" while running.
+    fireEvent.click(screen.getByRole("button", { name: /stop timer/i }));
+    await waitFor(() => expect(api.stopTimer).toHaveBeenCalledWith("k_1"));
+  });
+
+  it("shows a tracked total (not the start icon's clock) when stopped with recorded time", () => {
+    const tracked: Task = {
+      ...baseTask,
+      time_entries: [{ id: "te_1", start: "2026-05-31T10:00:00+08:00", end: "2026-05-31T11:30:00+08:00" }],
+    };
+    render(<TaskRow task={tracked} tags={tags} todayIso="2026-05-31" />);
+    expect(screen.getByText("1h 30m")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /start timer/i })).toBeTruthy();
   });
 });
 

@@ -14,6 +14,7 @@ fn mk(id: &str, title: &str, done: bool) -> Task {
         created_at: 0,
         completed_at: done.then_some(0),
         updated_at: 0,
+        time_entries: Vec::new(),
     }
 }
 

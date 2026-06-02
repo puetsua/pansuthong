@@ -64,6 +64,35 @@ button {
 }
 .task-restore:hover { color: var(--c-accent); border-color: var(--c-accent); }
 
+/* Time tracking (#81): compact start/stop on the row. */
+.task-timer {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text-muted);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+}
+.task-timer:hover { color: var(--c-accent); border-color: var(--c-accent); }
+.task-timer-icon { font-size: 0.62rem; line-height: 1; }
+.task-timer[data-running="true"] {
+  color: var(--c-accent);
+  border-color: var(--c-accent);
+  background: var(--c-accent-bg);
+  font-weight: 600;
+}
+.task-timer-total { flex-shrink: 0; font-size: 0.72rem; color: var(--c-text-muted); font-variant-numeric: tabular-nums; }
+/* A running timer highlights the whole row so it stands out at a glance (#81). */
+.task-row[data-timing="true"] {
+  border-color: var(--c-accent);
+  background: var(--c-accent-bg);
+  box-shadow: inset 3px 0 0 var(--c-accent);
+}
+
 .task-empty { color: var(--c-text-subtle); text-align: center; padding: var(--space-6) 0; }
 
 .composer {
@@ -675,6 +704,29 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .te-datetime input[type="date"] { flex: 1; min-width: 0; }
 .te-datetime input.te-time { flex: 0 0 auto; width: auto; }
 .te-datetime input.te-time:disabled { opacity: 0.5; }
+/* Time-tracking section in the task editor (#81). */
+.te-time { display: flex; flex-direction: column; gap: var(--space-2); border-top: 1px solid var(--c-border); padding-top: var(--space-3); }
+.te-time-head { display: flex; align-items: center; gap: var(--space-2); }
+.te-field-label { font-size: 0.72rem; color: var(--c-text-muted); font-weight: 600; }
+.te-time-total { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.te-time-total[data-running="true"] { color: var(--c-accent); }
+.te-time-toggle {
+  font-size: 0.78rem; font-weight: 600;
+  border: 1px solid var(--c-border); border-radius: var(--radius-sm); padding: 2px 12px;
+}
+.te-time-toggle[data-running="true"] { color: var(--c-accent); border-color: var(--c-accent); background: var(--c-accent-bg); }
+.te-time-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.te-time-entry { display: flex; align-items: center; gap: var(--space-2); font-size: 0.8rem; }
+.te-time-range { flex: 1; min-width: 0; color: var(--c-text); }
+.te-time-running { color: var(--c-accent); font-weight: 600; }
+.te-time-dur { color: var(--c-text-muted); font-variant-numeric: tabular-nums; }
+.te-time-entry button, .te-time-edit button { font-size: 0.72rem; border: 1px solid var(--c-border); border-radius: var(--radius-sm); padding: 1px 8px; }
+.te-time-del:hover { color: var(--c-danger); border-color: var(--c-danger); }
+.te-time-edit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+.te-time-edit input { min-width: 0; }
+.te-time-add { align-self: flex-start; font-size: 0.78rem; border: 1px solid var(--c-border); border-radius: var(--radius-sm); padding: 2px 10px; color: var(--c-text-muted); }
+.te-time-add:hover { color: var(--c-accent); border-color: var(--c-accent); }
+
 /* Task-editor "Options" menu (e.g. Save as template) and the success notice (#71). */
 .te-options { position: relative; }
 .te-options-menu {
