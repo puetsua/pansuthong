@@ -1,3 +1,6 @@
+# Local signing material — never commit (keystore + passwords)
+_local_secrets/
+
 # Logs
 logs
 *.log
