@@ -193,7 +193,6 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   margin-bottom: var(--space-2);
 }
 .search-input:focus { border-color: var(--c-accent); box-shadow: 0 0 0 2px var(--c-accent-bg); }
-.search-meta { color: var(--c-text-muted); margin: 0 0 var(--space-3); font-size: 0.85rem; }
 
 /* Archived-list date/text filter row (#92). */
 .archived-filters {
