@@ -304,6 +304,10 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 }
 .settings-list li:first-child { border-top: none; }
 .settings-name { flex: 1; }
+/* The tag name links to its task list (#91); keep it looking like the chip,
+   not a default anchor. */
+.tag-name-link { text-decoration: none; color: inherit; cursor: pointer; }
+.tag-name-link:hover .task-tag { filter: brightness(1.08); }
 .settings-empty { color: var(--c-text-muted); padding: var(--space-2); }
 .link-button {
   color: var(--c-text-muted);
