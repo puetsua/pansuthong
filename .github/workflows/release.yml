@@ -1,0 +1,102 @@
+name: Release
+
+# Push a plain semver tag (e.g. `0.0.0`, `0.1.0`, or a `0.0.0-beta.1` prerelease)
+# to build the Windows desktop installer and the Android APK and publish them to
+# a GitHub Release for that tag.
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+-*"
+
+permissions:
+  contents: write # create the release and upload artifacts
+
+jobs:
+  windows-desktop:
+    name: Windows desktop (NSIS .exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      # The tag is the source of truth for the version; stamp it into the
+      # configs so the installer is named correctly. Build-time only.
+      - name: Sync version from tag
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: node .github/scripts/set-version.mjs "$env:VERSION"
+
+      # NSIS .exe only (skip the WiX .msi).
+      - run: npm run tauri build -- --bundles nsis
+
+      - name: Publish .exe to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
+          files: src-tauri/target/release/bundle/nsis/*-setup.exe
+
+  android:
+    name: Android (unsigned APK)
+    runs-on: ubuntu-latest
+    env:
+      # Pin the NDK that the local toolchain is known good with.
+      NDK_VERSION: "28.2.13676358"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages + NDK
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;${NDK_VERSION}"
+          echo "NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Sync version from tag
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: node .github/scripts/set-version.mjs "$VERSION"
+
+      - run: npm run tauri android build -- --apk
+
+      - name: Publish APK to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
+          files: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
