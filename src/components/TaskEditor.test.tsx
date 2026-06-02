@@ -10,6 +10,7 @@ vi.mock("../lib/tauri", async (importOriginal) => {
     api: {
       updateTask: vi.fn().mockResolvedValue({}),
       addTask: vi.fn().mockResolvedValue({}),
+      setTaskDone: vi.fn().mockResolvedValue({}),
       deleteTask: vi.fn().mockResolvedValue(undefined),
       addTemplate: vi.fn().mockResolvedValue({}),
       updateTemplate: vi.fn().mockResolvedValue({}),
@@ -270,6 +271,49 @@ describe("TaskEditor create mode (#71)", () => {
     );
     expect(api.updateTask).not.toHaveBeenCalled();
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+});
+
+describe("TaskEditor complete button", () => {
+  it("marks an active task done and closes", async () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.click(button(/^complete$/i));
+
+    await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", true));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("saves pending edits before completing", async () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Edited" } });
+    fireEvent.click(button(/^complete$/i));
+
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(expect.objectContaining({ id: "k_1", title: "Edited" })),
+    );
+    await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", true));
+  });
+
+  it("shows Reopen for a done task and reopens it (no redundant save)", async () => {
+    const doneTask: Task = { ...baseTask, completed_at: "2026-06-01T10:00:00+08:00" };
+    render(<TaskEditor task={doneTask} allTags={tags} onClose={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: /^complete$/i })).toBeNull();
+    fireEvent.click(button(/^reopen$/i));
+
+    await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", false));
+    expect(api.updateTask).not.toHaveBeenCalled();
+  });
+
+  it("has no Complete button when creating or editing a template", () => {
+    const { unmount } = render(<TaskEditor task={{ ...baseTask, id: "" }} allTags={tags} creating onClose={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /complete|reopen/i })).toBeNull();
+    unmount();
+    render(<TaskEditor kind="template" template={templateTask} allTags={tags} onClose={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /complete|reopen/i })).toBeNull();
   });
 });
 

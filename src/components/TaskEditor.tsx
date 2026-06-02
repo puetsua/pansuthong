@@ -1,6 +1,6 @@
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { api, Tag, Task, TemplateTask } from "../lib/tauri";
+import { api, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, isEditorDirty, offsetFormError } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
@@ -28,6 +28,10 @@ export function TaskEditor(props: Props) {
   const taskEntity = props.kind === "template" ? null : props.task;
   const tmplEntity = props.kind === "template" ? props.template : null;
   const entity: Task | TemplateTask = tmplEntity ?? taskEntity!;
+  // Completion only applies to a saved real task (templates have no completion;
+  // a not-yet-created task can't be completed).
+  const canComplete = !creating && !isTemplate;
+  const isDoneTask = taskEntity ? isDone(taskEntity) : false;
 
   const initialRef = useRef<EditorForm>({
     title: entity.title,
@@ -220,6 +224,28 @@ export function TaskEditor(props: Props) {
     }
   };
 
+  // Mark the task complete (or reopen it if already done) and close. Any pending
+  // edits are saved first so completing from the modal never silently drops them;
+  // an invalid form blocks the action and surfaces the error, like Save.
+  const toggleComplete = async () => {
+    if (isDirty()) {
+      if (!form.title.trim()) { setError("Title can't be empty."); return; }
+      if (dateError) { setError(dateError); return; }
+    }
+    setBusy(true);
+    try {
+      if (isDirty()) {
+        const tagIds = await resolveTags();
+        await api.updateTask(buildTaskUpdate(entity.id, { ...form, tag_ids: tagIds }));
+      }
+      await api.setTaskDone(entity.id, !isDoneTask);
+      onClose();
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  };
+
   const remove = async () => {
     if (!window.confirm(`Delete "${entity.title}"? This can't be undone.`)) return;
     setBusy(true);
@@ -378,6 +404,11 @@ export function TaskEditor(props: Props) {
                 </div>
               )}
             </div>
+          )}
+          {canComplete && (
+            <button type="button" className="te-complete" onClick={toggleComplete} disabled={busy}>
+              {isDoneTask ? "Reopen" : "Complete"}
+            </button>
           )}
           <span className="te-spacer" />
           <button type="button" onClick={requestClose} disabled={busy}>Cancel</button>
