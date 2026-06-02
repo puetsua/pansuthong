@@ -6,17 +6,19 @@ import { useNow } from "../lib/useNow";
 
 type Props = { task: Task };
 
-/** "YYYY-MM-DDTHH:MM" in local time for a <input type="datetime-local">. */
+/** "YYYY-MM-DDTHH:MM:SS" in local time for a second-precision datetime-local input.
+ *  Seconds are included so the timer's second-level resolution survives a manual edit. */
 function toLocalInput(ms: number): string {
   const d = new Date(ms);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T` +
+         `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 const fromLocalInput = (s: string): number => new Date(s).getTime();
 const entryMs = (s: string): number => Date.parse(s);
 /** A finished entry's duration, or 0 while it's still running. */
 const durationMs = (e: TimeEntry): number => (e.end != null ? Math.max(0, Date.parse(e.end) - Date.parse(e.start)) : 0);
-const fmtMoment = (ms: number): string => new Date(ms).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+const fmtMoment = (ms: number): string => new Date(ms).toLocaleString([], { dateStyle: "medium", timeStyle: "medium" });
 
 type Draft = { start: string; end: string };
 
@@ -91,10 +93,10 @@ export function TimeTracking({ task }: Props) {
             <li key={e.id} className="te-time-entry">
               {editingId === e.id ? (
                 <div className="te-time-edit">
-                  <input type="datetime-local" aria-label="Entry start" value={draft.start}
+                  <input type="datetime-local" step="1" aria-label="Entry start" value={draft.start}
                          onChange={ev => { const v = ev.currentTarget.value; setDraft(d => ({ ...d, start: v })); }} />
                   {e.end != null ? (
-                    <input type="datetime-local" aria-label="Entry end" value={draft.end}
+                    <input type="datetime-local" step="1" aria-label="Entry end" value={draft.end}
                            onChange={ev => { const v = ev.currentTarget.value; setDraft(d => ({ ...d, end: v })); }} />
                   ) : (
                     <span className="te-time-running">running</span>
@@ -121,9 +123,9 @@ export function TimeTracking({ task }: Props) {
 
       {adding ? (
         <div className="te-time-edit">
-          <input type="datetime-local" aria-label="New entry start" value={draft.start}
+          <input type="datetime-local" step="1" aria-label="New entry start" value={draft.start}
                  onChange={ev => { const v = ev.currentTarget.value; setDraft(d => ({ ...d, start: v })); }} />
-          <input type="datetime-local" aria-label="New entry end" value={draft.end}
+          <input type="datetime-local" step="1" aria-label="New entry end" value={draft.end}
                  onChange={ev => { const v = ev.currentTarget.value; setDraft(d => ({ ...d, end: v })); }} />
           <button type="button" className="te-time-save" onClick={submitAdd}>Add</button>
           <button type="button" onClick={() => setAdding(false)}>Cancel</button>

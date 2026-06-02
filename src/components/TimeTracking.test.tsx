@@ -76,4 +76,17 @@ describe("TimeTracking (#81)", () => {
       "k_1", Date.parse("2026-06-02T09:00"), Date.parse("2026-06-02T10:00"),
     ));
   });
+
+  it("keeps second precision in a manual entry (step=1 inputs)", async () => {
+    render(<TimeTracking task={base} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
+    const start = screen.getByLabelText("New entry start") as HTMLInputElement;
+    expect(start.step).toBe("1"); // browser exposes a seconds field
+    fireEvent.change(start, { target: { value: "2026-06-02T09:00:30" } });
+    fireEvent.change(screen.getByLabelText("New entry end"), { target: { value: "2026-06-02T09:01:45" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(api.addTimeEntry).toHaveBeenCalledWith(
+      "k_1", Date.parse("2026-06-02T09:00:30"), Date.parse("2026-06-02T09:01:45"),
+    ));
+  });
 });
