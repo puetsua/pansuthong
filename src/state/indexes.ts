@@ -1,10 +1,13 @@
 import { Document, SortOrder, Tag, Task, TemplateTask, isArchived, isDone } from "../lib/tauri";
 import { isoLt, todayIso as computeTodayIso } from "../lib/dates";
 import { dayStartHour } from "../lib/settings";
+import { GhostTask, occursOn } from "../lib/recurrence";
 
 export type Indexes = {
   byTag:     Map<string, Task[]>;
   today:     (todayIso: string) => Task[];
+  /** Recurring-template ghost rows for a given day (YYYY-MM-DD); computed, never stored. */
+  ghostsForDate: (iso: string) => GhostTask[];
   /** The current logical day (YYYY-MM-DD), honoring the day-start-hour setting. */
   todayIso:  string;
   inbox:     Task[];
@@ -148,5 +151,35 @@ export function buildIndexes(doc: Document): Indexes {
   // One logical "today" for the whole app, rolling over at the configured hour.
   const todayIso = computeTodayIso(new Date(), dayStartHour(doc.settings));
 
-  return { byTag, today, todayIso, inbox, archived, templates, tagsById, tagsByName, tasks: active };
+  // Recurring templates project ghost rows into the date-based views (#9). A ghost
+  // is suppressed when a real task already covers that occurrence: any task due on
+  // that date that shares a tag with the template. (Same-tag recurring templates
+  // therefore act as same-day alternatives — acting on one clears the others.)
+  const recurringTemplates = (doc.template_tasks ?? []).filter(t => t.recurrence && t.tag_ids.length > 0);
+  // dueDate -> set of tag ids carried by tasks due that day (open or completed).
+  const dueTagsByDate = new Map<string, Set<string>>();
+  for (const t of doc.tasks) {
+    if (!t.due_date) continue;
+    let set = dueTagsByDate.get(t.due_date);
+    if (!set) { set = new Set(); dueTagsByDate.set(t.due_date, set); }
+    for (const id of t.tag_ids) set.add(id);
+  }
+  const ghostsForDate = (iso: string): GhostTask[] => {
+    const covered = dueTagsByDate.get(iso);
+    const out: GhostTask[] = [];
+    for (const tmpl of recurringTemplates) {
+      if (!occursOn(tmpl.recurrence!, iso)) continue;
+      if (covered && tmpl.tag_ids.some(id => covered.has(id))) continue; // already done that day
+      out.push({
+        id: `ghost_${tmpl.id}_${iso}`,
+        title: tmpl.title,
+        tag_ids: tmpl.tag_ids,
+        templateId: tmpl.id,
+        occurrenceDate: iso,
+      });
+    }
+    return out;
+  };
+
+  return { byTag, today, ghostsForDate, todayIso, inbox, archived, templates, tagsById, tagsByName, tasks: active };
 }
