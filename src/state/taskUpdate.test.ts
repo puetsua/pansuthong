@@ -6,6 +6,8 @@ import {
   EditorForm,
   isEditorDirty,
   offsetFormError,
+  recurrenceFromForm,
+  recurrenceFormError,
   sameTagSet,
 } from "./taskUpdate";
 
@@ -20,6 +22,9 @@ const base: EditorForm = {
   is_template: false,
   due_offset_days: "",
   start_offset_days: "",
+  repeat: "none",
+  repeat_weekdays: [],
+  repeat_day: "",
 };
 
 describe("buildTaskUpdate", () => {
@@ -166,5 +171,45 @@ describe("time-of-day on scheduled/due (#93)", () => {
                          { ...base, start_date: "2026-06-01", start_time: "" })).toBe(true);
     expect(isEditorDirty({ ...base, due_date: "2026-06-01", due_time: "17:00" },
                          { ...base, due_date: "2026-06-01", due_time: "" })).toBe(true);
+  });
+});
+
+const recurBase: EditorForm = {
+  ...base,
+  tag_ids: ["t_ex"],
+  is_template: true,
+};
+
+describe("recurrenceFromForm", () => {
+  it("returns null when repeat is none", () => {
+    expect(recurrenceFromForm(recurBase)).toBeNull();
+  });
+  it("builds a weekly rule from selected weekdays", () => {
+    expect(recurrenceFromForm({ ...recurBase, repeat: "weekly", repeat_weekdays: [1, 5] }))
+      .toEqual({ kind: "weekly", weekdays: [1, 5] });
+  });
+  it("builds a monthly rule from the day input", () => {
+    expect(recurrenceFromForm({ ...recurBase, repeat: "monthly", repeat_day: "15" }))
+      .toEqual({ kind: "monthly", day: 15 });
+  });
+});
+
+describe("recurrenceFormError", () => {
+  it("requires a tag when a schedule is set", () => {
+    expect(recurrenceFormError({ ...recurBase, repeat: "weekly", repeat_weekdays: [1], tag_ids: [], new_tag_names: [] }))
+      .toMatch(/tag/i);
+  });
+  it("requires at least one weekday for weekly", () => {
+    expect(recurrenceFormError({ ...recurBase, repeat: "weekly", repeat_weekdays: [] })).toMatch(/day/i);
+  });
+  it("requires a valid 1-31 day for monthly", () => {
+    expect(recurrenceFormError({ ...recurBase, repeat: "monthly", repeat_day: "0" })).toMatch(/1.*31/);
+    expect(recurrenceFormError({ ...recurBase, repeat: "monthly", repeat_day: "32" })).toMatch(/1.*31/);
+  });
+  it("passes for a valid weekly rule with a tag", () => {
+    expect(recurrenceFormError({ ...recurBase, repeat: "weekly", repeat_weekdays: [1] })).toBeNull();
+  });
+  it("is null when repeat is none", () => {
+    expect(recurrenceFormError(recurBase)).toBeNull();
   });
 });

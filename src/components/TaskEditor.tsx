@@ -2,7 +2,7 @@ import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, isEditorDirty, offsetFormError } from "../state/taskUpdate";
+import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, isEditorDirty, offsetFormError, recurrenceFormError, recurrenceFromForm } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
 import { TagInput } from "./TagInput";
@@ -46,6 +46,9 @@ export function TaskEditor(props: Props) {
     is_template: isTemplate,
     due_offset_days: tmplEntity?.due_offset_days != null ? String(tmplEntity.due_offset_days) : "",
     start_offset_days: tmplEntity?.start_offset_days != null ? String(tmplEntity.start_offset_days) : "",
+    repeat: tmplEntity?.recurrence?.kind ?? "none",
+    repeat_weekdays: tmplEntity?.recurrence?.kind === "weekly" ? tmplEntity.recurrence.weekdays : [],
+    repeat_day: tmplEntity?.recurrence?.kind === "monthly" ? String(tmplEntity.recurrence.day) : "",
   });
   const [form, setForm] = useState<EditorForm>(initialRef.current);
   const [error, setError] = useState<string | null>(null);
@@ -138,6 +141,7 @@ export function TaskEditor(props: Props) {
   // and due-before-scheduled ordering) the same way #51 validates dates, so a
   // template can't silently spawn invalid tasks on every instantiation (#71).
   const offsetError = isTemplate ? offsetFormError(form) : null;
+  const recurError = isTemplate ? recurrenceFormError(form) : null;
 
   // Create any tags the user typed but didn't pick from the list, then fold their
   // ids in alongside the existing ones. Done at save time (not on each add) so
@@ -161,6 +165,7 @@ export function TaskEditor(props: Props) {
     if (!form.title.trim()) { setError("Title can't be empty."); return; }
     if (dateError) { setError(dateError); return; }
     if (offsetError) { setError(offsetError); return; }
+    if (recurError) { setError(recurError); return; }
     setBusy(true);
     try {
       const tagIds = await resolveTags();
@@ -172,6 +177,7 @@ export function TaskEditor(props: Props) {
             tag_ids: tagIds,
             start_offset_days: offsetNum(form.start_offset_days),
             due_offset_days: offsetNum(form.due_offset_days),
+            recurrence: recurrenceFromForm(form),
           });
         } else {
           await api.updateTemplate(buildTemplateUpdate(entity.id, { ...form, tag_ids: tagIds }));
@@ -324,6 +330,44 @@ export function TaskEditor(props: Props) {
               </label>
             </div>
             {offsetError && <p className="te-warn" role="alert">{offsetError}</p>}
+            <div className="te-field">
+              <span>Repeat</span>
+              <select value={form.repeat}
+                      onChange={e => set("repeat", e.currentTarget.value as EditorForm["repeat"])}>
+                <option value="none">Doesn't repeat</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            {form.repeat === "weekly" && (
+              <div className="te-weekdays" role="group" aria-label="Repeat on weekdays">
+                {([["Mon",1],["Tue",2],["Wed",3],["Thu",4],["Fri",5],["Sat",6],["Sun",7]] as const).map(([label, day]) => {
+                  const on = form.repeat_weekdays.includes(day);
+                  return (
+                    <button type="button" key={day} aria-pressed={on}
+                            className={on ? "te-weekday on" : "te-weekday"}
+                            onClick={() => set("repeat_weekdays",
+                              on ? form.repeat_weekdays.filter(d => d !== day)
+                                 : [...form.repeat_weekdays, day])}>
+                      {label}
+                    </button>
+                  );
+                })}
+                <button type="button" className="te-weekday-preset"
+                        onClick={() => set("repeat_weekdays", [1, 2, 3, 4, 5])}>
+                  Weekdays
+                </button>
+              </div>
+            )}
+            {form.repeat === "monthly" && (
+              <label className="te-field">
+                <span>Day of month (clamps to the month's last day)</span>
+                <input type="number" min={1} max={31} inputMode="numeric" placeholder="e.g. 15"
+                       value={form.repeat_day}
+                       onChange={e => set("repeat_day", e.currentTarget.value)} />
+              </label>
+            )}
+            {recurError && <p className="te-warn" role="alert">{recurError}</p>}
           </>
         ) : (
           <>
@@ -416,7 +460,7 @@ export function TaskEditor(props: Props) {
           <span className="te-spacer" />
           <button type="button" onClick={requestClose} disabled={busy}>Cancel</button>
           <button type="button" className="te-save" onClick={save}
-                  disabled={busy || !form.title.trim() || !!dateError || !!offsetError}>
+                  disabled={busy || !form.title.trim() || !!dateError || !!offsetError || !!recurError}>
             {creating ? "Add task" : "Save"}
           </button>
         </div>

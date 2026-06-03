@@ -1,4 +1,4 @@
-import { TaskUpdate, TemplateUpdate } from "../lib/tauri";
+import { Recurrence, TaskUpdate, TemplateUpdate } from "../lib/tauri";
 
 export type EditorForm = {
   title: string;
@@ -19,6 +19,11 @@ export type EditorForm = {
   is_template: boolean;
   due_offset_days: string;
   start_offset_days: string;
+  // Recurrence UI state (#9), template mode only. `repeat` picks the mode; the
+  // other two hold that mode's inputs. ISO weekdays 1=Mon..7=Sun.
+  repeat: "none" | "weekly" | "monthly";
+  repeat_weekdays: number[];
+  repeat_day: string; // "" or "1".."31"
 };
 
 /** "" => null (no offset); otherwise the parsed integer, NaN guarded to null. */
@@ -59,6 +64,7 @@ export function buildTemplateUpdate(id: string, form: EditorForm): TemplateUpdat
     tag_ids: form.tag_ids,
     start_offset_days: offsetOrNull(form.start_offset_days),
     due_offset_days:       offsetOrNull(form.due_offset_days),
+    recurrence: recurrenceFromForm(form),
   };
 }
 
@@ -86,6 +92,9 @@ export function isEditorDirty(form: EditorForm, initial: EditorForm): boolean {
     || form.is_template !== initial.is_template
     || form.due_offset_days !== initial.due_offset_days
     || form.start_offset_days !== initial.start_offset_days
+    || form.repeat !== initial.repeat
+    || form.repeat_day !== initial.repeat_day
+    || form.repeat_weekdays.join(",") !== initial.repeat_weekdays.join(",")
     || (form.new_tag_names?.length ?? 0) > 0;
 }
 
@@ -131,6 +140,33 @@ export function offsetFormError(
   const d = form.due_offset_days.trim();
   if (s !== "" && d !== "" && Number(d) < Number(s)) {
     return "Due offset can't be before the start offset.";
+  }
+  return null;
+}
+
+/** Build a Recurrence from the editor form, or null when repeat is off/invalid. */
+export function recurrenceFromForm(form: EditorForm): Recurrence | null {
+  if (form.repeat === "weekly") {
+    return form.repeat_weekdays.length ? { kind: "weekly", weekdays: [...form.repeat_weekdays].sort((a, b) => a - b) } : null;
+  }
+  if (form.repeat === "monthly") {
+    const day = parseInt(form.repeat_day.trim(), 10);
+    return Number.isInteger(day) && day >= 1 && day <= 31 ? { kind: "monthly", day } : null;
+  }
+  return null;
+}
+
+/** Validation message for the recurrence inputs, or null when valid (#9). */
+export function recurrenceFormError(form: EditorForm): string | null {
+  if (form.repeat === "none") return null;
+  const hasTag = form.tag_ids.length > 0 || (form.new_tag_names?.length ?? 0) > 0;
+  if (!hasTag) return "Add a tag so this template can recur.";
+  if (form.repeat === "weekly" && form.repeat_weekdays.length === 0) {
+    return "Pick at least one weekday to repeat on.";
+  }
+  if (form.repeat === "monthly") {
+    const day = parseInt(form.repeat_day.trim(), 10);
+    if (!Number.isInteger(day) || day < 1 || day > 31) return "Day of month must be 1-31.";
   }
   return null;
 }
