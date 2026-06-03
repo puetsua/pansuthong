@@ -55,6 +55,11 @@ export function isDone(t: Task): boolean { return t.completed_at != null; }
 /** A task is archived (hidden from the active views) iff it is done. */
 export function isArchived(t: Task): boolean { return t.completed_at != null; }
 
+/** A template's recurrence schedule (#9). Weekday numbers are ISO 1=Mon..7=Sun. */
+export type Recurrence =
+  | { kind: "weekly"; weekdays: number[] } // fires on each listed ISO weekday
+  | { kind: "monthly"; day: number };      // fires on this day-of-month, clamps to month end
+
 /**
  * A reusable blueprint, stored in its own `Document.template_tasks` list — separate
  * from active tasks (#71). Carries relative date offsets (resolved to absolute
@@ -69,6 +74,7 @@ export type TemplateTask = {
   updated_at?: string; // ISO-8601 local time w/ offset of last edit; omitted if never edited
   due_offset_days?: number;       // spawned task's due = today + N days
   start_offset_days?: number; // spawned task's start date = today + M days
+  recurrence?: Recurrence; // #9; absent = manual-only template
 };
 
 export type Document = {
@@ -98,6 +104,7 @@ export type NewTemplate = {
   tag_ids?: string[];
   due_offset_days?: number;
   start_offset_days?: number;
+  recurrence?: Recurrence | null;
 };
 
 // `null` clears an optional offset; an omitted key leaves the field unchanged.
@@ -108,6 +115,7 @@ export type TemplateUpdate = {
   tag_ids?: string[];
   due_offset_days?: number | null;
   start_offset_days?: number | null;
+  recurrence?: Recurrence | null; // null clears the schedule; omitted leaves it
 };
 
 export type DataLocation = { folder: string | null; effective_path: string };
@@ -154,6 +162,8 @@ export const api = {
   addTemplate:    (input: NewTemplate)    => invoke<TemplateTask>("add_template", { input }),
   updateTemplate: (input: TemplateUpdate) => invoke<TemplateTask>("update_template", { input }),
   deleteTemplate: (id: string)            => invoke<void>("delete_template", { id }),
+  spawnRecurringTask: (templateId: string, occurrenceDate: string) =>
+                                   invoke<Task>("spawn_recurring_task", { input: { templateId, occurrenceDate } }),
   addTag:        (name: string, color: string, priority = 0, pinned = false) =>
                                                 invoke<Tag>("add_tag", { input: { name, color, priority, pinned } }),
   deleteTag:     (id: string)                => invoke<void>("delete_tag", { id }),
