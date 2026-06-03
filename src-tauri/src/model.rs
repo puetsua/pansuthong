@@ -134,6 +134,20 @@ pub struct Tag {
     pub pinned: bool,
 }
 
+/// A template's recurrence schedule (#9). The frontend projects "ghost" rows from
+/// it into the date-based views; this type is just the stored rule. Weekday numbers
+/// are ISO 1=Mon..7=Sun.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Recurrence {
+    /// Fires on each listed weekday (ISO 1=Mon..7=Sun). The "Weekdays" preset is
+    /// [1,2,3,4,5]. Validated non-empty with in-range days by the command layer.
+    Weekly { weekdays: Vec<u8> },
+    /// Fires on this day-of-month (1..=31); a day past the month's length clamps to
+    /// the last day (handled where occurrences are computed).
+    Monthly { day: u8 },
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(from = "TaskCompat")]
 pub struct Task {
@@ -202,6 +216,11 @@ pub struct TemplateTask {
     /// Legacy files wrote `scheduled_offset_days`; the alias keeps them loading (#renamed).
     #[serde(skip_serializing_if = "Option::is_none", default, alias = "scheduled_offset_days")]
     pub start_offset_days: Option<i64>,
+    /// Optional recurrence schedule (#9). `None` = a manual-only template (the
+    /// pre-#9 behavior). `#[serde(default)]` so older files load; `skip_serializing_if`
+    /// keeps a manual template serializing byte-for-byte as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recurrence: Option<Recurrence>,
 }
 
 impl TemplateTask {
@@ -218,6 +237,7 @@ impl TemplateTask {
             updated_at: c.updated_at,
             due_offset_days: c.due_offset_days,
             start_offset_days: c.start_offset_days,
+            recurrence: None,
         }
     }
 }
@@ -300,8 +320,9 @@ impl From<TaskCompat> for Task {
 /// newer fields (losing every template, or every recorded time entry) on its next
 /// write. New builds still read old files (integer-millis timestamps via
 /// `iso_secs`; `is_template` tasks via `DocumentCompat`; absent `time_entries`
-/// defaults to empty).
-pub const CURRENT_VERSION: u32 = 6;
+/// defaults to empty), and to 7 when templates gained an optional recurrence
+/// schedule (`recurrence`, #9; absent on older files, where it defaults to none).
+pub const CURRENT_VERSION: u32 = 7;
 
 /// Files written before `version` existed are assumed compatible with the
 /// current schema (the model is additive/backward-compatible), so an absent
@@ -715,6 +736,7 @@ mod tests {
             updated_at: 0,
             due_offset_days: None,
             start_offset_days: None,
+            recurrence: None,
         }
     }
 
@@ -800,5 +822,38 @@ mod tests {
         assert_eq!(back.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>(), ["k_real"]);
         assert_eq!(back.template_tasks.len(), 1);
         assert_eq!(back.template_tasks[0].due_offset_days, Some(2));
+    }
+
+    #[test]
+    fn recurrence_round_trips_weekly_and_monthly() {
+        let weekly: Recurrence =
+            serde_json::from_str(r#"{"kind":"weekly","weekdays":[1,3,5]}"#).unwrap();
+        assert_eq!(weekly, Recurrence::Weekly { weekdays: vec![1, 3, 5] });
+        let monthly: Recurrence =
+            serde_json::from_str(r#"{"kind":"monthly","day":15}"#).unwrap();
+        assert_eq!(monthly, Recurrence::Monthly { day: 15 });
+
+        // Serializes back to the same tagged shape.
+        let json = serde_json::to_string(&Recurrence::Monthly { day: 1 }).unwrap();
+        assert_eq!(json, r#"{"kind":"monthly","day":1}"#);
+    }
+
+    #[test]
+    fn template_without_recurrence_loads_and_omits_the_key() {
+        // A template written before #9 has no `recurrence` key: it must load as None
+        // and re-serialize without the key (backward compatible).
+        let t: TemplateTask = serde_json::from_str(
+            r#"{"id":"k_1","title":"t","created_at":0}"#,
+        ).unwrap();
+        assert!(t.recurrence.is_none());
+        let json = serde_json::to_string(&t).unwrap();
+        assert!(!json.contains("recurrence"), "absent recurrence must not be written: {json}");
+
+        // A present schedule round-trips.
+        let mut sched = template("k_2");
+        sched.recurrence = Some(Recurrence::Weekly { weekdays: vec![1, 2, 3, 4, 5] });
+        let back: TemplateTask =
+            serde_json::from_str(&serde_json::to_string(&sched).unwrap()).unwrap();
+        assert_eq!(back.recurrence, Some(Recurrence::Weekly { weekdays: vec![1, 2, 3, 4, 5] }));
     }
 }

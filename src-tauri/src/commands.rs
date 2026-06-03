@@ -386,6 +386,7 @@ pub fn add_template(input: NewTemplateInput, state: State<'_, AppState>, app: Ap
             updated_at: ts,
             due_offset_days: input.due_offset_days,
             start_offset_days: input.start_offset_days,
+            recurrence: None,
         };
         d.template_tasks.push(tmpl.clone());
         Ok(tmpl)
