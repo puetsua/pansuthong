@@ -474,6 +474,50 @@ pub fn delete_template(id: String, state: State<'_, AppState>, app: AppHandle) -
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpawnRecurringTaskInput {
+    pub template_id: String,
+    pub occurrence_date: NaiveDate,
+}
+
+/// Promote a recurring template's ghost into a real task on its occurrence date
+/// (#9). Copies the template's title/notes/tags and sets `due_date` to the
+/// occurrence date — that tag + due_date pair is the only "link" back to the
+/// recurrence, so the ghost self-suppresses on the next refresh. The task is
+/// created active; the caller applies any follow-up action (complete / start timer).
+#[tauri::command]
+pub fn spawn_recurring_task(
+    input: SpawnRecurringTaskInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Task> {
+    let ts = now_ms();
+    let saved = state.write(|d| {
+        let tmpl = d.template_tasks.iter().find(|t| t.id == input.template_id)
+            .ok_or_else(|| AppError::NotFound(format!("template {}", input.template_id)))?
+            .clone();
+        let task = Task {
+            id: new_task_id(),
+            title: tmpl.title,
+            due_date: Some(input.occurrence_date),
+            due_time: None,
+            start_date: None,
+            start_time: None,
+            notes: tmpl.notes,
+            tag_ids: retain_known_tags(tmpl.tag_ids, &d.tags),
+            created_at: ts,
+            completed_at: None,
+            updated_at: ts,
+            time_entries: Vec::new(),
+        };
+        d.tasks.push(task.clone());
+        Ok(task)
+    })?;
+    emit_changed(&app);
+    Ok(saved)
+}
+
+#[derive(Deserialize)]
 pub struct NewTagInput {
     pub name: String,
     pub color: String,
@@ -1319,5 +1363,15 @@ mod tests {
         assert!(validate_offset_days(Some(OFFSET_DAYS_MAX)).is_ok());
         assert!(validate_offset_days(Some(-1)).is_err());
         assert!(validate_offset_days(Some(OFFSET_DAYS_MAX + 1)).is_err());
+    }
+
+    #[test]
+    fn spawn_recurring_task_input_parses_camel_case_keys() {
+        // The JS api sends { templateId, occurrenceDate }.
+        let v: SpawnRecurringTaskInput = serde_json::from_str(
+            r#"{"templateId":"k_1","occurrenceDate":"2026-06-08"}"#,
+        ).unwrap();
+        assert_eq!(v.template_id, "k_1");
+        assert_eq!(v.occurrence_date, NaiveDate::from_ymd_opt(2026, 6, 8).unwrap());
     }
 }
