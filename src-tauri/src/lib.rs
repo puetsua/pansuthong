@@ -168,6 +168,7 @@ pub fn run() {
             commands::add_template,
             commands::update_template,
             commands::delete_template,
+            commands::spawn_recurring_task,
             commands::add_tag,
             commands::delete_tag,
             commands::update_tag,

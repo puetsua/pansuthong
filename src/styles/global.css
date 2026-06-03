@@ -883,3 +883,28 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 
 /* Group the mobile header's icon links (Tags + Settings) on the right. */
 .mobile-header-actions { display: flex; align-items: center; gap: var(--space-1); }
+
+/* Recurring-task ghost rows (#9): de-emphasised so they read as "not yet real". */
+.ghost-row { opacity: 0.62; }
+.ghost-row .task-title { font-style: italic; }
+.ghost-row .ghost-mark { margin-right: 0.4em; opacity: 0.8; }
+
+/* Template editor weekday toggles (#9). */
+.te-weekdays { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.te-weekday, .te-weekday-preset {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+.te-weekday.on {
+  background: var(--c-accent);
+  color: #fff;
+  border-color: transparent;
+}
+
+/* Recurrence tag hint in the template editor (#9). */
+.te-recur-tags { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1); margin: 0; }
+.te-recur-tags-label { color: var(--c-text-muted); font-size: 0.85em; }
+.te-tag-pending { opacity: 0.7; font-style: italic; }

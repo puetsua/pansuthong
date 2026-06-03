@@ -303,3 +303,111 @@ describe("templates (#71)", () => {
     expect(ix.templates.map(t => t.id)).toEqual(["k_tmpl", "k_tmpl_inbox"]);
   });
 });
+
+function doc(over: Partial<Document>): Document {
+  return {
+    version: 7,
+    settings: { theme: "auto", sort_order: "priority" },
+    tags: [],
+    tasks: [],
+    template_tasks: [],
+    ...over,
+  } as Document;
+}
+
+const TAG = { id: "t_ex", name: "exercise", color: "#000", priority: 0 };
+
+describe("ghostsForDate", () => {
+  it("emits a ghost for a recurring template that fires that day", () => {
+    const d = doc({
+      tags: [TAG],
+      template_tasks: [{
+        id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
+        recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex", // Monday
+      }],
+    });
+    const ix = buildIndexes(d);
+    const mon = ix.ghostsForDate("2026-06-08"); // Monday
+    expect(mon.map(g => g.title)).toEqual(["Push-ups"]);
+    expect(mon[0].templateId).toBe("k_t");
+    expect(mon[0].occurrenceDate).toBe("2026-06-08");
+    expect(ix.ghostsForDate("2026-06-09")).toEqual([]); // Tuesday: no occurrence
+  });
+
+  it("does not emit a ghost for a tagless recurring template", () => {
+    const d = doc({
+      template_tasks: [{
+        id: "k_t", title: "No tag", notes: "", tag_ids: [], created_at: "",
+        recurrence: { kind: "weekly", weekdays: [1] },
+      }],
+    });
+    expect(buildIndexes(d).ghostsForDate("2026-06-08")).toEqual([]);
+  });
+
+  it("suppresses the ghost when a same-tag task is due that day", () => {
+    const d = doc({
+      tags: [TAG],
+      tasks: [{
+        id: "k_done", title: "Push-ups", notes: "", tag_ids: ["t_ex"],
+        created_at: "", due_date: "2026-06-08",
+      }],
+      template_tasks: [{
+        id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
+        recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex",
+      }],
+    });
+    expect(buildIndexes(d).ghostsForDate("2026-06-08")).toEqual([]);
+  });
+
+  it("a completed same-tag task still suppresses the ghost (check-off flow)", () => {
+    const d = doc({
+      tags: [TAG],
+      tasks: [{
+        id: "k_done", title: "Push-ups", notes: "", tag_ids: ["t_ex"],
+        created_at: "", due_date: "2026-06-08", completed_at: "2026-06-08T07:00:00+00:00",
+      }],
+      template_tasks: [{
+        id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
+        recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex",
+      }],
+    });
+    // The promoted-then-completed task is done, but suppression scans all tasks
+    // (not just active ones), so the ghost must NOT reappear the same day.
+    expect(buildIndexes(d).ghostsForDate("2026-06-08")).toEqual([]);
+  });
+
+  it("same-tag templates are alternatives: one due task clears both ghosts", () => {
+    const d = doc({
+      tags: [TAG],
+      tasks: [{
+        id: "k_done", title: "Push-ups", notes: "", tag_ids: ["t_ex"],
+        created_at: "", due_date: "2026-06-08",
+      }],
+      template_tasks: [
+        { id: "k_p", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
+          recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex" },
+        { id: "k_s", title: "Sit-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
+          recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex" },
+      ],
+    });
+    expect(buildIndexes(d).ghostsForDate("2026-06-08")).toEqual([]);
+  });
+
+  it("only the recurrence tag suppresses — other template tags don't", () => {
+    const HEALTH = { id: "t_health", name: "health", color: "#0a0", priority: 0 };
+    const d = doc({
+      tags: [TAG, HEALTH],
+      tasks: [{
+        id: "k_other", title: "Checkup", notes: "", tag_ids: ["t_health"],
+        created_at: "", due_date: "2026-06-08",
+      }],
+      template_tasks: [{
+        id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex", "t_health"], created_at: "",
+        recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex",
+      }],
+    });
+    // A task due that day carries 'health' (a template tag) but NOT the recurrence
+    // tag 'exercise', so the ghost is NOT suppressed.
+    expect(buildIndexes(d).ghostsForDate("2026-06-08").map(g => g.title)).toEqual(["Push-ups"]);
+  });
+});

@@ -1,8 +1,10 @@
 import dayjs from "dayjs";
+import { GhostRow } from "../components/GhostRow";
 import { TaskList } from "../components/TaskList";
 import { effectivePriority, Indexes } from "../state/indexes";
 import { useHeldCompletions } from "../state/heldCompletions";
 import { Document, Task } from "../lib/tauri";
+import { GhostTask } from "../lib/recurrence";
 import { upcomingDays } from "../lib/settings";
 
 type Props = { doc: Document; indexes: Indexes };
@@ -14,7 +16,9 @@ export function UpcomingView({ doc, indexes }: Props) {
   // is left or refreshed, so a mis-click can be undone in place (#recover).
   const { held, onCompleted, onReopened } = useHeldCompletions(doc.tasks);
   const groups = buildGroups(indexes, today, horizon, held);
-  const totalCount = new Set(groups.flatMap(g => g.tasks.map(t => t.id))).size;
+  const totalCount =
+    new Set(groups.flatMap(g => g.tasks.map(t => t.id))).size +
+    groups.reduce((n, g) => n + g.ghosts.length, 0);
 
   return (
     <section>
@@ -25,8 +29,11 @@ export function UpcomingView({ doc, indexes }: Props) {
       {groups.map(g => (
         <div key={g.date} className="upcoming-group">
           <h3 className="upcoming-day">{g.label}</h3>
-          <TaskList tasks={g.tasks} tags={indexes.tagsById} todayIso={today}
-                    onCompleted={onCompleted} onReopened={onReopened} />
+          {g.ghosts.map(gh => <GhostRow key={gh.id} ghost={gh} tags={indexes.tagsById} />)}
+          {g.tasks.length > 0 && (
+            <TaskList tasks={g.tasks} tags={indexes.tagsById} todayIso={today}
+                      onCompleted={onCompleted} onReopened={onReopened} />
+          )}
         </div>
       ))}
       {totalCount === 0 && (
@@ -36,7 +43,7 @@ export function UpcomingView({ doc, indexes }: Props) {
   );
 }
 
-type Group = { date: string; label: string; tasks: Task[] };
+type Group = { date: string; label: string; tasks: Task[]; ghosts: GhostTask[] };
 
 function buildGroups(indexes: Indexes, todayStr: string, horizon: number, held: Task[]): Group[] {
   const today = dayjs(todayStr);
@@ -52,7 +59,10 @@ function buildGroups(indexes: Indexes, todayStr: string, horizon: number, held: 
       .sort((a, b) => effectivePriority(b, indexes.tagsById) - effectivePriority(a, indexes.tagsById));
     const heldForDay = held.filter(t => onDay(t, iso) && !tasks.some(a => a.id === t.id));
     const all = [...tasks, ...heldForDay];
-    if (all.length > 0) result.push({ date: iso, label: labelFor(day, today), tasks: all });
+    const ghosts = indexes.ghostsForDate(iso);
+    if (all.length > 0 || ghosts.length > 0) {
+      result.push({ date: iso, label: labelFor(day, today), tasks: all, ghosts });
+    }
   }
   return result;
 }
