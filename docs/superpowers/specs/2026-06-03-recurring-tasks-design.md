@@ -41,6 +41,17 @@ no catch-up/flooding problem and no "did I complete last week's?" state to track
   ordinary task; if left unfinished it behaves like any normal overdue task the
   next day. (The vanish rule governs only *un-acted ghosts*, not tasks you've
   taken on.)
+- **The link is a tag the user assigns** (AGENTS.md: tags are the core data, so
+  the link rides on them rather than on new `Task` fields). A template recurs only
+  when it has both a schedule **and ≥1 tag**. The ghost for a recurring template on
+  date `D` is hidden when **any task carrying one of the template's tags has
+  `due_date == D`** — the instance's `due_date` (= occurrence date) supplies the
+  *when*, the shared tag supplies the *which*. No new `Task` or `Tag` fields.
+- **Shared tag = alternatives (a feature, not a bug):** several recurring templates
+  sharing a tag act as same-day alternatives — acting on any one clears the others'
+  ghosts for that date. Example: daily "push-ups" and "sit-ups" both tagged
+  `exercise` → both ghost into Today; do either and the rest clear ("I did my
+  exercise today").
 
 ## Data model
 
@@ -87,30 +98,19 @@ pub recurrence: Option<Recurrence>,
 recurrence?: Recurrence | null; // null in an update clears the schedule
 ```
 
-### `Task` gains a recurrence link
+### `Task` — no new fields
 
-So a promoted instance suppresses its own ghost for that day, and a device knows
-which occurrence an instance already fills:
-
-```rust
-// on Task (and TaskCompat for load)
-#[serde(default, skip_serializing_if = "Option::is_none")]
-pub recurrence_of:   Option<String>,    // source template id
-#[serde(default, skip_serializing_if = "Option::is_none")]
-pub occurrence_date: Option<NaiveDate>, // the occurrence this instance fills
-```
-
-```ts
-// on Task
-recurrence_of?: string;
-occurrence_date?: string; // YYYY-MM-DD
-```
+The recurrence link is **a tag**, not a stored reference, so `Task` is unchanged.
+A spawned instance already inherits the template's `tag_ids` (existing behavior);
+that inherited tag *is* the link. Occurrence identity comes from the instance's
+`due_date`. This keeps the model change to the single `TemplateTask.recurrence`
+field and avoids a parallel "recurrence reference" concept beside tags.
 
 ### Version
 
 Bump `CURRENT_VERSION` 6 → 7, with the rationale comment in the existing style
-(a pre-v7 build would drop the new template `recurrence` / task link fields on its
-next write). New builds still read v≤6 files (the new fields default to absent).
+(a pre-v7 build would drop the new template `recurrence` field on its next write).
+New builds still read v≤6 files (the field defaults to absent).
 
 ## Occurrence + ghost computation (frontend, pure)
 
@@ -136,11 +136,14 @@ In `buildIndexes` (`src/state/indexes.ts`), expose:
 ghostsForDate(iso: string): GhostTask[]
 ```
 
-which returns, for every template with a `recurrence` that `occursOn(iso)`, a
-`GhostTask` — **unless** an existing task already links to that occurrence
-(`recurrence_of === template.id && occurrence_date === iso`, checked against all
-`doc.tasks` incl. completed, so acting on a ghost removes it same-day). Build a
-`Set` of `"<templateId>|<date>"` from `doc.tasks` once for cheap suppression.
+which returns, for every template that (a) has a `recurrence`, (b) has ≥1 tag, and
+(c) `occursOn(iso)`, a `GhostTask` — **unless** a task on that date already covers
+it: any `doc.tasks` entry (open or completed) with `due_date === iso` that shares
+at least one tag with the template. Precompute, in one pass over `doc.tasks`, a
+`Map<dateIso, Set<tagId>>` of "tags that have a task due that day", then suppress a
+ghost when the template's tag set intersects `dueTagsByDate.get(iso)`. Acting on a
+ghost spawns a task with the template's tags due on `iso`, so it self-suppresses on
+the next refresh — and same-tag siblings (the alternatives case) suppress together.
 
 ### Where each view calls it
 
@@ -164,9 +167,10 @@ spawn_recurring_task(template_id: String, occurrence_date: NaiveDate) -> Task
 ```
 
 It copies `title`, `notes`, `tag_ids` from the template, sets
-`due_date = occurrence_date`, stamps `recurrence_of` + `occurrence_date`,
-`created_at = now`, persists, and returns the new `Task`. (Custom app commands
-need no capabilities entry; the ACL note in AGENTS.md is about plugin permissions.)
+`due_date = occurrence_date`, `created_at = now`, persists, and returns the new
+`Task`. No link fields are stamped — the copied `tag_ids` + `due_date` *are* the
+link. (Custom app commands need no capabilities entry; the ACL note in AGENTS.md
+is about plugin permissions.)
 
 TS api: `spawnRecurringTask(templateId, occurrenceDate) => invoke<Task>(...)`.
 
@@ -178,7 +182,7 @@ Frontend composes promote-then-apply in the store:
 - **Start timer:** `spawnRecurringTask(...)` → `startTimer(newId)`.
 
 After promotion the document refreshes; the ghost is suppressed because the new
-task links to that occurrence.
+task shares the template's tag and is due on that occurrence date.
 
 ## UI
 
@@ -188,6 +192,10 @@ task links to that occurrence.
     requires ≥1 day selected.
   - *Monthly:* a day-of-month input (1–31) with a "clamps to the month's last day"
     hint.
+  - Because recurrence needs a tag to work, the editor **requires ≥1 tag** when a
+    schedule is set (and the row surfaces a hint like "add a tag so it can recur").
+    A schedule with no tag is inert (no ghost) — the UI prevents that state rather
+    than silently dropping ghosts.
   - Lives in the **Templates view, not Settings** — does not trip the AGENTS.md
     "new Settings section needs approval" rule.
 - **Ghost row:** a de-emphasized variant of `TaskRow` (reuse the existing
@@ -200,14 +208,20 @@ task links to that occurrence.
 - **Monthly clamp:** the occurrence test uses `min(day, daysInMonth)`, so day 31
   fires on Feb 28/29, Apr 30, etc.
 - **Day-start-hour:** "today" is the existing logical `todayIso`.
-- **Same-day suppression:** promote-then-complete leaves a completed task linked to
-  today's occurrence; suppression checks all tasks (incl. completed), so no
-  duplicate ghost reappears.
+- **Same-day suppression:** promote-then-complete leaves a completed task tagged
+  and due today; suppression scans all tasks (incl. completed), so no duplicate
+  ghost reappears.
+- **Over-suppression by same-tagged tasks:** *any* task due on `D` bearing the
+  template's tag hides the ghost — including an unrelated manual task or another
+  recurring template's instance. This is the intended "alternatives" behavior and
+  the price of a tag-based link. Mitigation guidance: use a tag that is reasonably
+  specific to the recurring activity (e.g. `exercise`, `rent`) rather than a broad
+  catch-all tag.
 - **Deleting a template:** already-spawned instances are independent tasks and
   remain; only new ghosts stop appearing.
 - **Two devices, same occurrence:** each could promote independently, yielding two
-  instances with the same `(template, date)` link. Rare; both are real tasks.
-  De-duplication is out of scope for v1.
+  instances tagged + due the same day. Rare; both are real tasks. De-duplication is
+  out of scope for v1.
 - **Manual spawn still works:** a template can be both manually spawned (existing
   button) and scheduled; the schedule is purely additive.
 
@@ -215,16 +229,18 @@ task links to that occurrence.
 
 **Rust (`src-tauri`):**
 - `Recurrence` serde round-trips (`weekly` / `monthly`); tagged-enum shape.
-- A `TemplateTask` without `recurrence` and a `Task` without the link fields still
-  load (backward compat) and re-serialize without the new keys.
-- `spawn_recurring_task` copies template fields, sets `due_date = occurrence_date`,
-  and stamps `recurrence_of` + `occurrence_date`.
+- A `TemplateTask` without `recurrence` still loads (backward compat) and
+  re-serializes without the key.
+- `spawn_recurring_task` copies template `title`/`notes`/`tag_ids` and sets
+  `due_date = occurrence_date`.
 
 **TypeScript (vitest):**
 - `recurrence.test.ts`: `occursOn` for weekly (single day, Mon/Wed/Fri, weekday
   preset) and monthly including the short-month clamp; ISO/JS weekday conversion.
-- `indexes.test.ts`: `ghostsForDate` emits expected ghosts; same-day suppression
-  when a linked task exists; tag-view filtering by tag id.
+- `indexes.test.ts`: `ghostsForDate` emits expected ghosts; a tagless recurring
+  template emits none; suppression when a same-tag task is due that day; the
+  alternatives case (two same-tag templates, acting on one clears both); tag-view
+  filtering by tag id.
 
 ## Out of scope (v1)
 
