@@ -1,7 +1,7 @@
 use crate::config::{ConfigState, Settings};
 use crate::conflict::{apply_decisions, diff_tasks, tags_to_merge, Decision, TaskDiff};
 use crate::error::{AppError, Result};
-use crate::model::{new_tag_id, new_task_id, new_time_entry_id, now_ms, Tag, Task, TemplateTask, TimeEntry};
+use crate::model::{new_tag_id, new_task_id, new_time_entry_id, now_ms, Recurrence, Tag, Task, TemplateTask, TimeEntry};
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
 use chrono::NaiveDate;
@@ -107,6 +107,29 @@ fn validate_offset_days(days: Option<i64>) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Reject a recurrence schedule that could never fire or carries an out-of-range
+/// value, so a bad rule never persists (#9). Weekday numbers are ISO 1=Mon..7=Sun.
+fn validate_recurrence(rec: Option<&Recurrence>) -> Result<()> {
+    match rec {
+        None => Ok(()),
+        Some(Recurrence::Weekly { weekdays }) => {
+            if weekdays.is_empty() {
+                return Err(AppError::Invalid("weekly recurrence needs at least one weekday".into()));
+            }
+            if weekdays.iter().any(|d| !(1..=7).contains(d)) {
+                return Err(AppError::Invalid("weekday must be 1..=7 (Mon..Sun)".into()));
+            }
+            Ok(())
+        }
+        Some(Recurrence::Monthly { day }) => {
+            if !(1..=31).contains(day) {
+                return Err(AppError::Invalid("monthly day must be 1..=31".into()));
+            }
+            Ok(())
+        }
+    }
 }
 
 #[tauri::command]
@@ -365,6 +388,7 @@ pub struct NewTemplateInput {
     #[serde(default)] pub tag_ids: Vec<String>,
     #[serde(default)] pub due_offset_days: Option<i64>,
     #[serde(default)] pub start_offset_days: Option<i64>,
+    #[serde(default)] pub recurrence: Option<Recurrence>,
 }
 
 #[tauri::command]
@@ -375,6 +399,7 @@ pub fn add_template(input: NewTemplateInput, state: State<'_, AppState>, app: Ap
     }
     validate_offset_days(input.due_offset_days)?;
     validate_offset_days(input.start_offset_days)?;
+    validate_recurrence(input.recurrence.as_ref())?;
     let ts = now_ms();
     let saved = state.write(|d| {
         let tmpl = TemplateTask {
@@ -386,7 +411,7 @@ pub fn add_template(input: NewTemplateInput, state: State<'_, AppState>, app: Ap
             updated_at: ts,
             due_offset_days: input.due_offset_days,
             start_offset_days: input.start_offset_days,
-            recurrence: None,
+            recurrence: input.recurrence,
         };
         d.template_tasks.push(tmpl.clone());
         Ok(tmpl)
@@ -403,6 +428,7 @@ pub struct UpdateTemplateInput {
     #[serde(default)] pub tag_ids: Option<Vec<String>>,
     #[serde(default, deserialize_with = "double_option")] pub due_offset_days: Option<Option<i64>>,
     #[serde(default, deserialize_with = "double_option")] pub start_offset_days: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")] pub recurrence: Option<Option<Recurrence>>,
 }
 
 #[tauri::command]
@@ -425,6 +451,7 @@ pub fn update_template(input: UpdateTemplateInput, state: State<'_, AppState>, a
         }
         if let Some(v) = input.due_offset_days       { validate_offset_days(v)?; t.due_offset_days = v; }
         if let Some(v) = input.start_offset_days { validate_offset_days(v)?; t.start_offset_days = v; }
+        if let Some(v) = input.recurrence { validate_recurrence(v.as_ref())?; t.recurrence = v; }
         t.updated_at = now_ms();
         Ok(t.clone())
     })?;
@@ -1258,6 +1285,31 @@ mod tests {
             serde_json::from_str(r#"{"id":"k_1","title":"x","due_offset_days":5}"#).unwrap();
         assert_eq!(set.title.as_deref(), Some("x"));
         assert_eq!(set.due_offset_days, Some(Some(5)));
+    }
+
+    #[test]
+    fn new_template_input_parses_recurrence() {
+        let v: NewTemplateInput = serde_json::from_str(
+            r#"{"title":"t","recurrence":{"kind":"weekly","weekdays":[1,5]}}"#,
+        ).unwrap();
+        assert_eq!(v.recurrence, Some(crate::model::Recurrence::Weekly { weekdays: vec![1, 5] }));
+        let plain: NewTemplateInput = serde_json::from_str(r#"{"title":"t"}"#).unwrap();
+        assert_eq!(plain.recurrence, None);
+    }
+
+    #[test]
+    fn validate_recurrence_bounds() {
+        use crate::model::Recurrence;
+        assert!(validate_recurrence(None).is_ok());
+        assert!(validate_recurrence(Some(&Recurrence::Weekly { weekdays: vec![1, 7] })).is_ok());
+        assert!(validate_recurrence(Some(&Recurrence::Monthly { day: 31 })).is_ok());
+        // Empty weekday set is meaningless.
+        assert!(validate_recurrence(Some(&Recurrence::Weekly { weekdays: vec![] })).is_err());
+        // Out-of-range weekday (0 or >7) and day-of-month (0 or >31).
+        assert!(validate_recurrence(Some(&Recurrence::Weekly { weekdays: vec![0] })).is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Weekly { weekdays: vec![8] })).is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Monthly { day: 0 })).is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Monthly { day: 32 })).is_err());
     }
 
     #[test]
