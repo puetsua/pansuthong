@@ -24,6 +24,7 @@ export type EditorForm = {
   repeat: "none" | "weekly" | "monthly";
   repeat_weekdays: number[];
   repeat_day: string; // "" or "1".."31"
+  recurrence_tag_id: string; // "" = none; the chosen recurrence tag id (#9)
 };
 
 /** "" => null (no offset); otherwise the parsed integer, NaN guarded to null. */
@@ -65,6 +66,7 @@ export function buildTemplateUpdate(id: string, form: EditorForm): TemplateUpdat
     start_offset_days: offsetOrNull(form.start_offset_days),
     due_offset_days:       offsetOrNull(form.due_offset_days),
     recurrence: recurrenceFromForm(form),
+    recurrence_tag_id: form.repeat !== "none" ? (form.recurrence_tag_id || null) : null,
   };
 }
 
@@ -95,6 +97,7 @@ export function isEditorDirty(form: EditorForm, initial: EditorForm): boolean {
     || form.repeat !== initial.repeat
     || form.repeat_day !== initial.repeat_day
     || form.repeat_weekdays.join(",") !== initial.repeat_weekdays.join(",")
+    || form.recurrence_tag_id !== initial.recurrence_tag_id
     || (form.new_tag_names?.length ?? 0) > 0;
 }
 
@@ -159,14 +162,18 @@ export function recurrenceFromForm(form: EditorForm): Recurrence | null {
 /** Validation message for the recurrence inputs, or null when valid (#9). */
 export function recurrenceFormError(form: EditorForm): string | null {
   if (form.repeat === "none") return null;
-  const hasTag = form.tag_ids.length > 0 || (form.new_tag_names?.length ?? 0) > 0;
-  if (!hasTag) return "Add a tag in the Tags field below so this template can recur.";
   if (form.repeat === "weekly" && form.repeat_weekdays.length === 0) {
     return "Pick at least one weekday to repeat on.";
   }
   if (form.repeat === "monthly") {
     const day = parseInt(form.repeat_day.trim(), 10);
     if (!Number.isInteger(day) || day < 1 || day > 31) return "Day of month must be 1-31.";
+  }
+  if (form.tag_ids.length === 0) {
+    return "Add a tag in the Tags field below, then choose it as the recurrence tag.";
+  }
+  if (!form.recurrence_tag_id || !form.tag_ids.includes(form.recurrence_tag_id)) {
+    return "Choose which tag this recurs under.";
   }
   return null;
 }

@@ -50,6 +50,7 @@ export function TaskEditor(props: Props) {
     repeat: tmplEntity?.recurrence?.kind ?? "none",
     repeat_weekdays: tmplEntity?.recurrence?.kind === "weekly" ? tmplEntity.recurrence.weekdays : [],
     repeat_day: tmplEntity?.recurrence?.kind === "monthly" ? String(tmplEntity.recurrence.day) : "",
+    recurrence_tag_id: tmplEntity?.recurrence_tag_id ?? "",
   });
   const [form, setForm] = useState<EditorForm>(initialRef.current);
   const [error, setError] = useState<string | null>(null);
@@ -179,6 +180,7 @@ export function TaskEditor(props: Props) {
             start_offset_days: offsetNum(form.start_offset_days),
             due_offset_days: offsetNum(form.due_offset_days),
             recurrence: recurrenceFromForm(form),
+            recurrence_tag_id: form.repeat !== "none" ? (form.recurrence_tag_id || null) : null,
           });
         } else {
           await api.updateTemplate(buildTemplateUpdate(entity.id, { ...form, tag_ids: tagIds }));
@@ -368,27 +370,31 @@ export function TaskEditor(props: Props) {
                        onChange={e => set("repeat_day", e.currentTarget.value)} />
               </label>
             )}
-            {form.repeat !== "none" && (() => {
-              const chips = form.tag_ids
-                .map(id => allTags.get(id))
-                .filter((t): t is Tag => t !== undefined);
-              const pending = form.new_tag_names ?? [];
-              if (chips.length === 0 && pending.length === 0) return null;
-              return (
-                <p className="te-recur-tags">
-                  <span className="te-recur-tags-label">Recurs under:</span>
-                  {chips.map(t => (
-                    <span key={t.id} className="task-tag"
-                          style={{ background: t.color, color: readableTextColor(t.color) }}>
-                      {t.name}
-                    </span>
-                  ))}
-                  {pending.map(n => (
-                    <span key={n} className="task-tag te-tag-pending">{n}</span>
-                  ))}
-                </p>
-              );
-            })()}
+            {form.repeat !== "none" && (
+              <>
+                <label className="te-field">
+                  <span>Recurrence tag</span>
+                  <select value={form.recurrence_tag_id}
+                          onChange={e => set("recurrence_tag_id", e.currentTarget.value)}>
+                    <option value="">Choose a tag…</option>
+                    {form.tag_ids
+                      .map(id => allTags.get(id))
+                      .filter((t): t is Tag => t !== undefined)
+                      .map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </label>
+                {(() => {
+                  const t = form.recurrence_tag_id ? allTags.get(form.recurrence_tag_id) : undefined;
+                  return t ? (
+                    <p className="te-recur-tags">
+                      <span className="te-recur-tags-label">Recurs under:</span>
+                      <span className="task-tag"
+                            style={{ background: t.color, color: readableTextColor(t.color) }}>{t.name}</span>
+                    </p>
+                  ) : null;
+                })()}
+              </>
+            )}
             {recurError && <p className="te-warn" role="alert">{recurError}</p>}
           </>
         ) : (

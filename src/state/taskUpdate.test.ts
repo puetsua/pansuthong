@@ -25,6 +25,7 @@ const base: EditorForm = {
   repeat: "none",
   repeat_weekdays: [],
   repeat_day: "",
+  recurrence_tag_id: "",
 };
 
 describe("buildTaskUpdate", () => {
@@ -177,6 +178,7 @@ describe("time-of-day on scheduled/due (#93)", () => {
 const recurBase: EditorForm = {
   ...base,
   tag_ids: ["t_ex"],
+  recurrence_tag_id: "t_ex",
   is_template: true,
 };
 
@@ -208,6 +210,10 @@ describe("recurrenceFormError", () => {
   });
   it("passes for a valid weekly rule with a tag", () => {
     expect(recurrenceFormError({ ...recurBase, repeat: "weekly", repeat_weekdays: [1] })).toBeNull();
+  });
+  it("requires choosing which tag to recur under when tags exist but none chosen", () => {
+    expect(recurrenceFormError({ ...base, repeat: "weekly", repeat_weekdays: [1], tag_ids: ["t_ex"], recurrence_tag_id: "" }))
+      .toMatch(/which tag/i);
   });
   it("is null when repeat is none", () => {
     expect(recurrenceFormError(recurBase)).toBeNull();

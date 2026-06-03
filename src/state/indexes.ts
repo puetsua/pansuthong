@@ -155,7 +155,7 @@ export function buildIndexes(doc: Document): Indexes {
   // is suppressed when a real task already covers that occurrence: any task due on
   // that date that shares a tag with the template. (Same-tag recurring templates
   // therefore act as same-day alternatives — acting on one clears the others.)
-  const recurringTemplates = (doc.template_tasks ?? []).filter(t => t.recurrence && t.tag_ids.length > 0);
+  const recurringTemplates = (doc.template_tasks ?? []).filter(t => t.recurrence && t.recurrence_tag_id);
   // dueDate -> set of tag ids carried by tasks due that day (open or completed).
   const dueTagsByDate = new Map<string, Set<string>>();
   for (const t of doc.tasks) {
@@ -169,7 +169,7 @@ export function buildIndexes(doc: Document): Indexes {
     const out: GhostTask[] = [];
     for (const tmpl of recurringTemplates) {
       if (!occursOn(tmpl.recurrence!, iso)) continue;
-      if (covered && tmpl.tag_ids.some(id => covered.has(id))) continue; // already done that day
+      if (covered && covered.has(tmpl.recurrence_tag_id!)) continue; // already done that day
       out.push({
         id: `ghost_${tmpl.id}_${iso}`,
         title: tmpl.title,

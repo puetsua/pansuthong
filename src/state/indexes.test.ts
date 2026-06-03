@@ -323,7 +323,7 @@ describe("ghostsForDate", () => {
       tags: [TAG],
       template_tasks: [{
         id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
-        recurrence: { kind: "weekly", weekdays: [1] }, // Monday
+        recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex", // Monday
       }],
     });
     const ix = buildIndexes(d);
@@ -353,7 +353,7 @@ describe("ghostsForDate", () => {
       }],
       template_tasks: [{
         id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
-        recurrence: { kind: "weekly", weekdays: [1] },
+        recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex",
       }],
     });
     expect(buildIndexes(d).ghostsForDate("2026-06-08")).toEqual([]);
@@ -368,7 +368,7 @@ describe("ghostsForDate", () => {
       }],
       template_tasks: [{
         id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
-        recurrence: { kind: "weekly", weekdays: [1] },
+        recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex",
       }],
     });
     // The promoted-then-completed task is done, but suppression scans all tasks
@@ -385,11 +385,29 @@ describe("ghostsForDate", () => {
       }],
       template_tasks: [
         { id: "k_p", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
-          recurrence: { kind: "weekly", weekdays: [1] } },
+          recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex" },
         { id: "k_s", title: "Sit-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
-          recurrence: { kind: "weekly", weekdays: [1] } },
+          recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex" },
       ],
     });
     expect(buildIndexes(d).ghostsForDate("2026-06-08")).toEqual([]);
+  });
+
+  it("only the recurrence tag suppresses — other template tags don't", () => {
+    const HEALTH = { id: "t_health", name: "health", color: "#0a0", priority: 0 };
+    const d = doc({
+      tags: [TAG, HEALTH],
+      tasks: [{
+        id: "k_other", title: "Checkup", notes: "", tag_ids: ["t_health"],
+        created_at: "", due_date: "2026-06-08",
+      }],
+      template_tasks: [{
+        id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex", "t_health"], created_at: "",
+        recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex",
+      }],
+    });
+    // A task due that day carries 'health' (a template tag) but NOT the recurrence
+    // tag 'exercise', so the ghost is NOT suppressed.
+    expect(buildIndexes(d).ghostsForDate("2026-06-08").map(g => g.title)).toEqual(["Push-ups"]);
   });
 });

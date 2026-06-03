@@ -75,6 +75,7 @@ export type TemplateTask = {
   due_offset_days?: number;       // spawned task's due = today + N days
   start_offset_days?: number; // spawned task's start date = today + M days
   recurrence?: Recurrence; // #9; absent = manual-only template
+  recurrence_tag_id?: string; // #9 which tag the recurrence is keyed to (one of tag_ids)
 };
 
 export type Document = {
@@ -105,6 +106,7 @@ export type NewTemplate = {
   due_offset_days?: number;
   start_offset_days?: number;
   recurrence?: Recurrence | null;
+  recurrence_tag_id?: string | null;
 };
 
 // `null` clears an optional offset; an omitted key leaves the field unchanged.
@@ -116,6 +118,7 @@ export type TemplateUpdate = {
   due_offset_days?: number | null;
   start_offset_days?: number | null;
   recurrence?: Recurrence | null; // null clears the schedule; omitted leaves it
+  recurrence_tag_id?: string | null;
 };
 
 export type DataLocation = { folder: string | null; effective_path: string };
