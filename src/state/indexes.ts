@@ -151,10 +151,11 @@ export function buildIndexes(doc: Document): Indexes {
   // One logical "today" for the whole app, rolling over at the configured hour.
   const todayIso = computeTodayIso(new Date(), dayStartHour(doc.settings));
 
-  // Recurring templates project ghost rows into the date-based views (#9). A ghost
-  // is suppressed when a real task already covers that occurrence: any task due on
-  // that date that shares a tag with the template. (Same-tag recurring templates
-  // therefore act as same-day alternatives — acting on one clears the others.)
+  // Recurring templates project ghost rows into the date-based views (#9). Each
+  // recurring template designates one `recurrence_tag_id`; a ghost is suppressed
+  // when a real task due that date carries that single tag (the template's other
+  // tags don't count). Templates sharing the same recurrence tag therefore act as
+  // same-day alternatives — acting on one clears the others.
   const recurringTemplates = (doc.template_tasks ?? []).filter(t => t.recurrence && t.recurrence_tag_id);
   // dueDate -> set of tag ids carried by tasks due that day (open or completed).
   const dueTagsByDate = new Map<string, Set<string>>();
