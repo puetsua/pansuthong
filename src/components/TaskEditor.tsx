@@ -5,6 +5,7 @@ import { errorMessage } from "../lib/errors";
 import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, isEditorDirty, offsetFormError, recurrenceFormError, recurrenceFromForm } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
+import { readableTextColor } from "../lib/tags";
 import { TagInput } from "./TagInput";
 import { TimeTracking } from "./TimeTracking";
 
@@ -367,6 +368,27 @@ export function TaskEditor(props: Props) {
                        onChange={e => set("repeat_day", e.currentTarget.value)} />
               </label>
             )}
+            {form.repeat !== "none" && (() => {
+              const chips = form.tag_ids
+                .map(id => allTags.get(id))
+                .filter((t): t is Tag => t !== undefined);
+              const pending = form.new_tag_names ?? [];
+              if (chips.length === 0 && pending.length === 0) return null;
+              return (
+                <p className="te-recur-tags">
+                  <span className="te-recur-tags-label">Recurs under:</span>
+                  {chips.map(t => (
+                    <span key={t.id} className="task-tag"
+                          style={{ background: t.color, color: readableTextColor(t.color) }}>
+                      {t.name}
+                    </span>
+                  ))}
+                  {pending.map(n => (
+                    <span key={n} className="task-tag te-tag-pending">{n}</span>
+                  ))}
+                </p>
+              );
+            })()}
             {recurError && <p className="te-warn" role="alert">{recurError}</p>}
           </>
         ) : (

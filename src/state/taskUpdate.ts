@@ -160,7 +160,7 @@ export function recurrenceFromForm(form: EditorForm): Recurrence | null {
 export function recurrenceFormError(form: EditorForm): string | null {
   if (form.repeat === "none") return null;
   const hasTag = form.tag_ids.length > 0 || (form.new_tag_names?.length ?? 0) > 0;
-  if (!hasTag) return "Add a tag so this template can recur.";
+  if (!hasTag) return "Add a tag in the Tags field below so this template can recur.";
   if (form.repeat === "weekly" && form.repeat_weekdays.length === 0) {
     return "Pick at least one weekday to repeat on.";
   }
