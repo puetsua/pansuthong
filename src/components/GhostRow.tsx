@@ -19,7 +19,7 @@ type Props = {
 export function GhostRow({ ghost, tags }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Task | null>(null);
+  const [creatingDraft, setCreatingDraft] = useState<Task | null>(null);
 
   const ghostTags = ghost.tag_ids
     .map(id => tags.get(id))
@@ -38,7 +38,25 @@ export function GhostRow({ ghost, tags }: Props) {
   };
 
   const complete = () => run(t => api.setTaskDone(t.id, true));
-  const open = () => run(t => setEditing(t));
+
+  // Open the editor on a DRAFT (not yet persisted) pre-filled from this occurrence,
+  // mirroring TemplateRow's "New task from template". Nothing is created until the
+  // user hits Save (addTask), so the row stays mounted while the editor is open;
+  // the saved task then carries the template's tag + occurrence due_date and
+  // suppresses this ghost on the next refresh. (Spawning here would unmount the row
+  // mid-edit and close the editor.)
+  const open = () => {
+    setCreatingDraft({
+      id: "",
+      title: ghost.title,
+      notes: ghost.notes,
+      tag_ids: ghost.tag_ids,
+      due_date: ghost.occurrenceDate,
+      created_at: "",
+      completed_at: undefined,
+    });
+  };
+
   const startTimer = () => run(t => api.startTimer(t.id));
 
   return (
@@ -62,8 +80,8 @@ export function GhostRow({ ghost, tags }: Props) {
                aria-label={`Complete ${ghost.title}`} />
       </div>
       {error && <p className="composer-error" role="alert">Couldn’t add: {error}</p>}
-      {editing && (
-        <TaskEditor task={editing} allTags={tags} onClose={() => setEditing(null)} />
+      {creatingDraft && (
+        <TaskEditor task={creatingDraft} allTags={tags} creating onClose={() => setCreatingDraft(null)} />
       )}
     </>
   );

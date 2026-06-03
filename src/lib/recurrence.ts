@@ -4,6 +4,7 @@ import { Recurrence } from "./tauri";
 export type GhostTask = {
   id: string;             // `ghost_<templateId>_<iso>` — stable per occurrence
   title: string;
+  notes: string;          // copied from the template; for the creating-draft editor (#9)
   tag_ids: string[];      // copied from the template; drives tag membership + priority
   templateId: string;
   occurrenceDate: string; // YYYY-MM-DD

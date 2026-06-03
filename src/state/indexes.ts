@@ -173,6 +173,7 @@ export function buildIndexes(doc: Document): Indexes {
       out.push({
         id: `ghost_${tmpl.id}_${iso}`,
         title: tmpl.title,
+        notes: tmpl.notes,
         tag_ids: tmpl.tag_ids,
         templateId: tmpl.id,
         occurrenceDate: iso,
