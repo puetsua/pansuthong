@@ -27,19 +27,8 @@ export function daysInMonth(iso: string): number {
   return new Date(Date.UTC(y, m, 0)).getUTCDate(); // day 0 of next month = last of this
 }
 
-/**
- * A {@link Recurrence} whose `number[]` fields tolerate `readonly` inputs, so
- * callers may pass `as const` literals (the weekdays list is only ever read
- * here). `T extends unknown` distributes over the union, so each variant keeps
- * its own shape and `kind` narrowing stays intact.
- */
-type LoosenArrays<T> = T extends unknown
-  ? { [K in keyof T]: T[K] extends number[] ? readonly number[] : T[K] }
-  : never;
-type ReadonlyRecurrence = LoosenArrays<Recurrence>;
-
 /** Whether a recurrence rule fires on the given date (YYYY-MM-DD). */
-export function occursOn(rec: ReadonlyRecurrence, iso: string): boolean {
+export function occursOn(rec: Recurrence, iso: string): boolean {
   if (rec.kind === "weekly") return rec.weekdays.includes(isoWeekday(iso));
   const dom = Number(iso.slice(8, 10));
   return dom === Math.min(rec.day, daysInMonth(iso));
