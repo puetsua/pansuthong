@@ -221,6 +221,12 @@ pub struct TemplateTask {
     /// keeps a manual template serializing byte-for-byte as before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recurrence: Option<Recurrence>,
+    /// Which tag the recurrence is keyed to (#9). Must be one of `tag_ids`. Only
+    /// meaningful when `recurrence` is set; ghost suppression checks this tag alone,
+    /// so a template can carry other tags for organization. `None` for non-recurring
+    /// templates and older files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recurrence_tag_id: Option<String>,
 }
 
 impl TemplateTask {
@@ -238,6 +244,7 @@ impl TemplateTask {
             due_offset_days: c.due_offset_days,
             start_offset_days: c.start_offset_days,
             recurrence: None,
+            recurrence_tag_id: None,
         }
     }
 }
@@ -737,6 +744,7 @@ mod tests {
             due_offset_days: None,
             start_offset_days: None,
             recurrence: None,
+            recurrence_tag_id: None,
         }
     }
 
@@ -855,5 +863,18 @@ mod tests {
         let back: TemplateTask =
             serde_json::from_str(&serde_json::to_string(&sched).unwrap()).unwrap();
         assert_eq!(back.recurrence, Some(Recurrence::Weekly { weekdays: vec![1, 2, 3, 4, 5] }));
+    }
+
+    #[test]
+    fn template_recurrence_tag_id_round_trips_and_omits_when_absent() {
+        // Absent -> None, omitted on write (backward compatible).
+        let t: TemplateTask = serde_json::from_str(r#"{"id":"k_1","title":"t","created_at":0}"#).unwrap();
+        assert!(t.recurrence_tag_id.is_none());
+        assert!(!serde_json::to_string(&t).unwrap().contains("recurrence_tag_id"));
+        // Present value round-trips.
+        let mut s = template("k_2");
+        s.recurrence_tag_id = Some("t_ex".into());
+        let back: TemplateTask = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+        assert_eq!(back.recurrence_tag_id.as_deref(), Some("t_ex"));
     }
 }
