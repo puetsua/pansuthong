@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams, Navigate, useNavigate } from "react-router-dom";
 import { Composer } from "../components/Composer";
+import { GhostRow } from "../components/GhostRow";
 import { TaskList } from "../components/TaskList";
 import { TagEditor } from "../components/TagEditor";
 import { Indexes } from "../state/indexes";
@@ -23,6 +24,7 @@ export function TagView({ doc, indexes }: Props) {
 
   const active = indexes.byTag.get(id) ?? [];
   const tasks = withHeld(active, held);
+  const ghosts = indexes.ghostsForDate(indexes.todayIso).filter(g => g.tag_ids.includes(id));
   const open  = active.filter(t => !isDone(t)).length;
 
   return (
@@ -36,6 +38,7 @@ export function TagView({ doc, indexes }: Props) {
         <p className="view-sub">{open} open / {tasks.length} total</p>
       </header>
       <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} />
+      {ghosts.map(g => <GhostRow key={g.id} ghost={g} tags={indexes.tagsById} />)}
       <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={indexes.todayIso}
                 emptyText="No tasks with this tag yet."
                 onCompleted={onCompleted} onReopened={onReopened} />
