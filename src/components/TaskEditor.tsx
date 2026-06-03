@@ -122,7 +122,14 @@ export function TaskEditor(props: Props) {
   const addExistingTag = (id: string) =>
     setForm(f => (f.tag_ids.includes(id) ? f : { ...f, tag_ids: [...f.tag_ids, id] }));
   const removeExistingTag = (id: string) =>
-    setForm(f => ({ ...f, tag_ids: f.tag_ids.filter(t => t !== id) }));
+    setForm(f => ({
+      ...f,
+      tag_ids: f.tag_ids.filter(t => t !== id),
+      // Removing the tag the recurrence is keyed to clears the choice, so the
+      // editor falls back to "Choose a tag…" rather than pointing at a tag the
+      // template no longer carries (#9).
+      recurrence_tag_id: f.recurrence_tag_id === id ? "" : f.recurrence_tag_id,
+    }));
   const addNewTag = (name: string) =>
     setForm(f => {
       const names = f.new_tag_names ?? [];
@@ -384,7 +391,11 @@ export function TaskEditor(props: Props) {
                   </select>
                 </label>
                 {(() => {
-                  const t = form.recurrence_tag_id ? allTags.get(form.recurrence_tag_id) : undefined;
+                  // Only confirm a recurrence tag the template actually still carries —
+                  // resolving against the template's tags (not all tags) so a removed
+                  // tag stops showing here (#9).
+                  const t = form.tag_ids.includes(form.recurrence_tag_id)
+                    ? allTags.get(form.recurrence_tag_id) : undefined;
                   return t ? (
                     <p className="te-recur-tags">
                       <span className="te-recur-tags-label">Recurs under:</span>
