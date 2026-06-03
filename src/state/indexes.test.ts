@@ -359,6 +359,23 @@ describe("ghostsForDate", () => {
     expect(buildIndexes(d).ghostsForDate("2026-06-08")).toEqual([]);
   });
 
+  it("a completed same-tag task still suppresses the ghost (check-off flow)", () => {
+    const d = doc({
+      tags: [TAG],
+      tasks: [{
+        id: "k_done", title: "Push-ups", notes: "", tag_ids: ["t_ex"],
+        created_at: "", due_date: "2026-06-08", completed_at: "2026-06-08T07:00:00+00:00",
+      }],
+      template_tasks: [{
+        id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
+        recurrence: { kind: "weekly", weekdays: [1] },
+      }],
+    });
+    // The promoted-then-completed task is done, but suppression scans all tasks
+    // (not just active ones), so the ghost must NOT reappear the same day.
+    expect(buildIndexes(d).ghostsForDate("2026-06-08")).toEqual([]);
+  });
+
   it("same-tag templates are alternatives: one due task clears both ghosts", () => {
     const d = doc({
       tags: [TAG],
