@@ -91,6 +91,15 @@ export type Document = {
   template_tasks: TemplateTask[];
 };
 
+export type HistoryEntry = {
+  timestamp: string;
+  event: string;
+  entity: "task" | "tag" | "template";
+  entity_id: string;
+  title: string;
+  summary: string;
+};
+
 // `null` clears an optional field; an omitted key leaves it unchanged.
 export type TaskUpdate = {
   id: string;
@@ -150,6 +159,7 @@ export type SyncStatus = {
 
 export const api = {
   getDocument:   ()                          => invoke<Document>("get_document"),
+  listHistory:   ()                          => invoke<HistoryEntry[]>("list_history"),
   /** Force an immediate re-read of tasks.json from disk; returns the freshest doc. */
   syncNow:       ()                          => invoke<Document>("sync_now"),
   addTask:       (input: Partial<Task> & { title: string }) => invoke<Task>("add_task", { input }),

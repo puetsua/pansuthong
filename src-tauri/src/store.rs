@@ -52,11 +52,17 @@ impl AppState {
     pub fn write<F, T>(&self, f: F) -> Result<T>
     where F: FnOnce(&mut Document) -> Result<T> {
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let before = g.doc.clone();
         let value = f(&mut g.doc)?;
-        g.doc.last_modified = crate::model::now_ms();
+        let ts = crate::model::now_ms();
+        let history = crate::history::entries_for_change(&before, &g.doc, ts);
+        g.doc.last_modified = ts;
         g.doc.version = CURRENT_VERSION;
         let bytes = serde_json::to_vec_pretty(&g.doc)?;
         atomic_write(&g.path, &bytes)?;
+        if let Err(e) = crate::history::append_history(&g.path, &history) {
+            eprintln!("warning: failed to append history: {e}");
+        }
         g.last_written_hash = sha256(&bytes);
         Ok(value)
     }

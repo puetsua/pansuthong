@@ -81,6 +81,11 @@ export function Sidebar({ doc, indexes }: Props) {
             </NavLink>
           </li>
           <li>
+            <NavLink to="/history" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+              History
+            </NavLink>
+          </li>
+          <li>
             <NavLink to="/settings" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
               Settings
             </NavLink>

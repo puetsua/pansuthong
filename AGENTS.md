@@ -4,7 +4,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## Project
 
-Pansutong is a cross-platform task tracker built with **Tauri 2**, targeting **Windows desktop and Android** from a single codebase. The Rust crate is named `pansutong` (lib: `pansutong_lib`); the app bundle identifier is `net.puetsua.pansutong`.
+Pansutong is a cross-platform task tracker built with **Tauri 2**, targeting **Windows desktop and Android** from a single codebase. The Rust crate is named `pansutong` (lib: `pansutong_lib`); the production app bundle identifier is `net.puetsua.pansutong`. Dev launches use `net.puetsua.pansutong.dev` so they stay separate from the installed production app.
 
 ## Data model
 
@@ -27,8 +27,8 @@ The synced root is a single `Document` (`src-tauri/src/model.rs`, mirrored as a 
 
 ## Commands
 
-- `npm run tauri dev` — desktop dev (Vite dev server on `:1420` + native window)
-- `npm run tauri android dev` — Android dev (emulator or USB device)
+- `npm run tauri dev` — desktop dev (Vite dev server on `:1420` + native window, identifier `net.puetsua.pansutong.dev`)
+- `npm run tauri android dev` — Android dev (emulator or USB device, identifier `net.puetsua.pansutong.dev`)
 - `npm run tauri build` — desktop production build
 - `npm run tauri android build` — Android production build (`--apk` or `--aab`)
 - `npm run build` — frontend only (`tsc && vite build`)
@@ -72,6 +72,6 @@ See https://tauri.app/start/prerequisites/ and https://v2.tauri.app/develop/#mob
 ## Gotchas
 
 - `npm create tauri-app` does not require Rust, but `npm run tauri dev` does — the missing-Rust error is silent until first build.
-- Vite dev server is fixed to port **1420** (see `tauri.conf.json` `devUrl`); changing it requires updating both files.
+- Vite dev server is fixed to port **1420** (see `tauri.conf.json` `devUrl`); changing it requires updating both files. `npm run tauri dev` is wrapped so dev starts with `src-tauri/tauri.dev.conf.json` and the `.dev` identifier; production identifiers are for installed builds only.
 - The Cargo lib name is `pansutong_lib` (not `pansutong`) to avoid Windows-only lib/bin name collision — see comment in `src-tauri/Cargo.toml`.
 - Android builds need `ANDROID_HOME` to point at the SDK root, `NDK_HOME` at a specific NDK version dir (e.g. `$ANDROID_HOME/ndk/<version>`), not the parent.
