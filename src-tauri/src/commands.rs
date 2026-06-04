@@ -51,7 +51,7 @@ pub fn get_document(state: State<'_, AppState>, config: State<'_, ConfigState>) 
 
 #[tauri::command]
 pub fn list_history(state: State<'_, AppState>) -> Result<Vec<HistoryEntry>> {
-    crate::history::read_history(&state.path(), 200)
+    crate::history::read_all_history(&state.path())
 }
 
 /// Manual "Sync now": re-read the data file from disk immediately instead of
