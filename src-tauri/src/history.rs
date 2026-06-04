@@ -85,22 +85,14 @@ fn diff_tasks(before: &[Task], after: &[Task], timestamp: i64) -> Vec<HistoryEnt
         before,
         after,
         timestamp,
-        "task",
-        task_id,
-        task_title,
-        |old, new| {
-            if old.completed_at.is_none() && new.completed_at.is_some() {
-                ("task.completed", "Completed task")
-            } else if old.completed_at.is_some() && new.completed_at.is_none() {
-                ("task.reopened", "Reopened task")
-            } else {
-                ("task.updated", "Updated task")
-            }
+        EntityHistory {
+            entity: "task",
+            id: task_id,
+            title: task_title,
+            update_kind: task_update_kind,
+            created: ("task.created", "Created task"),
+            deleted: ("task.deleted", "Deleted task"),
         },
-        "task.created",
-        "Created task",
-        "task.deleted",
-        "Deleted task",
     )
 }
 
@@ -109,14 +101,14 @@ fn diff_tags(before: &[Tag], after: &[Tag], timestamp: i64) -> Vec<HistoryEntry>
         before,
         after,
         timestamp,
-        "tag",
-        tag_id,
-        tag_title,
-        |_old, _new| ("tag.updated", "Updated tag"),
-        "tag.created",
-        "Created tag",
-        "tag.deleted",
-        "Deleted tag",
+        EntityHistory {
+            entity: "tag",
+            id: tag_id,
+            title: tag_title,
+            update_kind: tag_update_kind,
+            created: ("tag.created", "Created tag"),
+            deleted: ("tag.deleted", "Deleted tag"),
+        },
     )
 }
 
@@ -129,43 +121,33 @@ fn diff_templates(
         before,
         after,
         timestamp,
-        "template",
-        template_id,
-        template_title,
-        |_old, _new| ("template.updated", "Updated template"),
-        "template.created",
-        "Created template",
-        "template.deleted",
-        "Deleted template",
+        EntityHistory {
+            entity: "template",
+            id: template_id,
+            title: template_title,
+            update_kind: template_update_kind,
+            created: ("template.created", "Created template"),
+            deleted: ("template.deleted", "Deleted template"),
+        },
     )
 }
 
-fn diff_entities<T, Id, Title, UpdateKind>(
+fn diff_entities<T>(
     before: &[T],
     after: &[T],
     timestamp: i64,
-    entity: &str,
-    id: Id,
-    title: Title,
-    update_kind: UpdateKind,
-    created_event: &str,
-    created_summary: &str,
-    deleted_event: &str,
-    deleted_summary: &str,
+    history: EntityHistory<T>,
 ) -> Vec<HistoryEntry>
 where
     T: Serialize,
-    Id: Fn(&T) -> &str,
-    Title: Fn(&T) -> String,
-    UpdateKind: Fn(&T, &T) -> (&'static str, &'static str),
 {
     let before_map = before
         .iter()
-        .map(|item| (id(item), item))
+        .map(|item| ((history.id)(item), item))
         .collect::<HashMap<_, _>>();
     let after_map = after
         .iter()
-        .map(|item| (id(item), item))
+        .map(|item| ((history.id)(item), item))
         .collect::<HashMap<_, _>>();
     let ids = before_map
         .keys()
@@ -178,28 +160,28 @@ where
         match (before_map.get(entity_id), after_map.get(entity_id)) {
             (None, Some(new)) => entries.push(entry(
                 timestamp,
-                created_event,
-                entity,
+                history.created.0,
+                history.entity,
                 entity_id,
-                title(new),
-                created_summary,
+                (history.title)(new),
+                history.created.1,
             )),
             (Some(old), None) => entries.push(entry(
                 timestamp,
-                deleted_event,
-                entity,
+                history.deleted.0,
+                history.entity,
                 entity_id,
-                title(old),
-                deleted_summary,
+                (history.title)(old),
+                history.deleted.1,
             )),
             (Some(old), Some(new)) if to_value(old) != to_value(new) => {
-                let (event, summary) = update_kind(old, new);
+                let (event, summary) = (history.update_kind)(old, new);
                 entries.push(entry(
                     timestamp,
                     event,
-                    entity,
+                    history.entity,
                     entity_id,
-                    title(new),
+                    (history.title)(new),
                     summary,
                 ));
             }
@@ -248,6 +230,35 @@ fn template_id(t: &TemplateTask) -> &str {
 }
 fn template_title(t: &TemplateTask) -> String {
     t.title.clone()
+}
+
+type UpdateKind<T> = fn(&T, &T) -> (&'static str, &'static str);
+
+struct EntityHistory<T> {
+    entity: &'static str,
+    id: fn(&T) -> &str,
+    title: fn(&T) -> String,
+    update_kind: UpdateKind<T>,
+    created: (&'static str, &'static str),
+    deleted: (&'static str, &'static str),
+}
+
+fn task_update_kind(old: &Task, new: &Task) -> (&'static str, &'static str) {
+    if old.completed_at.is_none() && new.completed_at.is_some() {
+        ("task.completed", "Completed task")
+    } else if old.completed_at.is_some() && new.completed_at.is_none() {
+        ("task.reopened", "Reopened task")
+    } else {
+        ("task.updated", "Updated task")
+    }
+}
+
+fn tag_update_kind(_old: &Tag, _new: &Tag) -> (&'static str, &'static str) {
+    ("tag.updated", "Updated tag")
+}
+
+fn template_update_kind(_old: &TemplateTask, _new: &TemplateTask) -> (&'static str, &'static str) {
+    ("template.updated", "Updated template")
 }
 
 #[cfg(test)]
