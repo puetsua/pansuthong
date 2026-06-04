@@ -2,12 +2,16 @@ import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, isEditorDirty, offsetFormError, recurrenceFormError, recurrenceFromForm } from "../state/taskUpdate";
+import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, isEditorDirty, maxDayForMonth, offsetFormError, recurrenceFormError, recurrenceFromForm } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
 import { readableTextColor } from "../lib/tags";
 import { TagInput } from "./TagInput";
 import { TimeTracking } from "./TimeTracking";
+
+// Month labels for the yearly-recurrence picker; index + 1 is the stored month.
+const MONTHS = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"];
 
 // The editor edits either a real task (absolute dates) or a template (relative
 // offsets), fixed by `kind`. A task is never converted in place; "Save as
@@ -49,7 +53,8 @@ export function TaskEditor(props: Props) {
     start_offset_days: tmplEntity?.start_offset_days != null ? String(tmplEntity.start_offset_days) : "",
     repeat: tmplEntity?.recurrence?.kind ?? "none",
     repeat_weekdays: tmplEntity?.recurrence?.kind === "weekly" ? tmplEntity.recurrence.weekdays : [],
-    repeat_day: tmplEntity?.recurrence?.kind === "monthly" ? String(tmplEntity.recurrence.day) : "",
+    repeat_days: tmplEntity?.recurrence?.kind === "monthly" ? tmplEntity.recurrence.days.join(", ") : "",
+    repeat_dates: tmplEntity?.recurrence?.kind === "yearly" ? tmplEntity.recurrence.dates : [],
     recurrence_tag_id: tmplEntity?.recurrence_tag_id ?? "",
   });
   const [form, setForm] = useState<EditorForm>(initialRef.current);
@@ -345,8 +350,10 @@ export function TaskEditor(props: Props) {
               <select value={form.repeat}
                       onChange={e => set("repeat", e.currentTarget.value as EditorForm["repeat"])}>
                 <option value="none">Doesn't repeat</option>
+                <option value="daily">Every day</option>
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
+                <option value="yearly">Every year</option>
               </select>
             </div>
             {form.repeat === "weekly" && (
@@ -371,11 +378,41 @@ export function TaskEditor(props: Props) {
             )}
             {form.repeat === "monthly" && (
               <label className="te-field">
-                <span>Day of month (clamps to the month's last day)</span>
-                <input type="number" min={1} max={31} inputMode="numeric" placeholder="e.g. 15"
-                       value={form.repeat_day}
-                       onChange={e => set("repeat_day", e.currentTarget.value)} />
+                <span>Days of month (comma-separated; each clamps to the month's last day)</span>
+                <input type="text" inputMode="numeric" placeholder="e.g. 1, 15"
+                       value={form.repeat_days}
+                       onChange={e => set("repeat_days", e.currentTarget.value)} />
               </label>
+            )}
+            {form.repeat === "yearly" && (
+              <div className="te-field">
+                <span>Dates (one or more)</span>
+                <div className="te-yearly-dates">
+                  {form.repeat_dates.map((d, i) => (
+                    <div className="te-yearly-row" key={i}>
+                      <select aria-label="Month" value={d.month || ""}
+                              onChange={e => set("repeat_dates", form.repeat_dates.map((x, j) =>
+                                j === i ? { ...x, month: parseInt(e.currentTarget.value, 10) || 0 } : x))}>
+                        <option value="">Month…</option>
+                        {MONTHS.map((name, m) => <option key={name} value={m + 1}>{name}</option>)}
+                      </select>
+                      <input type="number" aria-label="Day" min={1}
+                             max={maxDayForMonth(d.month || 1)} inputMode="numeric" placeholder="Day"
+                             value={d.day || ""}
+                             onChange={e => set("repeat_dates", form.repeat_dates.map((x, j) =>
+                               j === i ? { ...x, day: parseInt(e.currentTarget.value, 10) || 0 } : x))} />
+                      <button type="button" className="te-yearly-remove" aria-label="Remove date"
+                              onClick={() => set("repeat_dates", form.repeat_dates.filter((_, j) => j !== i))}>
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" className="te-yearly-add"
+                          onClick={() => set("repeat_dates", [...form.repeat_dates, { month: 0, day: 0 }])}>
+                    + Add date
+                  </button>
+                </div>
+              </div>
             )}
             {form.repeat !== "none" && (
               <>

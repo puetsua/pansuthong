@@ -56,9 +56,13 @@ export function isDone(t: Task): boolean { return t.completed_at != null; }
 export function isArchived(t: Task): boolean { return t.completed_at != null; }
 
 /** A template's recurrence schedule (#9). Weekday numbers are ISO 1=Mon..7=Sun. */
+export type YearlyDate = { month: number; day: number }; // month 1-12 + day-of-month
+
 export type Recurrence =
-  | { kind: "weekly"; weekdays: number[] } // fires on each listed ISO weekday
-  | { kind: "monthly"; day: number };      // fires on this day-of-month, clamps to month end
+  | { kind: "weekly"; weekdays: number[] }   // fires on each listed ISO weekday
+  | { kind: "monthly"; days: number[] }      // fires on each listed day-of-month, clamps to month end
+  | { kind: "daily" }                        // fires every day
+  | { kind: "yearly"; dates: YearlyDate[] }; // fires on each listed month+day; skips Feb 29 in non-leap years
 
 /**
  * A reusable blueprint, stored in its own `Document.template_tasks` list — separate

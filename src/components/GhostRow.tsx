@@ -42,7 +42,7 @@ export function GhostRow({ ghost, tags }: Props) {
   // Open the editor on a DRAFT (not yet persisted) pre-filled from this occurrence,
   // mirroring TemplateRow's "New task from template". Nothing is created until the
   // user hits Save (addTask), so the row stays mounted while the editor is open;
-  // the saved task then carries the template's tag + occurrence due_date and
+  // the saved task then carries the template's tag + occurrence start_date and
   // suppresses this ghost on the next refresh. (Spawning here would unmount the row
   // mid-edit and close the editor.)
   const open = () => {
@@ -51,7 +51,7 @@ export function GhostRow({ ghost, tags }: Props) {
       title: ghost.title,
       notes: ghost.notes,
       tag_ids: ghost.tag_ids,
-      due_date: ghost.occurrenceDate,
+      start_date: ghost.occurrenceDate,
       created_at: "",
       completed_at: undefined,
     });

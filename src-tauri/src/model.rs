@@ -134,18 +134,71 @@ pub struct Tag {
     pub pinned: bool,
 }
 
+/// A fixed calendar date (month 1..=12 + day-of-month) within a year, used by the
+/// yearly recurrence pattern (#9). Exact match, no clamp.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct YearlyDate {
+    pub month: u8,
+    pub day:   u8,
+}
+
 /// A template's recurrence schedule (#9). The frontend projects "ghost" rows from
 /// it into the date-based views; this type is just the stored rule. Weekday numbers
-/// are ISO 1=Mon..7=Sun.
+/// are ISO 1=Mon..7=Sun. Deserialized through `RecurrenceCompat` so the pre-multi-day
+/// shapes (`monthly {day}`, `yearly {month,day}`) still load.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", from = "RecurrenceCompat")]
 pub enum Recurrence {
     /// Fires on each listed weekday (ISO 1=Mon..7=Sun). The "Weekdays" preset is
     /// [1,2,3,4,5]. Validated non-empty with in-range days by the command layer.
     Weekly { weekdays: Vec<u8> },
-    /// Fires on this day-of-month (1..=31); a day past the month's length clamps to
-    /// the last day (handled where occurrences are computed).
-    Monthly { day: u8 },
+    /// Fires on each listed day-of-month (1..=31); a day past the month's length
+    /// clamps to the last day (handled where occurrences are computed).
+    Monthly { days: Vec<u8> },
+    /// Fires every day.
+    Daily,
+    /// Fires on each listed month+day each year. Exact match, no clamp: a Feb-29
+    /// entry fires only in leap years and is simply skipped otherwise (handled where
+    /// occurrences are computed).
+    Yearly { dates: Vec<YearlyDate> },
+}
+
+/// Load-time compatibility shim for `Recurrence`. Accepts both the current
+/// multi-day shapes (`days`, `dates`) and the original single-day shapes
+/// (`monthly {day}` shipped in 0.2.0; `yearly {month,day}`), folding the latter
+/// into the former so older documents load unchanged.
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum RecurrenceCompat {
+    Weekly  { weekdays: Vec<u8> },
+    Monthly { #[serde(default)] day: Option<u8>, #[serde(default)] days: Option<Vec<u8>> },
+    Daily,
+    Yearly  {
+        #[serde(default)] month: Option<u8>,
+        #[serde(default)] day:   Option<u8>,
+        #[serde(default)] dates: Option<Vec<YearlyDate>>,
+    },
+}
+
+impl From<RecurrenceCompat> for Recurrence {
+    fn from(c: RecurrenceCompat) -> Self {
+        match c {
+            RecurrenceCompat::Weekly { weekdays } => Recurrence::Weekly { weekdays },
+            RecurrenceCompat::Daily => Recurrence::Daily,
+            RecurrenceCompat::Monthly { day, days } => {
+                let mut days = days.unwrap_or_default();
+                if days.is_empty() { if let Some(d) = day { days.push(d); } }
+                Recurrence::Monthly { days }
+            }
+            RecurrenceCompat::Yearly { month, day, dates } => {
+                let mut dates = dates.unwrap_or_default();
+                if dates.is_empty() {
+                    if let (Some(month), Some(day)) = (month, day) { dates.push(YearlyDate { month, day }); }
+                }
+                Recurrence::Yearly { dates }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -329,7 +382,11 @@ impl From<TaskCompat> for Task {
 /// `iso_secs`; `is_template` tasks via `DocumentCompat`; absent `time_entries`
 /// defaults to empty), and to 7 when templates gained an optional recurrence
 /// schedule (`recurrence`, #9; absent on older files, where it defaults to none).
-pub const CURRENT_VERSION: u32 = 7;
+/// Bumped to 8 when the recurrence patterns went multi-day (`monthly {day}` →
+/// `monthly {days}`, `yearly {month,day}` → `yearly {dates}`, #9): new builds still
+/// read the old single-day shapes via `RecurrenceCompat`, but a 0.2.0 build can't
+/// parse the new `days`/`dates` keys, so the higher version flags the mismatch.
+pub const CURRENT_VERSION: u32 = 8;
 
 /// Files written before `version` existed are assumed compatible with the
 /// current schema (the model is additive/backward-compatible), so an absent
@@ -838,12 +895,37 @@ mod tests {
             serde_json::from_str(r#"{"kind":"weekly","weekdays":[1,3,5]}"#).unwrap();
         assert_eq!(weekly, Recurrence::Weekly { weekdays: vec![1, 3, 5] });
         let monthly: Recurrence =
-            serde_json::from_str(r#"{"kind":"monthly","day":15}"#).unwrap();
-        assert_eq!(monthly, Recurrence::Monthly { day: 15 });
+            serde_json::from_str(r#"{"kind":"monthly","days":[1,15]}"#).unwrap();
+        assert_eq!(monthly, Recurrence::Monthly { days: vec![1, 15] });
 
         // Serializes back to the same tagged shape.
-        let json = serde_json::to_string(&Recurrence::Monthly { day: 1 }).unwrap();
-        assert_eq!(json, r#"{"kind":"monthly","day":1}"#);
+        let json = serde_json::to_string(&Recurrence::Monthly { days: vec![1] }).unwrap();
+        assert_eq!(json, r#"{"kind":"monthly","days":[1]}"#);
+    }
+
+    #[test]
+    fn recurrence_round_trips_daily_and_yearly() {
+        let daily: Recurrence = serde_json::from_str(r#"{"kind":"daily"}"#).unwrap();
+        assert_eq!(daily, Recurrence::Daily);
+        assert_eq!(serde_json::to_string(&Recurrence::Daily).unwrap(), r#"{"kind":"daily"}"#);
+
+        let yearly: Recurrence =
+            serde_json::from_str(r#"{"kind":"yearly","dates":[{"month":3,"day":15},{"month":12,"day":25}]}"#).unwrap();
+        assert_eq!(yearly, Recurrence::Yearly {
+            dates: vec![YearlyDate { month: 3, day: 15 }, YearlyDate { month: 12, day: 25 }],
+        });
+        let json = serde_json::to_string(&Recurrence::Yearly { dates: vec![YearlyDate { month: 12, day: 25 }] }).unwrap();
+        assert_eq!(json, r#"{"kind":"yearly","dates":[{"month":12,"day":25}]}"#);
+    }
+
+    #[test]
+    fn recurrence_reads_legacy_single_day_shapes() {
+        // 0.2.0 wrote `monthly {day}`; the pre-multi-day build wrote `yearly {month,day}`.
+        // Both must fold into the multi-day shapes on load.
+        let monthly: Recurrence = serde_json::from_str(r#"{"kind":"monthly","day":15}"#).unwrap();
+        assert_eq!(monthly, Recurrence::Monthly { days: vec![15] });
+        let yearly: Recurrence = serde_json::from_str(r#"{"kind":"yearly","month":3,"day":15}"#).unwrap();
+        assert_eq!(yearly, Recurrence::Yearly { dates: vec![YearlyDate { month: 3, day: 15 }] });
     }
 
     #[test]

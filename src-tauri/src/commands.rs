@@ -1,7 +1,7 @@
 use crate::config::{ConfigState, Settings};
 use crate::conflict::{apply_decisions, diff_tasks, tags_to_merge, Decision, TaskDiff};
 use crate::error::{AppError, Result};
-use crate::model::{new_tag_id, new_task_id, new_time_entry_id, now_ms, Recurrence, Tag, Task, TemplateTask, TimeEntry};
+use crate::model::{new_tag_id, new_task_id, new_time_entry_id, now_ms, Recurrence, Tag, Task, TemplateTask, TimeEntry, YearlyDate};
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
 use chrono::NaiveDate;
@@ -123,9 +123,30 @@ fn validate_recurrence(rec: Option<&Recurrence>) -> Result<()> {
             }
             Ok(())
         }
-        Some(Recurrence::Monthly { day }) => {
-            if !(1..=31).contains(day) {
+        Some(Recurrence::Monthly { days }) => {
+            if days.is_empty() {
+                return Err(AppError::Invalid("monthly recurrence needs at least one day".into()));
+            }
+            if days.iter().any(|d| !(1..=31).contains(d)) {
                 return Err(AppError::Invalid("monthly day must be 1..=31".into()));
+            }
+            Ok(())
+        }
+        Some(Recurrence::Daily) => Ok(()),
+        Some(Recurrence::Yearly { dates }) => {
+            if dates.is_empty() {
+                return Err(AppError::Invalid("yearly recurrence needs at least one date".into()));
+            }
+            for YearlyDate { month, day } in dates {
+                if !(1..=12).contains(month) {
+                    return Err(AppError::Invalid("yearly month must be 1..=12".into()));
+                }
+                // Reject a day that can never occur in the chosen month, so a yearly
+                // date is never silently inert. February allows 29 (leap-only).
+                let max_day = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][(*month as usize) - 1];
+                if !(1..=max_day).contains(day) {
+                    return Err(AppError::Invalid("yearly day must be a valid day for the chosen month".into()));
+                }
             }
             Ok(())
         }
@@ -508,8 +529,8 @@ pub struct SpawnRecurringTaskInput {
 }
 
 /// Promote a recurring template's ghost into a real task on its occurrence date
-/// (#9). Copies the template's title/notes/tags and sets `due_date` to the
-/// occurrence date — that tag + due_date pair is the only "link" back to the
+/// (#9). Copies the template's title/notes/tags and sets `start_date` to the
+/// occurrence date — that tag + start_date pair is the only "link" back to the
 /// recurrence, so the ghost self-suppresses on the next refresh. The task is
 /// created active; the caller applies any follow-up action (complete / start timer).
 #[tauri::command]
@@ -526,9 +547,9 @@ pub fn spawn_recurring_task(
         let task = Task {
             id: new_task_id(),
             title: tmpl.title,
-            due_date: Some(input.occurrence_date),
+            due_date: None,
             due_time: None,
-            start_date: None,
+            start_date: Some(input.occurrence_date),
             start_time: None,
             notes: tmpl.notes,
             tag_ids: retain_known_tags(tmpl.tag_ids, &d.tags),
@@ -1370,17 +1391,35 @@ mod tests {
 
     #[test]
     fn validate_recurrence_bounds() {
-        use crate::model::Recurrence;
+        use crate::model::{Recurrence, YearlyDate};
+        let yd = |month, day| YearlyDate { month, day };
         assert!(validate_recurrence(None).is_ok());
         assert!(validate_recurrence(Some(&Recurrence::Weekly { weekdays: vec![1, 7] })).is_ok());
-        assert!(validate_recurrence(Some(&Recurrence::Monthly { day: 31 })).is_ok());
+        assert!(validate_recurrence(Some(&Recurrence::Monthly { days: vec![1, 31] })).is_ok());
         // Empty weekday set is meaningless.
         assert!(validate_recurrence(Some(&Recurrence::Weekly { weekdays: vec![] })).is_err());
         // Out-of-range weekday (0 or >7) and day-of-month (0 or >31).
         assert!(validate_recurrence(Some(&Recurrence::Weekly { weekdays: vec![0] })).is_err());
         assert!(validate_recurrence(Some(&Recurrence::Weekly { weekdays: vec![8] })).is_err());
-        assert!(validate_recurrence(Some(&Recurrence::Monthly { day: 0 })).is_err());
-        assert!(validate_recurrence(Some(&Recurrence::Monthly { day: 32 })).is_err());
+        // Monthly: needs at least one day, each 1..=31.
+        assert!(validate_recurrence(Some(&Recurrence::Monthly { days: vec![] })).is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Monthly { days: vec![0] })).is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Monthly { days: vec![32] })).is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Monthly { days: vec![15, 32] })).is_err());
+        // Daily always fires.
+        assert!(validate_recurrence(Some(&Recurrence::Daily)).is_ok());
+        // Yearly: needs at least one date; each month 1..=12 and day valid for it
+        // (Feb allows 29 for leap years).
+        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(3, 15), yd(12, 25)] })).is_ok());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(2, 29)] })).is_ok());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![] })).is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(0, 1)] })).is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(13, 1)] })).is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(2, 30)] })).is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(4, 31)] })).is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(1, 0)] })).is_err());
+        // One bad date among good ones still fails.
+        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(1, 1), yd(4, 31)] })).is_err());
     }
 
     #[test]
