@@ -27,7 +27,7 @@ fn open_creates_default_document_when_missing() {
     let state = AppState::open(path.clone()).unwrap();
     assert!(path.exists());
     state.read(|d| {
-        assert_eq!(d.version, 7);
+        assert_eq!(d.version, 8);
         assert!(d.tasks.is_empty());
     });
 }
