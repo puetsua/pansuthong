@@ -891,6 +891,9 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 
 /* Template editor weekday toggles (#9). */
 .te-weekdays { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+/* Yearly recurrence month + day inputs, side by side (#9). */
+.te-yearly { display: flex; gap: var(--space-2); }
+.te-yearly .te-field { flex: 1; }
 .te-weekday, .te-weekday-preset {
   padding: 0.2rem 0.5rem;
   border: 1px solid var(--c-border);

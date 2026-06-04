@@ -344,12 +344,12 @@ describe("ghostsForDate", () => {
     expect(buildIndexes(d).ghostsForDate("2026-06-08")).toEqual([]);
   });
 
-  it("suppresses the ghost when a same-tag task is due that day", () => {
+  it("suppresses the ghost when a same-tag task starts that day", () => {
     const d = doc({
       tags: [TAG],
       tasks: [{
         id: "k_done", title: "Push-ups", notes: "", tag_ids: ["t_ex"],
-        created_at: "", due_date: "2026-06-08",
+        created_at: "", start_date: "2026-06-08",
       }],
       template_tasks: [{
         id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
@@ -359,12 +359,29 @@ describe("ghostsForDate", () => {
     expect(buildIndexes(d).ghostsForDate("2026-06-08")).toEqual([]);
   });
 
+  it("a same-tag task merely DUE (not started) that day does NOT suppress the ghost", () => {
+    // Suppression keys on start_date (a promoted occurrence is stamped start_date =
+    // occurrence date); a task only due that day is unrelated and must not hide it.
+    const d = doc({
+      tags: [TAG],
+      tasks: [{
+        id: "k_due", title: "Push-ups", notes: "", tag_ids: ["t_ex"],
+        created_at: "", due_date: "2026-06-08",
+      }],
+      template_tasks: [{
+        id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
+        recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex",
+      }],
+    });
+    expect(buildIndexes(d).ghostsForDate("2026-06-08").map(g => g.title)).toEqual(["Push-ups"]);
+  });
+
   it("a completed same-tag task still suppresses the ghost (check-off flow)", () => {
     const d = doc({
       tags: [TAG],
       tasks: [{
         id: "k_done", title: "Push-ups", notes: "", tag_ids: ["t_ex"],
-        created_at: "", due_date: "2026-06-08", completed_at: "2026-06-08T07:00:00+00:00",
+        created_at: "", start_date: "2026-06-08", completed_at: "2026-06-08T07:00:00+00:00",
       }],
       template_tasks: [{
         id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
@@ -376,12 +393,12 @@ describe("ghostsForDate", () => {
     expect(buildIndexes(d).ghostsForDate("2026-06-08")).toEqual([]);
   });
 
-  it("same-tag templates are alternatives: one due task clears both ghosts", () => {
+  it("same-tag templates are alternatives: one started task clears both ghosts", () => {
     const d = doc({
       tags: [TAG],
       tasks: [{
         id: "k_done", title: "Push-ups", notes: "", tag_ids: ["t_ex"],
-        created_at: "", due_date: "2026-06-08",
+        created_at: "", start_date: "2026-06-08",
       }],
       template_tasks: [
         { id: "k_p", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
@@ -399,15 +416,15 @@ describe("ghostsForDate", () => {
       tags: [TAG, HEALTH],
       tasks: [{
         id: "k_other", title: "Checkup", notes: "", tag_ids: ["t_health"],
-        created_at: "", due_date: "2026-06-08",
+        created_at: "", start_date: "2026-06-08",
       }],
       template_tasks: [{
         id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex", "t_health"], created_at: "",
         recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex",
       }],
     });
-    // A task due that day carries 'health' (a template tag) but NOT the recurrence
-    // tag 'exercise', so the ghost is NOT suppressed.
+    // A task starting that day carries 'health' (a template tag) but NOT the
+    // recurrence tag 'exercise', so the ghost is NOT suppressed.
     expect(buildIndexes(d).ghostsForDate("2026-06-08").map(g => g.title)).toEqual(["Push-ups"]);
   });
 });

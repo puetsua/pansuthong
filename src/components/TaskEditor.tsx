@@ -2,12 +2,16 @@ import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, isEditorDirty, offsetFormError, recurrenceFormError, recurrenceFromForm } from "../state/taskUpdate";
+import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, isEditorDirty, maxDayForMonth, offsetFormError, recurrenceFormError, recurrenceFromForm } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
 import { readableTextColor } from "../lib/tags";
 import { TagInput } from "./TagInput";
 import { TimeTracking } from "./TimeTracking";
+
+// Month labels for the yearly-recurrence picker; index + 1 is the stored month.
+const MONTHS = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"];
 
 // The editor edits either a real task (absolute dates) or a template (relative
 // offsets), fixed by `kind`. A task is never converted in place; "Save as
@@ -49,7 +53,11 @@ export function TaskEditor(props: Props) {
     start_offset_days: tmplEntity?.start_offset_days != null ? String(tmplEntity.start_offset_days) : "",
     repeat: tmplEntity?.recurrence?.kind ?? "none",
     repeat_weekdays: tmplEntity?.recurrence?.kind === "weekly" ? tmplEntity.recurrence.weekdays : [],
-    repeat_day: tmplEntity?.recurrence?.kind === "monthly" ? String(tmplEntity.recurrence.day) : "",
+    repeat_day:
+      tmplEntity?.recurrence?.kind === "monthly" ? String(tmplEntity.recurrence.day)
+      : tmplEntity?.recurrence?.kind === "yearly" ? String(tmplEntity.recurrence.day)
+      : "",
+    repeat_month: tmplEntity?.recurrence?.kind === "yearly" ? String(tmplEntity.recurrence.month) : "",
     recurrence_tag_id: tmplEntity?.recurrence_tag_id ?? "",
   });
   const [form, setForm] = useState<EditorForm>(initialRef.current);
@@ -345,8 +353,10 @@ export function TaskEditor(props: Props) {
               <select value={form.repeat}
                       onChange={e => set("repeat", e.currentTarget.value as EditorForm["repeat"])}>
                 <option value="none">Doesn't repeat</option>
+                <option value="daily">Every day</option>
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
+                <option value="yearly">Every year</option>
               </select>
             </div>
             {form.repeat === "weekly" && (
@@ -376,6 +386,25 @@ export function TaskEditor(props: Props) {
                        value={form.repeat_day}
                        onChange={e => set("repeat_day", e.currentTarget.value)} />
               </label>
+            )}
+            {form.repeat === "yearly" && (
+              <div className="te-yearly">
+                <label className="te-field">
+                  <span>Month</span>
+                  <select value={form.repeat_month}
+                          onChange={e => set("repeat_month", e.currentTarget.value)}>
+                    <option value="">Choose a month…</option>
+                    {MONTHS.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
+                  </select>
+                </label>
+                <label className="te-field">
+                  <span>Day</span>
+                  <input type="number" min={1} max={maxDayForMonth(parseInt(form.repeat_month, 10) || 1)}
+                         inputMode="numeric" placeholder="e.g. 15"
+                         value={form.repeat_day}
+                         onChange={e => set("repeat_day", e.currentTarget.value)} />
+                </label>
+              </div>
             )}
             {form.repeat !== "none" && (
               <>

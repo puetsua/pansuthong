@@ -146,6 +146,12 @@ pub enum Recurrence {
     /// Fires on this day-of-month (1..=31); a day past the month's length clamps to
     /// the last day (handled where occurrences are computed).
     Monthly { day: u8 },
+    /// Fires every day.
+    Daily,
+    /// Fires once a year on a fixed month (1..=12) + day-of-month. Exact match, no
+    /// clamp: a Feb-29 rule fires only in leap years and is simply skipped otherwise
+    /// (handled where occurrences are computed).
+    Yearly { month: u8, day: u8 },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -844,6 +850,19 @@ mod tests {
         // Serializes back to the same tagged shape.
         let json = serde_json::to_string(&Recurrence::Monthly { day: 1 }).unwrap();
         assert_eq!(json, r#"{"kind":"monthly","day":1}"#);
+    }
+
+    #[test]
+    fn recurrence_round_trips_daily_and_yearly() {
+        let daily: Recurrence = serde_json::from_str(r#"{"kind":"daily"}"#).unwrap();
+        assert_eq!(daily, Recurrence::Daily);
+        assert_eq!(serde_json::to_string(&Recurrence::Daily).unwrap(), r#"{"kind":"daily"}"#);
+
+        let yearly: Recurrence =
+            serde_json::from_str(r#"{"kind":"yearly","month":3,"day":15}"#).unwrap();
+        assert_eq!(yearly, Recurrence::Yearly { month: 3, day: 15 });
+        let json = serde_json::to_string(&Recurrence::Yearly { month: 12, day: 25 }).unwrap();
+        assert_eq!(json, r#"{"kind":"yearly","month":12,"day":25}"#);
     }
 
     #[test]

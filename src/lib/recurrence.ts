@@ -30,7 +30,13 @@ export function daysInMonth(iso: string): number {
 
 /** Whether a recurrence rule fires on the given date (YYYY-MM-DD). */
 export function occursOn(rec: Recurrence, iso: string): boolean {
-  if (rec.kind === "weekly") return rec.weekdays.includes(isoWeekday(iso));
   const dom = Number(iso.slice(8, 10));
-  return dom === Math.min(rec.day, daysInMonth(iso));
+  switch (rec.kind) {
+    case "daily":   return true;
+    case "weekly":  return rec.weekdays.includes(isoWeekday(iso));
+    case "monthly": return dom === Math.min(rec.day, daysInMonth(iso));
+    // Yearly is an exact month+day match (no clamp): a Feb-29 rule only matches in
+    // leap years and is simply absent otherwise (dom can't be 29 in a 28-day Feb).
+    case "yearly":  return Number(iso.slice(5, 7)) === rec.month && dom === rec.day;
+  }
 }

@@ -153,20 +153,21 @@ export function buildIndexes(doc: Document): Indexes {
 
   // Recurring templates project ghost rows into the date-based views (#9). Each
   // recurring template designates one `recurrence_tag_id`; a ghost is suppressed
-  // when a real task due that date carries that single tag (the template's other
-  // tags don't count). Templates sharing the same recurrence tag therefore act as
-  // same-day alternatives — acting on one clears the others.
+  // when a real task *starting* that date carries that single tag (the template's
+  // other tags don't count). A promoted instance is stamped with `start_date =
+  // occurrence date`, so it self-suppresses. Templates sharing the same recurrence
+  // tag therefore act as same-day alternatives — acting on one clears the others.
   const recurringTemplates = (doc.template_tasks ?? []).filter(t => t.recurrence && t.recurrence_tag_id);
-  // dueDate -> set of tag ids carried by tasks due that day (open or completed).
-  const dueTagsByDate = new Map<string, Set<string>>();
+  // startDate -> set of tag ids carried by tasks starting that day (open or completed).
+  const startTagsByDate = new Map<string, Set<string>>();
   for (const t of doc.tasks) {
-    if (!t.due_date) continue;
-    let set = dueTagsByDate.get(t.due_date);
-    if (!set) { set = new Set(); dueTagsByDate.set(t.due_date, set); }
+    if (!t.start_date) continue;
+    let set = startTagsByDate.get(t.start_date);
+    if (!set) { set = new Set(); startTagsByDate.set(t.start_date, set); }
     for (const id of t.tag_ids) set.add(id);
   }
   const ghostsForDate = (iso: string): GhostTask[] => {
-    const covered = dueTagsByDate.get(iso);
+    const covered = startTagsByDate.get(iso);
     const out: GhostTask[] = [];
     for (const tmpl of recurringTemplates) {
       if (!occursOn(tmpl.recurrence!, iso)) continue;

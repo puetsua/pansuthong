@@ -25,6 +25,7 @@ const base: EditorForm = {
   repeat: "none",
   repeat_weekdays: [],
   repeat_day: "",
+  repeat_month: "",
   recurrence_tag_id: "",
 };
 
@@ -194,6 +195,21 @@ describe("recurrenceFromForm", () => {
     expect(recurrenceFromForm({ ...recurBase, repeat: "monthly", repeat_day: "15" }))
       .toEqual({ kind: "monthly", day: 15 });
   });
+  it("builds a daily rule", () => {
+    expect(recurrenceFromForm({ ...recurBase, repeat: "daily" })).toEqual({ kind: "daily" });
+  });
+  it("builds a yearly rule from month + day", () => {
+    expect(recurrenceFromForm({ ...recurBase, repeat: "yearly", repeat_month: "3", repeat_day: "15" }))
+      .toEqual({ kind: "yearly", month: 3, day: 15 });
+  });
+  it("yearly allows Feb 29 (fires only in leap years)", () => {
+    expect(recurrenceFromForm({ ...recurBase, repeat: "yearly", repeat_month: "2", repeat_day: "29" }))
+      .toEqual({ kind: "yearly", month: 2, day: 29 });
+  });
+  it("returns null for an impossible yearly day (Feb 30)", () => {
+    expect(recurrenceFromForm({ ...recurBase, repeat: "yearly", repeat_month: "2", repeat_day: "30" }))
+      .toBeNull();
+  });
 });
 
 describe("recurrenceFormError", () => {
@@ -210,6 +226,21 @@ describe("recurrenceFormError", () => {
   });
   it("passes for a valid weekly rule with a tag", () => {
     expect(recurrenceFormError({ ...recurBase, repeat: "weekly", repeat_weekdays: [1] })).toBeNull();
+  });
+  it("passes for a daily rule with a tag", () => {
+    expect(recurrenceFormError({ ...recurBase, repeat: "daily" })).toBeNull();
+  });
+  it("requires a month for yearly", () => {
+    expect(recurrenceFormError({ ...recurBase, repeat: "yearly", repeat_month: "", repeat_day: "15" }))
+      .toMatch(/month/i);
+  });
+  it("rejects a yearly day outside the chosen month's range", () => {
+    expect(recurrenceFormError({ ...recurBase, repeat: "yearly", repeat_month: "4", repeat_day: "31" }))
+      .toMatch(/day/i);
+  });
+  it("passes for a valid yearly rule with a tag", () => {
+    expect(recurrenceFormError({ ...recurBase, repeat: "yearly", repeat_month: "3", repeat_day: "15" }))
+      .toBeNull();
   });
   it("requires choosing which tag to recur under when tags exist but none chosen", () => {
     expect(recurrenceFormError({ ...base, repeat: "weekly", repeat_weekdays: [1], tag_ids: ["t_ex"], recurrence_tag_id: "" }))
