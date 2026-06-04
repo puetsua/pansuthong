@@ -19,8 +19,8 @@ Grab the latest build from the [**Releases**](https://github.com/puetsua/pansuto
 
 ```bash
 npm install
-npm run tauri dev          # desktop (Windows)
-npm run tauri android dev  # Android (emulator or USB device)
+npm run tauri dev          # desktop (Windows), dev identifier net.puetsua.pansutong.dev
+npm run tauri android dev  # Android (emulator or USB device), dev identifier net.puetsua.pansutong.dev
 ```
 
 See [CLAUDE.md](./CLAUDE.md) for prerequisites and project conventions.
