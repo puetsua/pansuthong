@@ -2,6 +2,7 @@ pub mod commands;
 pub mod config;
 pub mod conflict;
 pub mod error;
+pub mod history;
 pub mod model;
 pub mod parse;
 pub mod safsync;
@@ -155,6 +156,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_document,
+            commands::list_history,
             commands::sync_now,
             commands::add_task,
             commands::update_task,

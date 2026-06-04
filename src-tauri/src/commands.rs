@@ -1,6 +1,7 @@
 use crate::config::{ConfigState, Settings};
 use crate::conflict::{apply_decisions, diff_tasks, tags_to_merge, Decision, TaskDiff};
 use crate::error::{AppError, Result};
+use crate::history::HistoryEntry;
 use crate::model::{new_tag_id, new_task_id, new_time_entry_id, now_ms, Recurrence, Tag, Task, TemplateTask, TimeEntry, YearlyDate};
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
@@ -46,6 +47,11 @@ fn document_view(state: &AppState, config: &ConfigState) -> DocumentView {
 #[tauri::command]
 pub fn get_document(state: State<'_, AppState>, config: State<'_, ConfigState>) -> DocumentView {
     document_view(&state, &config)
+}
+
+#[tauri::command]
+pub fn list_history(state: State<'_, AppState>) -> Result<Vec<HistoryEntry>> {
+    crate::history::read_history(&state.path(), 200)
 }
 
 /// Manual "Sync now": re-read the data file from disk immediately instead of
