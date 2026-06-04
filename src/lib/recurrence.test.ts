@@ -33,14 +33,15 @@ describe("occursOn", () => {
     expect(occursOn(weekdays, "2026-06-13")).toBe(false); // Sat
   });
 
-  it("monthly fires on the day-of-month", () => {
-    const r: Recurrence = { kind: "monthly", day: 15 };
+  it("monthly fires on any listed day-of-month", () => {
+    const r: Recurrence = { kind: "monthly", days: [1, 15] };
+    expect(occursOn(r, "2026-06-01")).toBe(true);
     expect(occursOn(r, "2026-06-15")).toBe(true);
     expect(occursOn(r, "2026-06-14")).toBe(false);
   });
 
-  it("monthly clamps a too-large day to the last day of the month", () => {
-    const r: Recurrence = { kind: "monthly", day: 31 };
+  it("monthly clamps each too-large day to the last day of the month", () => {
+    const r: Recurrence = { kind: "monthly", days: [31] };
     expect(occursOn(r, "2026-02-28")).toBe(true);  // Feb has no 31st → clamps to 28
     expect(occursOn(r, "2026-02-27")).toBe(false);
     expect(occursOn(r, "2026-04-30")).toBe(true);  // Apr clamps to 30
@@ -54,16 +55,17 @@ describe("occursOn", () => {
     expect(occursOn(r, "2024-02-29")).toBe(true);
   });
 
-  it("yearly fires on the exact month and day", () => {
-    const r: Recurrence = { kind: "yearly", month: 3, day: 15 };
+  it("yearly fires on any listed month+day, exact match", () => {
+    const r: Recurrence = { kind: "yearly", dates: [{ month: 3, day: 15 }, { month: 12, day: 25 }] };
     expect(occursOn(r, "2026-03-15")).toBe(true);
+    expect(occursOn(r, "2026-12-25")).toBe(true);
     expect(occursOn(r, "2027-03-15")).toBe(true);  // any year
     expect(occursOn(r, "2026-03-14")).toBe(false); // wrong day
     expect(occursOn(r, "2026-04-15")).toBe(false); // wrong month
   });
 
   it("yearly Feb 29 fires in leap years and is skipped otherwise (no clamp)", () => {
-    const r: Recurrence = { kind: "yearly", month: 2, day: 29 };
+    const r: Recurrence = { kind: "yearly", dates: [{ month: 2, day: 29 }] };
     expect(occursOn(r, "2024-02-29")).toBe(true);  // leap year
     expect(occursOn(r, "2026-02-28")).toBe(false); // non-leap: does NOT clamp to the 28th
     expect(occursOn(r, "2027-02-28")).toBe(false);

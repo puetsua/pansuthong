@@ -1,4 +1,4 @@
-import { Recurrence, TaskUpdate, TemplateUpdate } from "../lib/tauri";
+import { Recurrence, TaskUpdate, TemplateUpdate, YearlyDate } from "../lib/tauri";
 
 export type EditorForm = {
   title: string;
@@ -20,12 +20,12 @@ export type EditorForm = {
   due_offset_days: string;
   start_offset_days: string;
   // Recurrence UI state (#9), template mode only. `repeat` picks the mode; the
-  // others hold that mode's inputs. ISO weekdays 1=Mon..7=Sun. `repeat_day` is the
-  // day-of-month for both monthly and yearly; `repeat_month` is the yearly month.
+  // others hold that mode's inputs. ISO weekdays 1=Mon..7=Sun. Monthly takes a
+  // comma-separated list of days-of-month; yearly takes a list of month+day pairs.
   repeat: "none" | "weekly" | "monthly" | "daily" | "yearly";
   repeat_weekdays: number[];
-  repeat_day: string;   // "" or "1".."31" (monthly + yearly)
-  repeat_month: string; // "" or "1".."12" (yearly)
+  repeat_days: string;        // monthly: comma/space-separated days-of-month, e.g. "1, 15"
+  repeat_dates: YearlyDate[]; // yearly: month+day pairs (UI rows)
   recurrence_tag_id: string; // "" = none; the chosen recurrence tag id (#9)
 };
 
@@ -97,8 +97,8 @@ export function isEditorDirty(form: EditorForm, initial: EditorForm): boolean {
     || form.due_offset_days !== initial.due_offset_days
     || form.start_offset_days !== initial.start_offset_days
     || form.repeat !== initial.repeat
-    || form.repeat_day !== initial.repeat_day
-    || form.repeat_month !== initial.repeat_month
+    || form.repeat_days !== initial.repeat_days
+    || datesKey(form.repeat_dates) !== datesKey(initial.repeat_dates)
     || form.repeat_weekdays.join(",") !== initial.repeat_weekdays.join(",")
     || form.recurrence_tag_id !== initial.recurrence_tag_id
     || (form.new_tag_names?.length ?? 0) > 0;
@@ -151,9 +151,35 @@ export function offsetFormError(
 }
 
 /** Highest valid day-of-month for a 1-based month; February allows 29 so a yearly
- * Feb-29 rule (fires only in leap years) can be entered. */
+ * Feb-29 date (fires only in leap years) can be entered. */
 export function maxDayForMonth(month: number): number {
   return [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 31;
+}
+
+/** Stable key for a list of month+day pairs, for dirty-checking. */
+function datesKey(dates: YearlyDate[]): string {
+  return dates.map(d => `${d.month}/${d.day}`).join(",");
+}
+
+/** Parse the monthly "days" input into a sorted, de-duplicated day list. Returns
+ * null when any token is non-numeric or out of 1..=31 (so an empty/garbage input
+ * is treated as invalid rather than silently dropping days). */
+function parseMonthlyDays(raw: string): number[] | null {
+  const tokens = raw.split(/[\s,]+/).filter(Boolean);
+  if (tokens.length === 0) return null;
+  const days = new Set<number>();
+  for (const tok of tokens) {
+    const n = Number(tok);
+    if (!Number.isInteger(n) || n < 1 || n > 31) return null;
+    days.add(n);
+  }
+  return [...days].sort((a, b) => a - b);
+}
+
+/** A yearly date is valid when its month is 1..=12 and its day fits that month. */
+function validYearlyDate(d: YearlyDate): boolean {
+  return Number.isInteger(d.month) && d.month >= 1 && d.month <= 12
+    && Number.isInteger(d.day) && d.day >= 1 && d.day <= maxDayForMonth(d.month);
 }
 
 /** Build a Recurrence from the editor form, or null when repeat is off/invalid. */
@@ -163,15 +189,12 @@ export function recurrenceFromForm(form: EditorForm): Recurrence | null {
     return form.repeat_weekdays.length ? { kind: "weekly", weekdays: [...form.repeat_weekdays].sort((a, b) => a - b) } : null;
   }
   if (form.repeat === "monthly") {
-    const day = parseInt(form.repeat_day.trim(), 10);
-    return Number.isInteger(day) && day >= 1 && day <= 31 ? { kind: "monthly", day } : null;
+    const days = parseMonthlyDays(form.repeat_days);
+    return days ? { kind: "monthly", days } : null;
   }
   if (form.repeat === "yearly") {
-    const month = parseInt(form.repeat_month.trim(), 10);
-    const day = parseInt(form.repeat_day.trim(), 10);
-    const ok = Number.isInteger(month) && month >= 1 && month <= 12
-      && Number.isInteger(day) && day >= 1 && day <= maxDayForMonth(month);
-    return ok ? { kind: "yearly", month, day } : null;
+    const dates = form.repeat_dates.filter(validYearlyDate);
+    return dates.length && dates.length === form.repeat_dates.length ? { kind: "yearly", dates } : null;
   }
   return null;
 }
@@ -183,15 +206,14 @@ export function recurrenceFormError(form: EditorForm): string | null {
     return "Pick at least one weekday to repeat on.";
   }
   if (form.repeat === "monthly") {
-    const day = parseInt(form.repeat_day.trim(), 10);
-    if (!Number.isInteger(day) || day < 1 || day > 31) return "Day of month must be 1-31.";
+    if (parseMonthlyDays(form.repeat_days) === null) {
+      return "Enter one or more days of the month (1-31), separated by commas.";
+    }
   }
   if (form.repeat === "yearly") {
-    const month = parseInt(form.repeat_month.trim(), 10);
-    if (!Number.isInteger(month) || month < 1 || month > 12) return "Pick a month to repeat on.";
-    const day = parseInt(form.repeat_day.trim(), 10);
-    if (!Number.isInteger(day) || day < 1 || day > maxDayForMonth(month)) {
-      return `Day must be 1-${maxDayForMonth(month)} for the chosen month.`;
+    if (form.repeat_dates.length === 0) return "Add at least one date to repeat on.";
+    if (!form.repeat_dates.every(validYearlyDate)) {
+      return "Each date needs a month and a valid day for that month.";
     }
   }
   if (form.tag_ids.length === 0) {

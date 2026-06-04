@@ -2,6 +2,17 @@
 
 **Status:** approved · **Date:** 2026-06-04 · **Builds on:** [2026-06-03-recurring-tasks-design.md](./2026-06-03-recurring-tasks-design.md)
 
+> **Addendum (multi-day, 2026-06-04):** Monthly and Yearly now accept **multiple
+> days**. Monthly stores `days: number[]` (e.g. the 1st and 15th); Yearly stores
+> `dates: {month, day}[]` — a list of independent month+day pairs (e.g. Jan 1, Apr
+> 15, Dec 25). This supersedes the single-day `monthly {day}` / `yearly {month,day}`
+> shapes described below. `occursOn` fires if **any** listed day/date matches (monthly
+> still clamps each day to month-end; yearly stays exact / skip-Feb-29). Loading is
+> backward-compatible via `RecurrenceCompat` (folds legacy `{day}` → `{days:[day]}`
+> and `{month,day}` → `{dates:[{month,day}]}`), and `CURRENT_VERSION` bumps 7 → 8.
+> The editor takes a comma-separated days input (Monthly) and an add/remove list of
+> month+day rows (Yearly).
+
 ## Summary
 
 Two refinements to the recurring-tasks feature (#9):

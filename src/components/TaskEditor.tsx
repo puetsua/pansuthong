@@ -53,11 +53,8 @@ export function TaskEditor(props: Props) {
     start_offset_days: tmplEntity?.start_offset_days != null ? String(tmplEntity.start_offset_days) : "",
     repeat: tmplEntity?.recurrence?.kind ?? "none",
     repeat_weekdays: tmplEntity?.recurrence?.kind === "weekly" ? tmplEntity.recurrence.weekdays : [],
-    repeat_day:
-      tmplEntity?.recurrence?.kind === "monthly" ? String(tmplEntity.recurrence.day)
-      : tmplEntity?.recurrence?.kind === "yearly" ? String(tmplEntity.recurrence.day)
-      : "",
-    repeat_month: tmplEntity?.recurrence?.kind === "yearly" ? String(tmplEntity.recurrence.month) : "",
+    repeat_days: tmplEntity?.recurrence?.kind === "monthly" ? tmplEntity.recurrence.days.join(", ") : "",
+    repeat_dates: tmplEntity?.recurrence?.kind === "yearly" ? tmplEntity.recurrence.dates : [],
     recurrence_tag_id: tmplEntity?.recurrence_tag_id ?? "",
   });
   const [form, setForm] = useState<EditorForm>(initialRef.current);
@@ -381,29 +378,40 @@ export function TaskEditor(props: Props) {
             )}
             {form.repeat === "monthly" && (
               <label className="te-field">
-                <span>Day of month (clamps to the month's last day)</span>
-                <input type="number" min={1} max={31} inputMode="numeric" placeholder="e.g. 15"
-                       value={form.repeat_day}
-                       onChange={e => set("repeat_day", e.currentTarget.value)} />
+                <span>Days of month (comma-separated; each clamps to the month's last day)</span>
+                <input type="text" inputMode="numeric" placeholder="e.g. 1, 15"
+                       value={form.repeat_days}
+                       onChange={e => set("repeat_days", e.currentTarget.value)} />
               </label>
             )}
             {form.repeat === "yearly" && (
-              <div className="te-yearly">
-                <label className="te-field">
-                  <span>Month</span>
-                  <select value={form.repeat_month}
-                          onChange={e => set("repeat_month", e.currentTarget.value)}>
-                    <option value="">Choose a month…</option>
-                    {MONTHS.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
-                  </select>
-                </label>
-                <label className="te-field">
-                  <span>Day</span>
-                  <input type="number" min={1} max={maxDayForMonth(parseInt(form.repeat_month, 10) || 1)}
-                         inputMode="numeric" placeholder="e.g. 15"
-                         value={form.repeat_day}
-                         onChange={e => set("repeat_day", e.currentTarget.value)} />
-                </label>
+              <div className="te-field">
+                <span>Dates (one or more)</span>
+                <div className="te-yearly-dates">
+                  {form.repeat_dates.map((d, i) => (
+                    <div className="te-yearly-row" key={i}>
+                      <select aria-label="Month" value={d.month || ""}
+                              onChange={e => set("repeat_dates", form.repeat_dates.map((x, j) =>
+                                j === i ? { ...x, month: parseInt(e.currentTarget.value, 10) || 0 } : x))}>
+                        <option value="">Month…</option>
+                        {MONTHS.map((name, m) => <option key={name} value={m + 1}>{name}</option>)}
+                      </select>
+                      <input type="number" aria-label="Day" min={1}
+                             max={maxDayForMonth(d.month || 1)} inputMode="numeric" placeholder="Day"
+                             value={d.day || ""}
+                             onChange={e => set("repeat_dates", form.repeat_dates.map((x, j) =>
+                               j === i ? { ...x, day: parseInt(e.currentTarget.value, 10) || 0 } : x))} />
+                      <button type="button" className="te-yearly-remove" aria-label="Remove date"
+                              onClick={() => set("repeat_dates", form.repeat_dates.filter((_, j) => j !== i))}>
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" className="te-yearly-add"
+                          onClick={() => set("repeat_dates", [...form.repeat_dates, { month: 0, day: 0 }])}>
+                    + Add date
+                  </button>
+                </div>
               </div>
             )}
             {form.repeat !== "none" && (
