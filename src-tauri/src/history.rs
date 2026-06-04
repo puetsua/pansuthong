@@ -47,6 +47,10 @@ pub fn read_history(data_path: &Path, limit: usize) -> Result<Vec<HistoryEntry>>
     Ok(entries)
 }
 
+pub fn read_all_history(data_path: &Path) -> Result<Vec<HistoryEntry>> {
+    read_history(data_path, usize::MAX)
+}
+
 pub fn append_history(data_path: &Path, entries: &[HistoryEntry]) -> Result<()> {
     if entries.is_empty() {
         return Ok(());
