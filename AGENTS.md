@@ -58,6 +58,11 @@ See https://tauri.app/start/prerequisites/ and https://v2.tauri.app/develop/#mob
 - Don't reintroduce the scaffolded `greet` command or sample logos — they were intentionally removed.
 - **Adding a new section to the Settings screen requires the user's explicit approval first.** The Settings screen is deliberately kept minimal; do not introduce a new settings section or control without asking and getting an OK.
 
+## Commits & releases
+
+- Write **Conventional Commits** (`feat:`, `fix:`, `docs:`, `refactor:`, `perf:`, `test:`, `ci:`/`build:`, `chore:`). The release workflow runs **git-cliff** (`cliff.toml`) on a tag push to auto-generate that GitHub Release's notes, grouped by commit type — non-conventional messages still appear, but land under "Miscellaneous". For squash-merged PRs, the squash title is the commit, so give the PR a conventional title.
+- Releasing: push a plain semver tag (e.g. `0.1.0`, or `0.1.0-beta.1` for a prerelease — no `v` prefix). `.github/workflows/release.yml` builds the Windows installer + Android APK and publishes them to the Release.
+
 ## Code style
 
 - TypeScript: 2-space indent (matches scaffold). Prefer `type` over `interface` for plain data shapes.

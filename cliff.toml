@@ -1,0 +1,62 @@
+# git-cliff configuration — generates GitHub Release notes from the commit history.
+# https://git-cliff.org/docs/configuration
+#
+# We adopt Conventional Commits (feat:/fix:/chore: …); each release's notes are
+# grouped by type. The Release workflow runs `git cliff --latest` on a tag push
+# and uses the output as that GitHub Release's body. No CHANGELOG.md is committed.
+
+[changelog]
+# Release-body fragment only — no document-level "# Changelog" header/footer.
+header = ""
+body = """
+{% if version %}\
+    ## {{ version | trim_start_matches(pat="v") }} - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## Unreleased
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | upper_first }}
+    {% for commit in commits %}
+        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
+            {% if commit.breaking %}[**breaking**] {% endif %}\
+            {{ commit.message | split(pat="\n") | first | trim | upper_first }}\
+    {% endfor %}
+{% endfor %}\n
+"""
+footer = ""
+# Tidy leading/trailing whitespace from each line of the rendered body.
+trim = true
+
+[git]
+# Parse Conventional Commit prefixes into groups via commit_parsers below.
+conventional_commits = true
+# Keep non-conventional commits too (e.g. older squash titles) so nothing is
+# silently dropped from a release's notes; they land in "Miscellaneous".
+filter_unconventional = false
+# One changelog entry per commit (don't split a body into multiple entries).
+split_commits = false
+# Newest commits first within each group.
+sort_commits = "newest"
+# Strip the merge/PR-number noise that doesn't belong in a human-readable line.
+commit_preprocessors = [
+  # Drop the Co-Authored-By trailer git-cliff would otherwise see in the body.
+  { pattern = '\n+Co-Authored-By:.*', replace = "" },
+]
+commit_parsers = [
+  { message = "^feat",                group = "Features" },
+  { message = "^fix",                 group = "Bug Fixes" },
+  { message = "^perf",                group = "Performance" },
+  { message = "^refactor",            group = "Refactor" },
+  { message = "^docs?",               group = "Documentation" },
+  { message = "^test",                group = "Testing" },
+  { message = "^ci|^build",           group = "CI / Build" },
+  { message = "^chore\\(release\\)",  skip  = true },
+  { message = "^chore|^style",        group = "Miscellaneous" },
+  { message = ".*",                   group = "Miscellaneous" },
+]
+# This repo tags plain semver (e.g. `0.0.1`, `0.1.0-beta.1`) — no `v` prefix.
+tag_pattern = "[0-9]*"
+# Exclude nothing by author/path.
+protect_breaking_commits = false
+filter_commits = false
+topo_order = false

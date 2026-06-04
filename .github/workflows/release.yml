@@ -13,8 +13,35 @@ permissions:
   contents: write # create the release and upload artifacts
 
 jobs:
+  # Generate the release notes first and seed the GitHub Release with them, so the
+  # build jobs only append artifacts (action-gh-release leaves an existing body
+  # untouched when `body` is omitted).
+  release-notes:
+    name: Release notes (git-cliff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags so git-cliff can build the changelog
+
+      # Render the notes for the just-pushed tag (`--latest`) from cliff.toml.
+      - name: Generate release notes
+        id: cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+
+      - name: Seed the release body
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: ${{ steps.cliff.outputs.content }}
+
   windows-desktop:
     name: Windows desktop (NSIS .exe)
+    needs: release-notes
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +79,7 @@ jobs:
 
   android:
     name: Android (unsigned APK)
+    needs: release-notes
     runs-on: ubuntu-latest
     env:
       # Pin the NDK that the local toolchain is known good with.
