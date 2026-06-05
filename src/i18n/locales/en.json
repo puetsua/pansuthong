@@ -288,6 +288,15 @@
     "dueTime": "Due time",
     "tags": "Tags",
     "notes": "Notes",
+    "notesView": "Notes view",
+    "notesMarkdown": "Markdown notes",
+    "notesPreview": "Markdown preview",
+    "notesPreviewEmpty": "Nothing to preview.",
+    "notesMode": {
+      "edit": "Edit",
+      "split": "Split",
+      "preview": "Preview"
+    },
     "options": "Options ▾",
     "saveAsTemplate": "Save as template",
     "delete": "Delete",

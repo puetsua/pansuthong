@@ -1,6 +1,7 @@
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import ReactMarkdown from "react-markdown";
 import { api, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, isEditorDirty, maxDayForMonth, offsetFormError, recurrenceFormError, recurrenceFromForm } from "../state/taskUpdate";
@@ -24,6 +25,13 @@ type Props = {
   | { kind?: "task"; task: Task }
   | { kind: "template"; template: TemplateTask }
 );
+
+type NotesMode = "edit" | "split" | "preview";
+
+const markdownElements = [
+  "a", "blockquote", "br", "code", "em", "h1", "h2", "h3", "h4", "h5", "h6",
+  "hr", "li", "ol", "p", "pre", "strong", "ul",
+];
 
 export function TaskEditor(props: Props) {
   const { t } = useTranslation();
@@ -61,6 +69,7 @@ export function TaskEditor(props: Props) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [notesMode, setNotesMode] = useState<NotesMode>("split");
   const [busy, setBusy] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -495,11 +504,39 @@ export function TaskEditor(props: Props) {
           />
         </div>
 
-        <label className="te-field">
-          <span>{t("taskEditor.notes")}</span>
-          <textarea value={form.notes} rows={4}
-                    onChange={e => set("notes", e.currentTarget.value)} />
-        </label>
+        <div className="te-field te-notes-field">
+          <div className="te-field-head">
+            <span>{t("taskEditor.notes")}</span>
+            <div className="te-segmented" role="group" aria-label={t("taskEditor.notesView")}>
+              {(["edit", "split", "preview"] as const).map(mode => (
+                <button type="button" key={mode}
+                        aria-pressed={notesMode === mode}
+                        className={notesMode === mode ? "active" : ""}
+                        onClick={() => setNotesMode(mode)}>
+                  {t(`taskEditor.notesMode.${mode}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className={`te-notes te-notes-mode-${notesMode}`}>
+            {notesMode !== "preview" && (
+              <textarea aria-label={t("taskEditor.notesMarkdown")}
+                        value={form.notes} rows={10}
+                        onChange={e => set("notes", e.currentTarget.value)} />
+            )}
+            {notesMode !== "edit" && (
+              <div className="te-notes-preview" aria-label={t("taskEditor.notesPreview")}>
+                {form.notes.trim() ? (
+                  <ReactMarkdown allowedElements={markdownElements}>
+                    {form.notes}
+                  </ReactMarkdown>
+                ) : (
+                  <p className="te-notes-empty">{t("taskEditor.notesPreviewEmpty")}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
         {canComplete && taskEntity && <TimeTracking task={taskEntity} />}
 

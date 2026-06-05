@@ -146,6 +146,46 @@ describe("TaskEditor time-of-day (#93)", () => {
   });
 });
 
+describe("TaskEditor Markdown notes (#70)", () => {
+  it("renders Markdown in the split preview by default", () => {
+    const task: Task = {
+      ...baseTask,
+      notes: "Hello **bold**\n\n- first",
+    };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    const strong = screen.getByText("bold");
+    expect(strong.tagName).toBe("STRONG");
+    expect(screen.getByText("first").tagName).toBe("LI");
+  });
+
+  it("keeps saving the raw Markdown source in notes", async () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("Markdown notes"), {
+      target: { value: "Write **summary**" },
+    });
+    fireEvent.click(button("Save"));
+
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "k_1", notes: "Write **summary**" }),
+      ),
+    );
+  });
+
+  it("does not inject raw HTML from notes into the preview", () => {
+    const task: Task = {
+      ...baseTask,
+      notes: '<img src="x" onerror="alert(1)" /> **safe**',
+    };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    expect(document.querySelector(".te-notes-preview img")).toBeNull();
+    expect(screen.getByText("safe").tagName).toBe("STRONG");
+  });
+});
+
 const backdrop = () => document.querySelector(".modal-backdrop") as HTMLElement;
 
 describe("TaskEditor backdrop auto-save (#66)", () => {

@@ -284,6 +284,15 @@
     "dueTime": "到期時間",
     "tags": "標籤",
     "notes": "備註",
+    "notesView": "備註檢視",
+    "notesMarkdown": "Markdown 備註",
+    "notesPreview": "Markdown 預覽",
+    "notesPreviewEmpty": "沒有可預覽的內容。",
+    "notesMode": {
+      "edit": "編輯",
+      "split": "分割",
+      "preview": "預覽"
+    },
     "options": "選項 ▾",
     "saveAsTemplate": "儲存為範本",
     "delete": "刪除",
