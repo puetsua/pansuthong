@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { QuickCapture } from "./QuickCapture";
+import "../i18n";
 import "../styles/tokens.css";
 import "./quick-capture.css";
 

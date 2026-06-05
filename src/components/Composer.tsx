@@ -1,4 +1,5 @@
 import { FormEvent, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api, Tag } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { parseComposer } from "../state/parse";
@@ -14,6 +15,7 @@ type Props = {
 };
 
 export function Composer({ startDate, todayIso: today = todayIso(), tagsByName }: Props) {
+  const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -48,13 +50,13 @@ export function Composer({ startDate, todayIso: today = todayIso(), tagsByName }
         <input
           value={input}
           onChange={e => setInput(e.currentTarget.value)}
-          placeholder="What needs doing?  (try: #work due fri Reply to Anna)"
-          aria-label="New task"
+          placeholder={t("composer.placeholder")}
+          aria-label={t("composer.aria")}
         />
-        <button type="submit" disabled={!parsed.title}>Add</button>
+        <button type="submit" disabled={!parsed.title}>{t("composer.add")}</button>
         {error && <p className="composer-error">{error}</p>}
         {!error && needsTitle && (
-          <p className="composer-hint">Add a title — that line is only tags/dates.</p>
+          <p className="composer-hint">{t("composer.needTitle")}</p>
         )}
       </form>
       <ComposerPreview parsed={parsed} tagsByName={tagsByName} />

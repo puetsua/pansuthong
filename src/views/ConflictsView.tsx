@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { api, Decision, Task, TaskDiff, isDone } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { BulkIntent, bulkAction, nextConflictPath } from "../state/conflictDecisions";
 
 export function ConflictsView() {
+  const { t } = useTranslation();
   const { filename } = useParams<{ filename: string }>();
   const path = filename ? decodeURIComponent(filename) : "";
   const navigate = useNavigate();
@@ -25,9 +28,9 @@ export function ConflictsView() {
       .catch(err => setError(errorMessage(err)));
   }, [path]);
 
-  if (!path) return <p className="view-empty">No conflict selected.</p>;
+  if (!path) return <p className="view-empty">{t("conflicts.noSelected")}</p>;
   if (error) return <p className="composer-error">{error}</p>;
-  if (!diffs) return <p className="view-empty">Loading conflict…</p>;
+  if (!diffs) return <p className="view-empty">{t("conflicts.loading")}</p>;
 
   const decide = (id: string, action: Decision["action"]) => {
     setChosen(s => ({ ...s, [id]: action }));
@@ -60,7 +63,7 @@ export function ConflictsView() {
   };
 
   const dismiss = async () => {
-    if (!window.confirm("Discard this conflict file without merging?")) return;
+    if (!window.confirm(t("conflicts.dismissConfirm"))) return;
     try { await api.dismissConflict(path); await goNext(); }
     catch (err) { setError(errorMessage(err)); }
   };
@@ -76,31 +79,32 @@ export function ConflictsView() {
   return (
     <section>
       <header className="view-header">
-        <h1>Sync conflict</h1>
+        <h1>{t("conflicts.title")}</h1>
         <p className="view-sub">{fileLabel}</p>
       </header>
 
       <div className="conflict-bulk">
-        <button onClick={() => applyToAll("mine")}   className="link-button">Use all mine</button>
-        <button onClick={() => applyToAll("theirs")} className="link-button">Use all theirs</button>
+        <button onClick={() => applyToAll("mine")}   className="link-button">{t("conflicts.useAllMine")}</button>
+        <button onClick={() => applyToAll("theirs")} className="link-button">{t("conflicts.useAllTheirs")}</button>
       </div>
 
       {diffs.length === 0
-        ? <p className="view-empty">No task differences. (Tag differences are ignored in v1.)</p>
+        ? <p className="view-empty">{t("conflicts.noDiffs")}</p>
         : diffs.map(d => (
           <ConflictRow
             key={d.id}
             diff={d}
             chosen={chosen[d.id]}
             onChoose={action => decide(d.id, action)}
+            t={t}
           />
         ))
       }
 
       <div className="conflict-actions">
-        <button onClick={dismiss} className="link-button danger">Discard conflict file</button>
+        <button onClick={dismiss} className="link-button danger">{t("conflicts.discard")}</button>
         <button onClick={submit} disabled={!allDecided || busy}>
-          {busy ? "Applying…" : "Apply"}
+          {busy ? t("conflicts.applying") : t("conflicts.apply")}
         </button>
       </div>
     </section>
@@ -111,25 +115,26 @@ function ConflictRow(props: {
   diff: TaskDiff;
   chosen: Decision["action"] | undefined;
   onChoose: (action: Decision["action"]) => void;
+  t: TFunction;
 }) {
-  const { diff, chosen, onChoose } = props;
+  const { diff, chosen, onChoose, t } = props;
 
   if (diff.kind === "differs") {
     return (
       <div className="conflict-row">
         <div className="conflict-row-title">"{diff.mine.title}"</div>
         <div className="conflict-row-side">
-          <div className="conflict-side-label">Yours</div>
-          <TaskSummary task={diff.mine} />
+          <div className="conflict-side-label">{t("conflicts.yours")}</div>
+          <TaskSummary task={diff.mine} t={t} />
         </div>
         <div className="conflict-row-side">
-          <div className="conflict-side-label">Theirs</div>
-          <TaskSummary task={diff.theirs} />
+          <div className="conflict-side-label">{t("conflicts.theirs")}</div>
+          <TaskSummary task={diff.theirs} t={t} />
         </div>
         <div className="conflict-row-actions">
-          <Pick label="Keep mine"   active={chosen === "keep_mine"}   onClick={() => onChoose("keep_mine")} />
-          <Pick label="Keep theirs" active={chosen === "keep_theirs"} onClick={() => onChoose("keep_theirs")} />
-          <Pick label="Keep both"   active={chosen === "keep_both"}   onClick={() => onChoose("keep_both")} />
+          <Pick label={t("conflicts.keepMine")}   active={chosen === "keep_mine"}   onClick={() => onChoose("keep_mine")} />
+          <Pick label={t("conflicts.keepTheirs")} active={chosen === "keep_theirs"} onClick={() => onChoose("keep_theirs")} />
+          <Pick label={t("conflicts.keepBoth")}   active={chosen === "keep_both"}   onClick={() => onChoose("keep_both")} />
         </div>
       </div>
     );
@@ -137,33 +142,33 @@ function ConflictRow(props: {
   if (diff.kind === "only_mine") {
     return (
       <div className="conflict-row">
-        <div className="conflict-row-title">"{diff.mine.title}" <span className="conflict-tag">only on yours</span></div>
-        <TaskSummary task={diff.mine} />
+        <div className="conflict-row-title">"{diff.mine.title}" <span className="conflict-tag">{t("conflicts.onlyYours")}</span></div>
+        <TaskSummary task={diff.mine} t={t} />
         <div className="conflict-row-actions">
-          <Pick label="Keep" active={chosen === "keep_mine"} onClick={() => onChoose("keep_mine")} />
-          <Pick label="Drop" active={chosen === "drop"}      onClick={() => onChoose("drop")} />
+          <Pick label={t("conflicts.keep")} active={chosen === "keep_mine"} onClick={() => onChoose("keep_mine")} />
+          <Pick label={t("conflicts.drop")} active={chosen === "drop"}      onClick={() => onChoose("drop")} />
         </div>
       </div>
     );
   }
   return (
     <div className="conflict-row">
-      <div className="conflict-row-title">"{diff.theirs.title}" <span className="conflict-tag">only on theirs</span></div>
-      <TaskSummary task={diff.theirs} />
+      <div className="conflict-row-title">"{diff.theirs.title}" <span className="conflict-tag">{t("conflicts.onlyTheirs")}</span></div>
+      <TaskSummary task={diff.theirs} t={t} />
       <div className="conflict-row-actions">
-        <Pick label="Add to mine" active={chosen === "keep_theirs"} onClick={() => onChoose("keep_theirs")} />
-        <Pick label="Ignore"      active={chosen === "drop"}        onClick={() => onChoose("drop")} />
+        <Pick label={t("conflicts.addToMine")} active={chosen === "keep_theirs"} onClick={() => onChoose("keep_theirs")} />
+        <Pick label={t("conflicts.ignore")}    active={chosen === "drop"}        onClick={() => onChoose("drop")} />
       </div>
     </div>
   );
 }
 
-function TaskSummary({ task }: { task: Task }) {
+function TaskSummary({ task, t }: { task: Task; t: TFunction }) {
   return (
     <div className="conflict-summary">
-      {isDone(task) && <span>✓ done</span>}
-      {task.start_date && <span>start {task.start_date}</span>}
-      {task.due_date       && <span>due {task.due_date}</span>}
+      {isDone(task) && <span>{t("conflicts.done")}</span>}
+      {task.start_date && <span>{t("conflicts.start", { date: task.start_date })}</span>}
+      {task.due_date       && <span>{t("conflicts.due", { date: task.due_date })}</span>}
       {task.notes && <span className="conflict-notes">"{task.notes.slice(0, 80)}{task.notes.length > 80 ? "…" : ""}"</span>}
     </div>
   );

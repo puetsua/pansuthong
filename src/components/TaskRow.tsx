@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Task, Tag, isDone } from "../lib/tauri";
 import { api } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
@@ -19,17 +21,17 @@ type Props = {
   onReopened?: (id: string) => void;
 };
 
-function whenLabel(t: Task, today: string): { text: string; late: boolean } {
+function whenLabel(task: Task, today: string, t: TFunction): { text: string; late: boolean } {
   // A trailing " HH:MM" when the field carries a time, else "" (all-day) (#93).
-  const dueT = t.due_time ? ` ${t.due_time}` : "";
-  const schedT = t.start_time ? ` ${t.start_time}` : "";
-  if (t.due_date) {
-    if (t.due_date === today)       return { text: `due today${dueT}`, late: false };
-    if (t.due_date < today && !isDone(t)) return { text: `−${diffDays(t.due_date, today)}d`, late: true };
-    return { text: `due ${t.due_date.slice(5)}${dueT}`, late: false };
+  const dueT = task.due_time ? ` ${task.due_time}` : "";
+  const schedT = task.start_time ? ` ${task.start_time}` : "";
+  if (task.due_date) {
+    if (task.due_date === today)       return { text: t("taskRow.dueToday", { time: dueT }), late: false };
+    if (task.due_date < today && !isDone(task)) return { text: t("taskRow.overdue", { days: diffDays(task.due_date, today) }), late: true };
+    return { text: t("taskRow.due", { date: task.due_date.slice(5), time: dueT }), late: false };
   }
-  if (t.start_date === today) return { text: `today${schedT}`, late: false };
-  if (t.start_date)           return { text: `${t.start_date.slice(5)}${schedT}`, late: false };
+  if (task.start_date === today) return { text: t("taskRow.today", { time: schedT }), late: false };
+  if (task.start_date)           return { text: t("taskRow.scheduled", { date: task.start_date.slice(5), time: schedT }), late: false };
   return { text: "", late: false };
 }
 
@@ -39,9 +41,10 @@ function diffDays(a: string, b: string): number {
 }
 
 export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, onReopened }: Props) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const w = whenLabel(task, todayIso);
+  const w = whenLabel(task, todayIso, t);
   // All of the task's tags as chips, highest-weight (priority) first.
   const taskTags = task.tag_ids
     .map(id => tags.get(id))
@@ -84,7 +87,7 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
     <>
       <div className="task-row" data-done={isDone(task)} data-timing={running}>
         <button type="button" className="task-main" onClick={open}
-                aria-label={`Edit ${task.title}`}>
+                aria-label={t("taskRow.edit", { title: task.title })}>
           <span className="task-title">{task.title}</span>
           {taskTags.map(t => (
             <span key={t.id} className="task-tag" style={{ background: t.color, color: readableTextColor(t.color) }}>
@@ -95,28 +98,28 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
         </button>
         {archived ? (
           <>
-            {total > 0 && <span className="task-timer-total" title="Time tracked">{formatDurationShort(total)}</span>}
+            {total > 0 && <span className="task-timer-total" title={t("taskRow.timeTrackedTitle")}>{formatDurationShort(total)}</span>}
             <button type="button" className="task-restore" onClick={restore}
-                    aria-label={`Restore ${task.title}`}>
-              Restore
+                    aria-label={t("taskRow.restoreAria", { title: task.title })}>
+              {t("taskRow.restore")}
             </button>
           </>
         ) : (
           <>
             <button type="button" className="task-timer" data-running={running} onClick={toggleTimer}
-                    aria-label={running ? `Stop timer for ${task.title}` : `Start timer for ${task.title}`}
-                    title={running ? "Stop timer" : "Start timer"}>
+                    aria-label={running ? t("taskRow.stopTimer", { title: task.title }) : t("taskRow.startTimer", { title: task.title })}
+                    title={running ? t("taskRow.stopTimerTitle") : t("taskRow.startTimerTitle")}>
               <span className="task-timer-icon" aria-hidden>{running ? "■" : "▶"}</span>
               {(running || total > 0) && (
                 <span className="task-timer-time">{running ? formatClock(total) : formatDurationShort(total)}</span>
               )}
             </button>
             <input type="checkbox" checked={isDone(task)} onChange={toggle}
-                   aria-label={`Toggle ${task.title}`} />
+                   aria-label={t("taskRow.toggle", { title: task.title })} />
           </>
         )}
       </div>
-      {error && <p className="composer-error" role="alert">Couldn’t update: {error}</p>}
+      {error && <p className="composer-error" role="alert">{t("taskRow.updateError", { error })}</p>}
       {editing && <TaskEditor task={task} allTags={tags} onClose={() => setEditing(false)} />}
     </>
   );

@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useConflicts } from "../state/conflicts";
 
 export function ConflictBanner() {
+  const { t } = useTranslation();
   const files = useConflicts();
   if (files.length === 0) return null;
 
@@ -12,11 +14,11 @@ export function ConflictBanner() {
     <div className="conflict-banner" role="alert">
       <span>
         {files.length === 1
-          ? `1 sync conflict — ${filename}`
-          : `${files.length} sync conflicts`}
+          ? t("conflictBanner.one", { filename })
+          : t("conflictBanner.many", { count: files.length })}
       </span>
       <Link className="conflict-banner-link" to={`/conflicts/${encodeURIComponent(first)}`}>
-        Review →
+        {t("conflictBanner.review")}
       </Link>
     </div>
   );

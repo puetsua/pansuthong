@@ -1,5 +1,6 @@
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { api, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, isEditorDirty, maxDayForMonth, offsetFormError, recurrenceFormError, recurrenceFromForm } from "../state/taskUpdate";
@@ -8,10 +9,6 @@ import { daysBetweenIso, todayIso } from "../lib/dates";
 import { readableTextColor } from "../lib/tags";
 import { TagInput } from "./TagInput";
 import { TimeTracking } from "./TimeTracking";
-
-// Month labels for the yearly-recurrence picker; index + 1 is the stored month.
-const MONTHS = ["January", "February", "March", "April", "May", "June",
-                "July", "August", "September", "October", "November", "December"];
 
 // The editor edits either a real task (absolute dates) or a template (relative
 // offsets), fixed by `kind`. A task is never converted in place; "Save as
@@ -29,6 +26,9 @@ type Props = {
 );
 
 export function TaskEditor(props: Props) {
+  const { t } = useTranslation();
+  // Month labels for the yearly-recurrence picker; index + 1 is the stored month.
+  const MONTHS = t("taskEditor.months", { returnObjects: true }) as string[];
   const { allTags, onClose, creating = false } = props;
   const isTemplate = props.kind === "template";
   const taskEntity = props.kind === "template" ? null : props.task;
@@ -75,7 +75,7 @@ export function TaskEditor(props: Props) {
 
   const isDirty = () => isEditorDirty(form, initialRef.current);
   const requestClose = () => {
-    if (isDirty() && !window.confirm("Discard unsaved changes?")) return;
+    if (isDirty() && !window.confirm(t("taskEditor.discardConfirm"))) return;
     onClose();
   };
   // Keep a stable ref to the latest requestClose so the mount-only key handler
@@ -149,7 +149,7 @@ export function TaskEditor(props: Props) {
   // Only meaningful for real tasks — templates use relative offsets, not absolute
   // dates, so the guard doesn't apply when editing a template (#71).
   const dateError = !isTemplate && dueBeforeStart(form)
-    ? "Due date can't be before the start date."
+    ? t("taskEditor.dueBeforeStart")
     : null;
   // Templates use relative offsets instead of absolute dates; validate them (range
   // and due-before-scheduled ordering) the same way #51 validates dates, so a
@@ -176,7 +176,7 @@ export function TaskEditor(props: Props) {
   };
 
   const save = async () => {
-    if (!form.title.trim()) { setError("Title can't be empty."); return; }
+    if (!form.title.trim()) { setError(t("taskEditor.titleEmpty")); return; }
     if (dateError) { setError(dateError); return; }
     if (offsetError) { setError(offsetError); return; }
     if (recurError) { setError(recurError); return; }
@@ -223,7 +223,7 @@ export function TaskEditor(props: Props) {
   // become relative offsets (today + N), clamped to >= 0.
   const saveAsTemplate = async () => {
     setOptionsOpen(false);
-    if (!form.title.trim()) { setError("Title can't be empty."); return; }
+    if (!form.title.trim()) { setError(t("taskEditor.titleEmpty")); return; }
     if (dateError) { setError(dateError); return; }
     setBusy(true);
     try {
@@ -239,7 +239,7 @@ export function TaskEditor(props: Props) {
       });
       setBusy(false);
       setError(null);
-      setNotice("Saved as a template — this task is unchanged.");
+      setNotice(t("taskEditor.savedAsTemplate"));
     } catch (err) {
       setError(errorMessage(err));
       setBusy(false);
@@ -251,7 +251,7 @@ export function TaskEditor(props: Props) {
   // an invalid form blocks the action and surfaces the error, like Save.
   const toggleComplete = async () => {
     if (isDirty()) {
-      if (!form.title.trim()) { setError("Title can't be empty."); return; }
+      if (!form.title.trim()) { setError(t("taskEditor.titleEmpty")); return; }
       if (dateError) { setError(dateError); return; }
     }
     setBusy(true);
@@ -269,7 +269,7 @@ export function TaskEditor(props: Props) {
   };
 
   const remove = async () => {
-    if (!window.confirm(`Delete "${entity.title}"? This can't be undone.`)) return;
+    if (!window.confirm(t("taskEditor.deleteConfirm", { title: entity.title }))) return;
     setBusy(true);
     try {
       if (isTemplate) await api.deleteTemplate(entity.id);
@@ -320,10 +320,10 @@ export function TaskEditor(props: Props) {
          onMouseUp={onBackdropMouseUp}
          onClick={onBackdropClick}>
       <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true"
-           aria-label={creating ? "New task" : isTemplate ? "Edit template" : "Edit task"}
+           aria-label={creating ? t("taskEditor.newTask") : isTemplate ? t("taskEditor.editTemplate") : t("taskEditor.editTask")}
            onClick={e => e.stopPropagation()}>
         <label className="te-field">
-          <span>Title</span>
+          <span>{t("taskEditor.title")}</span>
           <input value={form.title} autoFocus
                  onChange={e => set("title", e.currentTarget.value)} />
         </label>
@@ -332,13 +332,13 @@ export function TaskEditor(props: Props) {
           <>
             <div className="te-row">
               <label className="te-field">
-                <span>Start in (days)</span>
+                <span>{t("taskEditor.startInDays")}</span>
                 <input type="number" min={0} max={3650} inputMode="numeric" placeholder="—"
                        value={form.start_offset_days}
                        onChange={e => set("start_offset_days", e.currentTarget.value)} />
               </label>
               <label className="te-field">
-                <span>Due in (days)</span>
+                <span>{t("taskEditor.dueInDays")}</span>
                 <input type="number" min={0} max={3650} inputMode="numeric" placeholder="—"
                        value={form.due_offset_days}
                        onChange={e => set("due_offset_days", e.currentTarget.value)} />
@@ -346,19 +346,19 @@ export function TaskEditor(props: Props) {
             </div>
             {offsetError && <p className="te-warn" role="alert">{offsetError}</p>}
             <div className="te-field">
-              <span>Repeat</span>
+              <span>{t("taskEditor.repeat")}</span>
               <select value={form.repeat}
                       onChange={e => set("repeat", e.currentTarget.value as EditorForm["repeat"])}>
-                <option value="none">Doesn't repeat</option>
-                <option value="daily">Every day</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="yearly">Every year</option>
+                <option value="none">{t("taskEditor.repeatNone")}</option>
+                <option value="daily">{t("taskEditor.repeatDaily")}</option>
+                <option value="weekly">{t("taskEditor.repeatWeekly")}</option>
+                <option value="monthly">{t("taskEditor.repeatMonthly")}</option>
+                <option value="yearly">{t("taskEditor.repeatYearly")}</option>
               </select>
             </div>
             {form.repeat === "weekly" && (
-              <div className="te-weekdays" role="group" aria-label="Repeat on weekdays">
-                {([["Mon",1],["Tue",2],["Wed",3],["Thu",4],["Fri",5],["Sat",6],["Sun",7]] as const).map(([label, day]) => {
+              <div className="te-weekdays" role="group" aria-label={t("taskEditor.weekdaysAria")}>
+                {([["taskEditor.weekdayMon",1],["taskEditor.weekdayTue",2],["taskEditor.weekdayWed",3],["taskEditor.weekdayThu",4],["taskEditor.weekdayFri",5],["taskEditor.weekdaySat",6],["taskEditor.weekdaySun",7]] as const).map(([labelKey, day]) => {
                   const on = form.repeat_weekdays.includes(day);
                   return (
                     <button type="button" key={day} aria-pressed={on}
@@ -366,42 +366,42 @@ export function TaskEditor(props: Props) {
                             onClick={() => set("repeat_weekdays",
                               on ? form.repeat_weekdays.filter(d => d !== day)
                                  : [...form.repeat_weekdays, day])}>
-                      {label}
+                      {t(labelKey)}
                     </button>
                   );
                 })}
                 <button type="button" className="te-weekday-preset"
                         onClick={() => set("repeat_weekdays", [1, 2, 3, 4, 5])}>
-                  Weekdays
+                  {t("taskEditor.weekdaysPreset")}
                 </button>
               </div>
             )}
             {form.repeat === "monthly" && (
               <label className="te-field">
-                <span>Days of month (comma-separated; each clamps to the month's last day)</span>
-                <input type="text" inputMode="numeric" placeholder="e.g. 1, 15"
+                <span>{t("taskEditor.monthlyLabel")}</span>
+                <input type="text" inputMode="numeric" placeholder={t("taskEditor.monthlyPlaceholder")}
                        value={form.repeat_days}
                        onChange={e => set("repeat_days", e.currentTarget.value)} />
               </label>
             )}
             {form.repeat === "yearly" && (
               <div className="te-field">
-                <span>Dates (one or more)</span>
+                <span>{t("taskEditor.yearlyLabel")}</span>
                 <div className="te-yearly-dates">
                   {form.repeat_dates.map((d, i) => (
                     <div className="te-yearly-row" key={i}>
-                      <select aria-label="Month" value={d.month || ""}
+                      <select aria-label={t("taskEditor.month")} value={d.month || ""}
                               onChange={e => set("repeat_dates", form.repeat_dates.map((x, j) =>
                                 j === i ? { ...x, month: parseInt(e.currentTarget.value, 10) || 0 } : x))}>
-                        <option value="">Month…</option>
+                        <option value="">{t("taskEditor.monthPlaceholder")}</option>
                         {MONTHS.map((name, m) => <option key={name} value={m + 1}>{name}</option>)}
                       </select>
-                      <input type="number" aria-label="Day" min={1}
-                             max={maxDayForMonth(d.month || 1)} inputMode="numeric" placeholder="Day"
+                      <input type="number" aria-label={t("taskEditor.day")} min={1}
+                             max={maxDayForMonth(d.month || 1)} inputMode="numeric" placeholder={t("taskEditor.dayPlaceholder")}
                              value={d.day || ""}
                              onChange={e => set("repeat_dates", form.repeat_dates.map((x, j) =>
                                j === i ? { ...x, day: parseInt(e.currentTarget.value, 10) || 0 } : x))} />
-                      <button type="button" className="te-yearly-remove" aria-label="Remove date"
+                      <button type="button" className="te-yearly-remove" aria-label={t("taskEditor.removeDate")}
                               onClick={() => set("repeat_dates", form.repeat_dates.filter((_, j) => j !== i))}>
                         ✕
                       </button>
@@ -409,7 +409,7 @@ export function TaskEditor(props: Props) {
                   ))}
                   <button type="button" className="te-yearly-add"
                           onClick={() => set("repeat_dates", [...form.repeat_dates, { month: 0, day: 0 }])}>
-                    + Add date
+                    {t("taskEditor.addDate")}
                   </button>
                 </div>
               </div>
@@ -417,10 +417,10 @@ export function TaskEditor(props: Props) {
             {form.repeat !== "none" && (
               <>
                 <label className="te-field">
-                  <span>Recurrence tag</span>
+                  <span>{t("taskEditor.recurrenceTag")}</span>
                   <select value={form.recurrence_tag_id}
                           onChange={e => set("recurrence_tag_id", e.currentTarget.value)}>
-                    <option value="">Choose a tag…</option>
+                    <option value="">{t("taskEditor.chooseTag")}</option>
                     {form.tag_ids
                       .map(id => allTags.get(id))
                       .filter((t): t is Tag => t !== undefined)
@@ -431,13 +431,13 @@ export function TaskEditor(props: Props) {
                   // Only confirm a recurrence tag the template actually still carries —
                   // resolving against the template's tags (not all tags) so a removed
                   // tag stops showing here (#9).
-                  const t = form.tag_ids.includes(form.recurrence_tag_id)
+                  const recurTag = form.tag_ids.includes(form.recurrence_tag_id)
                     ? allTags.get(form.recurrence_tag_id) : undefined;
-                  return t ? (
+                  return recurTag ? (
                     <p className="te-recur-tags">
-                      <span className="te-recur-tags-label">Recurs under:</span>
+                      <span className="te-recur-tags-label">{t("taskEditor.recursUnder")}</span>
                       <span className="task-tag"
-                            style={{ background: t.color, color: readableTextColor(t.color) }}>{t.name}</span>
+                            style={{ background: recurTag.color, color: readableTextColor(recurTag.color) }}>{recurTag.name}</span>
                     </p>
                   ) : null;
                 })()}
@@ -449,7 +449,7 @@ export function TaskEditor(props: Props) {
           <>
             <div className="te-row">
               <label className="te-field">
-                <span>Start Date</span>
+                <span>{t("taskEditor.startDate")}</span>
                 <div className="te-datetime">
                   <input type="date" value={form.start_date}
                          onChange={e => { const v = e.currentTarget.value; setForm(f => ({
@@ -458,13 +458,13 @@ export function TaskEditor(props: Props) {
                            // Clearing the date drops its time (time needs a date) (#93).
                            start_time: v ? f.start_time : "",
                          })); }} />
-                  <input type="time" aria-label="Start time" className="te-time"
+                  <input type="time" aria-label={t("taskEditor.startTime")} className="te-time"
                          value={form.start_time} disabled={!form.start_date}
                          onChange={e => set("start_time", e.currentTarget.value)} />
                 </div>
               </label>
               <label className="te-field">
-                <span>Due Date</span>
+                <span>{t("taskEditor.dueDate")}</span>
                 <div className="te-datetime">
                   <input type="date" value={form.due_date}
                          onChange={e => { const v = e.currentTarget.value; setForm(f => ({
@@ -472,7 +472,7 @@ export function TaskEditor(props: Props) {
                            due_date: v,
                            due_time: v ? f.due_time : "",
                          })); }} />
-                  <input type="time" aria-label="Due time" className="te-time"
+                  <input type="time" aria-label={t("taskEditor.dueTime")} className="te-time"
                          value={form.due_time} disabled={!form.due_date}
                          onChange={e => set("due_time", e.currentTarget.value)} />
                 </div>
@@ -483,7 +483,7 @@ export function TaskEditor(props: Props) {
         )}
 
         <div className="te-field">
-          <span>Tags</span>
+          <span>{t("taskEditor.tags")}</span>
           <TagInput
             allTags={allTags}
             tagIds={form.tag_ids}
@@ -496,7 +496,7 @@ export function TaskEditor(props: Props) {
         </div>
 
         <label className="te-field">
-          <span>Notes</span>
+          <span>{t("taskEditor.notes")}</span>
           <textarea value={form.notes} rows={4}
                     onChange={e => set("notes", e.currentTarget.value)} />
         </label>
@@ -511,18 +511,18 @@ export function TaskEditor(props: Props) {
             <div className="te-options">
               <button type="button" className="te-options-btn" onClick={() => setOptionsOpen(o => !o)}
                       disabled={busy} aria-haspopup="menu" aria-expanded={optionsOpen}>
-                Options ▾
+                {t("taskEditor.options")}
               </button>
               {optionsOpen && (
                 <div className="te-options-menu" role="menu">
                   {!isTemplate && (
                     <button type="button" role="menuitem" onClick={saveAsTemplate} disabled={busy}>
-                      Save as template
+                      {t("taskEditor.saveAsTemplate")}
                     </button>
                   )}
                   <button type="button" role="menuitem" className="te-menu-danger"
                           onClick={() => { setOptionsOpen(false); void remove(); }} disabled={busy}>
-                    Delete
+                    {t("taskEditor.delete")}
                   </button>
                 </div>
               )}
@@ -530,14 +530,14 @@ export function TaskEditor(props: Props) {
           )}
           {canComplete && (
             <button type="button" className="te-complete" onClick={toggleComplete} disabled={busy}>
-              {isDoneTask ? "Reopen" : "Complete"}
+              {isDoneTask ? t("taskEditor.reopen") : t("taskEditor.complete")}
             </button>
           )}
           <span className="te-spacer" />
-          <button type="button" onClick={requestClose} disabled={busy}>Cancel</button>
+          <button type="button" onClick={requestClose} disabled={busy}>{t("taskEditor.cancel")}</button>
           <button type="button" className="te-save" onClick={save}
                   disabled={busy || !form.title.trim() || !!dateError || !!offsetError || !!recurError}>
-            {creating ? "Add task" : "Save"}
+            {creating ? t("taskEditor.addTask") : t("taskEditor.save")}
           </button>
         </div>
       </div>

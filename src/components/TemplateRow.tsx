@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Tag, Task, TemplateTask } from "../lib/tauri";
 import { addDaysIso } from "../lib/dates";
 import { readableTextColor } from "../lib/tags";
@@ -11,14 +13,15 @@ type Props = {
 };
 
 /** Compact summary of a template's relative offsets, e.g. "start +0d · due +3d". */
-function offsetLabel(t: TemplateTask): string {
+function offsetLabel(tmpl: TemplateTask, t: TFunction): string {
   const parts: string[] = [];
-  if (t.start_offset_days != null) parts.push(`start +${t.start_offset_days}d`);
-  if (t.due_offset_days != null)       parts.push(`due +${t.due_offset_days}d`);
+  if (tmpl.start_offset_days != null) parts.push(t("templateRow.startOffset", { days: tmpl.start_offset_days }));
+  if (tmpl.due_offset_days != null)       parts.push(t("templateRow.dueOffset", { days: tmpl.due_offset_days }));
   return parts.join(" · ");
 }
 
 export function TemplateRow({ template, tags, todayIso }: Props) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   // A draft task pre-filled from this template, shown in the editor so the user can
   // finish it before it's actually created (#71). null = not creating.
@@ -45,13 +48,13 @@ export function TemplateRow({ template, tags, todayIso }: Props) {
     });
   };
 
-  const label = offsetLabel(template);
+  const label = offsetLabel(template, t);
 
   return (
     <>
       <div className="task-row">
         <button type="button" className="task-main" onClick={() => setEditing(true)}
-                aria-label={`Edit ${template.title}`}>
+                aria-label={t("templateRow.edit", { title: template.title })}>
           <span className="task-title">{template.title}</span>
           {tmplTags.map(t => (
             <span key={t.id} className="task-tag" style={{ background: t.color, color: readableTextColor(t.color) }}>
@@ -61,8 +64,8 @@ export function TemplateRow({ template, tags, todayIso }: Props) {
           {label && <span className="task-when">{label}</span>}
         </button>
         <button type="button" className="task-restore" onClick={newFromTemplate}
-                aria-label={`New task from ${template.title}`}>
-          New task
+                aria-label={t("templateRow.newTaskAria", { title: template.title })}>
+          {t("templateRow.newTask")}
         </button>
       </div>
       {editing && (

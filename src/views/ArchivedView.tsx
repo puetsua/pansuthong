@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Document, Task } from "../lib/tauri";
 import { TaskList } from "../components/TaskList";
 import { Indexes } from "../state/indexes";
@@ -22,6 +23,7 @@ function taskDate(t: Task, field: DateField): string | undefined {
 }
 
 export function ArchivedView({ indexes }: Props) {
+  const { t } = useTranslation();
   const archived = indexes.archived;
   const today = indexes.todayIso;
 
@@ -75,12 +77,12 @@ export function ArchivedView({ indexes }: Props) {
     <section>
       <header className="view-header">
         <div className="view-title-row">
-          <h1>Archived</h1>
+          <h1>{t("nav.archived")}</h1>
         </div>
         <p className="view-sub">
           {filtering
-            ? `${filtered.length} of ${archived.length} archived match the filter`
-            : `${archived.length} archived · search or pick a date range to list them`}
+            ? t("archived.subtitleFiltered", { shown: filtered.length, total: archived.length })
+            : t("archived.subtitleAll", { total: archived.length })}
         </p>
       </header>
 
@@ -88,60 +90,60 @@ export function ArchivedView({ indexes }: Props) {
         className="search-input"
         value={query}
         onChange={e => onQuery(e.currentTarget.value)}
-        placeholder="Search archived…"
-        aria-label="Search archived tasks"
+        placeholder={t("archived.searchPlaceholder")}
+        aria-label={t("archived.searchAria")}
       />
 
       <div className="archived-filters">
         <label className="archived-filter">
-          <span>Date</span>
-          <select aria-label="Date field" value={dateField}
+          <span>{t("archived.date")}</span>
+          <select aria-label={t("archived.dateField")} value={dateField}
                   onChange={e => onDateField(e.currentTarget.value as DateField)}>
-            <option value="completed">Completed</option>
-            <option value="due">Due</option>
-            <option value="created">Created</option>
+            <option value="completed">{t("archived.completed")}</option>
+            <option value="due">{t("archived.due")}</option>
+            <option value="created">{t("archived.created")}</option>
           </select>
         </label>
         <label className="archived-filter">
-          <span>From</span>
-          <input type="date" aria-label="From date" value={from} max={to || undefined}
+          <span>{t("common.from")}</span>
+          <input type="date" aria-label={t("common.fromDate")} value={from} max={to || undefined}
                  onChange={e => onFrom(e.currentTarget.value)} />
         </label>
         <label className="archived-filter">
-          <span>To</span>
-          <input type="date" aria-label="To date" value={to} min={from || undefined}
+          <span>{t("common.to")}</span>
+          <input type="date" aria-label={t("common.toDate")} value={to} min={from || undefined}
                  onChange={e => onTo(e.currentTarget.value)} />
         </label>
         {(from || to) && (
-          <button type="button" className="archived-clear" onClick={clearDates}>Clear dates</button>
+          <button type="button" className="archived-clear" onClick={clearDates}>{t("common.clearDates")}</button>
         )}
       </div>
 
       {invalidRange && (
-        <p className="composer-error" role="alert">“To” date can’t be earlier than “From” date.</p>
+        <p className="composer-error" role="alert">{t("archived.invalidRange")}</p>
       )}
 
       <TaskList tasks={pageItems} tags={indexes.tagsById} todayIso={today}
-                emptyText={filtering ? "No archived tasks match the filter." : "Search or pick a date range to list archived tasks."}
+                emptyText={filtering ? t("archived.emptyFiltered") : t("archived.emptyAll")}
                 archived />
 
       {totalPages > 1 && (
         <div className="pagination">
-          <button type="button" className="pagination-btn" aria-label="Previous page"
+          <button type="button" className="pagination-btn" aria-label={t("common.previousPage")}
                   disabled={current <= 1} onClick={() => setPage(current - 1)}>
-            ‹ Prev
+            {t("common.prev")}
           </button>
-          <span className="pagination-status">Page {current} of {totalPages}</span>
-          <button type="button" className="pagination-btn" aria-label="Next page"
+          <span className="pagination-status">{t("common.pageStatus", { current, total: totalPages })}</span>
+          <button type="button" className="pagination-btn" aria-label={t("common.nextPage")}
                   disabled={current >= totalPages} onClick={() => setPage(current + 1)}>
-            Next ›
+            {t("common.next")}
           </button>
         </div>
       )}
 
       <label className="pagination-size">
-        Per page{" "}
-        <select aria-label="Tasks per page" value={pageSize}
+        {t("common.perPage")}{" "}
+        <select aria-label={t("archived.perPageAria")} value={pageSize}
                 onChange={e => onPageSize(Number(e.currentTarget.value))}>
           {PAGE_SIZES.map(n => <option key={n} value={n}>{n}</option>)}
         </select>

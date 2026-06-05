@@ -1,4 +1,5 @@
 import { Recurrence, TaskUpdate, TemplateUpdate, YearlyDate } from "../lib/tauri";
+import i18n from "../i18n";
 
 export type EditorForm = {
   title: string;
@@ -134,18 +135,18 @@ export const OFFSET_DAYS_MAX = 3650;
 export function offsetFormError(
   form: Pick<EditorForm, "due_offset_days" | "start_offset_days">,
 ): string | null {
-  for (const [label, raw] of [["Start", form.start_offset_days], ["Due", form.due_offset_days]] as const) {
+  for (const [labelKey, raw] of [["taskUpdate.offsetStartLabel", form.start_offset_days], ["taskUpdate.offsetDueLabel", form.due_offset_days]] as const) {
     const t = raw.trim();
     if (t === "") continue;
     const n = Number(t);
     if (!Number.isInteger(n) || n < 0 || n > OFFSET_DAYS_MAX) {
-      return `${label} offset must be a whole number of days between 0 and ${OFFSET_DAYS_MAX}.`;
+      return i18n.t("taskUpdate.offsetRange", { label: i18n.t(labelKey), max: OFFSET_DAYS_MAX });
     }
   }
   const s = form.start_offset_days.trim();
   const d = form.due_offset_days.trim();
   if (s !== "" && d !== "" && Number(d) < Number(s)) {
-    return "Due offset can't be before the start offset.";
+    return i18n.t("taskUpdate.dueOffsetBeforeStart");
   }
   return null;
 }
@@ -203,24 +204,24 @@ export function recurrenceFromForm(form: EditorForm): Recurrence | null {
 export function recurrenceFormError(form: EditorForm): string | null {
   if (form.repeat === "none") return null;
   if (form.repeat === "weekly" && form.repeat_weekdays.length === 0) {
-    return "Pick at least one weekday to repeat on.";
+    return i18n.t("taskUpdate.pickWeekday");
   }
   if (form.repeat === "monthly") {
     if (parseMonthlyDays(form.repeat_days) === null) {
-      return "Enter one or more days of the month (1-31), separated by commas.";
+      return i18n.t("taskUpdate.enterMonthDays");
     }
   }
   if (form.repeat === "yearly") {
-    if (form.repeat_dates.length === 0) return "Add at least one date to repeat on.";
+    if (form.repeat_dates.length === 0) return i18n.t("taskUpdate.addYearlyDate");
     if (!form.repeat_dates.every(validYearlyDate)) {
-      return "Each date needs a month and a valid day for that month.";
+      return i18n.t("taskUpdate.yearlyDateNeedsMonthDay");
     }
   }
   if (form.tag_ids.length === 0) {
-    return "Add a tag in the Tags field below, then choose it as the recurrence tag.";
+    return i18n.t("taskUpdate.addTagForRecurrence");
   }
   if (!form.recurrence_tag_id || !form.tag_ids.includes(form.recurrence_tag_id)) {
-    return "Choose which tag this recurs under.";
+    return i18n.t("taskUpdate.chooseRecurrenceTag");
   }
   return null;
 }
