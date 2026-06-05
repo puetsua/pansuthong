@@ -1,4 +1,5 @@
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { api, Tag } from "../lib/tauri";
@@ -7,9 +8,12 @@ import { parseComposer } from "../state/parse";
 import { resolveTagIds } from "../state/quickAdd";
 import { todayIso } from "../lib/dates";
 import { dayStartHour } from "../lib/settings";
+import { applyLanguage, resolveLanguage } from "../i18n";
+import { osLocale } from "../lib/platform";
 import { ComposerPreview } from "../components/ComposerPreview";
 
 export function QuickCapture() {
+  const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [tagsByName, setTagsByName] = useState<Map<string, Tag>>(new Map());
   const [startHour, setStartHour] = useState(0);
@@ -30,9 +34,11 @@ export function QuickCapture() {
       try {
         const doc = await api.getDocument();
         const m = new Map<string, Tag>();
-        for (const t of doc.tags) m.set(t.name.toLowerCase(), t);
+        for (const tag of doc.tags) m.set(tag.name.toLowerCase(), tag);
         setTagsByName(m);
         setStartHour(dayStartHour(doc.settings));
+        // Match the main window's language so the capture popup is localized too (#26).
+        void osLocale().then(loc => applyLanguage(resolveLanguage(doc.settings.language, loc)));
       } catch (err) {
         setError(errorMessage(err));
       }
@@ -99,15 +105,15 @@ export function QuickCapture() {
         value={input}
         onChange={e => { setInput(e.currentTarget.value); setSavedFlash(false); }}
         onKeyDown={onKeyDown}
-        placeholder="Quick add…  (#tag  due fri)"
-        aria-label="Quick capture"
+        placeholder={t("quickCapture.placeholder")}
+        aria-label={t("quickCapture.aria")}
       />
       <ComposerPreview parsed={parsed} tagsByName={tagsByName} />
       <div className="quick-capture-hint">
-        Enter to save · Shift+Enter to keep open · Esc to cancel
+        {t("quickCapture.hint")}
       </div>
-      {needsTitle && <p className="quick-capture-hint">Add a title — that's only tags/dates.</p>}
-      {savedFlash && <p className="quick-capture-saved" role="status">Saved ✓</p>}
+      {needsTitle && <p className="quick-capture-hint">{t("quickCapture.needTitle")}</p>}
+      {savedFlash && <p className="quick-capture-saved" role="status">{t("quickCapture.saved")}</p>}
       {error && <p className="quick-capture-error">{error}</p>}
     </form>
   );

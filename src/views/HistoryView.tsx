@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { api, HistoryEntry } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
+import { currentLocale } from "../i18n";
 
 const PAGE_SIZES = [10, 30, 50] as const;
 
 function formatTime(value: string): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString(currentLocale(), {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -16,9 +19,9 @@ function formatTime(value: string): string {
   });
 }
 
-function entityLabel(entry: HistoryEntry): string {
+function entityLabel(entry: HistoryEntry, t: TFunction): string {
   if (entry.entity === "tag") return entry.title;
-  if (entry.entity === "template") return `Template: ${entry.title}`;
+  if (entry.entity === "template") return t("history.templatePrefix", { title: entry.title });
   return entry.title;
 }
 
@@ -39,6 +42,7 @@ function entryMatches(entry: HistoryEntry, query: string): boolean {
 }
 
 export function HistoryView() {
+  const { t } = useTranslation();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,14 +101,14 @@ export function HistoryView() {
     <section>
       <header className="view-header">
         <div className="view-title-row">
-          <h1>History</h1>
+          <h1>{t("nav.history")}</h1>
         </div>
         <p className="view-sub">
           {entries.length > 0
             ? filtering
-              ? `${filtered.length} of ${entries.length} changes match the filter`
-              : `${entries.length} changes`
-            : "Recent task, tag, and template changes"}
+              ? t("history.subtitleFiltered", { shown: filtered.length, total: entries.length })
+              : t("history.subtitleAll", { total: entries.length })
+            : t("history.subtitleEmpty")}
         </p>
       </header>
 
@@ -112,46 +116,46 @@ export function HistoryView() {
         className="search-input"
         value={query}
         onChange={e => onQuery(e.currentTarget.value)}
-        placeholder="Search history..."
-        aria-label="Search history"
+        placeholder={t("history.searchPlaceholder")}
+        aria-label={t("history.searchAria")}
       />
 
       <div className="archived-filters">
         <label className="archived-filter">
-          <span>From</span>
-          <input type="date" aria-label="From date" value={from} max={to || undefined}
+          <span>{t("common.from")}</span>
+          <input type="date" aria-label={t("common.fromDate")} value={from} max={to || undefined}
                  onChange={e => onFrom(e.currentTarget.value)} />
         </label>
         <label className="archived-filter">
-          <span>To</span>
-          <input type="date" aria-label="To date" value={to} min={from || undefined}
+          <span>{t("common.to")}</span>
+          <input type="date" aria-label={t("common.toDate")} value={to} min={from || undefined}
                  onChange={e => onTo(e.currentTarget.value)} />
         </label>
         {(from || to) && (
-          <button type="button" className="archived-clear" onClick={clearDates}>Clear dates</button>
+          <button type="button" className="archived-clear" onClick={clearDates}>{t("common.clearDates")}</button>
         )}
       </div>
 
       {invalidRange && (
-        <p className="composer-error" role="alert">"To" date can't be earlier than "From" date.</p>
+        <p className="composer-error" role="alert">{t("history.invalidRange")}</p>
       )}
 
-      {loading && <p className="view-empty">Loading history...</p>}
-      {error && <p className="composer-error" role="alert">Failed to load history: {error}</p>}
+      {loading && <p className="view-empty">{t("history.loading")}</p>}
+      {error && <p className="composer-error" role="alert">{t("history.loadError", { error })}</p>}
       {!loading && !error && entries.length === 0 && (
-        <p className="view-empty">No history recorded yet.</p>
+        <p className="view-empty">{t("history.emptyNone")}</p>
       )}
       {!loading && !error && entries.length > 0 && (
         <>
           {pageItems.length === 0 ? (
-            <p className="view-empty">No history entries match the filter.</p>
+            <p className="view-empty">{t("history.emptyFiltered")}</p>
           ) : (
             <ol className="history-list">
               {pageItems.map((entry, index) => (
                 <li className="history-row" key={`${entry.timestamp}-${entry.event}-${entry.entity_id}-${start + index}`}>
                   <div className="history-main">
                     <span className="history-summary">{entry.summary}</span>
-                    <span className="history-title">{entityLabel(entry)}</span>
+                    <span className="history-title">{entityLabel(entry, t)}</span>
                   </div>
                   <time className="history-time" dateTime={entry.timestamp}>{formatTime(entry.timestamp)}</time>
                 </li>
@@ -161,21 +165,21 @@ export function HistoryView() {
 
           {totalPages > 1 && (
             <div className="pagination">
-              <button type="button" className="pagination-btn" aria-label="Previous page"
+              <button type="button" className="pagination-btn" aria-label={t("common.previousPage")}
                       disabled={current <= 1} onClick={() => setPage(current - 1)}>
-                ‹ Prev
+                {t("common.prev")}
               </button>
-              <span className="pagination-status">Page {current} of {totalPages}</span>
-              <button type="button" className="pagination-btn" aria-label="Next page"
+              <span className="pagination-status">{t("common.pageStatus", { current, total: totalPages })}</span>
+              <button type="button" className="pagination-btn" aria-label={t("common.nextPage")}
                       disabled={current >= totalPages} onClick={() => setPage(current + 1)}>
-                Next ›
+                {t("common.next")}
               </button>
             </div>
           )}
 
           <label className="pagination-size">
-            Per page{" "}
-            <select aria-label="History entries per page" value={pageSize}
+            {t("common.perPage")}{" "}
+            <select aria-label={t("history.perPageAria")} value={pageSize}
                     onChange={e => onPageSize(Number(e.currentTarget.value))}>
               {PAGE_SIZES.map(n => <option key={n} value={n}>{n}</option>)}
             </select>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, Navigate, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Composer } from "../components/Composer";
 import { GhostRow } from "../components/GhostRow";
 import { TaskList } from "../components/TaskList";
@@ -11,6 +12,7 @@ import { Document, isDone } from "../lib/tauri";
 type Props = { doc: Document; indexes: Indexes };
 
 export function TagView({ doc, indexes }: Props) {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
@@ -20,7 +22,7 @@ export function TagView({ doc, indexes }: Props) {
   if (!id) return <Navigate to="/today" replace />;
 
   const tag = indexes.tagsById.get(id);
-  if (!tag) return <p className="view-empty">Tag not found.</p>;
+  if (!tag) return <p className="view-empty">{t("tagView.notFound")}</p>;
 
   const active = indexes.byTag.get(id) ?? [];
   const tasks = withHeld(active, held);
@@ -33,14 +35,14 @@ export function TagView({ doc, indexes }: Props) {
         <div className="view-title-row">
           <h1><span style={{ color: tag.color }}>#</span>{tag.name}</h1>
           <button type="button" className="link-button tag-edit-link"
-                  onClick={() => setEditing(true)}>Edit tag</button>
+                  onClick={() => setEditing(true)}>{t("tagView.editTag")}</button>
         </div>
-        <p className="view-sub">{open} open / {tasks.length} total</p>
+        <p className="view-sub">{t("tagView.subtitle", { open, total: tasks.length })}</p>
       </header>
       <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} />
       {ghosts.map(g => <GhostRow key={g.id} ghost={g} tags={indexes.tagsById} />)}
       <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={indexes.todayIso}
-                emptyText="No tasks with this tag yet."
+                emptyText={t("tagView.empty")}
                 onCompleted={onCompleted} onReopened={onReopened} />
       {editing && (
         <TagEditor

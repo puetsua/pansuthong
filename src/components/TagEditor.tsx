@@ -1,5 +1,6 @@
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { api, Settings, Tag } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { clampWeight, readableTextColor } from "../lib/tags";
@@ -19,6 +20,7 @@ type Props = {
 type Form = { name: string; color: string; weight: string; pinned: boolean };
 
 export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
+  const { t } = useTranslation();
   const isEdit = !!tag;
   const initialRef = useRef<Form>({
     name: tag?.name ?? "",
@@ -46,7 +48,7 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
 
   const isDirty = () => JSON.stringify(form) !== JSON.stringify(initialRef.current);
   const requestClose = () => {
-    if (isDirty() && !window.confirm("Discard unsaved changes?")) return;
+    if (isDirty() && !window.confirm(t("tagEditor.discardConfirm"))) return;
     onClose();
   };
   // Keep a stable ref to the latest requestClose so the mount-only key handler
@@ -81,7 +83,7 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
 
   const save = async () => {
     const name = form.name.trim();
-    if (!name) { setError("Name can't be empty."); return; }
+    if (!name) { setError(t("tagEditor.nameEmpty")); return; }
     setBusy(true);
     try {
       if (tag) {
@@ -98,7 +100,7 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
 
   const remove = async () => {
     if (!tag) return;
-    if (!window.confirm(`Delete tag #${tag.name}? It will be removed from all tasks.`)) return;
+    if (!window.confirm(t("tagEditor.deleteConfirm", { name: tag.name }))) return;
     setBusy(true);
     try {
       await api.deleteTag(tag.id);
@@ -134,37 +136,37 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
          onMouseUp={onBackdropMouseUp}
          onClick={onBackdropClick}>
       <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true"
-           aria-label={isEdit ? "Edit tag" : "Add tag"}
+           aria-label={isEdit ? t("tagEditor.editTitle") : t("tagEditor.addTitle")}
            onClick={e => e.stopPropagation()}>
         <label className="te-field">
-          <span>Name</span>
+          <span>{t("tagEditor.name")}</span>
           <input value={form.name} autoFocus
                  onChange={e => set("name", e.currentTarget.value)} />
         </label>
 
         <div className="te-field">
-          <span>Color</span>
+          <span>{t("tagEditor.color")}</span>
           <ColorPicker value={form.color} onChange={c => set("color", c)} />
         </div>
 
         <div className="te-field">
-          <span>Preview</span>
+          <span>{t("tagEditor.preview")}</span>
           <div>
             <span className="task-tag" style={{ background: form.color, color: readableTextColor(form.color) }}>
-              {form.name.trim() || "tag"}
+              {form.name.trim() || t("tagEditor.tagPlaceholder")}
             </span>
           </div>
         </div>
 
         <label className="te-field">
-          <span>Weight</span>
+          <span>{t("tagEditor.weight")}</span>
           <input type="number" className="weight-input" value={form.weight}
                  min={-9999} max={9999}
                  onChange={e => set("weight", e.currentTarget.value)} />
         </label>
 
         <label className="te-field te-checkbox">
-          <span>Pin to sidebar</span>
+          <span>{t("tagEditor.pinToSidebar")}</span>
           <input type="checkbox" checked={form.pinned}
                  onChange={e => set("pinned", e.currentTarget.checked)} />
         </label>
@@ -173,12 +175,12 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
 
         <div className="te-actions">
           {isEdit && (
-            <button type="button" className="te-delete" onClick={remove} disabled={busy}>Delete</button>
+            <button type="button" className="te-delete" onClick={remove} disabled={busy}>{t("tagEditor.delete")}</button>
           )}
           <span className="te-spacer" />
-          <button type="button" onClick={requestClose} disabled={busy}>Cancel</button>
+          <button type="button" onClick={requestClose} disabled={busy}>{t("tagEditor.cancel")}</button>
           <button type="button" className="te-save" onClick={save}
-                  disabled={busy || !form.name.trim()}>Save</button>
+                  disabled={busy || !form.name.trim()}>{t("tagEditor.save")}</button>
         </div>
       </div>
     </div>,

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Document, Tag } from "../lib/tauri";
 import { Indexes, openCount } from "../state/indexes";
 import { SyncStatus } from "../components/SyncStatus";
@@ -11,6 +12,7 @@ type Props = { doc: Document; indexes: Indexes };
 type EditorState = { tag: Tag | null } | null;
 
 export function Sidebar({ doc, indexes }: Props) {
+  const { t } = useTranslation();
   const today = indexes.todayIso;
   const todayCount = openCount(indexes.today(today));
   const inboxCount = openCount(indexes.inbox);
@@ -30,40 +32,40 @@ export function Sidebar({ doc, indexes }: Props) {
       <ul className="sidebar-list">
         <li>
           <NavLink to="/today" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-            Today <span className="sidebar-count">{todayCount}</span>
+            {t("nav.today")} <span className="sidebar-count">{todayCount}</span>
           </NavLink>
         </li>
         <li>
           <NavLink to="/inbox" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-            Inbox <span className="sidebar-count">{inboxCount}</span>
+            {t("nav.inbox")} <span className="sidebar-count">{inboxCount}</span>
           </NavLink>
         </li>
         <li>
           <NavLink to="/upcoming" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-            Upcoming
+            {t("nav.upcoming")}
           </NavLink>
         </li>
       </ul>
 
       <div className="sidebar-section">
-        <NavLink to="/tags" className={({ isActive }) => isActive ? "sidebar-section-link active" : "sidebar-section-link"}>Tags</NavLink>
-        <button type="button" className="sidebar-icon-btn" aria-label="Add tag"
+        <NavLink to="/tags" className={({ isActive }) => isActive ? "sidebar-section-link active" : "sidebar-section-link"}>{t("nav.tags")}</NavLink>
+        <button type="button" className="sidebar-icon-btn" aria-label={t("sidebar.addTag")}
                 onClick={() => setEditor({ tag: null })}>+</button>
       </div>
       <ul className="sidebar-list">
         {tags.length === 0 ? (
           <li className="sidebar-empty">
-            No pinned tags. <NavLink to="/tags" className="sidebar-empty-link">Manage tags</NavLink>
+            {t("sidebar.noPinnedTags")} <NavLink to="/tags" className="sidebar-empty-link">{t("sidebar.manageTags")}</NavLink>
           </li>
-        ) : tags.map(t => (
-          <li className="sidebar-tag-row" key={t.id}>
-            <NavLink to={`/tag/${t.id}`} className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-              <span className="sidebar-hash" aria-hidden="true" style={{ color: t.color }}>#</span>
-              {t.name}
-              <span className="sidebar-count">{indexes.byTag.get(t.id)?.length ?? 0}</span>
+        ) : tags.map(t2 => (
+          <li className="sidebar-tag-row" key={t2.id}>
+            <NavLink to={`/tag/${t2.id}`} className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+              <span className="sidebar-hash" aria-hidden="true" style={{ color: t2.color }}>#</span>
+              {t2.name}
+              <span className="sidebar-count">{indexes.byTag.get(t2.id)?.length ?? 0}</span>
             </NavLink>
-            <button type="button" className="sidebar-icon-btn tag-edit-btn" aria-label={`Edit #${t.name}`}
-                    onClick={() => setEditor({ tag: t })}>✎</button>
+            <button type="button" className="sidebar-icon-btn tag-edit-btn" aria-label={t("sidebar.editTag", { name: t2.name })}
+                    onClick={() => setEditor({ tag: t2 })}>✎</button>
           </li>
         ))}
       </ul>
@@ -72,22 +74,22 @@ export function Sidebar({ doc, indexes }: Props) {
         <ul className="sidebar-list">
           <li>
             <NavLink to="/archived" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-              Archived <span className="sidebar-count">{indexes.archived.length}</span>
+              {t("nav.archived")} <span className="sidebar-count">{indexes.archived.length}</span>
             </NavLink>
           </li>
           <li>
             <NavLink to="/templates" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-              Templates <span className="sidebar-count">{indexes.templates.length}</span>
+              {t("nav.templates")} <span className="sidebar-count">{indexes.templates.length}</span>
             </NavLink>
           </li>
           <li>
             <NavLink to="/history" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-              History
+              {t("nav.history")}
             </NavLink>
           </li>
           <li>
             <NavLink to="/settings" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-              Settings
+              {t("nav.settings")}
             </NavLink>
           </li>
         </ul>

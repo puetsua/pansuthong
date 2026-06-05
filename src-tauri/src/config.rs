@@ -44,6 +44,11 @@ pub struct Settings {
     /// to the same -9999..=9999 range a tag weight may take; defaults to 0.
     #[serde(default)]
     pub default_tag_priority: i64,
+    /// UI language (#26): "auto" (follow the OS locale, the default), or a
+    /// supported tag like "en" / "zh-TW". `#[serde(default)]` so older
+    /// config.json files predating i18n still load.
+    #[serde(default = "default_language")]
+    pub language: String,
 }
 
 fn default_theme() -> String {
@@ -62,6 +67,10 @@ fn default_tag_color() -> String {
     "#475569".into()
 }
 
+fn default_language() -> String {
+    "auto".into()
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -71,6 +80,7 @@ impl Default for Settings {
             day_start_hour: 0,
             default_tag_color: default_tag_color(),
             default_tag_priority: 0,
+            language: default_language(),
         }
     }
 }
@@ -392,6 +402,25 @@ mod tests {
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.day_start_hour, 4);
+    }
+
+    #[test]
+    fn settings_missing_language_defaults_to_auto() {
+        // A config.json predating i18n (#26) lacks `language`; it must default
+        // to "auto" rather than fail the whole parse.
+        let s: Settings =
+            serde_json::from_str(r#"{"theme":"dark","sort_order":"date","upcoming_days":30}"#)
+                .unwrap();
+        assert_eq!(s.language, "auto");
+    }
+
+    #[test]
+    fn settings_round_trip_preserves_language() {
+        let mut s = Settings::default();
+        s.language = "zh-TW".into();
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.language, "zh-TW");
     }
 
     #[test]

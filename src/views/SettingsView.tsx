@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api, DataLocation, Document, SyncStatus } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
+import { currentLocale } from "../i18n";
 import { isAndroid } from "../lib/platform";
 import {
   clampUpcomingDays, upcomingDays, UPCOMING_DAYS_MAX, UPCOMING_DAYS_MIN,
@@ -19,6 +21,7 @@ function hourLabel(h: number): string {
 }
 
 export function SettingsView({ doc }: Props) {
+  const { t } = useTranslation();
   // Settings writes used to be fire-and-forget; surface a failure so a click that
   // didn't stick is visible rather than silently swallowed (#51).
   const [settingsErr, setSettingsErr] = useState<string | null>(null);
@@ -32,10 +35,19 @@ export function SettingsView({ doc }: Props) {
   };
 
   const theme = doc.settings.theme;
-  const setTheme = (t: "auto" | "light" | "dark") => { void applySettings({ theme: t }); };
+  const setTheme = (next: "auto" | "light" | "dark") => { void applySettings({ theme: next }); };
+  const themeLabel: Record<"auto" | "light" | "dark", string> = {
+    auto: t("settings.themeAuto"), light: t("settings.themeLight"), dark: t("settings.themeDark"),
+  };
 
   const sortOrder = doc.settings.sort_order;
   const setSort = (s: "priority" | "date") => { void applySettings({ sort_order: s }); };
+  const sortLabel: Record<"priority" | "date", string> = {
+    priority: t("settings.sortPriority"), date: t("settings.sortDate"),
+  };
+
+  const language = doc.settings.language ?? "auto";
+  const setLanguage = (next: "auto" | "en" | "zh-TW") => { void applySettings({ language: next }); };
 
   // Upcoming horizon: presets apply immediately; the free input commits on blur/Enter.
   const days = upcomingDays(doc.settings);
@@ -112,31 +124,48 @@ export function SettingsView({ doc }: Props) {
   return (
     <section>
       <header className="view-header">
-        <h1>Settings</h1>
+        <h1>{t("settings.title")}</h1>
       </header>
 
-      {settingsErr && <p className="composer-error" role="alert">Couldn’t save setting: {settingsErr}</p>}
+      {settingsErr && <p className="composer-error" role="alert">{t("settings.saveError", { error: settingsErr })}</p>}
 
       <section className="settings-section">
-        <h2>Theme</h2>
+        <h2>{t("settings.theme")}</h2>
         <div className="theme-options">
-          {(["auto", "light", "dark"] as const).map(t => (
+          {(["auto", "light", "dark"] as const).map(opt => (
             <button
-              key={t}
-              className={`theme-option ${theme === t ? "active" : ""}`}
-              aria-pressed={theme === t}
-              onClick={() => setTheme(t)}
+              key={opt}
+              className={`theme-option ${theme === opt ? "active" : ""}`}
+              aria-pressed={theme === opt}
+              onClick={() => setTheme(opt)}
             >
-              {t}
+              {themeLabel[opt]}
             </button>
           ))}
         </div>
       </section>
 
       <section className="settings-section">
-        <h2>Sort order</h2>
+        <h2>{t("settings.language")}</h2>
+        <p className="view-sub">{t("settings.languageSub")}</p>
+        <div className="theme-options">
+          {([["auto", t("settings.langAuto")], ["en", t("settings.langEn")], ["zh-TW", t("settings.langZhTW")]] as const).map(([opt, label]) => (
+            <button
+              key={opt}
+              className={`theme-option ${language === opt ? "active" : ""}`}
+              aria-pressed={language === opt}
+              onClick={() => setLanguage(opt)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h2>{t("settings.sortOrder")}</h2>
         <p className="view-sub">
-          How task lists are ordered. Priority sorts by the highest weight among a task's tags.
+          {t("settings.sortSub")}
         </p>
         <div className="theme-options">
           {(["priority", "date"] as const).map(s => (
@@ -146,15 +175,15 @@ export function SettingsView({ doc }: Props) {
               aria-pressed={sortOrder === s}
               onClick={() => setSort(s)}
             >
-              {s}
+              {sortLabel[s]}
             </button>
           ))}
         </div>
       </section>
 
       <section className="settings-section">
-        <h2>Upcoming range</h2>
-        <p className="view-sub">How many days ahead the Upcoming view looks.</p>
+        <h2>{t("settings.upcomingRange")}</h2>
+        <p className="view-sub">{t("settings.upcomingSub")}</p>
         <div className="theme-options">
           {[7, 14, 30].map(n => (
             <button
@@ -163,13 +192,13 @@ export function SettingsView({ doc }: Props) {
               aria-pressed={days === n}
               onClick={() => setUpcoming(n)}
             >
-              {n} days
+              {t("settings.daysPreset", { count: n })}
             </button>
           ))}
           <input
             type="number"
             className="weight-input"
-            aria-label="Custom upcoming days"
+            aria-label={t("settings.customUpcomingAria")}
             min={UPCOMING_DAYS_MIN}
             max={UPCOMING_DAYS_MAX}
             value={draftDays}
@@ -181,22 +210,21 @@ export function SettingsView({ doc }: Props) {
       </section>
 
       <section className="settings-section">
-        <h2>Day start</h2>
+        <h2>{t("settings.dayStart")}</h2>
         <p className="view-sub">
-          When the Today view rolls over to the next day. Set this later than midnight if
-          you work past midnight and still consider it the same day.
+          {t("settings.dayStartSub")}
         </p>
         <label className="te-field">
-          <span>Day starts at</span>
+          <span>{t("settings.dayStartsAt")}</span>
           <select
             className="select-input"
-            aria-label="Day start hour"
+            aria-label={t("settings.dayStartHourAria")}
             value={startHour}
             onChange={e => setStartHour(Number(e.currentTarget.value))}
           >
             {Array.from({ length: DAY_START_HOUR_MAX - DAY_START_HOUR_MIN + 1 }, (_, i) => i + DAY_START_HOUR_MIN).map(h => (
               <option key={h} value={h}>
-                {hourLabel(h)}{h === 0 ? " (midnight)" : ""}
+                {hourLabel(h)}{h === 0 ? t("settings.midnight") : ""}
               </option>
             ))}
           </select>
@@ -204,10 +232,10 @@ export function SettingsView({ doc }: Props) {
       </section>
 
       <section className="settings-section">
-        <h2>New tag weight</h2>
-        <p className="view-sub">The priority weight pre-filled when you create a new tag.</p>
+        <h2>{t("settings.newTagWeight")}</h2>
+        <p className="view-sub">{t("settings.newTagWeightSub")}</p>
         <label className="te-field">
-          <span>Weight</span>
+          <span>{t("settings.weight")}</span>
           <input
             type="number"
             className="weight-input"
@@ -222,50 +250,47 @@ export function SettingsView({ doc }: Props) {
       </section>
 
       <section className="settings-section">
-        <h2>Data file</h2>
+        <h2>{t("settings.dataFile")}</h2>
         <p className="view-sub">
-          Tasks persist to: <code>{loc?.effective_path ?? "…"}</code>
+          {t("settings.tasksPersist")}<code>{loc?.effective_path ?? "…"}</code>
         </p>
         {android ? (
           sync?.linked ? (
             <>
               <p className="view-sub">
-                Synced folder: <code>{sync.folder_label ?? "(linked)"}</code>
-                {!sync.permission_ok && " — access lost, re-pick the folder"}
+                {t("settings.syncedFolder")}<code>{sync.folder_label ?? t("settings.linked")}</code>
+                {!sync.permission_ok && t("settings.accessLost")}
               </p>
               <p className="view-sub">
                 {sync.last_synced_ms
-                  ? `Last synced ${new Date(sync.last_synced_ms).toLocaleString()}`
-                  : "Not synced yet"}
-                {sync.conflict_count > 0 && ` · ${sync.conflict_count} conflict(s)`}
-                {sync.last_error && ` · error: ${sync.last_error}`}
+                  ? t("settings.lastSynced", { when: new Date(sync.last_synced_ms).toLocaleString(currentLocale()) })
+                  : t("settings.notSyncedYet")}
+                {sync.conflict_count > 0 && t("settings.conflictCount", { count: sync.conflict_count })}
+                {sync.last_error && t("settings.syncError", { error: sync.last_error })}
               </p>
               <div className="theme-options">
-                <button className="theme-option" disabled={busy} onClick={syncNowSaf}>Sync now</button>
-                <button className="theme-option" disabled={busy} onClick={pickSaf}>Change folder…</button>
-                <button className="theme-option" disabled={busy} onClick={unlinkSaf}>Unlink</button>
+                <button className="theme-option" disabled={busy} onClick={syncNowSaf}>{t("settings.syncNow")}</button>
+                <button className="theme-option" disabled={busy} onClick={pickSaf}>{t("settings.changeFolder")}</button>
+                <button className="theme-option" disabled={busy} onClick={unlinkSaf}>{t("settings.unlink")}</button>
               </div>
             </>
           ) : (
             <>
               <p className="view-sub">
-                Pick a Syncthing- or Drive-synced folder to keep tasks in sync across devices. On
-                first link it adopts that folder's <code>tasks.json</code> if present, otherwise it
-                seeds it.
+                {t("settings.pickFolderHintAndroid")}
               </p>
-              <button className="theme-option" disabled={busy} onClick={pickSaf}>Pick folder…</button>
+              <button className="theme-option" disabled={busy} onClick={pickSaf}>{t("settings.pickFolder")}</button>
             </>
           )
         ) : (
           <>
             <p className="view-sub">
-              Point this at a Syncthing-managed folder to sync across devices. On first link it
-              adopts that folder's <code>tasks.json</code> if present, otherwise it seeds it.
+              {t("settings.desktopHint")}
             </p>
             <div className="theme-options">
-              <button className="theme-option" disabled={busy} onClick={pick}>Choose folder…</button>
+              <button className="theme-option" disabled={busy} onClick={pick}>{t("settings.chooseFolder")}</button>
               {loc?.folder && (
-                <button className="theme-option" disabled={busy} onClick={reset}>Use default location</button>
+                <button className="theme-option" disabled={busy} onClick={reset}>{t("settings.useDefault")}</button>
               )}
             </div>
           </>

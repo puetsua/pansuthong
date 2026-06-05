@@ -1,4 +1,5 @@
 import { KeyboardEvent, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Tag } from "../lib/tauri";
 import { readableTextColor } from "../lib/tags";
 import { pickPaletteColor } from "../state/quickAdd";
@@ -33,6 +34,7 @@ export function TagInput({
   allTags, tagIds, newNames,
   onAddExisting, onAddNew, onRemoveExisting, onRemoveNew,
 }: Props) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -96,12 +98,12 @@ export function TagInput({
   return (
     <div className="te-taginput">
       <div className="te-tags">
-        {assigned.map(t => (
-          <button type="button" key={t.id} className="te-tag on"
-                  style={{ background: t.color, borderColor: t.color, color: readableTextColor(t.color) }}
-                  onClick={() => onRemoveExisting(t.id)}
-                  aria-label={`Remove ${t.name}`} title={`Remove ${t.name}`}>
-            {t.name} <span aria-hidden="true">×</span>
+        {assigned.map(tag => (
+          <button type="button" key={tag.id} className="te-tag on"
+                  style={{ background: tag.color, borderColor: tag.color, color: readableTextColor(tag.color) }}
+                  onClick={() => onRemoveExisting(tag.id)}
+                  aria-label={t("tagInput.remove", { name: tag.name })} title={t("tagInput.remove", { name: tag.name })}>
+            {tag.name} <span aria-hidden="true">×</span>
           </button>
         ))}
         {newNames.map(name => {
@@ -111,7 +113,7 @@ export function TagInput({
             <button type="button" key={`new:${name}`} className="te-tag on te-tag-new"
                     style={{ background: color, borderColor: ink, color: ink }}
                     onClick={() => onRemoveNew(name)}
-                    aria-label={`Remove ${name} (new)`} title={`Remove ${name} (new tag)`}>
+                    aria-label={t("tagInput.removeNew", { name })} title={t("tagInput.removeNewTitle", { name })}>
               {name} <span aria-hidden="true">×</span>
             </button>
           );
@@ -122,8 +124,8 @@ export function TagInput({
         <input
           className="te-tag-field"
           value={query}
-          placeholder="Add a tag…"
-          aria-label="Add tag"
+          placeholder={t("tagInput.placeholder")}
+          aria-label={t("tagInput.aria")}
           autoComplete="off"
           onChange={e => { setQuery(e.currentTarget.value); setHighlight(0); }}
           onFocus={() => setFocused(true)}
@@ -153,7 +155,7 @@ export function TagInput({
                   <button type="button" className={`${cls} te-opt-create`}
                           onMouseDown={e => e.preventDefault()}
                           onClick={() => commit(opt)}>
-                    Create “{opt.name}”
+                    {t("tagInput.create", { name: opt.name })}
                   </button>
                 </li>
               );

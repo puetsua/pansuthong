@@ -660,6 +660,7 @@ pub struct UpdateSettingsInput {
     #[serde(default)] pub day_start_hour: Option<u32>,
     #[serde(default)] pub default_tag_color: Option<String>,
     #[serde(default)] pub default_tag_priority: Option<i64>,
+    #[serde(default)] pub language: Option<String>,
 }
 
 #[tauri::command]
@@ -710,6 +711,12 @@ pub fn update_settings(
                 )));
             }
             s.default_tag_priority = p;
+        }
+        if let Some(lang) = input.language {
+            if !matches!(lang.as_str(), "auto" | "en" | "zh-TW") {
+                return Err(AppError::Invalid(format!("invalid language: {lang}")));
+            }
+            s.language = lang;
         }
         Ok(())
     })?;
@@ -1300,6 +1307,15 @@ mod tests {
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.default_tag_color, None);
         assert_eq!(absent.default_tag_priority, None);
+    }
+
+    #[test]
+    fn update_settings_input_parses_language() {
+        // Pins the `language` key the JS api sends (#26).
+        let v: UpdateSettingsInput = serde_json::from_str(r#"{"language":"zh-TW"}"#).unwrap();
+        assert_eq!(v.language.as_deref(), Some("zh-TW"));
+        let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(absent.language, None);
     }
 
     #[test]

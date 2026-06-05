@@ -1,4 +1,4 @@
-import { type } from "@tauri-apps/plugin-os";
+import { locale, type } from "@tauri-apps/plugin-os";
 
 let cached: boolean | null = null;
 
@@ -12,4 +12,14 @@ export async function isAndroid(): Promise<boolean> {
     }
   }
   return cached;
+}
+
+/** The OS locale (e.g. "en-US", "zh-TW"), or null if unavailable — used to resolve
+ *  the "auto" language setting to a concrete UI language (#26). */
+export async function osLocale(): Promise<string | null> {
+  try {
+    return await locale();
+  } catch {
+    return null;
+  }
 }

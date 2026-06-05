@@ -1,4 +1,6 @@
 import dayjs from "dayjs";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { GhostRow } from "../components/GhostRow";
 import { TaskList } from "../components/TaskList";
 import { effectivePriority, Indexes } from "../state/indexes";
@@ -10,12 +12,13 @@ import { upcomingDays } from "../lib/settings";
 type Props = { doc: Document; indexes: Indexes };
 
 export function UpcomingView({ doc, indexes }: Props) {
+  const { t } = useTranslation();
   const today = indexes.todayIso;
   const horizon = upcomingDays(doc.settings);
   // Hold just-completed tasks visible (at the bottom of their day) until this view
   // is left or refreshed, so a mis-click can be undone in place (#recover).
   const { held, onCompleted, onReopened } = useHeldCompletions(doc.tasks);
-  const groups = buildGroups(indexes, today, horizon, held);
+  const groups = buildGroups(indexes, today, horizon, held, t);
   const totalCount =
     new Set(groups.flatMap(g => g.tasks.map(t => t.id))).size +
     groups.reduce((n, g) => n + g.ghosts.length, 0);
@@ -23,8 +26,8 @@ export function UpcomingView({ doc, indexes }: Props) {
   return (
     <section>
       <header className="view-header">
-        <h1>Upcoming</h1>
-        <p className="view-sub">Next {horizon} day{horizon === 1 ? "" : "s"} · {totalCount} task{totalCount === 1 ? "" : "s"}</p>
+        <h1>{t("nav.upcoming")}</h1>
+        <p className="view-sub">{t("upcoming.next", { count: horizon })} · {t("common.taskCount", { count: totalCount })}</p>
       </header>
       {groups.map(g => (
         <div key={g.date} className="upcoming-group">
@@ -37,7 +40,7 @@ export function UpcomingView({ doc, indexes }: Props) {
         </div>
       ))}
       {totalCount === 0 && (
-        <p className="view-empty">Nothing in the next {horizon} day{horizon === 1 ? "" : "s"}.</p>
+        <p className="view-empty">{t("upcoming.empty", { count: horizon })}</p>
       )}
     </section>
   );
@@ -45,7 +48,7 @@ export function UpcomingView({ doc, indexes }: Props) {
 
 type Group = { date: string; label: string; tasks: Task[]; ghosts: GhostTask[] };
 
-function buildGroups(indexes: Indexes, todayStr: string, horizon: number, held: Task[]): Group[] {
+function buildGroups(indexes: Indexes, todayStr: string, horizon: number, held: Task[], t: TFunction): Group[] {
   const today = dayjs(todayStr);
   const onDay = (t: Task, iso: string) => t.start_date === iso || t.due_date === iso;
   const result: Group[] = [];
@@ -61,15 +64,15 @@ function buildGroups(indexes: Indexes, todayStr: string, horizon: number, held: 
     const all = [...tasks, ...heldForDay];
     const ghosts = indexes.ghostsForDate(iso);
     if (all.length > 0 || ghosts.length > 0) {
-      result.push({ date: iso, label: labelFor(day, today), tasks: all, ghosts });
+      result.push({ date: iso, label: labelFor(day, today, t), tasks: all, ghosts });
     }
   }
   return result;
 }
 
-function labelFor(day: dayjs.Dayjs, today: dayjs.Dayjs): string {
+function labelFor(day: dayjs.Dayjs, today: dayjs.Dayjs, t: TFunction): string {
   const diff = day.diff(today, "day");
-  if (diff === 1) return `Tomorrow · ${day.format("ddd MMM D")}`;
+  if (diff === 1) return `${t("upcoming.tomorrow")} · ${day.format("ddd MMM D")}`;
   if (diff < 7)   return day.format("dddd · MMM D");
   return day.format("ddd, MMM D");
 }

@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api, Task, TimeEntry } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { elapsedMs, formatClock, formatDurationShort, isTiming } from "../lib/time";
 import { useNow } from "../lib/useNow";
+import { currentLocale } from "../i18n";
 
 type Props = { task: Task };
 
@@ -18,7 +20,7 @@ const fromLocalInput = (s: string): number => new Date(s).getTime();
 const entryMs = (s: string): number => Date.parse(s);
 /** A finished entry's duration, or 0 while it's still running. */
 const durationMs = (e: TimeEntry): number => (e.end != null ? Math.max(0, Date.parse(e.end) - Date.parse(e.start)) : 0);
-const fmtMoment = (ms: number): string => new Date(ms).toLocaleString([], { dateStyle: "medium", timeStyle: "medium" });
+const fmtMoment = (ms: number): string => new Date(ms).toLocaleString(currentLocale(), { dateStyle: "medium", timeStyle: "medium" });
 
 type Draft = { start: string; end: string };
 
@@ -29,6 +31,7 @@ type Draft = { start: string; end: string };
  * tied to the editor's Save — they survive Cancel.
  */
 export function TimeTracking({ task }: Props) {
+  const { t } = useTranslation();
   const [err, setErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<Draft>({ start: "", end: "" });
@@ -52,8 +55,8 @@ export function TimeTracking({ task }: Props) {
   };
   const submitAdd = () => {
     const start = fromLocalInput(draft.start), end = fromLocalInput(draft.end);
-    if (Number.isNaN(start) || Number.isNaN(end)) { setErr("Enter a start and end time."); return; }
-    if (end <= start) { setErr("End must be after start."); return; }
+    if (Number.isNaN(start) || Number.isNaN(end)) { setErr(t("timeTracking.errEnterStartEnd")); return; }
+    if (end <= start) { setErr(t("timeTracking.errEndAfterStart")); return; }
     run(api.addTimeEntry(task.id, start, end).then(() => setAdding(false)));
   };
 
@@ -64,12 +67,12 @@ export function TimeTracking({ task }: Props) {
   };
   const submitEdit = (e: TimeEntry) => {
     const start = fromLocalInput(draft.start);
-    if (Number.isNaN(start)) { setErr("Enter a start time."); return; }
+    if (Number.isNaN(start)) { setErr(t("timeTracking.errEnterStart")); return; }
     const patch: { start?: number; end?: number } = { start };
     if (e.end != null) {
       const end = fromLocalInput(draft.end);
-      if (Number.isNaN(end)) { setErr("Enter an end time."); return; }
-      if (end <= start) { setErr("End must be after start."); return; }
+      if (Number.isNaN(end)) { setErr(t("timeTracking.errEnterEnd")); return; }
+      if (end <= start) { setErr(t("timeTracking.errEndAfterStart")); return; }
       patch.end = end;
     }
     run(api.updateTimeEntry(task.id, e.id, patch).then(() => setEditingId(null)));
@@ -80,12 +83,12 @@ export function TimeTracking({ task }: Props) {
   return (
     <section className="te-time">
       <div className="te-time-head">
-        <span className="te-field-label">Time tracked</span>
+        <span className="te-field-label">{t("timeTracking.timeTracked")}</span>
         <span className="te-time-total" data-running={running}>
           {running ? formatClock(total) : formatDurationShort(total)}
         </span>
         <button type="button" className="te-time-toggle" data-running={running} onClick={toggleTimer}>
-          {running ? "Stop" : "Start"}
+          {running ? t("timeTracking.stop") : t("timeTracking.start")}
         </button>
       </div>
 
@@ -95,27 +98,27 @@ export function TimeTracking({ task }: Props) {
             <li key={e.id} className="te-time-entry">
               {editingId === e.id ? (
                 <div className="te-time-edit">
-                  <input type="datetime-local" step="1" aria-label="Entry start" value={draft.start}
+                  <input type="datetime-local" step="1" aria-label={t("timeTracking.entryStart")} value={draft.start}
                          onChange={ev => { const v = ev.currentTarget.value; setDraft(d => ({ ...d, start: v })); }} />
                   {e.end != null ? (
-                    <input type="datetime-local" step="1" aria-label="Entry end" value={draft.end}
+                    <input type="datetime-local" step="1" aria-label={t("timeTracking.entryEnd")} value={draft.end}
                            onChange={ev => { const v = ev.currentTarget.value; setDraft(d => ({ ...d, end: v })); }} />
                   ) : (
-                    <span className="te-time-running">running</span>
+                    <span className="te-time-running">{t("timeTracking.running")}</span>
                   )}
-                  <button type="button" className="te-time-save" onClick={() => submitEdit(e)}>Save</button>
-                  <button type="button" onClick={() => setEditingId(null)}>Cancel</button>
+                  <button type="button" className="te-time-save" onClick={() => submitEdit(e)}>{t("timeTracking.save")}</button>
+                  <button type="button" onClick={() => setEditingId(null)}>{t("timeTracking.cancel")}</button>
                 </div>
               ) : (
                 <>
                   <span className="te-time-range">
-                    {fmtMoment(Date.parse(e.start))} – {e.end != null ? fmtMoment(Date.parse(e.end)) : <em>running</em>}
+                    {fmtMoment(Date.parse(e.start))} – {e.end != null ? fmtMoment(Date.parse(e.end)) : <em>{t("timeTracking.running")}</em>}
                   </span>
                   {e.end != null && <span className="te-time-dur">{formatDurationShort(durationMs(e))}</span>}
                   <button type="button" className="te-time-edit-btn" onClick={() => openEdit(e)}
-                          aria-label="Edit entry">Edit</button>
+                          aria-label={t("timeTracking.editEntry")}>{t("timeTracking.edit")}</button>
                   <button type="button" className="te-time-del" onClick={() => del(e.id)}
-                          aria-label="Delete entry">Delete</button>
+                          aria-label={t("timeTracking.deleteEntry")}>{t("timeTracking.delete")}</button>
                 </>
               )}
             </li>
@@ -125,15 +128,15 @@ export function TimeTracking({ task }: Props) {
 
       {adding ? (
         <div className="te-time-edit">
-          <input type="datetime-local" step="1" aria-label="New entry start" value={draft.start}
+          <input type="datetime-local" step="1" aria-label={t("timeTracking.newEntryStart")} value={draft.start}
                  onChange={ev => { const v = ev.currentTarget.value; setDraft(d => ({ ...d, start: v })); }} />
-          <input type="datetime-local" step="1" aria-label="New entry end" value={draft.end}
+          <input type="datetime-local" step="1" aria-label={t("timeTracking.newEntryEnd")} value={draft.end}
                  onChange={ev => { const v = ev.currentTarget.value; setDraft(d => ({ ...d, end: v })); }} />
-          <button type="button" className="te-time-save" onClick={submitAdd}>Add</button>
-          <button type="button" onClick={() => setAdding(false)}>Cancel</button>
+          <button type="button" className="te-time-save" onClick={submitAdd}>{t("timeTracking.add")}</button>
+          <button type="button" onClick={() => setAdding(false)}>{t("timeTracking.cancel")}</button>
         </div>
       ) : (
-        <button type="button" className="te-time-add" onClick={openAdd}>Add entry</button>
+        <button type="button" className="te-time-add" onClick={openAdd}>{t("timeTracking.addEntry")}</button>
       )}
 
       {err && <p className="composer-error" role="alert">{err}</p>}

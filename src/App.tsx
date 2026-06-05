@@ -1,4 +1,8 @@
+import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { applyLanguage, resolveLanguage } from "./i18n";
+import { osLocale } from "./lib/platform";
 import { DesktopShell } from "./shell/DesktopShell";
 import { MobileShell } from "./shell/MobileShell";
 import { useIsMobile } from "./lib/viewport";
@@ -15,11 +19,23 @@ import { HistoryView } from "./views/HistoryView";
 import { useDocument } from "./state/store";
 
 export default function App() {
+  const { t } = useTranslation();
   const { doc, indexes, error, reloadError, dismissReloadError } = useDocument();
   const isMobile = useIsMobile();
 
-  if (error) return <p className="app-error">Failed to load: {error}</p>;
-  if (!doc || !indexes) return <p className="app-loading">Loading…</p>;
+  // Apply the chosen UI language ("auto" follows the OS locale) whenever the
+  // setting changes; switching here re-renders the whole tree in the new language (#26).
+  const language = doc?.settings.language;
+  useEffect(() => {
+    let active = true;
+    void osLocale().then(loc => {
+      if (active) applyLanguage(resolveLanguage(language, loc));
+    });
+    return () => { active = false; };
+  }, [language]);
+
+  if (error) return <p className="app-error">{t("app.loadFailed", { error })}</p>;
+  if (!doc || !indexes) return <p className="app-loading">{t("app.loading")}</p>;
 
   const Shell = isMobile ? MobileShell : DesktopShell;
 
@@ -28,9 +44,9 @@ export default function App() {
       <Shell doc={doc} indexes={indexes}>
         {reloadError && (
           <div className="reload-banner" role="alert">
-            <span>Couldn’t refresh — showing the last loaded data. {reloadError}</span>
+            <span>{t("app.reloadError", { error: reloadError })}</span>
             <button type="button" className="reload-banner-dismiss" onClick={dismissReloadError}>
-              Dismiss
+              {t("app.dismiss")}
             </button>
           </div>
         )}
@@ -46,7 +62,7 @@ export default function App() {
           <Route path="/templates" element={<TemplatesView doc={doc} indexes={indexes} />} />
           <Route path="/history" element={<HistoryView />} />
           <Route path="/conflicts/:filename" element={<ConflictsView />} />
-          <Route path="*"      element={<p>Not built yet — comes in Phase 2.</p>} />
+          <Route path="*"      element={<p>{t("app.notBuilt")}</p>} />
         </Routes>
       </Shell>
     </BrowserRouter>

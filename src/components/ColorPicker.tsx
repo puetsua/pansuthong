@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 
 // A curated palette spanning the hue wheel so users can tell many tags apart at
 // a glance. Every swatch is dark enough that the chip's auto-contrast text lands
@@ -17,6 +18,7 @@ const DEFAULT_COLOR = SWATCHES[0];
 type Props = { value: string; onChange: (color: string) => void };
 
 export function ColorPicker({ value, onChange }: Props) {
+  const { t } = useTranslation();
   const normalized = value.toLowerCase();
   const customValue = HEX.test(normalized) ? normalized : DEFAULT_COLOR;
 
@@ -31,7 +33,7 @@ export function ColorPicker({ value, onChange }: Props) {
               type="button"
               className={clsx("swatch", active && "swatch-active")}
               style={{ background: c }}
-              aria-label={`Color ${c}`}
+              aria-label={t("colorPicker.swatch", { color: c })}
               aria-pressed={active}
               onClick={() => onChange(c)}
             />
@@ -42,10 +44,10 @@ export function ColorPicker({ value, onChange }: Props) {
         <input
           type="color"
           value={customValue}
-          aria-label="Custom color"
+          aria-label={t("colorPicker.custom")}
           onChange={e => onChange(e.target.value)}
         />
-        <span>Custom</span>
+        <span>{t("colorPicker.customLabel")}</span>
       </label>
     </div>
   );

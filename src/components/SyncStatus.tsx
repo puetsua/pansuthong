@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/tauri";
 import { formatIsoLocal } from "../lib/dates";
 
@@ -16,6 +17,7 @@ type Props = {
  * desktop sidebar and the mobile shell.
  */
 export function SyncStatus({ lastModified, className }: Props) {
+  const { t } = useTranslation();
   const [syncing, setSyncing] = useState(false);
 
   const sync = async () => {
@@ -36,13 +38,13 @@ export function SyncStatus({ lastModified, className }: Props) {
         className="sync-now-btn"
         onClick={sync}
         disabled={syncing}
-        title="Re-read data from disk now"
+        title={t("syncStatus.syncNowTitle")}
       >
         <span className={syncing ? "sync-icon spinning" : "sync-icon"} aria-hidden>⟳</span>
-        {syncing ? "Syncing…" : "Sync now"}
+        {syncing ? t("syncStatus.syncing") : t("syncStatus.syncNow")}
       </button>
-      <span className="sync-time" title="Data last edited (this view)">
-        Last synced: <time>{formatIsoLocal(lastModified)}</time>
+      <span className="sync-time" title={t("syncStatus.lastEditedTitle")}>
+        {t("syncStatus.lastSynced")}<time>{formatIsoLocal(lastModified)}</time>
       </span>
     </div>
   );

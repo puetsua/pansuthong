@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api, Tag, Task } from "../lib/tauri";
 import { GhostTask } from "../lib/recurrence";
 import { errorMessage } from "../lib/errors";
@@ -17,6 +18,7 @@ type Props = {
  * recurrence marker distinguish it from real rows.
  */
 export function GhostRow({ ghost, tags }: Props) {
+  const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creatingDraft, setCreatingDraft] = useState<Task | null>(null);
@@ -63,7 +65,7 @@ export function GhostRow({ ghost, tags }: Props) {
     <>
       <div className="task-row ghost-row" data-ghost="true">
         <button type="button" className="task-main" onClick={open} disabled={busy}
-                aria-label={`Open ${ghost.title} (recurring)`}>
+                aria-label={t("ghostRow.open", { title: ghost.title })}>
           <span className="ghost-mark" aria-hidden>🔁</span>
           <span className="task-title">{ghost.title}</span>
           {ghostTags.map(t => (
@@ -73,13 +75,13 @@ export function GhostRow({ ghost, tags }: Props) {
           ))}
         </button>
         <button type="button" className="task-timer" onClick={startTimer} disabled={busy}
-                aria-label={`Start timer for ${ghost.title}`} title="Start timer">
+                aria-label={t("ghostRow.startTimer", { title: ghost.title })} title={t("ghostRow.startTimerTitle")}>
           <span className="task-timer-icon" aria-hidden>▶</span>
         </button>
         <input type="checkbox" checked={false} onChange={complete} disabled={busy}
-               aria-label={`Complete ${ghost.title}`} />
+               aria-label={t("ghostRow.complete", { title: ghost.title })} />
       </div>
-      {error && <p className="composer-error" role="alert">Couldn’t add: {error}</p>}
+      {error && <p className="composer-error" role="alert">{t("ghostRow.addError", { error })}</p>}
       {creatingDraft && (
         <TaskEditor task={creatingDraft} allTags={tags} creating onClose={() => setCreatingDraft(null)} />
       )}

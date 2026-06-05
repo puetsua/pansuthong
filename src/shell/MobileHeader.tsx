@@ -1,43 +1,46 @@
 import { Link, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Indexes } from "../state/indexes";
 
 type Props = { indexes: Indexes };
 
-const ROUTE_TITLES: Record<string, string> = {
-  "/today":    "Today",
-  "/inbox":    "Inbox",
-  "/upcoming": "Upcoming",
-  "/templates": "Templates",
-  "/history": "History",
-  "/tags":     "Tags",
-  "/archived": "Archived",
-  "/settings": "Settings",
+const ROUTE_TITLE_KEYS: Record<string, string> = {
+  "/today":    "nav.today",
+  "/inbox":    "nav.inbox",
+  "/upcoming": "nav.upcoming",
+  "/templates": "nav.templates",
+  "/history": "nav.history",
+  "/tags":     "nav.tags",
+  "/archived": "nav.archived",
+  "/settings": "nav.settings",
 };
 
 export function MobileHeader({ indexes }: Props) {
+  const { t } = useTranslation();
   const loc = useLocation();
-  const title = pickTitle(loc.pathname, indexes);
+  const title = pickTitle(loc.pathname, indexes, t);
 
   return (
     <header className="mobile-header">
       <h1 className="mobile-title">{title}</h1>
       <div className="mobile-header-actions">
-        <Link to="/templates" className="mobile-header-icon" aria-label="Templates">▤</Link>
-        <Link to="/history" className="mobile-header-icon" aria-label="History">H</Link>
-        <Link to="/tags" className="mobile-header-icon" aria-label="Tags">#</Link>
-        <Link to="/settings" className="mobile-header-icon" aria-label="Settings">⚙</Link>
+        <Link to="/templates" className="mobile-header-icon" aria-label={t("nav.templates")}>▤</Link>
+        <Link to="/history" className="mobile-header-icon" aria-label={t("nav.history")}>H</Link>
+        <Link to="/tags" className="mobile-header-icon" aria-label={t("nav.tags")}>#</Link>
+        <Link to="/settings" className="mobile-header-icon" aria-label={t("nav.settings")}>⚙</Link>
       </div>
     </header>
   );
 }
 
-function pickTitle(pathname: string, indexes: Indexes): string {
-  if (ROUTE_TITLES[pathname]) return ROUTE_TITLES[pathname];
+function pickTitle(pathname: string, indexes: Indexes, t: TFunction): string {
+  if (ROUTE_TITLE_KEYS[pathname]) return t(ROUTE_TITLE_KEYS[pathname]);
   const tagMatch = pathname.match(/^\/tag\/(.+)$/);
   if (tagMatch) {
     const tag = indexes.tagsById.get(tagMatch[1]);
-    return tag ? `#${tag.name}` : "Tag";
+    return tag ? `#${tag.name}` : t("nav.tag");
   }
-  if (pathname.startsWith("/conflicts/")) return "Conflict";
-  return "Pansutong";
+  if (pathname.startsWith("/conflicts/")) return t("nav.conflict");
+  return t("nav.appName");
 }
