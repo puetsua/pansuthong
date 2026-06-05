@@ -343,7 +343,7 @@
     "weight": "權重",
     "language": "語言",
     "languageSub": "整個應用程式使用的語言。自動會跟隨你的系統語言。",
-    "langAuto": "自動（跟隨系統）",
+    "langAuto": "自動",
     "langEn": "English",
     "langZhTW": "繁體中文",
     "dataFile": "資料檔案",

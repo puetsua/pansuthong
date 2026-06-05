@@ -347,7 +347,7 @@
     "weight": "Weight",
     "language": "Language",
     "languageSub": "The language used throughout the app. Automatic follows your system language.",
-    "langAuto": "Automatic (follow system)",
+    "langAuto": "Auto",
     "langEn": "English",
     "langZhTW": "繁體中文",
     "dataFile": "Data file",
