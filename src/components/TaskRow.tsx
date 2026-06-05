@@ -7,6 +7,7 @@ import { errorMessage } from "../lib/errors";
 import { readableTextColor } from "../lib/tags";
 import { elapsedMs, formatClock, formatDurationShort, isTiming } from "../lib/time";
 import { useNow } from "../lib/useNow";
+import { playCompletionSound } from "../lib/sound";
 import { TaskEditor } from "./TaskEditor";
 
 type Props = {
@@ -55,7 +56,10 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
     setError(null);
     const next = !isDone(task);
     api.setTaskDone(task.id, next)
-      .then(() => { if (next) onCompleted?.(task.id); else onReopened?.(task.id); })
+      .then(() => {
+        if (next) { playCompletionSound(); onCompleted?.(task.id); } // chime on done (#80)
+        else onReopened?.(task.id);
+      })
       .catch(err => {
         // The checkbox reflects the persisted completion state, so it stays put on
         // failure; surface the error so the user knows the change didn't stick.

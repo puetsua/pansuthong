@@ -15,6 +15,7 @@ import {
   DAY_START_HOUR_DEFAULT,
   DAY_START_HOUR_MAX,
   DAY_START_HOUR_MIN,
+  soundOnComplete,
 } from "./settings";
 import { WEIGHT_MAX } from "./tags";
 
@@ -118,5 +119,16 @@ describe("defaultTagPriority", () => {
 
   it("clamps an out-of-range stored value defensively", () => {
     expect(defaultTagPriority({ ...settings(), default_tag_priority: 999999 })).toBe(WEIGHT_MAX);
+  });
+});
+
+describe("soundOnComplete", () => {
+  it("defaults to on when unset (older documents) (#80)", () => {
+    expect(soundOnComplete(settings())).toBe(true);
+  });
+
+  it("uses the configured value when present", () => {
+    expect(soundOnComplete({ ...settings(), sound_on_complete: false })).toBe(false);
+    expect(soundOnComplete({ ...settings(), sound_on_complete: true })).toBe(true);
   });
 });

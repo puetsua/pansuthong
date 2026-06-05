@@ -49,6 +49,12 @@ pub struct Settings {
     /// config.json files predating i18n still load.
     #[serde(default = "default_language")]
     pub language: String,
+    /// Play a short completion sound when a task is marked done (#80). Device-local
+    /// and frontend-driven (a WebView `<audio>` through the media volume); the Rust
+    /// side only persists the preference. Defaults to `true`; `#[serde(default)]`
+    /// so older config.json files predating the sound still load (defaulting on).
+    #[serde(default = "default_sound_on_complete")]
+    pub sound_on_complete: bool,
 }
 
 fn default_theme() -> String {
@@ -71,6 +77,10 @@ fn default_language() -> String {
     "auto".into()
 }
 
+fn default_sound_on_complete() -> bool {
+    true
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -81,6 +91,7 @@ impl Default for Settings {
             default_tag_color: default_tag_color(),
             default_tag_priority: 0,
             language: default_language(),
+            sound_on_complete: default_sound_on_complete(),
         }
     }
 }
@@ -279,6 +290,7 @@ mod tests {
         assert_eq!(cfg.settings.theme, "auto");
         assert_eq!(cfg.settings.sort_order, "priority");
         assert_eq!(cfg.settings.upcoming_days, 14);
+        assert!(cfg.settings.sound_on_complete); // completion chime defaults on (#80)
     }
 
     #[test]
