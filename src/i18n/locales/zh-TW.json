@@ -333,7 +333,7 @@
     "upcomingSub": "「即將到來」檢視往後查看的天數。",
     "daysPreset": "{{count}} 天",
     "customUpcomingAria": "自訂即將到來天數",
-    "dayStart": "一天的開始",
+    "dayStart": "一日的起始時間",
     "dayStartSub": "「今天」檢視何時換到隔天。如果你工作到午夜後仍視為同一天，可設定為午夜之後。",
     "dayStartsAt": "一天開始於",
     "dayStartHourAria": "一天開始的小時",
