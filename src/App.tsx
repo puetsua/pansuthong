@@ -17,6 +17,7 @@ import { TemplatesView } from "./views/TemplatesView";
 import { ConflictsView } from "./views/ConflictsView";
 import { HistoryView } from "./views/HistoryView";
 import { useDocument } from "./state/store";
+import { setCompletionSoundEnabled } from "./lib/sound";
 
 export default function App() {
   const { t } = useTranslation();
@@ -33,6 +34,13 @@ export default function App() {
     });
     return () => { active = false; };
   }, [language]);
+
+  // Mirror the device-local completion-sound preference into the sound module so
+  // TaskRow can chime without threading settings through every view (#80). Absent
+  // = on, matching the Rust default.
+  useEffect(() => {
+    setCompletionSoundEnabled(doc?.settings.sound_on_complete ?? true);
+  }, [doc?.settings.sound_on_complete]);
 
   if (error) return <p className="app-error">{t("app.loadFailed", { error })}</p>;
   if (!doc || !indexes) return <p className="app-loading">{t("app.loading")}</p>;

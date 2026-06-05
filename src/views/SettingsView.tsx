@@ -7,7 +7,7 @@ import { isAndroid } from "../lib/platform";
 import {
   clampUpcomingDays, upcomingDays, UPCOMING_DAYS_MAX, UPCOMING_DAYS_MIN,
   dayStartHour, DAY_START_HOUR_MAX, DAY_START_HOUR_MIN,
-  defaultTagPriority,
+  defaultTagPriority, soundOnComplete,
 } from "../lib/settings";
 import { clampWeight, WEIGHT_MAX, WEIGHT_MIN } from "../lib/tags";
 
@@ -48,6 +48,9 @@ export function SettingsView({ doc }: Props) {
 
   const language = doc.settings.language ?? "auto";
   const setLanguage = (next: "auto" | "en" | "zh-TW") => { void applySettings({ language: next }); };
+
+  const soundOn = soundOnComplete(doc.settings);
+  const setSound = (on: boolean) => { void applySettings({ sound_on_complete: on }); };
 
   // Upcoming horizon: presets apply immediately; the free input commits on blur/Enter.
   const days = upcomingDays(doc.settings);
@@ -229,6 +232,23 @@ export function SettingsView({ doc }: Props) {
             ))}
           </select>
         </label>
+      </section>
+
+      <section className="settings-section">
+        <h2>{t("settings.sound")}</h2>
+        <p className="view-sub">{t("settings.soundSub")}</p>
+        <div className="theme-options">
+          {([[true, t("settings.soundOn")], [false, t("settings.soundOff")]] as const).map(([on, label]) => (
+            <button
+              key={String(on)}
+              className={`theme-option ${soundOn === on ? "active" : ""}`}
+              aria-pressed={soundOn === on}
+              onClick={() => setSound(on)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </section>
 
       <section className="settings-section">

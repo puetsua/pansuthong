@@ -11,6 +11,7 @@ export type Settings = {
   default_tag_color?: string;    // color pre-filled for a new tag; hex, default "#10b981" (#79)
   default_tag_priority?: number; // weight pre-filled for a new tag; -9999..9999, default 0 (#79)
   language?: "auto" | "en" | "zh-TW"; // UI language; "auto" follows the OS locale, default (#26)
+  sound_on_complete?: boolean; // play a sound when a task is marked done; default true (#80)
 };
 
 export type Tag = {
@@ -190,7 +191,8 @@ export const api = {
   updateSettings: (input: { theme?: "auto" | "light" | "dark"; sort_order?: SortOrder; upcoming_days?: number;
                             day_start_hour?: number;
                             default_tag_color?: string; default_tag_priority?: number;
-                            language?: "auto" | "en" | "zh-TW" }) =>
+                            language?: "auto" | "en" | "zh-TW";
+                            sound_on_complete?: boolean }) =>
                                    invoke<void>("update_settings", { input }),
   listConflicts:    ()             => invoke<string[]>("list_conflicts"),
   readConflict:     (path: string) => invoke<TaskDiff[]>("read_conflict", { conflictPath: path }),

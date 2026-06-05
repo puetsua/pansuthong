@@ -16,7 +16,10 @@ vi.mock("../lib/tauri", async (importOriginal) => {
   };
 });
 
+vi.mock("../lib/sound", () => ({ playCompletionSound: vi.fn() }));
+
 import { api } from "../lib/tauri";
+import { playCompletionSound } from "../lib/sound";
 
 const baseTask: Task = {
   id: "k_1", title: "Write report",
@@ -31,6 +34,20 @@ describe("TaskRow active mode", () => {
     render(<TaskRow task={baseTask} tags={tags} todayIso="2026-05-31" />);
     fireEvent.click(screen.getByRole("checkbox", { name: /toggle/i }));
     await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", true));
+  });
+
+  it("plays the completion sound when marking a task done (#80)", async () => {
+    render(<TaskRow task={baseTask} tags={tags} todayIso="2026-05-31" />);
+    fireEvent.click(screen.getByRole("checkbox", { name: /toggle/i }));
+    await waitFor(() => expect(playCompletionSound).toHaveBeenCalledTimes(1));
+  });
+
+  it("does not play the completion sound when reopening a done task (#80)", async () => {
+    const done: Task = { ...baseTask, completed_at: "2026-05-31T10:00:00Z" };
+    render(<TaskRow task={done} tags={tags} todayIso="2026-05-31" />);
+    fireEvent.click(screen.getByRole("checkbox", { name: /toggle/i }));
+    await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", false));
+    expect(playCompletionSound).not.toHaveBeenCalled();
   });
 });
 

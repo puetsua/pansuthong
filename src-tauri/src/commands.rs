@@ -661,6 +661,7 @@ pub struct UpdateSettingsInput {
     #[serde(default)] pub default_tag_color: Option<String>,
     #[serde(default)] pub default_tag_priority: Option<i64>,
     #[serde(default)] pub language: Option<String>,
+    #[serde(default)] pub sound_on_complete: Option<bool>,
 }
 
 #[tauri::command]
@@ -717,6 +718,9 @@ pub fn update_settings(
                 return Err(AppError::Invalid(format!("invalid language: {lang}")));
             }
             s.language = lang;
+        }
+        if let Some(on) = input.sound_on_complete {
+            s.sound_on_complete = on;
         }
         Ok(())
     })?;
@@ -1316,6 +1320,15 @@ mod tests {
         assert_eq!(v.language.as_deref(), Some("zh-TW"));
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.language, None);
+    }
+
+    #[test]
+    fn update_settings_input_parses_sound_on_complete() {
+        // Pins the snake_case `sound_on_complete` key the JS api sends (#80).
+        let off: UpdateSettingsInput = serde_json::from_str(r#"{"sound_on_complete":false}"#).unwrap();
+        assert_eq!(off.sound_on_complete, Some(false));
+        let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(absent.sound_on_complete, None);
     }
 
     #[test]

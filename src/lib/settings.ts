@@ -52,3 +52,8 @@ export function defaultTagPriority(settings?: Settings): number {
   const p = settings?.default_tag_priority;
   return p === undefined ? DEFAULT_TAG_PRIORITY : clampWeight(String(p));
 }
+
+/** Whether the task-completion chime is enabled (#80). Absent = on (the default). */
+export function soundOnComplete(settings: Settings): boolean {
+  return settings.sound_on_complete ?? true;
+}
