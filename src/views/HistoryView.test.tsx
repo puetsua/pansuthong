@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { HistoryView } from "./HistoryView";
 import { api, HistoryEntry } from "../lib/tauri";
 
@@ -24,6 +24,7 @@ const renderView = async (entries: HistoryEntry[]) => {
   listHistory.mockResolvedValue(entries);
   render(<HistoryView />);
   await screen.findByLabelText(/search history/i);
+  await waitFor(() => expect(screen.queryByText(/loading history/i)).toBeNull());
 };
 
 const rowCount = () => screen.queryAllByRole("listitem").length;
