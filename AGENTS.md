@@ -62,6 +62,7 @@ See https://tauri.app/start/prerequisites/ and https://v2.tauri.app/develop/#mob
 
 - Write **Conventional Commits** (`feat:`, `fix:`, `docs:`, `refactor:`, `perf:`, `test:`, `ci:`/`build:`, `chore:`). The release workflow runs **git-cliff** (`cliff.toml`) on a tag push to auto-generate that GitHub Release's notes, grouped by commit type — non-conventional messages still appear, but land under "Miscellaneous". For squash-merged PRs, the squash title is the commit, so give the PR a conventional title.
 - Releasing: push a plain semver tag (e.g. `0.1.0`, or `0.1.0-beta.1` for a prerelease — no `v` prefix). `.github/workflows/release.yml` builds the Windows installer + Android APK and publishes them to the Release.
+- **Desktop in-app updater** (Windows only — the Tauri updater has no Android support): the app checks `https://github.com/puetsua/pansutong/releases/latest/download/latest.json` on launch and prompts. The release workflow signs the installer and emits `latest.json` (via `.github/scripts/make-latest-json.mjs`). It needs two repo **GitHub Secrets**: `TAURI_SIGNING_PRIVATE_KEY` (contents of `_local_secrets/pansutong-updater.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The matching **public key** is committed in `tauri.conf.json` (`plugins.updater.pubkey`). Back up the private key + password — lose them and you can never ship a verifiable update again (same caveat as the Android keystore). Prereleases are not auto-offered (the `latest` endpoint excludes them).
 
 ## Code style
 

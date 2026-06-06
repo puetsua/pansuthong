@@ -1,0 +1,59 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+
+// Drive the prompt through its module seam rather than the raw plugins.
+vi.mock("../lib/updater", () => ({
+  checkForUpdate: vi.fn(),
+  installUpdate: vi.fn(),
+}));
+
+import { checkForUpdate, installUpdate } from "../lib/updater";
+import { UpdatePrompt } from "./UpdatePrompt";
+import type { Update } from "@tauri-apps/plugin-updater";
+
+const checkMock = vi.mocked(checkForUpdate);
+const installMock = vi.mocked(installUpdate);
+
+const fakeUpdate = (over: Partial<Update> = {}) =>
+  ({ version: "0.2.0", body: "## Fixed\n\n- A bug", ...over }) as Update;
+
+beforeEach(() => {
+  checkMock.mockReset();
+  installMock.mockReset();
+  installMock.mockResolvedValue(undefined);
+});
+
+describe("UpdatePrompt", () => {
+  it("renders nothing when no update is available", async () => {
+    checkMock.mockResolvedValue(null);
+    render(<UpdatePrompt />);
+    await waitFor(() => expect(checkMock).toHaveBeenCalled());
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("shows the version and release notes when an update is available", async () => {
+    checkMock.mockResolvedValue(fakeUpdate());
+    render(<UpdatePrompt />);
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(screen.getByText(/0\.2\.0/)).toBeTruthy();
+    expect(screen.getByText("A bug")).toBeTruthy();
+  });
+
+  it("dismisses on 'Later' without installing", async () => {
+    checkMock.mockResolvedValue(fakeUpdate());
+    render(<UpdatePrompt />);
+    fireEvent.click(await screen.findByText("Later"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(installMock).not.toHaveBeenCalled();
+  });
+
+  it("installs the update on 'Update now'", async () => {
+    const update = fakeUpdate();
+    checkMock.mockResolvedValue(update);
+    // Keep the install pending so the dialog stays mounted to assert against.
+    installMock.mockReturnValue(new Promise(() => {}));
+    render(<UpdatePrompt />);
+    fireEvent.click(await screen.findByText("Update now"));
+    await waitFor(() => expect(installMock).toHaveBeenCalledWith(update, expect.any(Function)));
+  });
+});

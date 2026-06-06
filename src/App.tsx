@@ -18,6 +18,7 @@ import { ConflictsView } from "./views/ConflictsView";
 import { HistoryView } from "./views/HistoryView";
 import { useDocument } from "./state/store";
 import { setCompletionSoundEnabled } from "./lib/sound";
+import { UpdatePrompt } from "./components/UpdatePrompt";
 
 export default function App() {
   const { t } = useTranslation();
@@ -50,6 +51,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Shell doc={doc} indexes={indexes}>
+        <UpdatePrompt />
         {reloadError && (
           <div className="reload-banner" role="alert">
             <span>{t("app.reloadError", { error: reloadError })}</span>

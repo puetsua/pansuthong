@@ -19,6 +19,10 @@ jobs:
   release-notes:
     name: Release notes (git-cliff)
     runs-on: ubuntu-latest
+    outputs:
+      # Exposed so the desktop job can embed the same notes in latest.json, which
+      # the in-app updater shows in its "update available" prompt.
+      notes: ${{ steps.cliff.outputs.content }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,16 +70,32 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: node .github/scripts/set-version.mjs "$env:VERSION"
 
-      # NSIS .exe only (skip the WiX .msi).
-      - run: npm run tauri build -- --bundles nsis
+      # NSIS .exe only (skip the WiX .msi). Sign the updater artifacts so the
+      # in-app updater accepts them (createUpdaterArtifacts is on in tauri.conf.json).
+      - name: Build signed installer
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri build -- --bundles nsis
 
-      - name: Publish .exe to the release
+      # Assemble the updater manifest (latest.json) from the signed installer +
+      # its .sig, pointing at the stable per-tag download URL. The in-app updater
+      # polls .../releases/latest/download/latest.json (see tauri.conf.json).
+      - name: Generate latest.json
+        env:
+          VERSION: ${{ github.ref_name }}
+          NOTES: ${{ needs.release-notes.outputs.notes }}
+        run: node .github/scripts/make-latest-json.mjs "$env:VERSION"
+
+      - name: Publish installer + latest.json to the release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           prerelease: ${{ contains(github.ref_name, '-') }}
           fail_on_unmatched_files: true
-          files: src-tauri/target/release/bundle/nsis/*-setup.exe
+          files: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            latest.json
 
   android:
     name: Android (unsigned APK)

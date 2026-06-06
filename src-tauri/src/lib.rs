@@ -44,6 +44,14 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_dialog::init());
 
+    // In-app updater (desktop only; Android updates via the Play Store / APK).
+    // tauri-plugin-process supplies the relaunch() the frontend calls after an
+    // update installs.
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init());
+
     // Remember the main window's size, position, and maximized state across
     // launches (desktop only — mobile has no movable window). The quick-capture
     // window is fixed-size and centered, so it's excluded from persistence.

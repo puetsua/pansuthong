@@ -36,6 +36,11 @@ tempfile = "3"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-window-state = "2"
+# In-app updater (desktop only — the updater has no Android/iOS support, and
+# keeping these off the mobile target avoids leaking their permissions into the
+# shared Android ACL build).
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 [target.'cfg(target_os = "android")'.dependencies]
 tauri-plugin-android-fs = "28"
