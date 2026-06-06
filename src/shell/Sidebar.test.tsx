@@ -1,12 +1,26 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { buildIndexes } from "../state/indexes";
 import { Document, Tag } from "../lib/tauri";
+import { appVersion } from "../lib/platform";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 // SyncStatus (rendered inside the sidebar) touches the tauri api; stub it out.
 vi.mock("../lib/tauri", () => ({ api: { syncNow: vi.fn() } }));
+// The footer version label reads the app version and opens the release page.
+vi.mock("../lib/platform", () => ({ appVersion: vi.fn() }));
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+
+const appVersionMock = vi.mocked(appVersion);
+const openUrlMock = vi.mocked(openUrl);
+
+beforeEach(() => {
+  appVersionMock.mockReset();
+  appVersionMock.mockResolvedValue(null); // hidden by default; tag-curation tests don't care
+  openUrlMock.mockReset();
+});
 
 const tag = (over: Partial<Tag>): Tag => ({
   id: "t_x", name: "x", color: "#000", priority: 0, ...over,
@@ -50,5 +64,26 @@ describe("Sidebar — tag curation (#78)", () => {
     expect(screen.getByText(/No pinned tags/i)).toBeTruthy();
     const manage = screen.getByRole("link", { name: /manage tags/i });
     expect(manage.getAttribute("href")).toBe("/tags");
+  });
+});
+
+describe("Sidebar — version label", () => {
+  it("renders the running version and opens its release page on click", async () => {
+    appVersionMock.mockResolvedValue("0.5.0");
+    renderSidebar([]);
+
+    const label = await screen.findByText("v0.5.0");
+    fireEvent.click(label);
+    expect(openUrlMock).toHaveBeenCalledWith(
+      "https://github.com/puetsua/pansutong/releases/tag/0.5.0",
+    );
+  });
+
+  it("omits the label when the version is unavailable", async () => {
+    appVersionMock.mockResolvedValue(null);
+    renderSidebar([]);
+
+    await waitFor(() => expect(appVersionMock).toHaveBeenCalled());
+    expect(screen.queryByText(/^v\d/)).toBeNull();
   });
 });

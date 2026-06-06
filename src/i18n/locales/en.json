@@ -50,7 +50,8 @@
     "addTag": "Add tag",
     "noPinnedTags": "No pinned tags.",
     "manageTags": "Manage tags",
-    "editTag": "Edit #{{name}}"
+    "editTag": "Edit #{{name}}",
+    "releaseNotes": "Release notes for v{{version}}"
   },
   "today": {
     "empty": "No tasks starting or due today."

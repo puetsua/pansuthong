@@ -1,4 +1,5 @@
 import { locale, type } from "@tauri-apps/plugin-os";
+import { getVersion } from "@tauri-apps/api/app";
 
 let cached: boolean | null = null;
 
@@ -19,6 +20,16 @@ export async function isAndroid(): Promise<boolean> {
 export async function osLocale(): Promise<string | null> {
   try {
     return await locale();
+  } catch {
+    return null;
+  }
+}
+
+/** The running app version (e.g. "0.5.0"), or null when unavailable (e.g. outside
+ *  the Tauri runtime in tests) so callers can simply omit the label. */
+export async function appVersion(): Promise<string | null> {
+  try {
+    return await getVersion();
   } catch {
     return null;
   }

@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { Document, Tag } from "../lib/tauri";
+import { appVersion } from "../lib/platform";
 import { Indexes, openCount } from "../state/indexes";
 import { SyncStatus } from "../components/SyncStatus";
 import { TagEditor } from "../components/TagEditor";
+
+const RELEASES_BASE = "https://github.com/puetsua/pansutong/releases/tag/";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -20,6 +24,14 @@ export function Sidebar({ doc, indexes }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const [editor, setEditor] = useState<EditorState>(null);
+
+  // Show the running version in the footer; null (e.g. in tests) hides the label.
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    void appVersion().then(v => { if (active) setVersion(v); });
+    return () => { active = false; };
+  }, []);
 
   // Only pinned tags appear in the sidebar; the full set lives on the Tags
   // screen, where tags are pinned/unpinned (#78).
@@ -94,6 +106,13 @@ export function Sidebar({ doc, indexes }: Props) {
           </li>
         </ul>
         <SyncStatus lastModified={doc.last_modified} />
+        {version && (
+          <button type="button" className="sidebar-version"
+                  title={t("sidebar.releaseNotes", { version })}
+                  onClick={() => void openUrl(RELEASES_BASE + version)}>
+            v{version}
+          </button>
+        )}
       </div>
 
       {editor && (
