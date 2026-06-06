@@ -70,7 +70,7 @@ export default function App() {
           <Route path="/tags" element={<TagsView doc={doc} indexes={indexes} />} />
           <Route path="/archived" element={<ArchivedView doc={doc} indexes={indexes} />} />
           <Route path="/templates" element={<TemplatesView doc={doc} indexes={indexes} />} />
-          <Route path="/history" element={<HistoryView />} />
+          <Route path="/history" element={<HistoryView todayIso={indexes.todayIso} />} />
           <Route path="/conflicts/:filename" element={<ConflictsView />} />
           <Route path="*"      element={<p>{t("app.notBuilt")}</p>} />
         </Routes>
