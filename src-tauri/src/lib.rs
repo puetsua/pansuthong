@@ -14,6 +14,11 @@ use crate::store::AppState;
 use tauri::Emitter;
 use tauri::Manager;
 
+#[cfg(desktop)]
+const STATE_FILENAME: &str = ".state.json";
+#[cfg(desktop)]
+const LEGACY_WINDOW_STATE_FILENAME: &str = ".window-state.json";
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -44,7 +49,24 @@ pub fn run() {
     // window is fixed-size and centered, so it's excluded from persistence.
     #[cfg(desktop)]
     let builder = builder.plugin(
+        tauri::plugin::Builder::<_, ()>::new("state-file-migration")
+            .setup(|app, _api| {
+                let app_config_dir = app.path().app_config_dir()?;
+                let old_path = app_config_dir.join(LEGACY_WINDOW_STATE_FILENAME);
+                let new_path = app_config_dir.join(STATE_FILENAME);
+                if old_path.exists() && !new_path.exists() {
+                    std::fs::create_dir_all(&app_config_dir)?;
+                    std::fs::rename(old_path, new_path)?;
+                }
+                Ok(())
+            })
+            .build(),
+    );
+
+    #[cfg(desktop)]
+    let builder = builder.plugin(
         tauri_plugin_window_state::Builder::default()
+            .with_filename(STATE_FILENAME)
             .with_denylist(&["quick-capture"])
             .build(),
     );

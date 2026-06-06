@@ -1,46 +1,102 @@
 {
-  "version": 1,
-  "settings": { "theme": "auto" },
-  "projects": [
-    { "id": "p_work",     "name": "Work",       "color": "#4338ca" },
-    { "id": "p_reno",     "name": "Renovation", "color": "#ef4444" }
-  ],
+  "version": 8,
+  "last_modified": "2026-06-06T09:30:00+08:00",
   "tags": [
-    { "id": "t_work",     "name": "work",       "color": "#4338ca", "project_id": "p_work", "pinned": true },
-    { "id": "t_reno",     "name": "renovation", "color": "#f59e0b", "project_id": "p_reno" },
-    { "id": "t_urgent",   "name": "urgent",     "color": "#dc2626" },
-    { "id": "t_errand",   "name": "errand",     "color": "#10b981", "pinned": true }
+    {
+      "id": "t_work",
+      "name": "work",
+      "color": "#4338ca",
+      "priority": 0,
+      "pinned": true
+    },
+    {
+      "id": "t_reno",
+      "name": "renovation",
+      "color": "#f59e0b",
+      "priority": -1,
+      "pinned": false
+    },
+    {
+      "id": "t_urgent",
+      "name": "urgent",
+      "color": "#dc2626",
+      "priority": 10,
+      "pinned": true
+    },
+    {
+      "id": "t_errand",
+      "name": "errand",
+      "color": "#10b981",
+      "priority": 0,
+      "pinned": true
+    }
   ],
   "tasks": [
     {
-      "id": "k_overdue1", "title": "Reply to Anna", "done": false,
-      "due_date": "2026-05-26", "start_date": null, "priority": "high",
-      "notes": "", "tag_ids": ["t_work", "t_urgent"],
-      "created_at": 1748390000000, "completed_at": null
+      "id": "k_overdue1",
+      "title": "Reply to Anna",
+      "due_date": "2026-05-26",
+      "notes": "",
+      "tag_ids": ["t_work", "t_urgent"],
+      "created_at": "2026-05-28T10:00:00+08:00",
+      "updated_at": "2026-05-28T10:15:00+08:00"
     },
     {
-      "id": "k_today1", "title": "Pick up dry cleaning", "done": false,
-      "due_date": null, "start_date": "2026-05-28", "priority": "med",
-      "notes": "", "tag_ids": ["t_errand"],
-      "created_at": 1748390100000, "completed_at": null
+      "id": "k_today1",
+      "title": "Pick up dry cleaning",
+      "start_date": "2026-05-28",
+      "notes": "",
+      "tag_ids": ["t_errand"],
+      "created_at": "2026-05-28T10:01:00+08:00"
     },
     {
-      "id": "k_today2", "title": "Review PR #248", "done": false,
-      "due_date": "2026-05-28", "start_date": null, "priority": "high",
-      "notes": "", "tag_ids": ["t_work"],
-      "created_at": 1748390200000, "completed_at": null
+      "id": "k_today2",
+      "title": "Review PR #248",
+      "due_date": "2026-05-28",
+      "notes": "",
+      "tag_ids": ["t_work"],
+      "created_at": "2026-05-28T10:02:00+08:00",
+      "time_entries": [
+        {
+          "id": "te_review1",
+          "start": "2026-05-28T10:30:00+08:00",
+          "end": "2026-05-28T11:00:00+08:00"
+        }
+      ]
     },
     {
-      "id": "k_reno1",  "title": "Call electrician", "done": false,
-      "due_date": "2026-05-30", "start_date": "2026-05-28", "priority": "low",
-      "notes": "Three-way switch.", "tag_ids": ["t_reno"],
-      "created_at": 1748390300000, "completed_at": null
+      "id": "k_reno1",
+      "title": "Call electrician",
+      "due_date": "2026-05-30",
+      "start_date": "2026-05-28",
+      "notes": "Three-way switch.",
+      "tag_ids": ["t_reno"],
+      "created_at": "2026-05-28T10:03:00+08:00"
     },
     {
-      "id": "k_future1", "title": "Plan vacation", "done": false,
-      "due_date": "2026-06-10", "start_date": "2026-06-05", "priority": null,
-      "notes": "", "tag_ids": [],
-      "created_at": 1748390400000, "completed_at": null
+      "id": "k_future1",
+      "title": "Plan vacation",
+      "due_date": "2026-06-10",
+      "start_date": "2026-06-05",
+      "notes": "",
+      "tag_ids": [],
+      "created_at": "2026-05-28T10:04:00+08:00"
+    }
+  ],
+  "template_tasks": [
+    {
+      "id": "k_template1",
+      "title": "Weekly review",
+      "notes": "Check open loops.",
+      "tag_ids": ["t_work"],
+      "created_at": "2026-06-01T09:00:00+08:00",
+      "start_offset_days": 0,
+      "due_offset_days": 0,
+      "recurrence": {
+        "kind": "weekly",
+        "weekdays": [1, 5]
+      },
+      "recurrence_tag_id": "t_work"
     }
   ]
 }
