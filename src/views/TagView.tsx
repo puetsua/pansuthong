@@ -39,7 +39,7 @@ export function TagView({ doc, indexes }: Props) {
         </div>
         <p className="view-sub">{t("tagView.subtitle", { open, total: tasks.length })}</p>
       </header>
-      <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} />
+      <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} contextTagId={id} />
       {ghosts.map(g => <GhostRow key={g.id} ghost={g} tags={indexes.tagsById} />)}
       <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={indexes.todayIso}
                 emptyText={t("tagView.empty")}
