@@ -79,6 +79,7 @@ pub struct NewTaskInput {
     #[serde(default)] pub start_time: Option<String>,
     #[serde(default)] pub notes: String,
     #[serde(default)] pub tag_ids: Vec<String>,
+    #[serde(default)] pub estimated_seconds: Option<i64>,
 }
 
 /// Reject a time-of-day that isn't a valid "HH:MM" (#93). `None` (all-day) is
@@ -87,6 +88,22 @@ fn validate_time(t: Option<&str>) -> Result<()> {
     if let Some(s) = t {
         chrono::NaiveTime::parse_from_str(s, "%H:%M")
             .map_err(|_| AppError::Invalid(format!("time must be HH:MM, got {s:?}")))?;
+    }
+    Ok(())
+}
+
+/// Estimated effort is optional, but when present it must be a positive whole
+/// number of seconds. The cap preserves the old 100,000-minute maximum while
+/// allowing explicit second-level estimates such as `50s`.
+const ESTIMATED_SECONDS_MAX: i64 = 100_000 * 60;
+
+fn validate_estimated_seconds(seconds: Option<i64>) -> Result<()> {
+    if let Some(n) = seconds {
+        if !(1..=ESTIMATED_SECONDS_MAX).contains(&n) {
+            return Err(AppError::Invalid(format!(
+                "estimated seconds must be 1..={ESTIMATED_SECONDS_MAX}, got {n}"
+            )));
+        }
     }
     Ok(())
 }
@@ -180,6 +197,7 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
     }
     validate_time(input.due_time.as_deref())?;
     validate_time(input.start_time.as_deref())?;
+    validate_estimated_seconds(input.estimated_seconds)?;
     let ts = now_ms();
     let saved = state.write(|d| {
         let task = Task {
@@ -192,6 +210,7 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
             start_time: input.start_date.and(input.start_time),
             notes: input.notes,
             tag_ids: retain_known_tags(input.tag_ids, &d.tags),
+            estimated_seconds: input.estimated_seconds,
             created_at: ts,
             completed_at: None,
             updated_at: ts,
@@ -228,6 +247,7 @@ pub struct UpdateTaskInput {
     #[serde(default, deserialize_with = "double_option")] pub start_time: Option<Option<String>>,
     #[serde(default)] pub notes: Option<String>,
     #[serde(default)] pub tag_ids: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "double_option")] pub estimated_seconds: Option<Option<i64>>,
 }
 
 #[tauri::command]
@@ -248,6 +268,7 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
         }
         if let Some(ref v) = input.due_time       { validate_time(v.as_deref())?; }
         if let Some(ref v) = input.start_time { validate_time(v.as_deref())?; }
+        if let Some(v) = input.estimated_seconds { validate_estimated_seconds(v)?; }
         if let Some(v) = input.due_date       { t.due_date = v; }
         if let Some(v) = input.due_time       { t.due_time = v; }
         if let Some(v) = input.start_date { t.start_date = v; }
@@ -256,6 +277,7 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
         if let Some(v) = input.tag_ids        {
             t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
         }
+        if let Some(v) = input.estimated_seconds { t.estimated_seconds = v; }
         // A time without its date is meaningless; clearing a date drops its time.
         if t.due_date.is_none()       { t.due_time = None; }
         if t.start_date.is_none() { t.start_time = None; }
@@ -428,6 +450,7 @@ pub struct NewTemplateInput {
     #[serde(default)] pub tag_ids: Vec<String>,
     #[serde(default)] pub due_offset_days: Option<i64>,
     #[serde(default)] pub start_offset_days: Option<i64>,
+    #[serde(default)] pub estimated_seconds: Option<i64>,
     #[serde(default)] pub recurrence: Option<Recurrence>,
     #[serde(default)] pub recurrence_tag_id: Option<String>,
 }
@@ -440,6 +463,7 @@ pub fn add_template(input: NewTemplateInput, state: State<'_, AppState>, app: Ap
     }
     validate_offset_days(input.due_offset_days)?;
     validate_offset_days(input.start_offset_days)?;
+    validate_estimated_seconds(input.estimated_seconds)?;
     validate_recurrence(input.recurrence.as_ref())?;
     let ts = now_ms();
     let saved = state.write(|d| {
@@ -456,6 +480,7 @@ pub fn add_template(input: NewTemplateInput, state: State<'_, AppState>, app: Ap
             updated_at: ts,
             due_offset_days: input.due_offset_days,
             start_offset_days: input.start_offset_days,
+            estimated_seconds: input.estimated_seconds,
             recurrence: input.recurrence,
             recurrence_tag_id,
         };
@@ -474,6 +499,7 @@ pub struct UpdateTemplateInput {
     #[serde(default)] pub tag_ids: Option<Vec<String>>,
     #[serde(default, deserialize_with = "double_option")] pub due_offset_days: Option<Option<i64>>,
     #[serde(default, deserialize_with = "double_option")] pub start_offset_days: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")] pub estimated_seconds: Option<Option<i64>>,
     #[serde(default, deserialize_with = "double_option")] pub recurrence: Option<Option<Recurrence>>,
     #[serde(default, deserialize_with = "double_option")] pub recurrence_tag_id: Option<Option<String>>,
 }
@@ -498,6 +524,7 @@ pub fn update_template(input: UpdateTemplateInput, state: State<'_, AppState>, a
         }
         if let Some(v) = input.due_offset_days       { validate_offset_days(v)?; t.due_offset_days = v; }
         if let Some(v) = input.start_offset_days { validate_offset_days(v)?; t.start_offset_days = v; }
+        if let Some(v) = input.estimated_seconds { validate_estimated_seconds(v)?; t.estimated_seconds = v; }
         // Recurrence + its designated tag, validated together against the final tags.
         let new_recurrence = match input.recurrence { Some(v) => v, None => t.recurrence.clone() };
         let new_rec_tag    = match input.recurrence_tag_id { Some(v) => v, None => t.recurrence_tag_id.clone() };
@@ -559,6 +586,7 @@ pub fn spawn_recurring_task(
             start_time: None,
             notes: tmpl.notes,
             tag_ids: retain_known_tags(tmpl.tag_ids, &d.tags),
+            estimated_seconds: tmpl.estimated_seconds,
             created_at: ts,
             completed_at: None,
             updated_at: ts,
@@ -1209,6 +1237,31 @@ mod tests {
     }
 
     #[test]
+    fn task_estimated_seconds_round_trip_and_clear() {
+        let absent: UpdateTaskInput = serde_json::from_str(r#"{"id":"t_1"}"#).unwrap();
+        assert_eq!(absent.estimated_seconds, None);
+        let cleared: UpdateTaskInput =
+            serde_json::from_str(r#"{"id":"t_1","estimated_seconds":null}"#).unwrap();
+        assert_eq!(cleared.estimated_seconds, Some(None));
+        let set: UpdateTaskInput =
+            serde_json::from_str(r#"{"id":"t_1","estimated_seconds":90}"#).unwrap();
+        assert_eq!(set.estimated_seconds, Some(Some(90)));
+        let new: NewTaskInput =
+            serde_json::from_str(r#"{"title":"t","estimated_seconds":30}"#).unwrap();
+        assert_eq!(new.estimated_seconds, Some(30));
+    }
+
+    #[test]
+    fn validate_estimated_seconds_accepts_positive_seconds_only() {
+        assert!(validate_estimated_seconds(None).is_ok());
+        assert!(validate_estimated_seconds(Some(1)).is_ok());
+        assert!(validate_estimated_seconds(Some(ESTIMATED_SECONDS_MAX)).is_ok());
+        assert!(validate_estimated_seconds(Some(0)).is_err());
+        assert!(validate_estimated_seconds(Some(-1)).is_err());
+        assert!(validate_estimated_seconds(Some(ESTIMATED_SECONDS_MAX + 1)).is_err());
+    }
+
+    #[test]
     fn validate_time_accepts_hh_mm_and_rejects_garbage(/* #93 */) {
         assert!(validate_time(None).is_ok());          // all-day
         assert!(validate_time(Some("00:00")).is_ok());
@@ -1412,6 +1465,22 @@ mod tests {
             serde_json::from_str(r#"{"id":"k_1","title":"x","due_offset_days":5}"#).unwrap();
         assert_eq!(set.title.as_deref(), Some("x"));
         assert_eq!(set.due_offset_days, Some(Some(5)));
+    }
+
+    #[test]
+    fn template_inputs_parse_estimated_seconds() {
+        let new: NewTemplateInput =
+            serde_json::from_str(r#"{"title":"t","estimated_seconds":50}"#).unwrap();
+        assert_eq!(new.estimated_seconds, Some(50));
+
+        let absent: UpdateTemplateInput = serde_json::from_str(r#"{"id":"k_1"}"#).unwrap();
+        assert_eq!(absent.estimated_seconds, None);
+        let cleared: UpdateTemplateInput =
+            serde_json::from_str(r#"{"id":"k_1","estimated_seconds":null}"#).unwrap();
+        assert_eq!(cleared.estimated_seconds, Some(None));
+        let set: UpdateTemplateInput =
+            serde_json::from_str(r#"{"id":"k_1","estimated_seconds":3600}"#).unwrap();
+        assert_eq!(set.estimated_seconds, Some(Some(3600)));
     }
 
     #[test]

@@ -146,6 +146,30 @@ describe("TaskEditor time-of-day (#93)", () => {
   });
 });
 
+describe("TaskEditor estimated time", () => {
+  it("saves estimated seconds for an existing task", async () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("Estimated time"), { target: { value: "1h" } });
+    fireEvent.click(button("Save"));
+
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "k_1", estimated_seconds: 3_600 }),
+      ),
+    );
+  });
+
+  it("blocks Save when estimated seconds are invalid", () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("Estimated time"), { target: { value: "0" } });
+
+    expect(screen.getByText(/estimated time must be/i)).toBeTruthy();
+    expect(button("Save").disabled).toBe(true);
+  });
+});
+
 describe("TaskEditor Markdown notes (#70)", () => {
   it("renders Markdown in the split preview by default", () => {
     const task: Task = {
@@ -253,11 +277,12 @@ describe("TaskEditor template editing (#71)", () => {
     render(<TaskEditor kind="template" template={templateTask} allTags={tags} onClose={onClose} />);
 
     fireEvent.change(screen.getByLabelText(/due in \(days\)/i), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText("Estimated time"), { target: { value: "1h" } });
     fireEvent.click(button("Save"));
 
     await waitFor(() =>
       expect(api.updateTemplate).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "k_1", due_offset_days: 5, start_offset_days: 0 }),
+        expect.objectContaining({ id: "k_1", due_offset_days: 5, start_offset_days: 0, estimated_seconds: 3_600 }),
       ),
     );
     // It's a template payload — no task fields leak in.
@@ -272,11 +297,18 @@ describe("TaskEditor template editing (#71)", () => {
     expect(screen.getByText(/due offset can.?t be before/i)).toBeTruthy();
     expect(button("Save").disabled).toBe(true);
   });
+
+  it("shows an existing template estimate as editable duration text", () => {
+    render(<TaskEditor kind="template"
+                       template={{ ...templateTask, estimated_seconds: 3_600 }}
+                       allTags={tags} onClose={vi.fn()} />);
+    expect((screen.getByLabelText("Estimated time") as HTMLInputElement).value).toBe("1h");
+  });
 });
 
 describe("TaskEditor 'Save as template' option (#71)", () => {
   it("creates a template copy via the Options menu and keeps the task (no convert)", async () => {
-    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+    render(<TaskEditor task={{ ...baseTask, estimated_seconds: 50 }} allTags={tags} onClose={vi.fn()} />);
     // There is no always-visible toggle — it lives behind the Options menu.
     expect(screen.queryByRole("checkbox", { name: /save as template/i })).toBeNull();
 
@@ -285,7 +317,7 @@ describe("TaskEditor 'Save as template' option (#71)", () => {
 
     await waitFor(() =>
       expect(api.addTemplate).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Write report" }),
+        expect.objectContaining({ title: "Write report", estimated_seconds: 50 }),
       ),
     );
     // The original task is untouched — saving-as-template does not convert it.
@@ -307,6 +339,21 @@ describe("TaskEditor create mode (#71)", () => {
     );
     expect(api.updateTask).not.toHaveBeenCalled();
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("adds a new task with estimated seconds", async () => {
+    const draft: Task = { ...baseTask, id: "", title: "New with estimate" };
+    render(<TaskEditor task={draft} allTags={tags} creating onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("Estimated time"), { target: { value: "50s" } });
+    fireEvent.click(button(/add task/i));
+
+    await waitFor(() =>
+      expect(api.addTask).toHaveBeenCalledWith(expect.objectContaining({
+        title: "New with estimate",
+        estimated_seconds: 50,
+      })),
+    );
   });
 });
 

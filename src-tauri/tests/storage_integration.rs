@@ -13,6 +13,7 @@ fn make_task(title: &str) -> Task {
         start_time: None,
         notes: String::new(),
         tag_ids: Vec::new(),
+        estimated_seconds: None,
         created_at: 0,
         completed_at: None,
         updated_at: 0,

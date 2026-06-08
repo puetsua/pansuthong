@@ -4,9 +4,13 @@ import { Document, SortOrder, Task, TemplateTask } from "../lib/tauri";
 import { buildIndexes, effectivePriority, openCount } from "./indexes";
 
 const TODAY = "2026-05-28";
+const sampleDoc = {
+  ...sample,
+  settings: { theme: "auto", sort_order: "priority" as SortOrder },
+} as unknown as Document;
 
 describe("buildIndexes", () => {
-  const ix = buildIndexes(sample as unknown as Document);
+  const ix = buildIndexes(sampleDoc);
 
   it("today contains overdue + scheduled today + due today", () => {
     const ids = ix.today(TODAY).map(t => t.id);

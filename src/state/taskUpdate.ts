@@ -9,6 +9,7 @@ export type EditorForm = {
   due_time: string;         // "HH:MM"; "" = all-day (#93)
   notes: string;
   tag_ids: string[];
+  estimated_seconds: string; // duration text; "" = no estimate
   // Names typed into the tag input that don't exist yet. Held here (not created
   // immediately) so they're only persisted as real tags when the user clicks
   // Save, and discarded on Cancel. Kept in the typed case and deduped
@@ -38,6 +39,76 @@ function offsetOrNull(s: string): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+export const ESTIMATED_SECONDS_MAX = 100_000 * 60;
+
+function parseIsoDurationSeconds(raw: string): number | null {
+  const match = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/i.exec(raw);
+  if (!match) return null;
+  const [, days, hours, minutes, seconds] = match;
+  if (days == null && hours == null && minutes == null && seconds == null) return null;
+  return (Number(days ?? 0) * 86_400)
+    + (Number(hours ?? 0) * 3_600)
+    + (Number(minutes ?? 0) * 60)
+    + Number(seconds ?? 0);
+}
+
+function parseUnitDurationSeconds(raw: string): number | null {
+  let total = 0;
+  let lastIndex = 0;
+  const re = /(\d+)\s*([dhms])/gi;
+  for (const match of raw.matchAll(re)) {
+    const gap = raw.slice(lastIndex, match.index).trim();
+    if (gap !== "") return null;
+    const n = Number(match[1]);
+    const unit = match[2].toLowerCase();
+    total += unit === "d" ? n * 86_400
+      : unit === "h" ? n * 3_600
+      : unit === "m" ? n * 60
+      : n;
+    lastIndex = (match.index ?? 0) + match[0].length;
+  }
+  if (lastIndex === 0 || raw.slice(lastIndex).trim() !== "") return null;
+  return total;
+}
+
+export function parseEstimatedSeconds(s: string): number | null {
+  const t = s.trim();
+  if (t === "") return null;
+  if (/^\d+$/.test(t)) return Number(t) * 60; // bare numbers preserve the old minutes input.
+  if (/^P/i.test(t)) return parseIsoDurationSeconds(t);
+  return parseUnitDurationSeconds(t);
+}
+
+export function formatEstimatedSecondsInput(seconds: number | undefined): string {
+  if (seconds == null) return "";
+  const units = [
+    ["d", 86_400],
+    ["h", 3_600],
+    ["m", 60],
+    ["s", 1],
+  ] as const;
+  let remaining = seconds;
+  const parts: string[] = [];
+  for (const [suffix, size] of units) {
+    const n = Math.floor(remaining / size);
+    if (n > 0) {
+      parts.push(`${n}${suffix}`);
+      remaining -= n * size;
+    }
+  }
+  return parts.join(" ");
+}
+
+/** "" => null (no estimate); otherwise the parsed duration in seconds. */
+function estimatedSecondsOrNull(s: string): number | null {
+  return parseEstimatedSeconds(s);
+}
+
+/** "" => undefined for create payloads; otherwise the parsed integer. */
+export function estimatedSecondsOrUndefined(s: string): number | undefined {
+  return estimatedSecondsOrNull(s) ?? undefined;
+}
+
 /**
  * Map editor form state to an update_task payload (a normal task: absolute dates,
  * no offsets). Empty date => null (clear). Templates use buildTemplateUpdate.
@@ -53,6 +124,7 @@ export function buildTaskUpdate(id: string, form: EditorForm): TaskUpdate {
     start_time: form.start_date && form.start_time ? form.start_time : null,
     due_date:       form.due_date || null,
     due_time:       form.due_date && form.due_time ? form.due_time : null,
+    estimated_seconds: estimatedSecondsOrNull(form.estimated_seconds),
   };
 }
 
@@ -68,6 +140,7 @@ export function buildTemplateUpdate(id: string, form: EditorForm): TemplateUpdat
     tag_ids: form.tag_ids,
     start_offset_days: offsetOrNull(form.start_offset_days),
     due_offset_days:       offsetOrNull(form.due_offset_days),
+    estimated_seconds: estimatedSecondsOrNull(form.estimated_seconds),
     recurrence: recurrenceFromForm(form),
     recurrence_tag_id: form.repeat !== "none" ? (form.recurrence_tag_id || null) : null,
   };
@@ -93,6 +166,7 @@ export function isEditorDirty(form: EditorForm, initial: EditorForm): boolean {
     || form.due_date !== initial.due_date
     || form.due_time !== initial.due_time
     || form.notes !== initial.notes
+    || form.estimated_seconds !== initial.estimated_seconds
     || !sameTagSet(form.tag_ids, initial.tag_ids)
     || form.is_template !== initial.is_template
     || form.due_offset_days !== initial.due_offset_days
@@ -103,6 +177,18 @@ export function isEditorDirty(form: EditorForm, initial: EditorForm): boolean {
     || form.repeat_weekdays.join(",") !== initial.repeat_weekdays.join(",")
     || form.recurrence_tag_id !== initial.recurrence_tag_id
     || (form.new_tag_names?.length ?? 0) > 0;
+}
+
+export function estimatedSecondsFormError(
+  form: Pick<EditorForm, "estimated_seconds">,
+): string | null {
+  const raw = form.estimated_seconds.trim();
+  if (raw === "") return null;
+  const n = parseEstimatedSeconds(raw);
+  if (n == null || !Number.isInteger(n) || n < 1 || n > ESTIMATED_SECONDS_MAX) {
+    return i18n.t("taskUpdate.estimatedSecondsRange", { max: "100000m" });
+  }
+  return null;
 }
 
 /** A comparable "date[Ttime]" moment; a missing time counts as start-of-day (#93). */

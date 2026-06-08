@@ -40,6 +40,7 @@ export function TimeTracking({ task }: Props) {
   const running = isTiming(task);
   const now = useNow(running);
   const total = elapsedMs(task, now);
+  const estimateMs = task.estimated_seconds != null ? task.estimated_seconds * 1_000 : 0;
   const entries = [...(task.time_entries ?? [])].sort((a, b) => entryMs(b.start) - entryMs(a.start));
 
   const run = (p: Promise<unknown>) => { setErr(null); p.catch(e => setErr(errorMessage(e))); };
@@ -87,6 +88,11 @@ export function TimeTracking({ task }: Props) {
         <span className="te-time-total" data-running={running}>
           {running ? formatClock(total) : formatDurationShort(total)}
         </span>
+        {estimateMs > 0 && (
+          <span className="te-time-estimate" data-over={total >= estimateMs}>
+            {t("timeTracking.estimate", { estimate: formatDurationShort(estimateMs) })}
+          </span>
+        )}
         <button type="button" className="te-time-toggle" data-running={running} onClick={toggleTimer}>
           {running ? t("timeTracking.stop") : t("timeTracking.start")}
         </button>

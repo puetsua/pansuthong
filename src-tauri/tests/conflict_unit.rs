@@ -11,6 +11,7 @@ fn mk(id: &str, title: &str, done: bool) -> Task {
         start_time: None,
         notes: String::new(),
         tag_ids: Vec::new(),
+        estimated_seconds: None,
         created_at: 0,
         completed_at: done.then_some(0),
         updated_at: 0,

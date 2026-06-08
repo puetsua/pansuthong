@@ -4,8 +4,11 @@ import {
   buildTemplateUpdate,
   dueBeforeStart,
   EditorForm,
+  estimatedSecondsFormError,
+  formatEstimatedSecondsInput,
   isEditorDirty,
   offsetFormError,
+  parseEstimatedSeconds,
   recurrenceFromForm,
   recurrenceFormError,
   sameTagSet,
@@ -19,6 +22,7 @@ const base: EditorForm = {
   due_time: "",
   notes: "",
   tag_ids: [],
+  estimated_seconds: "",
   is_template: false,
   due_offset_days: "",
   start_offset_days: "",
@@ -52,6 +56,12 @@ describe("buildTaskUpdate", () => {
     expect(p.tag_ids).toEqual(["tag_a"]);
   });
 
+  it("sends parsed estimated seconds and clears an empty estimate", () => {
+    expect(buildTaskUpdate("t_1", { ...base, estimated_seconds: "45" }).estimated_seconds).toBe(45 * 60);
+    expect(buildTaskUpdate("t_1", { ...base, estimated_seconds: "50s" }).estimated_seconds).toBe(50);
+    expect(buildTaskUpdate("t_1", base).estimated_seconds).toBeNull();
+  });
+
   it("a task payload carries no template fields (#71)", () => {
     const p = buildTaskUpdate("t_1", { ...base, due_date: "2026-06-01" });
     expect(p.due_date).toBe("2026-06-01");
@@ -71,9 +81,10 @@ describe("buildTemplateUpdate (#71)", () => {
   });
 
   it("sends relative offsets and never absolute dates", () => {
-    const p = buildTemplateUpdate("k_1", { ...base, due_offset_days: "3", start_offset_days: "0" });
+    const p = buildTemplateUpdate("k_1", { ...base, due_offset_days: "3", start_offset_days: "0", estimated_seconds: "1h" });
     expect(p.due_offset_days).toBe(3);
     expect(p.start_offset_days).toBe(0);
+    expect(p.estimated_seconds).toBe(3_600);
     expect("due_date" in p).toBe(false);
     expect("start_date" in p).toBe(false);
   });
@@ -105,6 +116,52 @@ describe("isEditorDirty (#51)", () => {
   it("a real field change is dirty", () => {
     expect(isEditorDirty({ ...base, title: "changed" }, base)).toBe(true);
     expect(isEditorDirty({ ...base, tag_ids: ["a"] }, base)).toBe(true);
+    expect(isEditorDirty({ ...base, estimated_seconds: "30" }, base)).toBe(true);
+  });
+});
+
+describe("estimatedSecondsFormError", () => {
+  it("accepts empty and positive duration estimates", () => {
+    expect(estimatedSecondsFormError({ estimated_seconds: "" })).toBeNull();
+    expect(estimatedSecondsFormError({ estimated_seconds: "1" })).toBeNull();
+    expect(estimatedSecondsFormError({ estimated_seconds: "1h" })).toBeNull();
+    expect(estimatedSecondsFormError({ estimated_seconds: "P3D" })).toBeNull();
+  });
+
+  it("rejects zero, negative, decimal, malformed, and too-large estimates", () => {
+    expect(estimatedSecondsFormError({ estimated_seconds: "0" })).toMatch(/positive duration/i);
+    expect(estimatedSecondsFormError({ estimated_seconds: "-1" })).toMatch(/positive duration/i);
+    expect(estimatedSecondsFormError({ estimated_seconds: "1.5h" })).toMatch(/positive duration/i);
+    expect(estimatedSecondsFormError({ estimated_seconds: "1x" })).toMatch(/positive duration/i);
+    expect(estimatedSecondsFormError({ estimated_seconds: "100001m" })).toMatch(/positive duration/i);
+  });
+});
+
+describe("parseEstimatedSeconds", () => {
+  it("keeps bare numbers as minutes for old input behavior", () => {
+    expect(parseEstimatedSeconds("45")).toBe(45 * 60);
+  });
+
+  it("parses short duration suffixes", () => {
+    expect(parseEstimatedSeconds("1h")).toBe(3_600);
+    expect(parseEstimatedSeconds("5h")).toBe(5 * 3_600);
+    expect(parseEstimatedSeconds("12h")).toBe(12 * 3_600);
+    expect(parseEstimatedSeconds("20m")).toBe(20 * 60);
+    expect(parseEstimatedSeconds("50s")).toBe(50);
+    expect(parseEstimatedSeconds("1d")).toBe(86_400);
+  });
+
+  it("parses compound short durations and ISO-8601 durations", () => {
+    expect(parseEstimatedSeconds("1h 20m 50s")).toBe(4_850);
+    expect(parseEstimatedSeconds("P1DT1H")).toBe(90_000);
+    expect(parseEstimatedSeconds("P3D")).toBe(259_200);
+    expect(parseEstimatedSeconds("PT50S")).toBe(50);
+  });
+
+  it("formats saved seconds into editable shorthand", () => {
+    expect(formatEstimatedSecondsInput(50)).toBe("50s");
+    expect(formatEstimatedSecondsInput(3_600)).toBe("1h");
+    expect(formatEstimatedSecondsInput(90_050)).toBe("1d 1h 50s");
   });
 });
 

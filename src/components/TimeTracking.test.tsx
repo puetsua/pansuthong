@@ -46,6 +46,16 @@ describe("TimeTracking (#81)", () => {
     await waitFor(() => expect(api.deleteTimeEntry).toHaveBeenCalledWith("k_1", "te_1"));
   });
 
+  it("shows the task estimate beside tracked time", () => {
+    render(<TimeTracking task={{ ...base, estimated_seconds: 90 * 60 }} />);
+    expect(screen.getByText("est. 1h 30m")).toBeTruthy();
+  });
+
+  it("marks the estimate as over once tracked time reaches it", () => {
+    render(<TimeTracking task={{ ...base, estimated_seconds: 30 * 60, time_entries: [closed] }} />);
+    expect(screen.getByText("est. 30m").getAttribute("data-over")).toBe("true");
+  });
+
   it("edits an entry's times", async () => {
     render(<TimeTracking task={{ ...base, time_entries: [closed] }} />);
     fireEvent.click(screen.getByRole("button", { name: /edit entry/i }));

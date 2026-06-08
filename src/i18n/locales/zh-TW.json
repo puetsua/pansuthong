@@ -204,6 +204,7 @@
   },
   "timeTracking": {
     "timeTracked": "已追蹤時間",
+    "estimate": "預估 {{estimate}}",
     "start": "開始",
     "stop": "停止",
     "running": "進行中",
@@ -223,6 +224,10 @@
     "errEndAfterStart": "結束時間必須晚於開始時間。",
     "errEnterStart": "請輸入開始時間。",
     "errEnterEnd": "請輸入結束時間。"
+  },
+  "timeEstimateReminder": {
+    "title": "任務已達預估時間",
+    "body": "「{{title}}」已追蹤 {{tracked}}。預估：{{estimate}}。"
   },
   "tagEditor": {
     "name": "名稱",
@@ -291,6 +296,8 @@
     "dueDate": "到期日期",
     "startTime": "開始時間",
     "dueTime": "到期時間",
+    "estimatedSeconds": "預估時間",
+    "estimatedSecondsPlaceholder": "1h, 20m, 50s, P1DT1H",
     "tags": "標籤",
     "notes": "備註",
     "notesView": "備註檢視",
@@ -327,7 +334,8 @@
     "addYearlyDate": "請至少新增一個重複的日期。",
     "yearlyDateNeedsMonthDay": "每個日期都需要月份與該月的有效日期。",
     "addTagForRecurrence": "請先在下方標籤欄位新增標籤，再選擇它作為週期標籤。",
-    "chooseRecurrenceTag": "選擇此項目重複所依據的標籤。"
+    "chooseRecurrenceTag": "選擇此項目重複所依據的標籤。",
+    "estimatedSecondsRange": "預估時間必須是最長 {{max}} 的正數時間，例如 1h、20m、50s、1d 或 P1DT1H。"
   },
   "quickCapture": {
     "placeholder": "快速新增…（#tag  due fri）",

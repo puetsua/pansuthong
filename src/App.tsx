@@ -19,6 +19,7 @@ import { HistoryView } from "./views/HistoryView";
 import { useDocument } from "./state/store";
 import { setCompletionSoundEnabled } from "./lib/sound";
 import { UpdatePrompt } from "./components/UpdatePrompt";
+import { TimeEstimateReminder } from "./components/TimeEstimateReminder";
 
 export default function App() {
   const { t } = useTranslation();
@@ -52,6 +53,7 @@ export default function App() {
     <BrowserRouter>
       <Shell doc={doc} indexes={indexes}>
         <UpdatePrompt />
+        <TimeEstimateReminder tasks={doc.tasks} />
         {reloadError && (
           <div className="reload-banner" role="alert">
             <span>{t("app.reloadError", { error: reloadError })}</span>

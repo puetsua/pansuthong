@@ -44,6 +44,7 @@ export function TemplateRow({ template, tags, todayIso }: Props) {
       created_at: "",
       due_date: template.due_offset_days != null ? addDaysIso(todayIso, template.due_offset_days) : undefined,
       start_date: template.start_offset_days != null ? addDaysIso(todayIso, template.start_offset_days) : undefined,
+      estimated_seconds: template.estimated_seconds,
       completed_at: undefined,
     });
   };

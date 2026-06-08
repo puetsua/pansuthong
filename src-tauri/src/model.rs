@@ -221,6 +221,10 @@ pub struct Task {
     pub notes: String,
     #[serde(default)]
     pub tag_ids: Vec<String>,
+    /// Estimated effort in whole seconds. Missing means no estimate, so older
+    /// task files keep loading and tasks without estimates still omit the key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub estimated_seconds: Option<i64>,
     #[serde(serialize_with = "iso_secs::serialize")]
     pub created_at:   i64,
     /// Epoch millis the task was completed. The **single source of truth** for
@@ -269,6 +273,9 @@ pub struct TemplateTask {
     /// Legacy files wrote `scheduled_offset_days`; the alias keeps them loading (#renamed).
     #[serde(skip_serializing_if = "Option::is_none", default, alias = "scheduled_offset_days")]
     pub start_offset_days: Option<i64>,
+    /// The spawned task's estimated effort in whole seconds. `None` = no estimate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub estimated_seconds: Option<i64>,
     /// Optional recurrence schedule (#9). `None` = a manual-only template (the
     /// pre-#9 behavior). `#[serde(default)]` so older files load; `skip_serializing_if`
     /// keeps a manual template serializing byte-for-byte as before.
@@ -296,6 +303,7 @@ impl TemplateTask {
             updated_at: c.updated_at,
             due_offset_days: c.due_offset_days,
             start_offset_days: c.start_offset_days,
+            estimated_seconds: c.estimated_seconds.or_else(|| c.estimated_minutes.map(|m| m * 60)),
             recurrence: None,
             recurrence_tag_id: None,
         }
@@ -327,6 +335,10 @@ struct TaskCompat {
     notes: String,
     #[serde(default)]
     tag_ids: Vec<String>,
+    #[serde(default)]
+    estimated_seconds: Option<i64>,
+    #[serde(default)]
+    estimated_minutes: Option<i64>,
     #[serde(deserialize_with = "iso_secs::deserialize")]
     created_at: i64,
     #[serde(default, deserialize_with = "iso_secs_opt::deserialize")]
@@ -361,6 +373,7 @@ impl From<TaskCompat> for Task {
             start_time: c.start_time,
             notes: c.notes,
             tag_ids: c.tag_ids,
+            estimated_seconds: c.estimated_seconds.or_else(|| c.estimated_minutes.map(|m| m * 60)),
             created_at: c.created_at,
             completed_at,
             updated_at: c.updated_at,
@@ -572,6 +585,7 @@ mod tests {
             start_time: None,
             notes: String::new(),
             tag_ids: Vec::new(),
+            estimated_seconds: None,
             created_at: 0,
             completed_at: None,
             updated_at: 0,
@@ -666,6 +680,22 @@ mod tests {
         let t: Task =
             serde_json::from_str(r##"{"id":"k_1","title":"t","created_at":0}"##).unwrap();
         assert!(t.time_entries.is_empty());
+    }
+
+    #[test]
+    fn estimated_seconds_round_trip_and_omit_when_absent() {
+        let bare = task();
+        let json = serde_json::to_string(&bare).unwrap();
+        assert!(!json.contains("estimated_seconds"), "absent estimate must not be written");
+
+        let with_estimate: Task =
+            serde_json::from_str(r##"{"id":"k_1","title":"t","created_at":0,"estimated_seconds":50}"##).unwrap();
+        assert_eq!(with_estimate.estimated_seconds, Some(50));
+        assert!(serde_json::to_string(&with_estimate).unwrap().contains("\"estimated_seconds\":50"));
+
+        let legacy_minutes: Task =
+            serde_json::from_str(r##"{"id":"k_1","title":"t","created_at":0,"estimated_minutes":45}"##).unwrap();
+        assert_eq!(legacy_minutes.estimated_seconds, Some(45 * 60));
     }
 
     #[test]
@@ -800,6 +830,7 @@ mod tests {
             updated_at: 0,
             due_offset_days: None,
             start_offset_days: None,
+            estimated_seconds: None,
             recurrence: None,
             recurrence_tag_id: None,
         }
@@ -852,7 +883,7 @@ mod tests {
                 "tasks": [
                     {"id":"k_tmpl","title":"Weekly review","created_at":0,
                      "is_template":true,"due_offset_days":3,"scheduled_offset_days":0,
-                     "tag_ids":["t_work"],"notes":"check inbox"},
+                     "tag_ids":["t_work"],"notes":"check inbox","estimated_seconds":50},
                     {"id":"k_real","title":"real","created_at":0}
                 ]
             }"##,
@@ -868,6 +899,7 @@ mod tests {
         assert_eq!(t.due_offset_days, Some(3));
         // Legacy v4 key `scheduled_offset_days` loads via the serde alias (#renamed).
         assert_eq!(t.start_offset_days, Some(0));
+        assert_eq!(t.estimated_seconds, Some(50));
     }
 
     #[test]
@@ -876,17 +908,20 @@ mod tests {
         doc.tasks.push({ let mut t = task(); t.id = "k_real".into(); t });
         let mut tmpl = template("k_tmpl");
         tmpl.due_offset_days = Some(2);
+        tmpl.estimated_seconds = Some(50);
         doc.template_tasks.push(tmpl);
 
         let json = serde_json::to_string(&doc).unwrap();
         // Templates serialize under template_tasks; a task never carries is_template.
         assert!(json.contains("\"template_tasks\""), "{json}");
         assert!(!json.contains("is_template"), "no legacy is_template key: {json}");
+        assert!(json.contains("\"estimated_seconds\":50"), "{json}");
 
         let back: Document = serde_json::from_str(&json).unwrap();
         assert_eq!(back.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>(), ["k_real"]);
         assert_eq!(back.template_tasks.len(), 1);
         assert_eq!(back.template_tasks[0].due_offset_days, Some(2));
+        assert_eq!(back.template_tasks[0].estimated_seconds, Some(50));
     }
 
     #[test]

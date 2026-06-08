@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { Tag, TemplateTask } from "../lib/tauri";
 import { TemplateRow } from "./TemplateRow";
 
@@ -43,6 +43,24 @@ describe("TemplateRow (#71)", () => {
     expect(screen.getByRole("dialog", { name: /new task/i })).toBeTruthy();
     expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Weekly report");
     expect(api.addTask).not.toHaveBeenCalled();
+  });
+
+  it("copies the template estimate into a created task", async () => {
+    render(
+      <TemplateRow template={{ ...baseTemplate, estimated_seconds: 50 }}
+                   tags={tags} todayIso="2026-05-31" />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /new task from/i }));
+    expect((screen.getByLabelText("Estimated time") as HTMLInputElement).value).toBe("50s");
+
+    fireEvent.click(screen.getByRole("button", { name: /add task/i }));
+
+    await waitFor(() =>
+      expect(api.addTask).toHaveBeenCalledWith(expect.objectContaining({
+        title: "Weekly report",
+        estimated_seconds: 50,
+      })),
+    );
   });
 
   it("opens the template editor when the row body is clicked", () => {

@@ -203,6 +203,19 @@
           },
           "default": []
         },
+        "estimated_seconds": {
+          "description": "Estimated effort for this task in whole seconds. Null and missing both mean no estimate.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "created_at": {
           "$ref": "#/$defs/timestamp"
         },
@@ -367,6 +380,19 @@
           "oneOf": [
             {
               "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "estimated_seconds": {
+          "description": "Estimated effort copied to spawned tasks, in whole seconds. Null and missing both mean no estimate.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6000000
             },
             {
               "type": "null"

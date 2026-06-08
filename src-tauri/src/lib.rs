@@ -22,6 +22,7 @@ const LEGACY_WINDOW_STATE_FILENAME: &str = ".window-state.json";
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init());
 

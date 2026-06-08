@@ -166,6 +166,7 @@ mod merge_tests {
             id: id.into(), title: id.into(),
             due_date: None, due_time: None, start_date: None, start_time: None, notes: String::new(),
             tag_ids: tag_ids.iter().map(|s| s.to_string()).collect(),
+            estimated_seconds: None,
             created_at: 0, completed_at: None, updated_at: 0, time_entries: Vec::new(),
         }
     }

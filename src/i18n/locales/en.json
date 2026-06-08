@@ -208,6 +208,7 @@
   },
   "timeTracking": {
     "timeTracked": "Time tracked",
+    "estimate": "est. {{estimate}}",
     "start": "Start",
     "stop": "Stop",
     "running": "running",
@@ -227,6 +228,10 @@
     "errEndAfterStart": "End must be after start.",
     "errEnterStart": "Enter a start time.",
     "errEnterEnd": "Enter an end time."
+  },
+  "timeEstimateReminder": {
+    "title": "Task estimate reached",
+    "body": "You've tracked {{tracked}} on \"{{title}}\". Estimate: {{estimate}}."
   },
   "tagEditor": {
     "name": "Name",
@@ -295,6 +300,8 @@
     "dueDate": "Due Date",
     "startTime": "Start time",
     "dueTime": "Due time",
+    "estimatedSeconds": "Estimated time",
+    "estimatedSecondsPlaceholder": "1h, 20m, 50s, P1DT1H",
     "tags": "Tags",
     "notes": "Notes",
     "notesView": "Notes view",
@@ -331,7 +338,8 @@
     "addYearlyDate": "Add at least one date to repeat on.",
     "yearlyDateNeedsMonthDay": "Each date needs a month and a valid day for that month.",
     "addTagForRecurrence": "Add a tag in the Tags field below, then choose it as the recurrence tag.",
-    "chooseRecurrenceTag": "Choose which tag this recurs under."
+    "chooseRecurrenceTag": "Choose which tag this recurs under.",
+    "estimatedSecondsRange": "Estimated time must be a positive duration up to {{max}}. Use values like 1h, 20m, 50s, 1d, or P1DT1H."
   },
   "quickCapture": {
     "placeholder": "Quick add…  (#tag  due fri)",

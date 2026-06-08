@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { api, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, isEditorDirty, maxDayForMonth, offsetFormError, recurrenceFormError, recurrenceFromForm } from "../state/taskUpdate";
+import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, estimatedSecondsFormError, estimatedSecondsOrUndefined, formatEstimatedSecondsInput, isEditorDirty, maxDayForMonth, offsetFormError, recurrenceFormError, recurrenceFromForm } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
 import { readableTextColor } from "../lib/tags";
@@ -55,6 +55,7 @@ export function TaskEditor(props: Props) {
     due_time: taskEntity?.due_time ?? "",
     notes: entity.notes ?? "",
     tag_ids: entity.tag_ids,
+    estimated_seconds: formatEstimatedSecondsInput(taskEntity?.estimated_seconds ?? tmplEntity?.estimated_seconds),
     new_tag_names: [],
     is_template: isTemplate,
     due_offset_days: tmplEntity?.due_offset_days != null ? String(tmplEntity.due_offset_days) : "",
@@ -158,6 +159,7 @@ export function TaskEditor(props: Props) {
   const dateError = !isTemplate && dueBeforeStart(form)
     ? t("taskEditor.dueBeforeStart")
     : null;
+  const estimateError = estimatedSecondsFormError(form);
   // Templates use relative offsets instead of absolute dates; validate them (range
   // and due-before-scheduled ordering) the same way #51 validates dates, so a
   // template can't silently spawn invalid tasks on every instantiation (#71).
@@ -185,6 +187,7 @@ export function TaskEditor(props: Props) {
   const save = async () => {
     if (!form.title.trim()) { setError(t("taskEditor.titleEmpty")); return; }
     if (dateError) { setError(dateError); return; }
+    if (estimateError) { setError(estimateError); return; }
     if (offsetError) { setError(offsetError); return; }
     if (recurError) { setError(recurError); return; }
     setBusy(true);
@@ -198,6 +201,7 @@ export function TaskEditor(props: Props) {
             tag_ids: tagIds,
             start_offset_days: offsetNum(form.start_offset_days),
             due_offset_days: offsetNum(form.due_offset_days),
+            estimated_seconds: estimatedSecondsOrUndefined(form.estimated_seconds),
             recurrence: recurrenceFromForm(form),
             recurrence_tag_id: form.repeat !== "none" ? (form.recurrence_tag_id || null) : null,
           });
@@ -214,6 +218,7 @@ export function TaskEditor(props: Props) {
           due_time: form.due_date && form.due_time ? form.due_time : undefined,
           notes: form.notes,
           tag_ids: tagIds,
+          estimated_seconds: estimatedSecondsOrUndefined(form.estimated_seconds),
         });
       } else {
         await api.updateTask(buildTaskUpdate(entity.id, { ...form, tag_ids: tagIds }));
@@ -243,6 +248,7 @@ export function TaskEditor(props: Props) {
         tag_ids: tagIds,
         start_offset_days: offset(form.start_date),
         due_offset_days: offset(form.due_date),
+        estimated_seconds: estimatedSecondsOrUndefined(form.estimated_seconds),
       });
       setBusy(false);
       setError(null);
@@ -260,6 +266,7 @@ export function TaskEditor(props: Props) {
     if (isDirty()) {
       if (!form.title.trim()) { setError(t("taskEditor.titleEmpty")); return; }
       if (dateError) { setError(dateError); return; }
+      if (estimateError) { setError(estimateError); return; }
     }
     setBusy(true);
     try {
@@ -316,6 +323,13 @@ export function TaskEditor(props: Props) {
               </label>
             </div>
             {offsetError && <p className="te-warn" role="alert">{offsetError}</p>}
+            <label className="te-field">
+              <span>{t("taskEditor.estimatedSeconds")}</span>
+              <input type="text" inputMode="text" placeholder={t("taskEditor.estimatedSecondsPlaceholder")}
+                     value={form.estimated_seconds}
+                     onChange={e => set("estimated_seconds", e.currentTarget.value)} />
+            </label>
+            {estimateError && <p className="te-warn" role="alert">{estimateError}</p>}
             <div className="te-field">
               <span>{t("taskEditor.repeat")}</span>
               <select value={form.repeat}
@@ -450,6 +464,13 @@ export function TaskEditor(props: Props) {
               </label>
             </div>
             {dateError && <p className="te-warn" role="alert">{dateError}</p>}
+            <label className="te-field">
+              <span>{t("taskEditor.estimatedSeconds")}</span>
+              <input type="text" inputMode="text" placeholder={t("taskEditor.estimatedSecondsPlaceholder")}
+                     value={form.estimated_seconds}
+                     onChange={e => set("estimated_seconds", e.currentTarget.value)} />
+            </label>
+            {estimateError && <p className="te-warn" role="alert">{estimateError}</p>}
           </>
         )}
 
@@ -535,7 +556,7 @@ export function TaskEditor(props: Props) {
           <span className="te-spacer" />
           <button type="button" onClick={requestClose} disabled={busy}>{t("taskEditor.cancel")}</button>
           <button type="button" className="te-save" onClick={save}
-                  disabled={busy || !form.title.trim() || !!dateError || !!offsetError || !!recurError}>
+                  disabled={busy || !form.title.trim() || !!dateError || !!estimateError || !!offsetError || !!recurError}>
             {creating ? t("taskEditor.addTask") : t("taskEditor.save")}
           </button>
         </div>

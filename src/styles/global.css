@@ -804,6 +804,8 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .te-field-label { font-size: 0.72rem; color: var(--c-text-muted); font-weight: 600; }
 .te-time-total { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
 .te-time-total[data-running="true"] { color: var(--c-accent); }
+.te-time-estimate { flex-shrink: 0; font-size: 0.76rem; color: var(--c-text-muted); font-variant-numeric: tabular-nums; }
+.te-time-estimate[data-over="true"] { color: var(--c-danger); font-weight: 600; }
 .te-time-toggle {
   font-size: 0.78rem; font-weight: 600;
   border: 1px solid var(--c-border); border-radius: var(--radius-sm); padding: 2px 12px;

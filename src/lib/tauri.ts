@@ -42,6 +42,7 @@ export type Task = {
   start_time?: string; // "HH:MM" local; companion to start_date, absent = all-day (#93)
   notes: string;
   tag_ids: string[];
+  estimated_seconds?: number; // whole seconds of expected effort; absent = no estimate
   created_at: string; // ISO-8601 local time w/ offset, e.g. 2026-06-01T20:34:56+08:00
   // ISO-8601 instant (local time w/ offset) the task was completed. The single
   // source of truth for completion AND archival: set = done and hidden from the
@@ -80,6 +81,7 @@ export type TemplateTask = {
   updated_at?: string; // ISO-8601 local time w/ offset of last edit; omitted if never edited
   due_offset_days?: number;       // spawned task's due = today + N days
   start_offset_days?: number; // spawned task's start date = today + M days
+  estimated_seconds?: number; // spawned task's expected effort; absent = no estimate
   recurrence?: Recurrence; // #9; absent = manual-only template
   recurrence_tag_id?: string; // #9 which tag the recurrence is keyed to (one of tag_ids)
 };
@@ -112,6 +114,7 @@ export type TaskUpdate = {
   start_time?: string | null;
   notes?: string;
   tag_ids?: string[];
+  estimated_seconds?: number | null;
 };
 
 export type NewTemplate = {
@@ -120,6 +123,7 @@ export type NewTemplate = {
   tag_ids?: string[];
   due_offset_days?: number;
   start_offset_days?: number;
+  estimated_seconds?: number;
   recurrence?: Recurrence | null;
   recurrence_tag_id?: string | null;
 };
@@ -132,6 +136,7 @@ export type TemplateUpdate = {
   tag_ids?: string[];
   due_offset_days?: number | null;
   start_offset_days?: number | null;
+  estimated_seconds?: number | null;
   recurrence?: Recurrence | null; // null clears the schedule; omitted leaves it
   recurrence_tag_id?: string | null;
 };
