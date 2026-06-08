@@ -1,6 +1,7 @@
 {
   "version": 8,
   "last_modified": "2026-06-06T09:30:00+08:00",
+  "settings": { "theme": "auto", "sort_order": "priority" },
   "tags": [
     {
       "id": "t_work",

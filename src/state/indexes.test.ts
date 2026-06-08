@@ -16,8 +16,10 @@ describe("buildIndexes", () => {
   it("inbox contains tasks with no pinned tag (untagged or unpinned-only)", () => {
     // t_work and t_errand are pinned, so their tasks are surfaced in the sidebar
     // and excluded. k_reno1 (only the unpinned t_reno) and k_future1 (untagged)
-    // have no pinned tag, so they fall to Inbox.
-    expect(ix.inbox.map(t => t.id)).toEqual(["k_reno1", "k_future1"]);
+    // have no pinned tag, so they fall to Inbox. Under the default priority sort,
+    // untagged k_future1 (weight 0) ranks above k_reno1, whose t_reno weight of
+    // -1 sinks it below untagged tasks.
+    expect(ix.inbox.map(t => t.id)).toEqual(["k_future1", "k_reno1"]);
   });
 
   it("byTag for t_urgent returns one task", () => {
