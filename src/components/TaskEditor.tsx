@@ -1,4 +1,4 @@
-import { type MouseEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
@@ -73,8 +73,6 @@ export function TaskEditor(props: Props) {
   const [busy, setBusy] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
-  const backdropPressStartedRef = useRef<boolean | null>(null);
-  const backdropPressEndedRef = useRef<boolean | null>(null);
   // The element focused before the modal opened (the triggering row button),
   // captured on first render so focus can be restored on close.
   const restoreFocusRef = useRef<HTMLElement | null>(null);
@@ -290,44 +288,8 @@ export function TaskEditor(props: Props) {
     }
   };
 
-  // Clicking the dimmed backdrop auto-saves rather than prompting to discard:
-  // commit the edits like Save would, then close. If the form is invalid, save()
-  // surfaces the error and keeps the modal open instead of losing the edits; if
-  // nothing changed, just close (no redundant write). Escape and Cancel still use
-  // requestClose, so an explicit discard path remains (#66).
-  const saveOnBackdrop = () => {
-    if (busy) return;
-    // A new (not-yet-created) task shouldn't be created by an outside click — treat
-    // the backdrop like Cancel. For an existing task, auto-save the edits (#66).
-    if (creating) { requestClose(); return; }
-    if (isDirty()) void save();
-    else onClose();
-  };
-
-  const onBackdropMouseDown = (e: MouseEvent<HTMLDivElement>) => {
-    backdropPressStartedRef.current = e.target === e.currentTarget;
-    backdropPressEndedRef.current = null;
-  };
-
-  const onBackdropMouseUp = (e: MouseEvent<HTMLDivElement>) => {
-    backdropPressEndedRef.current = e.target === e.currentTarget;
-  };
-
-  const onBackdropClick = (e: MouseEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget) return;
-    const startedOnBackdrop = backdropPressStartedRef.current;
-    const endedOnBackdrop = backdropPressEndedRef.current;
-    backdropPressStartedRef.current = null;
-    backdropPressEndedRef.current = null;
-    if (startedOnBackdrop === false || endedOnBackdrop === false) return;
-    saveOnBackdrop();
-  };
-
   return createPortal(
-    <div className="modal-backdrop"
-         onMouseDown={onBackdropMouseDown}
-         onMouseUp={onBackdropMouseUp}
-         onClick={onBackdropClick}>
+    <div className="modal-backdrop">
       <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true"
            aria-label={creating ? t("taskEditor.newTask") : isTemplate ? t("taskEditor.editTemplate") : t("taskEditor.editTask")}
            onClick={e => e.stopPropagation()}>

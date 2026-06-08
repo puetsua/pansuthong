@@ -12,9 +12,14 @@ type Props = {
   /** The logical "today" used to resolve relative dates ("today"/"tomorrow"). */
   todayIso?: string;
   tagsByName: Map<string, Tag>;
+  /**
+   * Tag id of the current view, if any. A task added here is auto-tagged with
+   * it so it stays visible in the tag view, even when no #tag is typed (#106).
+   */
+  contextTagId?: string;
 };
 
-export function Composer({ startDate, todayIso: today = todayIso(), tagsByName }: Props) {
+export function Composer({ startDate, todayIso: today = todayIso(), tagsByName, contextTagId }: Props) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -30,12 +35,17 @@ export function Composer({ startDate, todayIso: today = todayIso(), tagsByName }
 
     try {
       const resolvedTagIds = await resolveTagIds(parsed.tag_names, tagsByName, api.addTag);
+      // Auto-tag with the current tag view's tag so the task stays in view,
+      // without duplicating a tag the user also typed explicitly (#106).
+      const tagIds = contextTagId && !resolvedTagIds.includes(contextTagId)
+        ? [contextTagId, ...resolvedTagIds]
+        : resolvedTagIds;
 
       await api.addTask({
         title: parsed.title,
         start_date: parsed.start_date ?? startDate,
         due_date: parsed.due_date,
-        tag_ids: resolvedTagIds,
+        tag_ids: tagIds,
       });
       setInput("");
       setError(null);

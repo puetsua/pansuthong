@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { todayIso as computeTodayIso } from "../lib/dates";
 import { api, HistoryEntry } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { currentLocale } from "../i18n";
 
 const PAGE_SIZES = [10, 30, 50] as const;
+
+type Props = {
+  todayIso?: string;
+};
 
 function formatTime(value: string): string {
   const d = new Date(value);
@@ -41,14 +46,14 @@ function entryMatches(entry: HistoryEntry, query: string): boolean {
   return haystack.includes(query);
 }
 
-export function HistoryView() {
+export function HistoryView({ todayIso = computeTodayIso() }: Props) {
   const { t } = useTranslation();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [from, setFrom] = useState(() => todayIso);
+  const [to, setTo] = useState(() => todayIso);
   const [pageSize, setPageSize] = useState<number>(PAGE_SIZES[0]);
   const [page, setPage] = useState(1);
 

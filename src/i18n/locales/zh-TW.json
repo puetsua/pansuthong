@@ -49,7 +49,8 @@
     "addTag": "新增標籤",
     "noPinnedTags": "沒有釘選的標籤。",
     "manageTags": "管理標籤",
-    "editTag": "編輯 #{{name}}"
+    "editTag": "編輯 #{{name}}",
+    "releaseNotes": "查看 v{{version}} 的版本資訊"
   },
   "today": {
     "empty": "今天沒有開始或到期的任務。"

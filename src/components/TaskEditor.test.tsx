@@ -188,42 +188,38 @@ describe("TaskEditor Markdown notes (#70)", () => {
 
 const backdrop = () => document.querySelector(".modal-backdrop") as HTMLElement;
 
-describe("TaskEditor backdrop auto-save (#66)", () => {
-  it("saves the edits and closes when the dirty form is valid", async () => {
+describe("TaskEditor outside clicks", () => {
+  it("does not save or close when clicking outside a dirty valid form", () => {
     const onClose = vi.fn();
     render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
 
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Edited title" } });
     fireEvent.click(backdrop());
 
-    await waitFor(() =>
-      expect(api.updateTask).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "k_1", title: "Edited title" }),
-      ),
-    );
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.updateTask).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("keeps the modal open and shows the error when the title is empty", async () => {
+  it("does not validate or close when clicking outside an invalid dirty form", () => {
     const onClose = vi.fn();
     render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
 
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "" } });
     fireEvent.click(backdrop());
 
-    expect(screen.getByText(/title can.?t be empty/i)).toBeTruthy();
+    expect(screen.queryByText(/title can.?t be empty/i)).toBeNull();
     expect(api.updateTask).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("closes without saving when nothing changed", () => {
+  it("does not close when clicking outside an unchanged form", () => {
     const onClose = vi.fn();
     render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
 
     fireEvent.click(backdrop());
 
     expect(api.updateTask).not.toHaveBeenCalled();
-    expect(onClose).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("does not save or close when a text selection starts inside and releases on the backdrop", () => {

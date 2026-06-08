@@ -143,6 +143,15 @@ describe("TagEditor — edit mode", () => {
     expect(api.deleteTag).not.toHaveBeenCalled();
   });
 
+  it("does not close when clicking outside the modal", () => {
+    const onClose = vi.fn();
+    render(<TagEditor tag={tag} onClose={onClose} />);
+
+    fireEvent.click(backdrop());
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("stays open when a text selection starts inside and releases on the backdrop", () => {
     const onClose = vi.fn();
     render(<TagEditor tag={tag} onClose={onClose} />);

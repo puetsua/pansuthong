@@ -154,6 +154,14 @@ button {
 .sidebar-link.active { background: var(--c-accent-bg); color: var(--c-accent); font-weight: 600; }
 .sidebar-count { margin-left: auto; font-size: 0.72rem; color: var(--c-text-subtle); }
 .sidebar-hash { font-weight: 700; line-height: 1; }
+.sidebar-version {
+  align-self: flex-start;
+  margin: var(--space-2) 0 0 var(--space-2);
+  font-size: 0.72rem;
+  color: var(--c-text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+.sidebar-version:hover { color: var(--c-accent); text-decoration: underline; }
 
 .desktop-main {
   padding: var(--space-5) var(--space-6);
