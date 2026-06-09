@@ -19,7 +19,7 @@ export function TodayView({ indexes }: Props) {
         <h1>{t("nav.today")}</h1>
         <p className="view-sub">{today} · {t("common.taskCount", { count: remaining })}</p>
       </header>
-      <Composer startDate={today} todayIso={today} tagsByName={indexes.tagsByName} />
+      <Composer startDate={today} todayIso={today} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} />
       {ghosts.map(g => <GhostRow key={g.id} ghost={g} tags={indexes.tagsById} />)}
       <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={today}
                 emptyText={t("today.empty")} />

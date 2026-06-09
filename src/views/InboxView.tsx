@@ -19,7 +19,7 @@ export function InboxView({ doc, indexes }: Props) {
         <h1>{t("nav.inbox")}</h1>
         <p className="view-sub">{t("inbox.subtitle")}</p>
       </header>
-      <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} />
+      <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} />
       <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={indexes.todayIso}
                 emptyText={t("inbox.empty")} onCompleted={onCompleted} onReopened={onReopened} />
     </section>

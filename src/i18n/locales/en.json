@@ -146,6 +146,7 @@
     "placeholder": "What needs doing?  (try: #work due fri Reply to Anna)",
     "aria": "New task",
     "add": "Add",
+    "expand": "Add task with more options…",
     "needTitle": "Add a title — that line is only tags/dates."
   },
   "composerPreview": {
