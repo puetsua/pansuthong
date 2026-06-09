@@ -116,6 +116,16 @@ button {
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-4);
 }
+/* Secondary affordance: open the full editor instead of the inline quick-add. */
+.composer-expand {
+  background: var(--c-surface) !important;
+  color: var(--c-text-muted) !important;
+  border: 1px solid var(--c-border);
+  padding: var(--space-2) var(--space-3) !important;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.composer-expand:hover { color: var(--c-text) !important; border-color: var(--c-accent); }
 .composer-error { color: var(--c-danger); margin: var(--space-1) 0 0; font-size: 0.85rem; flex-basis: 100%; }
 .composer-hint { color: var(--c-text-muted); margin: var(--space-1) 0 0; font-size: 0.8rem; flex-basis: 100%; }
 

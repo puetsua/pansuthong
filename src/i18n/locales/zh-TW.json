@@ -143,6 +143,7 @@
     "placeholder": "需要做什麼？（試試：#work due fri 回覆 Anna）",
     "aria": "新任務",
     "add": "新增",
+    "expand": "以更多選項新增任務…",
     "needTitle": "加入標題 — 該行只有標籤／日期。"
   },
   "composerPreview": {
