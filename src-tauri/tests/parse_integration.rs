@@ -103,6 +103,41 @@ fn all_features_together() {
 }
 
 #[test]
+fn quoted_tag_captures_spaces() {
+    let p = parse("test3 #\"da fs\"", today());
+    assert_eq!(p.title, "test3");
+    assert_eq!(p.tag_names, vec!["da fs"]);
+}
+
+#[test]
+fn quoted_tag_coexists_with_plain_tags_and_dates() {
+    let p = parse("Plan #\"big project\" #work due fri", today());
+    assert_eq!(p.title, "Plan");
+    assert_eq!(p.tag_names, vec!["big project", "work"]);
+    assert_eq!(p.due_date, Some(NaiveDate::from_ymd_opt(2026, 5, 29).unwrap()));
+}
+
+#[test]
+fn unterminated_quoted_tag_consumes_to_end() {
+    let p = parse("Buy milk #\"weekend chores", today());
+    assert_eq!(p.title, "Buy milk");
+    assert_eq!(p.tag_names, vec!["weekend chores"]);
+}
+
+#[test]
+fn empty_quoted_tag_is_literal_title_text() {
+    let p = parse("Title #\"\" done", today());
+    assert!(p.tag_names.is_empty());
+    assert_eq!(p.title, "Title #\"\" done");
+}
+
+#[test]
+fn quoted_tag_trims_surrounding_whitespace() {
+    let p = parse("x #\"  spaced  \"", today());
+    assert_eq!(p.tag_names, vec!["spaced"]);
+}
+
+#[test]
 fn empty_input_returns_default() {
     let p = parse("", today());
     assert_eq!(p, ParsedInput::default());

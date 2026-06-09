@@ -16,14 +16,17 @@ const WEEKDAY_ALIASES: Record<string, number> = {
 /** Mirror of Rust `parse.rs`. Kept in sync via parallel test suites. */
 export function parseComposer(input: string, todayIso: string): ParsedInput {
   const out: ParsedInput = { title: "", tag_names: [] };
-  const tokens = input.split(/\s+/).filter(Boolean);
+  // A `#"…"` run is one token (spaces and all); everything else is a non-space run.
+  // The optional closing quote lets an unterminated `#"foo bar` reach end-of-input.
+  const tokens = input.match(/#"[^"]*"?|\S+/g) ?? [];
   const titleParts: string[] = [];
 
   for (let i = 0; i < tokens.length; i++) {
     const tok = tokens[i];
 
-    if (tok.startsWith("#") && tok.length > 1) {
-      out.tag_names.push(tok.slice(1));
+    const tagName = tagFromToken(tok);
+    if (tagName !== null) {
+      out.tag_names.push(tagName);
       continue;
     }
     // "start" is the current keyword; "sched"/"scheduled" stay as aliases (#renamed).
@@ -41,6 +44,21 @@ export function parseComposer(input: string, todayIso: string): ParsedInput {
 
   out.title = titleParts.join(" ").trim();
   return out;
+}
+
+/**
+ * A tag name from a token, or null if the token isn't a tag (no `#`, or an empty
+ * name like a bare `#` / `#""`). `#"phrase with spaces"` unwraps the quotes;
+ * `#word` keeps its existing meaning. Names are trimmed of surrounding whitespace.
+ */
+function tagFromToken(tok: string): string | null {
+  if (!tok.startsWith("#")) return null;
+  let rest = tok.slice(1);
+  if (rest.startsWith('"')) {
+    rest = rest.endsWith('"') && rest.length >= 2 ? rest.slice(1, -1) : rest.slice(1);
+  }
+  const name = rest.trim();
+  return name.length > 0 ? name : null;
 }
 
 function parseDateWord(word: string, todayIso: string): string | undefined {

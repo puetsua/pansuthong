@@ -60,6 +60,35 @@ describe("parseComposer", () => {
     expect(p.due_date).toBe("2026-05-29");
   });
 
+  it("quoted tag captures spaces as one tag", () => {
+    const p = parseComposer('test3 #"da fs"', TODAY);
+    expect(p.title).toBe("test3");
+    expect(p.tag_names).toEqual(["da fs"]);
+  });
+
+  it("quoted tag coexists with plain tags and dates", () => {
+    const p = parseComposer('Plan #"big project" #work due fri', TODAY);
+    expect(p.title).toBe("Plan");
+    expect(p.tag_names).toEqual(["big project", "work"]);
+    expect(p.due_date).toBe("2026-05-29");
+  });
+
+  it("unterminated quoted tag consumes to end of input", () => {
+    const p = parseComposer('Buy milk #"weekend chores', TODAY);
+    expect(p.title).toBe("Buy milk");
+    expect(p.tag_names).toEqual(["weekend chores"]);
+  });
+
+  it("empty quoted tag is literal title text, not a tag", () => {
+    const p = parseComposer('Title #"" done', TODAY);
+    expect(p.tag_names).toEqual([]);
+    expect(p.title).toBe('Title #"" done');
+  });
+
+  it("quoted tag trims surrounding whitespace", () => {
+    expect(parseComposer('x #"  spaced  "', TODAY).tag_names).toEqual(["spaced"]);
+  });
+
   it("rejects out-of-range MM/DD", () => {
     // 13 is not a valid month
     expect(parseComposer("Task due 13/5", TODAY).due_date).toBeUndefined();

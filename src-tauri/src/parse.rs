@@ -15,16 +15,14 @@ pub fn parse(input: &str, today: NaiveDate) -> ParsedInput {
     let mut out = ParsedInput::default();
     let mut title_parts: Vec<&str> = Vec::new();
 
-    let tokens: Vec<&str> = input.split_whitespace().collect();
+    let tokens = tokenize(input);
     let mut i = 0;
     while i < tokens.len() {
         let tok = tokens[i];
-        if let Some(name) = tok.strip_prefix('#') {
-            if !name.is_empty() {
-                out.tag_names.push(name.to_string());
-                i += 1;
-                continue;
-            }
+        if let Some(name) = tag_from_token(tok) {
+            out.tag_names.push(name);
+            i += 1;
+            continue;
         }
         // "start" is the current keyword; "sched"/"scheduled" stay as aliases (#renamed).
         if (tok == "due" || tok == "start" || tok == "sched" || tok == "scheduled") && i + 1 < tokens.len() {
@@ -41,6 +39,46 @@ pub fn parse(input: &str, today: NaiveDate) -> ParsedInput {
 
     out.title = title_parts.join(" ").trim().to_string();
     out
+}
+
+/// Split into tokens where a `#"…"` run is kept whole (spaces and all); every
+/// other token is a maximal run of non-whitespace. An unterminated `#"foo bar`
+/// runs to end-of-input. Scanning for the `"` byte is UTF-8 safe — 0x22 never
+/// appears inside a multi-byte sequence.
+fn tokenize(input: &str) -> Vec<&str> {
+    let bytes = input.as_bytes();
+    let n = bytes.len();
+    let mut tokens = Vec::new();
+    let mut i = 0;
+    while i < n {
+        if bytes[i].is_ascii_whitespace() {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        if bytes[i] == b'#' && i + 1 < n && bytes[i + 1] == b'"' {
+            i += 2; // past the opening `#"`
+            while i < n && bytes[i] != b'"' { i += 1; }
+            if i < n { i += 1; } // consume the closing quote when present
+        } else {
+            while i < n && !bytes[i].is_ascii_whitespace() { i += 1; }
+        }
+        tokens.push(&input[start..i]);
+    }
+    tokens
+}
+
+/// A tag name from a token, or None if it isn't a tag (no `#`, or an empty name
+/// like a bare `#` / `#""`). `#"phrase with spaces"` unwraps the quotes; `#word`
+/// keeps its existing meaning. Names are trimmed of surrounding whitespace.
+fn tag_from_token(tok: &str) -> Option<String> {
+    let rest = tok.strip_prefix('#')?;
+    let name = match rest.strip_prefix('"') {
+        Some(inner) => inner.strip_suffix('"').unwrap_or(inner),
+        None => rest,
+    };
+    let name = name.trim();
+    if name.is_empty() { None } else { Some(name.to_string()) }
 }
 
 fn parse_date(word: &str, today: NaiveDate) -> Option<NaiveDate> {
