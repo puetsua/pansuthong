@@ -35,6 +35,22 @@ export function todayIso(now: Date = new Date(), dayStartHour = 0): string {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * The logical day (YYYY-MM-DD) a stored local-offset timestamp belongs to, honoring
+ * `dayStartHour`. Reads the wall-clock date and hour written in the string itself
+ * (not the runner's timezone), so it stays consistent with how `completed_at` /
+ * `created_at` are stamped and is independent of where the code runs. A wall-clock
+ * hour before the day-start counts as the previous calendar day — the same shift
+ * `todayIso` applies — so a completion at 00:05 with a 3am start stays on "today"
+ * until the rollover. With the default hour (0) this is a plain date slice.
+ */
+export function logicalDayOf(localIso: string, dayStartHour = 0): string {
+  const date = localIso.slice(0, 10);
+  if (!dayStartHour || !date) return date;
+  const hour = Number(localIso.slice(11, 13));
+  return hour < dayStartHour ? addDaysIso(date, -1) : date;
+}
+
 /** Compare two ISO date strings lexically — works because format is fixed-width. */
 export function isoLt(a: string, b: string): boolean { return a < b; }
 

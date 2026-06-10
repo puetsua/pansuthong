@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDaysIso, daysBetweenIso, formatIsoLocal, todayIso } from "./dates";
+import { addDaysIso, daysBetweenIso, formatIsoLocal, logicalDayOf, todayIso } from "./dates";
 
 describe("todayIso (day-start hour)", () => {
   it("returns the plain calendar date with the default (midnight) rollover", () => {
@@ -21,6 +21,39 @@ describe("todayIso (day-start hour)", () => {
 
   it("treats the rest of the day (up to midnight) as the same logical day", () => {
     expect(todayIso(new Date(2026, 5, 2, 23, 59, 0), 4)).toBe("2026-06-02");
+  });
+});
+
+describe("logicalDayOf (day-start hour)", () => {
+  it("is a plain date slice with the default (midnight) rollover", () => {
+    expect(logicalDayOf("2026-06-11T00:05:00+08:00")).toBe("2026-06-11");
+    expect(logicalDayOf("2026-06-11T00:05:00+08:00", 0)).toBe("2026-06-11");
+  });
+
+  it("counts a wall-clock hour before the start as the previous logical day", () => {
+    // 00:05 with a 3am day start still belongs to the prior day (the bug case).
+    expect(logicalDayOf("2026-06-11T00:05:00+08:00", 3)).toBe("2026-06-10");
+    // 02:59 is the last minute of the previous logical day.
+    expect(logicalDayOf("2026-06-11T02:59:00+08:00", 3)).toBe("2026-06-10");
+  });
+
+  it("rolls over exactly at the start hour and stays there until midnight", () => {
+    expect(logicalDayOf("2026-06-11T03:00:00+08:00", 3)).toBe("2026-06-11");
+    expect(logicalDayOf("2026-06-11T23:59:00+08:00", 3)).toBe("2026-06-11");
+  });
+
+  it("reads the wall clock from the string, not the runner's timezone", () => {
+    // The offset varies but the written hour (00) is what matters.
+    expect(logicalDayOf("2026-06-11T00:30:00+09:00", 3)).toBe("2026-06-10");
+    expect(logicalDayOf("2026-06-11T00:30:00-05:00", 3)).toBe("2026-06-10");
+  });
+
+  it("crosses a month boundary when shifting back", () => {
+    expect(logicalDayOf("2026-06-01T01:00:00+08:00", 3)).toBe("2026-05-31");
+  });
+
+  it("returns an empty string for a missing date", () => {
+    expect(logicalDayOf("", 3)).toBe("");
   });
 });
 
