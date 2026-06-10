@@ -23,17 +23,17 @@ const archivedTask = (n: number, title?: string): Task => ({
   completed_at: `${todayIso()}T12:00:00+08:00`,
 });
 
-const doc = (tasks: Task[]): Document => ({
+const doc = (tasks: Task[], dayStartHour?: number): Document => ({
   version: 2,
   last_modified: undefined,
-  settings: { theme: "auto", sort_order: "priority" },
+  settings: { theme: "auto", sort_order: "priority", day_start_hour: dayStartHour },
   tags: [],
   tasks,
   template_tasks: [],
 });
 
-const renderView = (tasks: Task[]) => {
-  const d = doc(tasks);
+const renderView = (tasks: Task[], dayStartHour?: number) => {
+  const d = doc(tasks, dayStartHour);
   render(<ArchivedView doc={d} indexes={buildIndexes(d)} />);
 };
 
@@ -123,6 +123,20 @@ describe("ArchivedView — date-range filter (#92)", () => {
     // Both inputs are pre-filled with today (a single-day window).
     expect((screen.getByLabelText(/from date/i) as HTMLInputElement).value).toBe(today);
     expect((screen.getByLabelText(/to date/i) as HTMLInputElement).value).toBe(today);
+  });
+
+  it("attributes a post-midnight completion to its logical day under a custom day-start (#109)", () => {
+    // Day starts at 3am. A task finished at 00:05 carries the *next* wall date but
+    // still belongs to today's logical day, so the default today-only window must
+    // include it (it used to be filtered out by the raw calendar date).
+    const today = todayIso(new Date(), 3);
+    const nextWallDate = addDaysIso(today, 1);
+    renderView(
+      [dated({ id: "n", title: "After midnight", completed_at: `${nextWallDate}T00:05:00+08:00` })],
+      3,
+    );
+    expect(rowCount()).toBe(1);
+    expect(screen.getByText("After midnight")).toBeTruthy();
   });
 
   it("filters by completion date (the default field)", () => {

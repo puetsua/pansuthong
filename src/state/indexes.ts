@@ -1,5 +1,5 @@
 import { Document, SortOrder, Tag, Task, TemplateTask, isArchived, isDone } from "../lib/tauri";
-import { isoLt, todayIso as computeTodayIso } from "../lib/dates";
+import { isoLt, logicalDayOf, todayIso as computeTodayIso } from "../lib/dates";
 import { dayStartHour } from "../lib/settings";
 import { GhostTask, occursOn } from "../lib/recurrence";
 
@@ -131,9 +131,14 @@ export function buildIndexes(doc: Document): Indexes {
   // older completions are gone. Built from `doc.tasks` (not `active`) so done
   // tasks are reachable. Other views drop completed tasks on the next visit
   // instead — that's view-local state, not here.
+  // One day-start hour for the whole app: it shifts both the current logical day
+  // (todayIso, below) and the day a completion is attributed to, so a task finished
+  // just after midnight with a later day-start still belongs to the same logical day.
+  const dsh = dayStartHour(doc.settings);
+
   const inToday = (t: Task, todayIso: string): boolean => {
     if (isDone(t)) {
-      if (t.completed_at?.slice(0, 10) !== todayIso) return false;
+      if (logicalDayOf(t.completed_at ?? "", dsh) !== todayIso) return false;
       // Only keep it if it belonged to Today: scheduled today, or due on/before today.
       return t.start_date === todayIso || (t.due_date != null && t.due_date <= todayIso);
     }
@@ -149,7 +154,7 @@ export function buildIndexes(doc: Document): Indexes {
     sortTasks(doc.tasks.filter(t => inToday(t, todayIso)), order, tagsById);
 
   // One logical "today" for the whole app, rolling over at the configured hour.
-  const todayIso = computeTodayIso(new Date(), dayStartHour(doc.settings));
+  const todayIso = computeTodayIso(new Date(), dsh);
 
   // Recurring templates project ghost rows into the date-based views (#9). Each
   // recurring template designates one `recurrence_tag_id`; a ghost is suppressed

@@ -206,6 +206,30 @@ describe("completed-today tasks linger in Today, at the bottom (#recover)", () =
     expect(buildIndexes(doc).today("2026-05-28").map(t => t.id))
       .toEqual(["k_open", "k_done_today"]);
   });
+
+  it("a task completed before the day-start hour lingers in the prior logical day (#109)", () => {
+    // Day starts at 3am. A task finished at 00:05 on 06-11 still belongs to the
+    // 06-10 logical day, so it must linger in that day's Today, not vanish.
+    const mk = (id: string, completed_at?: string): Task => ({
+      id, title: id, start_date: "2026-06-10", notes: "", tag_ids: [],
+      created_at: "1970-01-01T00:00:00+08:00", completed_at,
+    });
+    const doc: Document = {
+      version: 2, last_modified: undefined,
+      settings: { theme: "auto", sort_order: "priority", day_start_hour: 3 }, tags: [],
+      tasks: [
+        mk("k_open"),
+        mk("k_after_midnight", "2026-06-11T00:05:00+08:00"),
+      ],
+      template_tasks: [],
+    };
+    const ix = buildIndexes(doc);
+    // It lingers in the logical day it belongs to (06-10), not the wall date (06-11).
+    expect(ix.today("2026-06-10").map(t => t.id)).toEqual(["k_open", "k_after_midnight"]);
+    expect(ix.today("2026-06-11").map(t => t.id)).toEqual([]);
+    // And it is reachable in the archive (completion = archival here).
+    expect(ix.archived.map(t => t.id)).toEqual(["k_after_midnight"]);
+  });
 });
 
 // One open tagged task plus two archived ones (a tagged + an untagged), all

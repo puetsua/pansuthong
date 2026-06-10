@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Document, Task } from "../lib/tauri";
 import { TaskList } from "../components/TaskList";
 import { Indexes } from "../state/indexes";
-import { addDaysIso } from "../lib/dates";
+import { addDaysIso, logicalDayOf } from "../lib/dates";
+import { dayStartHour } from "../lib/settings";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -16,16 +17,20 @@ const DEFAULT_RANGE_DAYS = 0;
 type DateField = "completed" | "due" | "created";
 
 // The YYYY-MM-DD a task carries for the chosen field, or undefined if it has none.
-function taskDate(t: Task, field: DateField): string | undefined {
+// Timestamp fields (completed/created) map to their logical day so the default
+// "today" window lines up with the day-start rollover used elsewhere (a 00:05
+// completion under a 3am start still counts as the previous day, matching Today).
+function taskDate(t: Task, field: DateField, dsh: number): string | undefined {
   if (field === "due") return t.due_date;
-  if (field === "created") return t.created_at?.slice(0, 10);
-  return t.completed_at?.slice(0, 10);
+  if (field === "created") return t.created_at ? logicalDayOf(t.created_at, dsh) : undefined;
+  return t.completed_at ? logicalDayOf(t.completed_at, dsh) : undefined;
 }
 
-export function ArchivedView({ indexes }: Props) {
+export function ArchivedView({ doc, indexes }: Props) {
   const { t } = useTranslation();
   const archived = indexes.archived;
   const today = indexes.todayIso;
+  const dsh = dayStartHour(doc.settings);
 
   const [query, setQuery] = useState("");
   const [dateField, setDateField] = useState<DateField>("completed");
@@ -48,14 +53,14 @@ export function ArchivedView({ indexes }: Props) {
     return archived.filter(t => {
       if (q && !(t.title.toLowerCase().includes(q) || t.notes.toLowerCase().includes(q))) return false;
       if (from || to) {
-        const d = taskDate(t, dateField);
+        const d = taskDate(t, dateField, dsh);
         if (!d) return false; // no date for this field can't sit in a bounded range
         if (from && d < from) return false;
         if (to && d > to) return false;
       }
       return true;
     });
-  }, [archived, filtering, trimmed, dateField, from, to]);
+  }, [archived, filtering, trimmed, dateField, from, to, dsh]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   // Clamp: the list can shrink under the current page when a filter narrows it
