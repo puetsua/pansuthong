@@ -295,11 +295,18 @@ export function TaskEditor(props: Props) {
     }
   };
 
+  const heading = creating ? t("taskEditor.newTask") : isTemplate ? t("taskEditor.editTemplate") : t("taskEditor.editTask");
+
   return createPortal(
     <div className="modal-backdrop">
       <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true"
-           aria-label={creating ? t("taskEditor.newTask") : isTemplate ? t("taskEditor.editTemplate") : t("taskEditor.editTask")}
+           aria-label={heading}
            onClick={e => e.stopPropagation()}>
+        <div className="te-header">
+          <h2>{heading}</h2>
+          <button type="button" className="te-close" aria-label={t("taskEditor.close")}
+                  onClick={requestClose} disabled={busy}>✕</button>
+        </div>
         <label className="te-field">
           <span>{t("taskEditor.title")}</span>
           <input value={form.title} autoFocus

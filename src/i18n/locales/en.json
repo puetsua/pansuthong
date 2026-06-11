@@ -267,6 +267,7 @@
     "newTask": "New task",
     "editTemplate": "Edit template",
     "editTask": "Edit task",
+    "close": "Close",
     "title": "Title",
     "startInDays": "Start in (days)",
     "dueInDays": "Due in (days)",

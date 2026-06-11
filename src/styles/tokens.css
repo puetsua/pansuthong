@@ -17,6 +17,7 @@
   --radius-lg: 10px;
 
   /* Light theme */
+  color-scheme: light;
   --c-bg:           #f9fafb;
   --c-surface:      #ffffff;
   --c-surface-2:    #f3f4f6;
@@ -32,6 +33,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --c-bg:           #0f172a;
     --c-surface:      #1e293b;
     --c-surface-2:    #243044;
@@ -46,6 +48,7 @@
   }
 }
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --c-bg:           #0f172a;
   --c-surface:      #1e293b;
   --c-surface-2:    #243044;

@@ -26,6 +26,42 @@ button {
   cursor: pointer;
 }
 
+/* Themed default for native form controls. Wrapped in :where() so its
+   specificity is zero — every component-specific rule below (.composer input,
+   .te-tag-field, .search-input, …) still wins, while previously-unstyled
+   controls (the task-editor fields, notes textarea, native date/time pickers)
+   pick up the dark theme instead of the browser's light chrome. Checkbox/
+   color/radio keep their native rendering. */
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  textarea,
+  select
+) {
+  font: inherit;
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  outline: none;
+}
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  textarea,
+  select
+):focus {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 2px var(--c-accent-bg);
+}
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  textarea,
+  select
+):disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .task-row {
   display: flex;
   align-items: center;
@@ -792,6 +828,31 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .upd-progress-track { height: 6px; background: var(--c-border); border-radius: 999px; overflow: hidden; }
 .upd-progress-bar { height: 100%; background: var(--c-accent); transition: width 0.15s ease; }
 
+/* Modal header: title on the left, a close affordance on the right, divided
+   from the body by a rule. */
+.te-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--c-border);
+}
+.te-header h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+.te-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--c-text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.te-close:hover:not(:disabled) { background: var(--c-surface-2); color: var(--c-text); }
+
 .te-field { display: flex; flex-direction: column; gap: var(--space-1); }
 .te-field > span { font-size: 0.72rem; color: var(--c-text-muted); font-weight: 600; }
 .te-field-head {
@@ -873,6 +934,10 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   resize: vertical;
   font-family: var(--font-mono);
   line-height: 1.45;
+  /* Match the preview pane's recessed background so the split view reads as one
+     surface rather than a bright field beside a dark one. */
+  background: var(--c-bg);
+  padding: var(--space-2) var(--space-3);
 }
 .te-notes-preview {
   overflow: auto;
@@ -998,7 +1063,14 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .te-opt-create { color: var(--c-accent); font-style: italic; }
 /* Cross-field date warning (#51). */
 .te-warn { color: var(--c-danger); font-size: 0.8rem; margin: 0; }
-.te-actions { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
+.te-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--c-border);
+}
 .te-spacer { flex: 1; }
 .te-delete { color: var(--c-danger); }
 .te-save { font-weight: 600; }

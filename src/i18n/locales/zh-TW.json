@@ -263,6 +263,7 @@
     "newTask": "新任務",
     "editTemplate": "編輯範本",
     "editTask": "編輯任務",
+    "close": "關閉",
     "title": "標題",
     "startInDays": "幾天後開始",
     "dueInDays": "幾天後到期",
