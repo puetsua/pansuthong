@@ -1032,15 +1032,25 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 }
 .sidebar-icon-btn:hover { background: var(--c-surface); color: var(--c-text); }
 
-.sidebar-tag-row { display: flex; align-items: center; }
+.sidebar-tag-row { display: flex; align-items: center; position: relative; }
 .sidebar-tag-row .sidebar-link { flex: 1; min-width: 0; }
-/* The edit pencil stays hidden until the row is hovered or the button is
-   focused; touch devices (no hover) always show it. */
-.tag-edit-btn { opacity: 0; }
+/* The edit pencil overlays the task count: hidden (count visible) until the row
+   is hovered or the button is focused, then it appears in the count's place and
+   hides the number beneath it. Touch devices (no hover) always show the pencil. */
+.tag-edit-btn {
+  position: absolute;
+  right: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+}
 .sidebar-tag-row:hover .tag-edit-btn,
 .tag-edit-btn:focus-visible { opacity: 1; }
+.sidebar-tag-row:hover .sidebar-count,
+.sidebar-tag-row:focus-within .sidebar-count { opacity: 0; }
 @media (hover: none) {
   .tag-edit-btn { opacity: 1; }
+  .sidebar-tag-row .sidebar-count { opacity: 0; }
 }
 
 /* Tag view header: title + an "Edit tag" action on the same row. */
