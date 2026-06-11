@@ -26,3 +26,6 @@ dist-ssr
 *.sln
 *.sw?
 .superpowers/
+
+# Cygwin/MSYS crash dumps (Windows)
+*.stackdump
