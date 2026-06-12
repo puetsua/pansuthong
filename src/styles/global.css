@@ -264,6 +264,15 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   letter-spacing: 0.01em;
 }
 
+.overdue-group { margin-top: var(--space-5); }
+.overdue-heading {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--c-danger);
+  margin: 0 0 var(--space-2);
+  letter-spacing: 0.01em;
+}
+
 .search-input {
   width: 100%;
   background: var(--c-surface);

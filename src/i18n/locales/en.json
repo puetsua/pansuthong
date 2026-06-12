@@ -54,7 +54,8 @@
     "releaseNotes": "Release notes for v{{version}}"
   },
   "today": {
-    "empty": "No tasks starting or due today."
+    "empty": "No tasks starting or due today.",
+    "overdue": "Overdue"
   },
   "upcoming": {
     "next_one": "Next {{count}} day",

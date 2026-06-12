@@ -53,7 +53,8 @@
     "releaseNotes": "查看 v{{version}} 的版本資訊"
   },
   "today": {
-    "empty": "今天沒有開始或到期的任務。"
+    "empty": "今天沒有開始或到期的任務。",
+    "overdue": "逾期"
   },
   "upcoming": {
     "next_other": "接下來 {{count}} 天",
