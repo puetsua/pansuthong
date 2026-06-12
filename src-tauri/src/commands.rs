@@ -5,7 +5,7 @@ use crate::history::HistoryEntry;
 use crate::model::{new_tag_id, new_task_id, new_time_entry_id, now_ms, Recurrence, Tag, Task, TemplateTask, TimeEntry, YearlyDate};
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
-use chrono::NaiveDate;
+use chrono::{Duration, NaiveDate};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -130,6 +130,10 @@ fn validate_offset_days(days: Option<i64>) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn due_date_from_offset(occurrence_date: NaiveDate, due_offset_days: Option<i64>) -> Option<NaiveDate> {
+    due_offset_days.map(|days| occurrence_date + Duration::days(days))
 }
 
 /// Reject a recurrence schedule that could never fire or carries an out-of-range
@@ -563,9 +567,10 @@ pub struct SpawnRecurringTaskInput {
 
 /// Promote a recurring template's ghost into a real task on its occurrence date
 /// (#9). Copies the template's title/notes/tags and sets `start_date` to the
-/// occurrence date — that tag + start_date pair is the only "link" back to the
-/// recurrence, so the ghost self-suppresses on the next refresh. The task is
-/// created active; the caller applies any follow-up action (complete / start timer).
+/// occurrence date and `due_date` to occurrence date + template due offset when
+/// present. The tag + start_date pair is the only "link" back to the recurrence,
+/// so the ghost self-suppresses on the next refresh. The task is created active;
+/// the caller applies any follow-up action (complete / start timer).
 #[tauri::command]
 pub fn spawn_recurring_task(
     input: SpawnRecurringTaskInput,
@@ -580,7 +585,7 @@ pub fn spawn_recurring_task(
         let task = Task {
             id: new_task_id(),
             title: tmpl.title,
-            due_date: None,
+            due_date: due_date_from_offset(input.occurrence_date, tmpl.due_offset_days),
             due_time: None,
             start_date: Some(input.occurrence_date),
             start_time: None,
@@ -1551,6 +1556,17 @@ mod tests {
         assert!(validate_offset_days(Some(OFFSET_DAYS_MAX)).is_ok());
         assert!(validate_offset_days(Some(-1)).is_err());
         assert!(validate_offset_days(Some(OFFSET_DAYS_MAX + 1)).is_err());
+    }
+
+    #[test]
+    fn due_date_from_offset_resolves_against_occurrence_date() {
+        let occurrence = NaiveDate::from_ymd_opt(2026, 6, 8).unwrap();
+        assert_eq!(due_date_from_offset(occurrence, None), None);
+        assert_eq!(due_date_from_offset(occurrence, Some(0)), Some(occurrence));
+        assert_eq!(
+            due_date_from_offset(occurrence, Some(3)),
+            Some(NaiveDate::from_ymd_opt(2026, 6, 11).unwrap()),
+        );
     }
 
     #[test]

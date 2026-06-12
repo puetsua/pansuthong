@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { api, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, estimatedSecondsFormError, estimatedSecondsOrUndefined, formatEstimatedSecondsInput, isEditorDirty, maxDayForMonth, offsetFormError, recurrenceFormError, recurrenceFromForm } from "../state/taskUpdate";
+import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, estimatedSecondsFormError, estimatedSecondsOrUndefined, formatEstimatedSecondsInput, isEditorDirty, maxDayForMonth, offsetFormError, recurrenceFormError, recurrenceFromForm, startOffsetDisabled } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
 import { readableTextColor } from "../lib/tags";
@@ -165,6 +165,7 @@ export function TaskEditor(props: Props) {
   // template can't silently spawn invalid tasks on every instantiation (#71).
   const offsetError = isTemplate ? offsetFormError(form) : null;
   const recurError = isTemplate ? recurrenceFormError(form) : null;
+  const isStartOffsetDisabled = isTemplate && startOffsetDisabled(form);
 
   // Create any tags the user typed but didn't pick from the list, then fold their
   // ids in alongside the existing ones. Done at save time (not on each add) so
@@ -199,7 +200,7 @@ export function TaskEditor(props: Props) {
             title: form.title.trim(),
             notes: form.notes,
             tag_ids: tagIds,
-            start_offset_days: offsetNum(form.start_offset_days),
+            start_offset_days: isStartOffsetDisabled ? undefined : offsetNum(form.start_offset_days),
             due_offset_days: offsetNum(form.due_offset_days),
             estimated_seconds: estimatedSecondsOrUndefined(form.estimated_seconds),
             recurrence: recurrenceFromForm(form),
@@ -319,7 +320,8 @@ export function TaskEditor(props: Props) {
               <label className="te-field">
                 <span>{t("taskEditor.startInDays")}</span>
                 <input type="number" min={0} max={3650} inputMode="numeric" placeholder="—"
-                       value={form.start_offset_days}
+                       value={isStartOffsetDisabled ? "" : form.start_offset_days}
+                       disabled={isStartOffsetDisabled}
                        onChange={e => set("start_offset_days", e.currentTarget.value)} />
               </label>
               <label className="te-field">
@@ -411,7 +413,11 @@ export function TaskEditor(props: Props) {
                 <label className="te-field">
                   <span>{t("taskEditor.recurrenceTag")}</span>
                   <select value={form.recurrence_tag_id}
-                          onChange={e => set("recurrence_tag_id", e.currentTarget.value)}>
+                          onChange={e => setForm(f => ({
+                            ...f,
+                            recurrence_tag_id: e.currentTarget.value,
+                            start_offset_days: e.currentTarget.value ? "" : f.start_offset_days,
+                          }))}>
                     <option value="">{t("taskEditor.chooseTag")}</option>
                     {form.tag_ids
                       .map(id => allTags.get(id))

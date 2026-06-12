@@ -298,6 +298,31 @@ describe("TaskEditor template editing (#71)", () => {
     expect(button("Save").disabled).toBe(true);
   });
 
+  it("disables and clears Start in when a recurrence tag is configured", async () => {
+    render(<TaskEditor kind="template"
+                       template={{
+                         ...templateTask,
+                         start_offset_days: 10,
+                         due_offset_days: 3,
+                         recurrence: { kind: "weekly", weekdays: [1] },
+                         recurrence_tag_id: "t_a",
+                       }}
+                       allTags={tags} onClose={vi.fn()} />);
+
+    const start = screen.getByLabelText(/start in \(days\)/i) as HTMLInputElement;
+    expect(start.disabled).toBe(true);
+    expect(start.value).toBe("");
+    expect(screen.queryByText(/due offset can.?t be before/i)).toBeNull();
+
+    fireEvent.click(button("Save"));
+
+    await waitFor(() =>
+      expect(api.updateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "k_1", start_offset_days: null, due_offset_days: 3 }),
+      ),
+    );
+  });
+
   it("shows an existing template estimate as editable duration text", () => {
     render(<TaskEditor kind="template"
                        template={{ ...templateTask, estimated_seconds: 3_600 }}

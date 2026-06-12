@@ -54,6 +54,7 @@ export function GhostRow({ ghost, tags }: Props) {
       notes: ghost.notes,
       tag_ids: ghost.tag_ids,
       start_date: ghost.occurrenceDate,
+      due_date: ghost.due_date,
       created_at: "",
       completed_at: undefined,
     });

@@ -39,6 +39,10 @@ function offsetOrNull(s: string): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+export function startOffsetDisabled(form: Pick<EditorForm, "repeat" | "recurrence_tag_id">): boolean {
+  return form.repeat !== "none" && form.recurrence_tag_id.trim() !== "";
+}
+
 export const ESTIMATED_SECONDS_MAX = 100_000 * 60;
 
 function parseIsoDurationSeconds(raw: string): number | null {
@@ -138,7 +142,7 @@ export function buildTemplateUpdate(id: string, form: EditorForm): TemplateUpdat
     title: form.title.trim(),
     notes: form.notes,
     tag_ids: form.tag_ids,
-    start_offset_days: offsetOrNull(form.start_offset_days),
+    start_offset_days: startOffsetDisabled(form) ? null : offsetOrNull(form.start_offset_days),
     due_offset_days:       offsetOrNull(form.due_offset_days),
     estimated_seconds: estimatedSecondsOrNull(form.estimated_seconds),
     recurrence: recurrenceFromForm(form),
@@ -219,9 +223,12 @@ export const OFFSET_DAYS_MAX = 3650;
  * due-before-start tasks. Empty inputs are "no offset" and always valid.
  */
 export function offsetFormError(
-  form: Pick<EditorForm, "due_offset_days" | "start_offset_days">,
+  form: Pick<EditorForm, "due_offset_days" | "start_offset_days"> & Partial<Pick<EditorForm, "repeat" | "recurrence_tag_id">>,
 ): string | null {
-  for (const [labelKey, raw] of [["taskUpdate.offsetStartLabel", form.start_offset_days], ["taskUpdate.offsetDueLabel", form.due_offset_days]] as const) {
+  const startLocked = form.repeat != null && form.recurrence_tag_id != null
+    ? startOffsetDisabled(form as Pick<EditorForm, "repeat" | "recurrence_tag_id">)
+    : false;
+  for (const [labelKey, raw] of [["taskUpdate.offsetStartLabel", startLocked ? "" : form.start_offset_days], ["taskUpdate.offsetDueLabel", form.due_offset_days]] as const) {
     const t = raw.trim();
     if (t === "") continue;
     const n = Number(t);
@@ -229,7 +236,7 @@ export function offsetFormError(
       return i18n.t("taskUpdate.offsetRange", { label: i18n.t(labelKey), max: OFFSET_DAYS_MAX });
     }
   }
-  const s = form.start_offset_days.trim();
+  const s = startLocked ? "" : form.start_offset_days.trim();
   const d = form.due_offset_days.trim();
   if (s !== "" && d !== "" && Number(d) < Number(s)) {
     return i18n.t("taskUpdate.dueOffsetBeforeStart");

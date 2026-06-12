@@ -6,6 +6,7 @@ export type GhostTask = {
   title: string;
   notes: string;          // copied from the template; for the creating-draft editor (#9)
   tag_ids: string[];      // copied from the template; drives tag membership + priority
+  due_date?: string;      // template due offset resolved against occurrenceDate, if set
   templateId: string;
   occurrenceDate: string; // YYYY-MM-DD
 };

@@ -12,6 +12,7 @@ import {
   recurrenceFromForm,
   recurrenceFormError,
   sameTagSet,
+  startOffsetDisabled,
 } from "./taskUpdate";
 
 const base: EditorForm = {
@@ -93,6 +94,21 @@ describe("buildTemplateUpdate (#71)", () => {
     const p = buildTemplateUpdate("k_1", { ...base, due_offset_days: "", start_offset_days: "x" });
     expect(p.due_offset_days).toBeNull();
     expect(p.start_offset_days).toBeNull();
+  });
+
+  it("clears the start offset when a recurrence tag is configured", () => {
+    const p = buildTemplateUpdate("k_1", {
+      ...base,
+      is_template: true,
+      tag_ids: ["t_ex"],
+      start_offset_days: "5",
+      due_offset_days: "2",
+      repeat: "weekly",
+      repeat_weekdays: [1],
+      recurrence_tag_id: "t_ex",
+    });
+    expect(p.start_offset_days).toBeNull();
+    expect(p.due_offset_days).toBe(2);
   });
 });
 
@@ -178,6 +194,22 @@ describe("offsetFormError (#71)", () => {
   });
   it("rejects a due offset earlier than the scheduled offset (mirrors #51)", () => {
     expect(offsetFormError({ start_offset_days: "10", due_offset_days: "3" })).toMatch(/due offset can.?t be before/i);
+  });
+  it("ignores the start offset when a recurrence tag is configured", () => {
+    expect(offsetFormError({
+      start_offset_days: "10",
+      due_offset_days: "3",
+      repeat: "weekly",
+      recurrence_tag_id: "t_ex",
+    })).toBeNull();
+  });
+});
+
+describe("startOffsetDisabled", () => {
+  it("is true only when repeat and recurrence tag are both configured", () => {
+    expect(startOffsetDisabled({ repeat: "weekly", recurrence_tag_id: "t_ex" })).toBe(true);
+    expect(startOffsetDisabled({ repeat: "weekly", recurrence_tag_id: "" })).toBe(false);
+    expect(startOffsetDisabled({ repeat: "none", recurrence_tag_id: "t_ex" })).toBe(false);
   });
 });
 

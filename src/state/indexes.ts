@@ -1,5 +1,5 @@
 import { Document, SortOrder, Tag, Task, TemplateTask, isArchived, isDone } from "../lib/tauri";
-import { isoLt, logicalDayOf, todayIso as computeTodayIso } from "../lib/dates";
+import { addDaysIso, isoLt, logicalDayOf, todayIso as computeTodayIso } from "../lib/dates";
 import { dayStartHour } from "../lib/settings";
 import { GhostTask, occursOn } from "../lib/recurrence";
 
@@ -182,6 +182,7 @@ export function buildIndexes(doc: Document): Indexes {
         title: tmpl.title,
         notes: tmpl.notes,
         tag_ids: tmpl.tag_ids,
+        due_date: tmpl.due_offset_days != null ? addDaysIso(iso, tmpl.due_offset_days) : undefined,
         templateId: tmpl.id,
         occurrenceDate: iso,
       });

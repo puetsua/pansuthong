@@ -353,6 +353,7 @@ describe("ghostsForDate", () => {
       tags: [TAG],
       template_tasks: [{
         id: "k_t", title: "Push-ups", notes: "", tag_ids: ["t_ex"], created_at: "",
+        due_offset_days: 3,
         recurrence: { kind: "weekly", weekdays: [1] }, recurrence_tag_id: "t_ex", // Monday
       }],
     });
@@ -361,6 +362,7 @@ describe("ghostsForDate", () => {
     expect(mon.map(g => g.title)).toEqual(["Push-ups"]);
     expect(mon[0].templateId).toBe("k_t");
     expect(mon[0].occurrenceDate).toBe("2026-06-08");
+    expect(mon[0].due_date).toBe("2026-06-11");
     expect(ix.ghostsForDate("2026-06-09")).toEqual([]); // Tuesday: no occurrence
   });
 
