@@ -110,6 +110,32 @@ describe("TimeTracking (#81)", () => {
     const endMs = new Date((screen.getByLabelText("New entry end") as HTMLInputElement).value).getTime();
     expect(endMs - startMs).toBe(60_000);
     expect(Math.abs(startMs - before)).toBeLessThan(5_000); // ~now, not the old now-30min default
+    // The duration field is seeded from the default one-minute slot.
+    expect((screen.getByLabelText("New entry duration") as HTMLInputElement).value).toBe("1m");
+  });
+
+  it("syncs duration when the end time changes, and end when the duration changes", () => {
+    render(<TimeTracking task={base} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
+    fireEvent.change(screen.getByLabelText("New entry start"), { target: { value: "2026-06-02T09:00:00" } });
+    fireEvent.change(screen.getByLabelText("New entry end"), { target: { value: "2026-06-02T10:30:00" } });
+    // end - start = 1h30m -> duration reflects it.
+    expect((screen.getByLabelText("New entry duration") as HTMLInputElement).value).toBe("1h 30m");
+    // Editing the duration moves the end relative to the (unchanged) start.
+    fireEvent.change(screen.getByLabelText("New entry duration"), { target: { value: "2h" } });
+    const endVal = (screen.getByLabelText("New entry end") as HTMLInputElement).value;
+    expect(new Date(endVal).getTime()).toBe(Date.parse("2026-06-02T11:00:00"));
+  });
+
+  it("submits the start/end implied by a duration edit", async () => {
+    render(<TimeTracking task={base} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
+    fireEvent.change(screen.getByLabelText("New entry start"), { target: { value: "2026-06-02T09:00:00" } });
+    fireEvent.change(screen.getByLabelText("New entry duration"), { target: { value: "45m" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(api.addTimeEntry).toHaveBeenCalledWith(
+      "k_1", Date.parse("2026-06-02T09:00:00"), Date.parse("2026-06-02T09:45:00"),
+    ));
   });
 
   it("adds a valid manual entry", async () => {

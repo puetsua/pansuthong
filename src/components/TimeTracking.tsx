@@ -32,7 +32,18 @@ const entryMs = (s: string): number => Date.parse(s);
 const durationMs = (e: TimeEntry): number => (e.end != null ? Math.max(0, Date.parse(e.end) - Date.parse(e.start)) : 0);
 const fmtMoment = (ms: number): string => new Date(ms).toLocaleString(currentLocale(), { dateStyle: "medium", timeStyle: "medium" });
 
-type Draft = { start: string; end: string };
+/** Formatted duration ("1h 30m") for the gap between two datetime-local strings,
+ *  or "" when the range is empty/invalid/non-positive. */
+function durationOfRange(start: string, end: string): string {
+  const s = fromLocalInput(start), e = fromLocalInput(end);
+  if (Number.isNaN(s) || Number.isNaN(e) || e <= s) return "";
+  return formatEstimatedSecondsInput(Math.round((e - s) / 1_000));
+}
+
+// start/end are the stored source of truth; `duration` is a synced convenience
+// field. Editing end recomputes duration; editing duration moves end; editing
+// start keeps end fixed and recomputes duration.
+type Draft = { start: string; end: string; duration: string };
 
 /**
  * The task editor's "Time tracked" section (#81): a running total with Start/Stop,
@@ -44,8 +55,20 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
   const { t } = useTranslation();
   const [err, setErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState<Draft>({ start: "", end: "" });
+  const [draft, setDraft] = useState<Draft>({ start: "", end: "", duration: "" });
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Keep the duration field in sync with start/end (and vice-versa).
+  const setStart = (v: string) => setDraft(d => ({ ...d, start: v, duration: durationOfRange(v, d.end) }));
+  const setEnd = (v: string) => setDraft(d => ({ ...d, end: v, duration: durationOfRange(d.start, v) }));
+  const setDuration = (v: string) => setDraft(d => {
+    const secs = estimatedSecondsOrUndefined(v);
+    const s = fromLocalInput(d.start);
+    // Only move `end` once the typed duration parses to a positive length.
+    return secs != null && secs > 0 && !Number.isNaN(s)
+      ? { ...d, duration: v, end: toLocalInput(s + secs * 1_000) }
+      : { ...d, duration: v };
+  });
 
   const running = isTiming(task);
   const now = useNow(running);
@@ -70,7 +93,8 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
     // Sample the clock now: `now` only ticks while a timer runs, so it can be stale.
     // Default to a one-minute slot starting now, which the user then adjusts.
     const t = Date.now();
-    setDraft({ start: toLocalInput(t), end: toLocalInput(t + 60_000) });
+    const start = toLocalInput(t), end = toLocalInput(t + 60_000);
+    setDraft({ start, end, duration: durationOfRange(start, end) });
     setAdding(true);
   };
   const submitAdd = () => {
@@ -84,7 +108,9 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
   const openEdit = (e: TimeEntry) => {
     setAdding(false);
     setEditingId(e.id);
-    setDraft({ start: toLocalInput(Date.parse(e.start)), end: e.end != null ? toLocalInput(Date.parse(e.end)) : "" });
+    const start = toLocalInput(Date.parse(e.start));
+    const end = e.end != null ? toLocalInput(Date.parse(e.end)) : "";
+    setDraft({ start, end, duration: durationOfRange(start, end) });
   };
   const submitEdit = (e: TimeEntry) => {
     const start = fromLocalInput(draft.start);
@@ -142,10 +168,15 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
               {editingId === e.id ? (
                 <div className="te-time-edit">
                   <input type="datetime-local" step="1" aria-label={t("timeTracking.entryStart")} value={draft.start}
-                         onChange={ev => { const v = ev.currentTarget.value; setDraft(d => ({ ...d, start: v })); }} />
+                         onChange={ev => setStart(ev.currentTarget.value)} />
                   {e.end != null ? (
-                    <input type="datetime-local" step="1" aria-label={t("timeTracking.entryEnd")} value={draft.end}
-                           onChange={ev => { const v = ev.currentTarget.value; setDraft(d => ({ ...d, end: v })); }} />
+                    <>
+                      <input type="datetime-local" step="1" aria-label={t("timeTracking.entryEnd")} value={draft.end}
+                             onChange={ev => setEnd(ev.currentTarget.value)} />
+                      <input type="text" inputMode="text" className="te-time-dur-input" aria-label={t("timeTracking.entryDuration")}
+                             placeholder={t("timeTracking.durationPlaceholder")} value={draft.duration}
+                             onChange={ev => setDuration(ev.currentTarget.value)} />
+                    </>
                   ) : (
                     <span className="te-time-running">{t("timeTracking.running")}</span>
                   )}
@@ -172,9 +203,12 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
       {adding ? (
         <div className="te-time-edit">
           <input type="datetime-local" step="1" aria-label={t("timeTracking.newEntryStart")} value={draft.start}
-                 onChange={ev => { const v = ev.currentTarget.value; setDraft(d => ({ ...d, start: v })); }} />
+                 onChange={ev => setStart(ev.currentTarget.value)} />
           <input type="datetime-local" step="1" aria-label={t("timeTracking.newEntryEnd")} value={draft.end}
-                 onChange={ev => { const v = ev.currentTarget.value; setDraft(d => ({ ...d, end: v })); }} />
+                 onChange={ev => setEnd(ev.currentTarget.value)} />
+          <input type="text" inputMode="text" className="te-time-dur-input" aria-label={t("timeTracking.newEntryDuration")}
+                 placeholder={t("timeTracking.durationPlaceholder")} value={draft.duration}
+                 onChange={ev => setDuration(ev.currentTarget.value)} />
           <button type="button" className="te-time-save" onClick={submitAdd}>{t("timeTracking.add")}</button>
           <button type="button" onClick={() => setAdding(false)}>{t("timeTracking.cancel")}</button>
         </div>
