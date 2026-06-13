@@ -84,7 +84,9 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
   // Estimate progress (#81): a thin bar along the row when an estimate is set.
   const estimateMs = task.estimated_seconds != null ? task.estimated_seconds * 1_000 : 0;
   const progressPct = estimateMs > 0 ? Math.round((total / estimateMs) * 100) : 0;
-  const overEstimate = estimateMs > 0 && total >= estimateMs;
+  // Red only signals an active overrun (running past the estimate); a stopped task
+  // sitting over its estimate shows a full accent bar, not a red one (#81).
+  const overEstimate = running && estimateMs > 0 && total >= estimateMs;
   const toggleTimer = () => {
     setError(null);
     (running ? api.stopTimer(task.id) : api.startTimer(task.id))

@@ -51,9 +51,17 @@ describe("TimeTracking (#81)", () => {
     expect((screen.getByLabelText("Estimated time") as HTMLInputElement).value).toBe("1h 30m");
   });
 
-  it("marks the estimate as over once tracked time reaches it", () => {
-    render(<TimeTracking task={{ ...base, estimated_seconds: 30 * 60, time_entries: [closed] }} />);
+  it("flags the estimate red only while a running timer is past it", () => {
+    // Running (open entry) and well past the 30m estimate -> red.
+    const runningOver: Task = { ...base, estimated_seconds: 30 * 60, time_entries: [{ id: "te_x", start: "2026-06-02T10:00:00+08:00" }] };
+    render(<TimeTracking task={runningOver} />);
     expect(screen.getByLabelText("Estimated time").getAttribute("data-over")).toBe("true");
+  });
+
+  it("does not flag red when stopped past the estimate", () => {
+    // Closed entry of 1h vs a 30m estimate: over, but not actively running -> not red.
+    render(<TimeTracking task={{ ...base, estimated_seconds: 30 * 60, time_entries: [closed] }} />);
+    expect(screen.getByLabelText("Estimated time").getAttribute("data-over")).toBe("false");
   });
 
   it("reports estimate edits to the parent and reflects them live", () => {

@@ -90,6 +90,21 @@ describe("TaskRow time tracking (#81)", () => {
     render(<TaskRow task={baseTask} tags={tags} todayIso="2026-05-31" />);
     expect(screen.queryByTitle(/of estimate/)).toBeNull();
   });
+
+  it("colors the progress red only while a running timer is past the estimate", () => {
+    // Stopped but over estimate: not red.
+    const stoppedOver: Task = {
+      ...baseTask, estimated_seconds: 30 * 60,
+      time_entries: [{ id: "te_1", start: "2026-05-31T10:00:00+08:00", end: "2026-05-31T11:00:00+08:00" }],
+    };
+    const { rerender } = render(<TaskRow task={stoppedOver} tags={tags} todayIso="2026-05-31" />);
+    expect(screen.getByTitle(/of estimate/).getAttribute("data-over")).toBe("false");
+
+    // Running and over estimate: red.
+    const runningOver: Task = { ...baseTask, estimated_seconds: 30 * 60, time_entries: [{ id: "te_2", start: "2026-05-31T10:00:00+08:00" }] };
+    rerender(<TaskRow task={runningOver} tags={tags} todayIso="2026-05-31" />);
+    expect(screen.getByTitle(/of estimate/).getAttribute("data-over")).toBe("true");
+  });
 });
 
 describe("TaskRow time-of-day (#93)", () => {

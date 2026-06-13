@@ -55,7 +55,9 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
   const estimateValue = estimateInput ?? formatEstimatedSecondsInput(task.estimated_seconds);
   const estimateSeconds = estimatedSecondsOrUndefined(estimateValue);
   const estimateMs = estimateSeconds != null ? estimateSeconds * 1_000 : 0;
-  const over = estimateMs > 0 && total >= estimateMs;
+  // Red signals an *active* overrun: only while the timer is running past the
+  // estimate. A stopped task that happens to be over its estimate isn't flagged.
+  const over = running && estimateMs > 0 && total >= estimateMs;
   const pct = estimateMs > 0 ? Math.round((total / estimateMs) * 100) : 0;
   const entries = [...(task.time_entries ?? [])].sort((a, b) => entryMs(b.start) - entryMs(a.start));
 
