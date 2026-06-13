@@ -81,6 +81,10 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
   const running = isTiming(task);
   const now = useNow(running);
   const total = elapsedMs(task, now);
+  // Estimate progress (#81): a thin bar along the row when an estimate is set.
+  const estimateMs = task.estimated_seconds != null ? task.estimated_seconds * 1_000 : 0;
+  const progressPct = estimateMs > 0 ? Math.round((total / estimateMs) * 100) : 0;
+  const overEstimate = estimateMs > 0 && total >= estimateMs;
   const toggleTimer = () => {
     setError(null);
     (running ? api.stopTimer(task.id) : api.startTimer(task.id))
@@ -121,6 +125,12 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
             <input type="checkbox" checked={isDone(task)} onChange={toggle}
                    aria-label={t("taskRow.toggle", { title: task.title })} />
           </>
+        )}
+        {estimateMs > 0 && (
+          <div className="task-row-progress" data-over={overEstimate}
+               title={t("taskRow.progressTitle", { pct: progressPct })}>
+            <div className="task-row-progress-fill" style={{ width: `${Math.min(100, progressPct)}%` }} />
+          </div>
         )}
       </div>
       {error && <p className="composer-error" role="alert">{t("taskRow.updateError", { error })}</p>}

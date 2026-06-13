@@ -75,6 +75,21 @@ describe("TaskRow time tracking (#81)", () => {
     expect(screen.getByText("1h 30m")).toBeTruthy();
     expect(screen.getByRole("button", { name: /start timer/i })).toBeTruthy();
   });
+
+  it("shows an estimate progress bar with the tracked-vs-estimate percentage", () => {
+    const tracked: Task = {
+      ...baseTask,
+      estimated_seconds: 2 * 3600, // 2h estimate
+      time_entries: [{ id: "te_1", start: "2026-05-31T10:00:00+08:00", end: "2026-05-31T11:30:00+08:00" }], // 1h30m = 75%
+    };
+    render(<TaskRow task={tracked} tags={tags} todayIso="2026-05-31" />);
+    expect(screen.getByTitle("75% of estimate")).toBeTruthy();
+  });
+
+  it("shows no progress bar when the task has no estimate", () => {
+    render(<TaskRow task={baseTask} tags={tags} todayIso="2026-05-31" />);
+    expect(screen.queryByTitle(/of estimate/)).toBeNull();
+  });
 });
 
 describe("TaskRow time-of-day (#93)", () => {

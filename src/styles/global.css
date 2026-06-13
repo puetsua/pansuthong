@@ -63,6 +63,7 @@ button {
 }
 
 .task-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -73,6 +74,13 @@ button {
   margin-bottom: var(--space-1);
   font-size: 0.92rem;
 }
+/* Estimate progress: a thin track hugging the row's bottom edge (#81). */
+.task-row-progress {
+  position: absolute; left: var(--space-3); right: var(--space-3); bottom: 2px;
+  height: 2px; border-radius: 999px; background: var(--c-border); overflow: hidden;
+}
+.task-row-progress-fill { height: 100%; background: var(--c-accent); border-radius: inherit; transition: width 0.2s ease; }
+.task-row-progress[data-over="true"] .task-row-progress-fill { background: var(--c-danger); }
 .task-row:hover,
 .task-row:focus-within { border-color: var(--c-accent); }
 .task-main {

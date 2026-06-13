@@ -184,6 +184,7 @@
     "restore": "Restore",
     "restoreAria": "Restore {{title}}",
     "timeTrackedTitle": "Time tracked",
+    "progressTitle": "{{pct}}% of estimate",
     "stopTimer": "Stop timer for {{title}}",
     "startTimer": "Start timer for {{title}}",
     "stopTimerTitle": "Stop timer",

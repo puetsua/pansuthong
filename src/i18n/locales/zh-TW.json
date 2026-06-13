@@ -181,6 +181,7 @@
     "restore": "還原",
     "restoreAria": "還原 {{title}}",
     "timeTrackedTitle": "已追蹤時間",
+    "progressTitle": "預估的 {{pct}}%",
     "stopTimer": "停止 {{title}} 的計時",
     "startTimer": "開始 {{title}} 的計時",
     "stopTimerTitle": "停止計時",
