@@ -737,12 +737,13 @@ fn is_time_format(s: &str) -> bool {
     matches!(
         s,
         "locale"
-            | "locale_short"
             | "twenty_four"
-            | "twenty_four_short"
             | "twelve_hour"
-            | "twelve_hour_short"
-            | "compact_24"
+            | "chinese_day_period"
+            | "japanese_day_period"
+            | "korean_day_period"
+            | "thai_day_period"
+            | "arabic_day_period"
     )
 }
 
@@ -1503,9 +1504,9 @@ mod tests {
     #[test]
     fn update_settings_input_parses_date_and_time_formats() {
         let v: UpdateSettingsInput =
-            serde_json::from_str(r#"{"date_format":"chinese_lunar","time_format":"compact_24"}"#).unwrap();
+            serde_json::from_str(r#"{"date_format":"chinese_lunar","time_format":"chinese_day_period"}"#).unwrap();
         assert_eq!(v.date_format.as_deref(), Some("chinese_lunar"));
-        assert_eq!(v.time_format.as_deref(), Some("compact_24"));
+        assert_eq!(v.time_format.as_deref(), Some("chinese_day_period"));
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.date_format, None);
         assert_eq!(absent.time_format, None);

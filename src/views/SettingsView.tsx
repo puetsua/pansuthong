@@ -94,12 +94,13 @@ export function SettingsView({ doc }: Props) {
   };
   const timeFmtLabel: Record<TimeFormat, string> = {
     locale: t("settings.timeFormatLocale"),
-    locale_short: t("settings.timeFormatLocaleShort"),
     twenty_four: t("settings.timeFormat24"),
-    twenty_four_short: t("settings.timeFormat24Short"),
     twelve_hour: t("settings.timeFormat12"),
-    twelve_hour_short: t("settings.timeFormat12Short"),
-    compact_24: t("settings.timeFormatCompact24"),
+    chinese_day_period: t("settings.timeFormatChineseDayPeriod"),
+    japanese_day_period: t("settings.timeFormatJapaneseDayPeriod"),
+    korean_day_period: t("settings.timeFormatKoreanDayPeriod"),
+    thai_day_period: t("settings.timeFormatThaiDayPeriod"),
+    arabic_day_period: t("settings.timeFormatArabicDayPeriod"),
   };
 
   const soundOn = soundOnComplete(doc.settings);
@@ -217,18 +218,19 @@ export function SettingsView({ doc }: Props) {
       <section className="settings-section">
         <h2>{t("settings.language")}</h2>
         <p className="view-sub">{t("settings.languageSub")}</p>
-        <div className="theme-options">
-          {([["auto", t("settings.langAuto")], ["en", t("settings.langEn")], ["zh-TW", t("settings.langZhTW")]] as const).map(([opt, label]) => (
-            <button
-              key={opt}
-              className={`theme-option ${language === opt ? "active" : ""}`}
-              aria-pressed={language === opt}
-              onClick={() => setLanguage(opt)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <label className="te-field">
+          <span>{t("settings.language")}</span>
+          <select
+            className="select-input"
+            aria-label={t("settings.language")}
+            value={language}
+            onChange={e => setLanguage(e.currentTarget.value as "auto" | "en" | "zh-TW")}
+          >
+            <option value="auto">{t("settings.langAuto")}</option>
+            <option value="en">{t("settings.langEn")}</option>
+            <option value="zh-TW">{t("settings.langZhTW")}</option>
+          </select>
+        </label>
       </section>
 
       <section className="settings-section">

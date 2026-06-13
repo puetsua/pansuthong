@@ -222,7 +222,7 @@ describe("timeFormat", () => {
   });
 
   it("uses the configured time preset when present", () => {
-    expect(timeFormat({ ...settings(), time_format: "compact_24" })).toBe("compact_24");
+    expect(timeFormat({ ...settings(), time_format: "chinese_day_period" })).toBe("chinese_day_period");
   });
 
   it("normalizes an unsupported stored value to the default", () => {

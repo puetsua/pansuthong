@@ -28,12 +28,13 @@ export type DateFormat =
   | "japanese";
 export type TimeFormat =
   | "locale"
-  | "locale_short"
   | "twenty_four"
-  | "twenty_four_short"
   | "twelve_hour"
-  | "twelve_hour_short"
-  | "compact_24";
+  | "chinese_day_period"
+  | "japanese_day_period"
+  | "korean_day_period"
+  | "thai_day_period"
+  | "arabic_day_period";
 export type DateTimeFormat = DateFormat;
 
 export const DATE_FORMATS: DateFormat[] = [
@@ -67,12 +68,13 @@ export const DATE_FORMATS: DateFormat[] = [
 ];
 export const TIME_FORMATS: TimeFormat[] = [
   "locale",
-  "locale_short",
   "twenty_four",
-  "twenty_four_short",
   "twelve_hour",
-  "twelve_hour_short",
-  "compact_24",
+  "chinese_day_period",
+  "japanese_day_period",
+  "korean_day_period",
+  "thai_day_period",
+  "arabic_day_period",
 ];
 export const DATE_TIME_FORMATS: DateTimeFormat[] = DATE_FORMATS;
 
@@ -222,18 +224,20 @@ export function formatTime(
   const d = dateFromValue(value);
   if (!d) return "—";
   switch (format) {
-    case "locale_short":
-      return d.toLocaleTimeString(locale, { timeStyle: "short" });
     case "twenty_four":
       return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
-    case "twenty_four_short":
-      return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     case "twelve_hour":
       return d.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
-    case "twelve_hour_short":
-      return d.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", hour12: true });
-    case "compact_24":
-      return `${pad2(d.getHours())}${pad2(d.getMinutes())}`;
+    case "chinese_day_period":
+      return d.toLocaleTimeString("zh-TW", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
+    case "japanese_day_period":
+      return d.toLocaleTimeString("ja-JP", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
+    case "korean_day_period":
+      return d.toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
+    case "thai_day_period":
+      return d.toLocaleTimeString("th-TH", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
+    case "arabic_day_period":
+      return d.toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
     case "locale":
     default:
       return d.toLocaleTimeString(locale, { timeStyle: "medium" });

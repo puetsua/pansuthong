@@ -180,12 +180,24 @@ describe("formatDate / formatTime", () => {
     expect(formatDate(d, "chinese_lunar")).not.toBe("—");
   });
 
-  it("supports additional locale and compact time formats", () => {
+  it("supports time formats that include seconds", () => {
     const d = new Date(2026, 5, 12, 8, 9, 10);
-    expect(formatTime(d, "twenty_four_short")).toBe("08:09");
-    expect(formatTime(d, "compact_24")).toBe("0809");
-    expect(formatTime(d, "twelve_hour_short", "en")).toMatch(/8:09\s?AM/i);
-    expect(formatTime(d, "locale_short", "en")).toContain("8:09");
+    expect(formatTime(d, "twenty_four")).toBe("08:09:10");
+    expect(formatTime(d, "twelve_hour", "en")).toMatch(/8:09:10\s?AM/i);
+    expect(formatTime(d, "locale", "en")).toContain("8:09:10");
+  });
+
+  it("supports localized day-period time formats", () => {
+    const morning = new Date(2026, 5, 12, 8, 9, 10);
+    const afternoon = new Date(2026, 5, 12, 20, 9, 10);
+    expect(formatTime(morning, "chinese_day_period")).toContain("上午");
+    expect(formatTime(afternoon, "chinese_day_period")).toContain("下午");
+    expect(formatTime(morning, "japanese_day_period")).toContain("午前");
+    expect(formatTime(afternoon, "japanese_day_period")).toContain("午後");
+    expect(formatTime(morning, "korean_day_period")).toContain("오전");
+    expect(formatTime(afternoon, "korean_day_period")).toContain("오후");
+    expect(formatTime(morning, "thai_day_period")).not.toBe("—");
+    expect(formatTime(morning, "arabic_day_period")).not.toBe("—");
   });
 
   it("formats HH:MM local task time fields", () => {
