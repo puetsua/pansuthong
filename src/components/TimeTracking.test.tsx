@@ -92,8 +92,12 @@ describe("TimeTracking (#81)", () => {
   });
 
   it("rejects a manual entry that overlaps an existing session", async () => {
-    // Existing closed session 09:00–10:00; the new one straddles it.
-    render(<TimeTracking task={{ ...base, time_entries: [closed] }} />);
+    // Existing closed session 09:00–10:00; the new one straddles it. Use
+    // timezone-naive (local) times for both the fixture and the inputs so the
+    // overlap holds regardless of the runner's timezone (the datetime-local
+    // inputs are always interpreted as local time).
+    const localClosed = { id: "te_1", start: "2026-06-02T09:00:00", end: "2026-06-02T10:00:00" };
+    render(<TimeTracking task={{ ...base, time_entries: [localClosed] }} />);
     fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
     fireEvent.change(screen.getByLabelText("New entry start"), { target: { value: "2026-06-02T09:30" } });
     fireEvent.change(screen.getByLabelText("New entry end"), { target: { value: "2026-06-02T10:30" } });
