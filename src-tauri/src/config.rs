@@ -60,6 +60,18 @@ pub struct Settings {
     /// config.json files predating the setting still load (defaulting to 10).
     #[serde(default = "default_reminder_interval_minutes")]
     pub reminder_interval_minutes: u32,
+    /// Legacy combined date-time display format preset (#date-time-format).
+    /// New writes use `date_format` and `time_format`, but keeping this field
+    /// lets older config.json files continue to influence the date fallback.
+    #[serde(default = "default_date_time_format")]
+    pub date_time_format: String,
+    /// Date display format preset. `None` means fall back to `date_time_format`
+    /// if present, then "locale".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub date_format: Option<String>,
+    /// Time display format preset. `None` means "locale".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time_format: Option<String>,
 }
 
 fn default_theme() -> String {
@@ -90,6 +102,10 @@ fn default_reminder_interval_minutes() -> u32 {
     10
 }
 
+fn default_date_time_format() -> String {
+    "locale".into()
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -102,6 +118,9 @@ impl Default for Settings {
             language: default_language(),
             sound_on_complete: default_sound_on_complete(),
             reminder_interval_minutes: default_reminder_interval_minutes(),
+            date_time_format: default_date_time_format(),
+            date_format: None,
+            time_format: None,
         }
     }
 }
@@ -301,6 +320,9 @@ mod tests {
         assert_eq!(cfg.settings.sort_order, "priority");
         assert_eq!(cfg.settings.upcoming_days, 14);
         assert!(cfg.settings.sound_on_complete); // completion chime defaults on (#80)
+        assert_eq!(cfg.settings.date_time_format, "locale"); // date-time format defaults to locale
+        assert_eq!(cfg.settings.date_format, None);
+        assert_eq!(cfg.settings.time_format, None);
     }
 
     #[test]
@@ -465,6 +487,36 @@ mod tests {
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.default_tag_color, "#ef4444");
         assert_eq!(back.default_tag_priority, 7);
+    }
+
+    #[test]
+    fn settings_missing_date_time_format_defaults_to_locale() {
+        // A config.json predating date-time format selection lacks the key;
+        // it must default to "locale" rather than fail the whole parse.
+        let s: Settings =
+            serde_json::from_str(r#"{"theme":"dark","sort_order":"date","upcoming_days":30}"#)
+                .unwrap();
+        assert_eq!(s.date_time_format, "locale");
+    }
+
+    #[test]
+    fn settings_round_trip_preserves_date_time_format() {
+        let mut s = Settings::default();
+        s.date_time_format = "japanese".into();
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.date_time_format, "japanese");
+    }
+
+    #[test]
+    fn settings_round_trip_preserves_date_and_time_formats() {
+        let mut s = Settings::default();
+        s.date_format = Some("roc".into());
+        s.time_format = Some("twenty_four".into());
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.date_format.as_deref(), Some("roc"));
+        assert_eq!(back.time_format.as_deref(), Some("twenty_four"));
     }
 
     #[test]

@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import type { DateFormat, DateTimeFormat, TimeFormat } from "./dates";
+
+export type { DateFormat, DateTimeFormat, TimeFormat };
 
 export type SortOrder = "priority" | "date";
 
@@ -13,6 +16,9 @@ export type Settings = {
   language?: "auto" | "en" | "zh-TW"; // UI language; "auto" follows the OS locale, default (#26)
   sound_on_complete?: boolean; // play a sound when a task is marked done; default true (#80)
   reminder_interval_minutes?: number; // re-notify cadence for tasks past their estimate; 1..1440, default 10
+  date_time_format?: DateTimeFormat; // legacy date-time display preset; default "locale"
+  date_format?: DateFormat; // date display preset; default "locale"
+  time_format?: TimeFormat; // time display preset; default "locale"
 };
 
 export type Tag = {
@@ -198,7 +204,9 @@ export const api = {
                             day_start_hour?: number;
                             default_tag_color?: string; default_tag_priority?: number;
                             language?: "auto" | "en" | "zh-TW";
-                            sound_on_complete?: boolean; reminder_interval_minutes?: number }) =>
+                            sound_on_complete?: boolean; reminder_interval_minutes?: number;
+                            date_time_format?: DateTimeFormat;
+                            date_format?: DateFormat; time_format?: TimeFormat }) =>
                                    invoke<void>("update_settings", { input }),
   listConflicts:    ()             => invoke<string[]>("list_conflicts"),
   readConflict:     (path: string) => invoke<TaskDiff[]>("read_conflict", { conflictPath: path }),

@@ -4,11 +4,14 @@ import { api, DataLocation, Document, SyncStatus } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { currentLocale } from "../i18n";
 import { isAndroid } from "../lib/platform";
+import { DATE_FORMATS, formatDate, formatDateTime, formatTime, TIME_FORMATS } from "../lib/dates";
+import type { DateFormat, TimeFormat } from "../lib/dates";
 import {
   clampUpcomingDays, upcomingDays, UPCOMING_DAYS_MAX, UPCOMING_DAYS_MIN,
   dayStartHour, DAY_START_HOUR_MAX, DAY_START_HOUR_MIN,
   defaultTagPriority, soundOnComplete,
   clampReminderInterval, reminderIntervalMinutes, REMINDER_INTERVAL_MAX, REMINDER_INTERVAL_MIN,
+  dateFormat, timeFormat,
 } from "../lib/settings";
 import { clampWeight, WEIGHT_MAX, WEIGHT_MIN } from "../lib/tags";
 
@@ -49,6 +52,55 @@ export function SettingsView({ doc }: Props) {
 
   const language = doc.settings.language ?? "auto";
   const setLanguage = (next: "auto" | "en" | "zh-TW") => { void applySettings({ language: next }); };
+
+  const locale = currentLocale();
+  const exampleNow = new Date();
+  const dateFmt = dateFormat(doc.settings);
+  const timeFmt = timeFormat(doc.settings);
+  const setDateFormat = (next: DateFormat) => {
+    void applySettings({ date_format: next });
+  };
+  const setTimeFormat = (next: TimeFormat) => {
+    void applySettings({ time_format: next });
+  };
+  const dateFmtLabel: Record<DateFormat, string> = {
+    locale: t("settings.dateFormatLocale"),
+    locale_short: t("settings.dateFormatLocaleShort"),
+    locale_long: t("settings.dateFormatLocaleLong"),
+    locale_full: t("settings.dateFormatLocaleFull"),
+    iso: t("settings.dateFormatIso"),
+    slash_ymd: t("settings.dateFormatSlashYmd"),
+    dot_ymd: t("settings.dateFormatDotYmd"),
+    slash_mdy: t("settings.dateFormatSlashMdy"),
+    slash_dmy: t("settings.dateFormatSlashDmy"),
+    dot_dmy: t("settings.dateFormatDotDmy"),
+    compact: t("settings.dateFormatCompact"),
+    month_day_year: t("settings.dateFormatMonthDayYear"),
+    day_month_year: t("settings.dateFormatDayMonthYear"),
+    weekday_short: t("settings.dateFormatWeekdayShort"),
+    weekday_long: t("settings.dateFormatWeekdayLong"),
+    chinese: t("settings.dateFormatChinese"),
+    xiyuan_zh: t("settings.dateFormatXiyuanZh"),
+    gongyuan_zh: t("settings.dateFormatGongyuanZh"),
+    roc: t("settings.dateFormatRoc"),
+    minguo_zh: t("settings.dateFormatMinguoZh"),
+    buddhist_thai: t("settings.dateFormatBuddhistThai"),
+    hebrew: t("settings.dateFormatHebrew"),
+    islamic: t("settings.dateFormatIslamic"),
+    persian: t("settings.dateFormatPersian"),
+    indian: t("settings.dateFormatIndian"),
+    chinese_lunar: t("settings.dateFormatChineseLunar"),
+    japanese: t("settings.dateFormatJapanese"),
+  };
+  const timeFmtLabel: Record<TimeFormat, string> = {
+    locale: t("settings.timeFormatLocale"),
+    locale_short: t("settings.timeFormatLocaleShort"),
+    twenty_four: t("settings.timeFormat24"),
+    twenty_four_short: t("settings.timeFormat24Short"),
+    twelve_hour: t("settings.timeFormat12"),
+    twelve_hour_short: t("settings.timeFormat12Short"),
+    compact_24: t("settings.timeFormatCompact24"),
+  };
 
   const soundOn = soundOnComplete(doc.settings);
   const setSound = (on: boolean) => { void applySettings({ sound_on_complete: on }); };
@@ -177,6 +229,41 @@ export function SettingsView({ doc }: Props) {
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="settings-section">
+        <h2>{t("settings.dateTimeFormat")}</h2>
+        <p className="view-sub">{t("settings.dateTimeFormatSub")}</p>
+        <label className="te-field">
+          <span>{t("settings.dateFormat")}</span>
+          <select
+            className="select-input"
+            aria-label={t("settings.dateFormat")}
+            value={dateFmt}
+            onChange={e => setDateFormat(e.currentTarget.value as DateFormat)}
+          >
+            {DATE_FORMATS.map(opt => (
+              <option key={opt} value={opt}>
+                {dateFmtLabel[opt]} ({formatDate(exampleNow, opt, locale)})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="te-field">
+          <span>{t("settings.timeFormat")}</span>
+          <select
+            className="select-input"
+            aria-label={t("settings.timeFormat")}
+            value={timeFmt}
+            onChange={e => setTimeFormat(e.currentTarget.value as TimeFormat)}
+          >
+            {TIME_FORMATS.map(opt => (
+              <option key={opt} value={opt}>
+                {timeFmtLabel[opt]} ({formatTime(exampleNow, opt, locale)})
+              </option>
+            ))}
+          </select>
+        </label>
       </section>
 
       <section className="settings-section">
@@ -325,7 +412,7 @@ export function SettingsView({ doc }: Props) {
               </p>
               <p className="view-sub">
                 {sync.last_synced_ms
-                  ? t("settings.lastSynced", { when: new Date(sync.last_synced_ms).toLocaleString(currentLocale()) })
+                  ? t("settings.lastSynced", { when: formatDateTime(sync.last_synced_ms, dateFmt, timeFmt, locale) })
                   : t("settings.notSyncedYet")}
                 {sync.conflict_count > 0 && t("settings.conflictCount", { count: sync.conflict_count })}
                 {sync.last_error && t("settings.syncError", { error: sync.last_error })}

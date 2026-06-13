@@ -9,6 +9,8 @@ import { elapsedMs, formatClock, formatDurationShort, isTiming } from "../lib/ti
 import { useNow } from "../lib/useNow";
 import { playCompletionSound } from "../lib/sound";
 import { TaskEditor } from "./TaskEditor";
+import { currentDateFormat, currentTimeFormat, formatIsoDate, formatTimeOfDay } from "../lib/dates";
+import { currentLocale } from "../i18n";
 
 type Props = {
   task: Task;
@@ -23,16 +25,19 @@ type Props = {
 };
 
 function whenLabel(task: Task, today: string, t: TFunction): { text: string; late: boolean } {
+  const locale = currentLocale();
+  const dateFmt = currentDateFormat();
+  const timeFmt = currentTimeFormat();
   // A trailing " HH:MM" when the field carries a time, else "" (all-day) (#93).
-  const dueT = task.due_time ? ` ${task.due_time}` : "";
-  const schedT = task.start_time ? ` ${task.start_time}` : "";
+  const dueT = task.due_time ? ` ${formatTimeOfDay(task.due_time, timeFmt, locale)}` : "";
+  const schedT = task.start_time ? ` ${formatTimeOfDay(task.start_time, timeFmt, locale)}` : "";
   if (task.due_date) {
     if (task.due_date === today)       return { text: t("taskRow.dueToday", { time: dueT }), late: false };
     if (task.due_date < today && !isDone(task)) return { text: t("taskRow.overdue", { days: diffDays(task.due_date, today) }), late: true };
-    return { text: t("taskRow.due", { date: task.due_date.slice(5), time: dueT }), late: false };
+    return { text: t("taskRow.due", { date: formatIsoDate(task.due_date, dateFmt, locale), time: dueT }), late: false };
   }
   if (task.start_date === today) return { text: t("taskRow.today", { time: schedT }), late: false };
-  if (task.start_date)           return { text: t("taskRow.scheduled", { date: task.start_date.slice(5), time: schedT }), late: false };
+  if (task.start_date)           return { text: t("taskRow.scheduled", { date: formatIsoDate(task.start_date, dateFmt, locale), time: schedT }), late: false };
   return { text: "", late: false };
 }
 

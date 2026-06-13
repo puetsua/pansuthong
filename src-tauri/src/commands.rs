@@ -700,6 +700,52 @@ fn is_hex_color(s: &str) -> bool {
     (hex.len() == 3 || hex.len() == 6) && hex.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
+fn is_date_format(s: &str) -> bool {
+    matches!(
+        s,
+        "locale"
+            | "locale_short"
+            | "locale_long"
+            | "locale_full"
+            | "iso"
+            | "slash_ymd"
+            | "dot_ymd"
+            | "slash_mdy"
+            | "slash_dmy"
+            | "dot_dmy"
+            | "compact"
+            | "month_day_year"
+            | "day_month_year"
+            | "weekday_short"
+            | "weekday_long"
+            | "chinese"
+            | "xiyuan_zh"
+            | "gongyuan_zh"
+            | "roc"
+            | "minguo_zh"
+            | "buddhist_thai"
+            | "hebrew"
+            | "islamic"
+            | "persian"
+            | "indian"
+            | "chinese_lunar"
+            | "japanese"
+    )
+}
+
+fn is_time_format(s: &str) -> bool {
+    matches!(
+        s,
+        "locale"
+            | "locale_short"
+            | "twenty_four"
+            | "twenty_four_short"
+            | "twelve_hour"
+            | "twelve_hour_short"
+            | "compact_24"
+    )
+}
+
 #[derive(Deserialize)]
 pub struct UpdateSettingsInput {
     #[serde(default)] pub theme: Option<String>,
@@ -711,6 +757,9 @@ pub struct UpdateSettingsInput {
     #[serde(default)] pub language: Option<String>,
     #[serde(default)] pub sound_on_complete: Option<bool>,
     #[serde(default)] pub reminder_interval_minutes: Option<u32>,
+    #[serde(default)] pub date_time_format: Option<String>,
+    #[serde(default)] pub date_format: Option<String>,
+    #[serde(default)] pub time_format: Option<String>,
 }
 
 #[tauri::command]
@@ -778,6 +827,24 @@ pub fn update_settings(
                 )));
             }
             s.reminder_interval_minutes = m;
+        }
+        if let Some(fmt) = input.date_time_format {
+            if !is_date_format(&fmt) {
+                return Err(AppError::Invalid(format!("invalid date_time_format: {fmt}")));
+            }
+            s.date_time_format = fmt;
+        }
+        if let Some(fmt) = input.date_format {
+            if !is_date_format(&fmt) {
+                return Err(AppError::Invalid(format!("invalid date_format: {fmt}")));
+            }
+            s.date_format = Some(fmt);
+        }
+        if let Some(fmt) = input.time_format {
+            if !is_time_format(&fmt) {
+                return Err(AppError::Invalid(format!("invalid time_format: {fmt}")));
+            }
+            s.time_format = Some(fmt);
         }
         Ok(())
     })?;
@@ -1421,6 +1488,27 @@ mod tests {
         assert_eq!(v.reminder_interval_minutes, Some(30));
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.reminder_interval_minutes, None);
+    }
+
+    #[test]
+    fn update_settings_input_parses_date_time_format() {
+        // Pins the snake_case `date_time_format` key the JS api sends.
+        let v: UpdateSettingsInput =
+            serde_json::from_str(r#"{"date_time_format":"japanese"}"#).unwrap();
+        assert_eq!(v.date_time_format.as_deref(), Some("japanese"));
+        let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(absent.date_time_format, None);
+    }
+
+    #[test]
+    fn update_settings_input_parses_date_and_time_formats() {
+        let v: UpdateSettingsInput =
+            serde_json::from_str(r#"{"date_format":"chinese_lunar","time_format":"compact_24"}"#).unwrap();
+        assert_eq!(v.date_format.as_deref(), Some("chinese_lunar"));
+        assert_eq!(v.time_format.as_deref(), Some("compact_24"));
+        let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(absent.date_format, None);
+        assert_eq!(absent.time_format, None);
     }
 
     #[test]

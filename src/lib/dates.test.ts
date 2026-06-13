@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { addDaysIso, daysBetweenIso, formatIsoLocal, logicalDayOf, todayIso } from "./dates";
+import {
+  addDaysIso, daysBetweenIso, formatDate, formatDateTime, formatIsoDate, formatIsoLocal, formatTime, formatTimeOfDay, logicalDayOf, todayIso,
+} from "./dates";
 
 describe("todayIso (day-start hour)", () => {
   it("returns the plain calendar date with the default (midnight) rollover", () => {
@@ -96,5 +98,97 @@ describe("formatIsoLocal", () => {
     expect(formatIsoLocal(undefined)).toBe("—");
     expect(formatIsoLocal(null)).toBe("—");
     expect(formatIsoLocal("")).toBe("—");
+  });
+});
+
+describe("formatDateTime", () => {
+  // 2026-06-12T20:14:27Z
+  const instant = Date.UTC(2026, 5, 12, 20, 14, 27);
+
+  it("renders an em dash for missing/empty/invalid input", () => {
+    expect(formatDateTime(undefined, "locale")).toBe("—");
+    expect(formatDateTime(null, "locale")).toBe("—");
+    expect(formatDateTime("", "locale")).toBe("—");
+    expect(formatDateTime("not-a-date", "locale")).toBe("—");
+  });
+
+  it("formats as ISO YYYY-MM-DD HH:MM:SS", () => {
+    expect(formatDateTime(instant, "iso", "twenty_four")).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  });
+
+  it("uses the supplied locale for the locale preset", () => {
+    const en = formatDateTime(instant, "locale", "en");
+    const zh = formatDateTime(instant, "locale", "zh-TW");
+    expect(en).toContain("2026");
+    expect(zh).toContain("2026");
+    // The two locales should produce visibly different strings.
+    expect(en).not.toBe(zh);
+  });
+
+  it("supports Traditional Chinese, ROC, and Japanese era calendars", () => {
+    const chinese = formatDateTime(instant, "chinese");
+    const roc = formatDateTime(instant, "roc");
+    const japanese = formatDateTime(instant, "japanese");
+    // Each preset should mention the year and not fall back to an em dash.
+    expect(chinese).toContain("2026");
+    expect(roc).not.toBe("—");
+    expect(japanese).not.toBe("—");
+  });
+});
+
+describe("formatDate / formatTime", () => {
+  const instant = Date.UTC(2026, 5, 12, 20, 14, 27);
+
+  it("formats a date-only ISO field without timezone drift", () => {
+    expect(formatIsoDate("2026-06-12", "iso")).toBe("2026-06-12");
+  });
+
+  it("formats date presets separately from time presets", () => {
+    expect(formatDate(instant, "iso")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(formatTime(instant, "twenty_four")).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+    expect(formatTime(instant, "twelve_hour", "en")).toMatch(/\d{1,2}:\d{2}:\d{2}\s?(AM|PM)/i);
+  });
+
+  it("supports common fixed numeric and named date formats", () => {
+    const d = new Date(2026, 5, 12, 8, 9, 10);
+    expect(formatDate(d, "slash_ymd")).toBe("2026/06/12");
+    expect(formatDate(d, "dot_ymd")).toBe("2026.06.12");
+    expect(formatDate(d, "slash_mdy")).toBe("06/12/2026");
+    expect(formatDate(d, "slash_dmy")).toBe("12/06/2026");
+    expect(formatDate(d, "dot_dmy")).toBe("12.06.2026");
+    expect(formatDate(d, "compact")).toBe("20260612");
+    expect(formatDate(d, "month_day_year")).toBe("Jun 12, 2026");
+    expect(formatDate(d, "day_month_year")).toBe("12 Jun 2026");
+    expect(formatDate(d, "weekday_short", "en")).toContain("Fri");
+    expect(formatDate(d, "weekday_long", "en")).toContain("Friday");
+  });
+
+  it("supports Chinese western-era and Minguo text date formats", () => {
+    const d = new Date(2026, 4, 13, 8, 9, 10);
+    expect(formatDate(d, "xiyuan_zh")).toBe("西元2026年5月13日");
+    expect(formatDate(d, "gongyuan_zh")).toBe("公元2026年5月13日");
+    expect(formatDate(d, "minguo_zh")).toBe("民國115年5月13日");
+  });
+
+  it("supports non-Gregorian localized calendar presets", () => {
+    const d = new Date(2026, 4, 13, 8, 9, 10);
+    expect(formatDate(d, "buddhist_thai")).not.toBe("—");
+    expect(formatDate(d, "hebrew")).not.toBe("—");
+    expect(formatDate(d, "islamic")).not.toBe("—");
+    expect(formatDate(d, "persian")).not.toBe("—");
+    expect(formatDate(d, "indian")).not.toBe("—");
+    expect(formatDate(d, "chinese_lunar")).not.toBe("—");
+  });
+
+  it("supports additional locale and compact time formats", () => {
+    const d = new Date(2026, 5, 12, 8, 9, 10);
+    expect(formatTime(d, "twenty_four_short")).toBe("08:09");
+    expect(formatTime(d, "compact_24")).toBe("0809");
+    expect(formatTime(d, "twelve_hour_short", "en")).toMatch(/8:09\s?AM/i);
+    expect(formatTime(d, "locale_short", "en")).toContain("8:09");
+  });
+
+  it("formats HH:MM local task time fields", () => {
+    expect(formatTimeOfDay("09:30", "twenty_four", "en-GB")).toBe("09:30:00");
   });
 });

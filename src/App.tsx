@@ -18,7 +18,8 @@ import { ConflictsView } from "./views/ConflictsView";
 import { HistoryView } from "./views/HistoryView";
 import { useDocument } from "./state/store";
 import { setCompletionSoundEnabled } from "./lib/sound";
-import { reminderIntervalMinutes } from "./lib/settings";
+import { currentDateFormat, currentTimeFormat, setDateFormat, setTimeFormat } from "./lib/dates";
+import { dateFormat, reminderIntervalMinutes, timeFormat } from "./lib/settings";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import { TimeEstimateReminder } from "./components/TimeEstimateReminder";
 
@@ -44,6 +45,16 @@ export default function App() {
   useEffect(() => {
     setCompletionSoundEnabled(doc?.settings.sound_on_complete ?? true);
   }, [doc?.settings.sound_on_complete]);
+
+  // Mirror the device-local date/time format preferences into the dates module so
+  // any component can format dates and instants with the user's chosen presets without
+  // threading settings through every layer (#date-time-format).
+  useEffect(() => {
+    const nextDate = dateFormat(doc?.settings);
+    const nextTime = timeFormat(doc?.settings);
+    if (nextDate !== currentDateFormat()) setDateFormat(nextDate);
+    if (nextTime !== currentTimeFormat()) setTimeFormat(nextTime);
+  }, [doc?.settings]);
 
   if (error) return <p className="app-error">{t("app.loadFailed", { error })}</p>;
   if (!doc || !indexes) return <p className="app-loading">{t("app.loading")}</p>;

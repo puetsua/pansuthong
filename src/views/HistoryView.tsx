@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { todayIso as computeTodayIso } from "../lib/dates";
+import { todayIso as computeTodayIso, formatDateTime, currentDateFormat, currentTimeFormat } from "../lib/dates";
 import { api, HistoryEntry } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { currentLocale } from "../i18n";
@@ -15,13 +15,7 @@ type Props = {
 function formatTime(value: string): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString(currentLocale(), {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDateTime(d, currentDateFormat(), currentTimeFormat(), currentLocale());
 }
 
 function entityLabel(entry: HistoryEntry, t: TFunction): string {

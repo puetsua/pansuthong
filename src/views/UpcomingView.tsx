@@ -7,7 +7,10 @@ import { effectivePriority, Indexes } from "../state/indexes";
 import { useHeldCompletions } from "../state/heldCompletions";
 import { Document, Task } from "../lib/tauri";
 import { GhostTask } from "../lib/recurrence";
-import { upcomingDays } from "../lib/settings";
+import { dateFormat, upcomingDays } from "../lib/settings";
+import { currentLocale } from "../i18n";
+import { formatIsoDate } from "../lib/dates";
+import type { DateFormat } from "../lib/dates";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -15,10 +18,12 @@ export function UpcomingView({ doc, indexes }: Props) {
   const { t } = useTranslation();
   const today = indexes.todayIso;
   const horizon = upcomingDays(doc.settings);
+  const dateFmt = dateFormat(doc.settings);
+  const locale = currentLocale();
   // Hold just-completed tasks visible (at the bottom of their day) until this view
   // is left or refreshed, so a mis-click can be undone in place (#recover).
   const { held, onCompleted, onReopened } = useHeldCompletions(doc.tasks);
-  const groups = buildGroups(indexes, today, horizon, held, t);
+  const groups = buildGroups(indexes, today, horizon, held, t, dateFmt, locale);
   const totalCount =
     new Set(groups.flatMap(g => g.tasks.map(t => t.id))).size +
     groups.reduce((n, g) => n + g.ghosts.length, 0);
@@ -48,7 +53,15 @@ export function UpcomingView({ doc, indexes }: Props) {
 
 type Group = { date: string; label: string; tasks: Task[]; ghosts: GhostTask[] };
 
-function buildGroups(indexes: Indexes, todayStr: string, horizon: number, held: Task[], t: TFunction): Group[] {
+function buildGroups(
+  indexes: Indexes,
+  todayStr: string,
+  horizon: number,
+  held: Task[],
+  t: TFunction,
+  dateFmt: DateFormat,
+  locale: string,
+): Group[] {
   const today = dayjs(todayStr);
   const onDay = (t: Task, iso: string) => t.start_date === iso || t.due_date === iso;
   const result: Group[] = [];
@@ -64,15 +77,17 @@ function buildGroups(indexes: Indexes, todayStr: string, horizon: number, held: 
     const all = [...tasks, ...heldForDay];
     const ghosts = indexes.ghostsForDate(iso);
     if (all.length > 0 || ghosts.length > 0) {
-      result.push({ date: iso, label: labelFor(day, today, t), tasks: all, ghosts });
+      result.push({ date: iso, label: labelFor(day, today, t, dateFmt, locale), tasks: all, ghosts });
     }
   }
   return result;
 }
 
-function labelFor(day: dayjs.Dayjs, today: dayjs.Dayjs, t: TFunction): string {
+function labelFor(day: dayjs.Dayjs, today: dayjs.Dayjs, t: TFunction, dateFmt: DateFormat, locale: string): string {
   const diff = day.diff(today, "day");
-  if (diff === 1) return `${t("upcoming.tomorrow")} · ${day.format("ddd MMM D")}`;
-  if (diff < 7)   return day.format("dddd · MMM D");
-  return day.format("ddd, MMM D");
+  const date = formatIsoDate(day.format("YYYY-MM-DD"), dateFmt, locale);
+  if (diff === 1) return `${t("upcoming.tomorrow")} · ${date}`;
+  const weekdayStyle: Intl.DateTimeFormatOptions["weekday"] = diff < 7 ? "long" : "short";
+  const weekday = day.toDate().toLocaleDateString(locale, { weekday: weekdayStyle });
+  return `${weekday} · ${date}`;
 }

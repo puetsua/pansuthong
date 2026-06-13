@@ -1,5 +1,16 @@
 import { Settings } from "./tauri";
 import { clampWeight } from "./tags";
+import {
+  DateFormat,
+  DateTimeFormat,
+  DEFAULT_DATE_FORMAT,
+  DEFAULT_DATE_TIME_FORMAT,
+  DEFAULT_TIME_FORMAT,
+  normalizeDateFormat,
+  normalizeDateTimeFormat,
+  normalizeTimeFormat,
+  TimeFormat,
+} from "./dates";
 
 /** Default Upcoming horizon (days ahead) when a document doesn't specify one. */
 export const UPCOMING_DAYS_DEFAULT = 14;
@@ -57,6 +68,25 @@ export function defaultTagPriority(settings?: Settings): number {
 export function soundOnComplete(settings: Settings): boolean {
   return settings.sound_on_complete ?? true;
 }
+
+/** The active date-time display format preset (default "locale"). */
+export function dateTimeFormat(settings?: Settings): DateTimeFormat {
+  return normalizeDateTimeFormat(settings?.date_time_format);
+}
+
+/** The active date display format preset (default "locale"). */
+export function dateFormat(settings?: Settings): DateFormat {
+  return normalizeDateFormat(settings?.date_format ?? settings?.date_time_format);
+}
+
+/** The active time display format preset (default "locale"). */
+export function timeFormat(settings?: Settings): TimeFormat {
+  return normalizeTimeFormat(settings?.time_format);
+}
+
+/** Default date-time display preset. */
+export { DEFAULT_DATE_TIME_FORMAT as DATE_TIME_FORMAT_DEFAULT };
+export { DEFAULT_DATE_FORMAT as DATE_FORMAT_DEFAULT, DEFAULT_TIME_FORMAT as TIME_FORMAT_DEFAULT };
 
 /** Default minutes between repeat notifications once a task exceeds its estimate. */
 export const REMINDER_INTERVAL_DEFAULT = 10;

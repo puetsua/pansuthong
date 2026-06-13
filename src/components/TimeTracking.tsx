@@ -6,6 +6,7 @@ import { elapsedMs, formatClock, formatDurationShort, isTiming, overlapsExisting
 import { estimatedSecondsOrUndefined, formatEstimatedSecondsInput } from "../state/taskUpdate";
 import { useNow } from "../lib/useNow";
 import { currentLocale } from "../i18n";
+import { currentDateFormat, currentTimeFormat, formatDateTime } from "../lib/dates";
 
 type Props = {
   task: Task;
@@ -30,7 +31,7 @@ const fromLocalInput = (s: string): number => new Date(s).getTime();
 const entryMs = (s: string): number => Date.parse(s);
 /** A finished entry's duration, or 0 while it's still running. */
 const durationMs = (e: TimeEntry): number => (e.end != null ? Math.max(0, Date.parse(e.end) - Date.parse(e.start)) : 0);
-const fmtMoment = (ms: number): string => new Date(ms).toLocaleString(currentLocale(), { dateStyle: "medium", timeStyle: "medium" });
+const fmtMoment = (ms: number): string => formatDateTime(ms, currentDateFormat(), currentTimeFormat(), currentLocale());
 
 /** Formatted duration ("1h 30m") for the gap between two datetime-local strings,
  *  or "" when the range is empty/invalid/non-positive. */

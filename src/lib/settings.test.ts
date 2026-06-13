@@ -1,26 +1,32 @@
 import { describe, it, expect } from "vitest";
 import { Settings } from "./tauri";
 import {
-  clampUpcomingDays,
-  upcomingDays,
-  UPCOMING_DAYS_DEFAULT,
-  UPCOMING_DAYS_MAX,
-  UPCOMING_DAYS_MIN,
-  defaultTagColor,
-  defaultTagPriority,
-  DEFAULT_TAG_COLOR,
-  DEFAULT_TAG_PRIORITY,
   clampDayStartHour,
+  clampReminderInterval,
+  clampUpcomingDays,
+  DATE_FORMAT_DEFAULT,
+  DATE_TIME_FORMAT_DEFAULT,
+  dateFormat,
+  dateTimeFormat,
   dayStartHour,
   DAY_START_HOUR_DEFAULT,
   DAY_START_HOUR_MAX,
   DAY_START_HOUR_MIN,
-  soundOnComplete,
-  clampReminderInterval,
+  defaultTagColor,
+  defaultTagPriority,
+  DEFAULT_TAG_COLOR,
+  DEFAULT_TAG_PRIORITY,
   reminderIntervalMinutes,
   REMINDER_INTERVAL_DEFAULT,
   REMINDER_INTERVAL_MAX,
   REMINDER_INTERVAL_MIN,
+  soundOnComplete,
+  TIME_FORMAT_DEFAULT,
+  timeFormat,
+  upcomingDays,
+  UPCOMING_DAYS_DEFAULT,
+  UPCOMING_DAYS_MAX,
+  UPCOMING_DAYS_MIN,
 } from "./settings";
 import { WEIGHT_MAX } from "./tags";
 
@@ -172,5 +178,54 @@ describe("reminderIntervalMinutes", () => {
 
   it("clamps an out-of-range stored value defensively", () => {
     expect(reminderIntervalMinutes({ ...settings(), reminder_interval_minutes: 99999 })).toBe(REMINDER_INTERVAL_MAX);
+  });
+});
+
+describe("dateTimeFormat", () => {
+  it("defaults to locale when unset (older documents)", () => {
+    expect(dateTimeFormat(settings())).toBe(DATE_TIME_FORMAT_DEFAULT);
+    expect(DATE_TIME_FORMAT_DEFAULT).toBe("locale");
+  });
+
+  it("uses the configured preset when present", () => {
+    expect(dateTimeFormat({ ...settings(), date_time_format: "japanese" })).toBe("japanese");
+  });
+
+  it("normalizes an unsupported stored value to the default", () => {
+    expect(dateTimeFormat({ ...settings(), date_time_format: "klingon" as "locale" })).toBe("locale");
+  });
+});
+
+describe("dateFormat", () => {
+  it("defaults to locale when unset", () => {
+    expect(dateFormat(settings())).toBe(DATE_FORMAT_DEFAULT);
+    expect(DATE_FORMAT_DEFAULT).toBe("locale");
+  });
+
+  it("uses the configured date preset when present", () => {
+    expect(dateFormat({ ...settings(), date_format: "chinese_lunar" })).toBe("chinese_lunar");
+  });
+
+  it("falls back to the legacy combined preset", () => {
+    expect(dateFormat({ ...settings(), date_time_format: "japanese" })).toBe("japanese");
+  });
+
+  it("normalizes an unsupported stored value to the default", () => {
+    expect(dateFormat({ ...settings(), date_format: "klingon" as "locale" })).toBe("locale");
+  });
+});
+
+describe("timeFormat", () => {
+  it("defaults to locale when unset", () => {
+    expect(timeFormat(settings())).toBe(TIME_FORMAT_DEFAULT);
+    expect(TIME_FORMAT_DEFAULT).toBe("locale");
+  });
+
+  it("uses the configured time preset when present", () => {
+    expect(timeFormat({ ...settings(), time_format: "compact_24" })).toBe("compact_24");
+  });
+
+  it("normalizes an unsupported stored value to the default", () => {
+    expect(timeFormat({ ...settings(), time_format: "metric" as "locale" })).toBe("locale");
   });
 });
