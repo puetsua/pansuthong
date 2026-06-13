@@ -57,3 +57,21 @@ export function defaultTagPriority(settings?: Settings): number {
 export function soundOnComplete(settings: Settings): boolean {
   return settings.sound_on_complete ?? true;
 }
+
+/** Default minutes between repeat notifications once a task exceeds its estimate. */
+export const REMINDER_INTERVAL_DEFAULT = 10;
+/** Inclusive bounds for the configurable reminder interval (mirrors the Rust check). */
+export const REMINDER_INTERVAL_MIN = 1;
+export const REMINDER_INTERVAL_MAX = 1440;
+
+/** The effective re-notify interval (minutes) for a document's settings (default when unset). */
+export function reminderIntervalMinutes(settings: Settings): number {
+  return clampReminderInterval(settings.reminder_interval_minutes ?? REMINDER_INTERVAL_DEFAULT);
+}
+
+/** Parse a free-typed minute count to an integer clamped to the allowed range. */
+export function clampReminderInterval(raw: string | number): number {
+  const n = typeof raw === "number" ? Math.trunc(raw) : parseInt(raw, 10);
+  if (Number.isNaN(n)) return REMINDER_INTERVAL_DEFAULT;
+  return Math.max(REMINDER_INTERVAL_MIN, Math.min(REMINDER_INTERVAL_MAX, n));
+}

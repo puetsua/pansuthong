@@ -18,6 +18,7 @@ import { ConflictsView } from "./views/ConflictsView";
 import { HistoryView } from "./views/HistoryView";
 import { useDocument } from "./state/store";
 import { setCompletionSoundEnabled } from "./lib/sound";
+import { reminderIntervalMinutes } from "./lib/settings";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import { TimeEstimateReminder } from "./components/TimeEstimateReminder";
 
@@ -53,7 +54,7 @@ export default function App() {
     <BrowserRouter>
       <Shell doc={doc} indexes={indexes}>
         <UpdatePrompt />
-        <TimeEstimateReminder tasks={doc.tasks} />
+        <TimeEstimateReminder tasks={doc.tasks} intervalMinutes={reminderIntervalMinutes(doc.settings)} />
         {reloadError && (
           <div className="reload-banner" role="alert">
             <span>{t("app.reloadError", { error: reloadError })}</span>

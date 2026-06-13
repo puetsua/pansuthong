@@ -3,10 +3,10 @@ import { useTranslation } from "react-i18next";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { Task } from "../lib/tauri";
 import { elapsedMs, formatDurationShort, isTiming } from "../lib/time";
+import { REMINDER_INTERVAL_DEFAULT } from "../lib/settings";
 
-type Props = { tasks: Task[] };
+type Props = { tasks: Task[]; intervalMinutes?: number };
 
-const REMINDER_MS = 10 * 60_000;
 const TICK_MS = 1_000;
 
 async function ensureNotificationPermission(): Promise<boolean> {
@@ -14,11 +14,15 @@ async function ensureNotificationPermission(): Promise<boolean> {
   return (await requestPermission()) === "granted";
 }
 
-export function TimeEstimateReminder({ tasks }: Props) {
+export function TimeEstimateReminder({ tasks, intervalMinutes = REMINDER_INTERVAL_DEFAULT }: Props) {
   const { t } = useTranslation();
   const lastNotified = useRef(new Map<string, number>());
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
+  // Re-notify cadence (ms) for a task still over its estimate; kept in a ref so a
+  // settings change takes effect without resyncing the interval each render.
+  const reminderMsRef = useRef(intervalMinutes * 60_000);
+  reminderMsRef.current = intervalMinutes * 60_000;
 
   useEffect(() => {
     const tick = () => {
@@ -38,7 +42,7 @@ export function TimeEstimateReminder({ tasks }: Props) {
         }
 
         const last = lastNotified.current.get(task.id);
-        if (last != null && now - last < REMINDER_MS) continue;
+        if (last != null && now - last < reminderMsRef.current) continue;
         lastNotified.current.set(task.id, now);
         const tracked = formatDurationShort(trackedMs);
         const estimateText = formatDurationShort(estimateMs);

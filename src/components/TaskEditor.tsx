@@ -477,13 +477,20 @@ export function TaskEditor(props: Props) {
               </label>
             </div>
             {dateError && <p className="te-warn" role="alert">{dateError}</p>}
-            <label className="te-field">
-              <span>{t("taskEditor.estimatedSeconds")}</span>
-              <input type="text" inputMode="text" placeholder={t("taskEditor.estimatedSecondsPlaceholder")}
-                     value={form.estimated_seconds}
-                     onChange={e => set("estimated_seconds", e.currentTarget.value)} />
-            </label>
-            {estimateError && <p className="te-warn" role="alert">{estimateError}</p>}
+            {/* A saved task edits its estimate inside the Time tracked section below
+                (single source of truth, live progress bar). A brand-new draft has no
+                time tracking yet, so it keeps the standalone field here. */}
+            {!canComplete && (
+              <>
+                <label className="te-field">
+                  <span>{t("taskEditor.estimatedSeconds")}</span>
+                  <input type="text" inputMode="text" placeholder={t("taskEditor.estimatedSecondsPlaceholder")}
+                         value={form.estimated_seconds}
+                         onChange={e => set("estimated_seconds", e.currentTarget.value)} />
+                </label>
+                {estimateError && <p className="te-warn" role="alert">{estimateError}</p>}
+              </>
+            )}
           </>
         )}
 
@@ -534,7 +541,14 @@ export function TaskEditor(props: Props) {
           </div>
         </div>
 
-        {canComplete && taskEntity && <TimeTracking task={taskEntity} />}
+        {canComplete && taskEntity && (
+          <TimeTracking
+            task={taskEntity}
+            estimateInput={form.estimated_seconds}
+            onEstimateChange={v => set("estimated_seconds", v)}
+            estimateError={estimateError}
+          />
+        )}
 
         {error && <p className="composer-error">{error}</p>}
         {notice && <p className="te-notice" role="status">{notice}</p>}

@@ -16,6 +16,11 @@ import {
   DAY_START_HOUR_MAX,
   DAY_START_HOUR_MIN,
   soundOnComplete,
+  clampReminderInterval,
+  reminderIntervalMinutes,
+  REMINDER_INTERVAL_DEFAULT,
+  REMINDER_INTERVAL_MAX,
+  REMINDER_INTERVAL_MIN,
 } from "./settings";
 import { WEIGHT_MAX } from "./tags";
 
@@ -130,5 +135,42 @@ describe("soundOnComplete", () => {
   it("uses the configured value when present", () => {
     expect(soundOnComplete({ ...settings(), sound_on_complete: false })).toBe(false);
     expect(soundOnComplete({ ...settings(), sound_on_complete: true })).toBe(true);
+  });
+});
+
+describe("clampReminderInterval", () => {
+  it("keeps in-range integers", () => {
+    expect(clampReminderInterval("10")).toBe(10);
+    expect(clampReminderInterval(30)).toBe(30);
+  });
+
+  it("clamps below/above the allowed range", () => {
+    expect(clampReminderInterval("0")).toBe(REMINDER_INTERVAL_MIN);
+    expect(clampReminderInterval(-5)).toBe(REMINDER_INTERVAL_MIN);
+    expect(clampReminderInterval("99999")).toBe(REMINDER_INTERVAL_MAX);
+  });
+
+  it("falls back to the default on non-numeric input", () => {
+    expect(clampReminderInterval("abc")).toBe(REMINDER_INTERVAL_DEFAULT);
+    expect(clampReminderInterval("")).toBe(REMINDER_INTERVAL_DEFAULT);
+  });
+
+  it("truncates fractional input", () => {
+    expect(clampReminderInterval(10.9)).toBe(10);
+  });
+});
+
+describe("reminderIntervalMinutes", () => {
+  it("defaults to 10 when unset (older documents)", () => {
+    expect(reminderIntervalMinutes(settings())).toBe(REMINDER_INTERVAL_DEFAULT);
+    expect(REMINDER_INTERVAL_DEFAULT).toBe(10);
+  });
+
+  it("uses the configured value when present", () => {
+    expect(reminderIntervalMinutes({ ...settings(), reminder_interval_minutes: 30 })).toBe(30);
+  });
+
+  it("clamps an out-of-range stored value defensively", () => {
+    expect(reminderIntervalMinutes({ ...settings(), reminder_interval_minutes: 99999 })).toBe(REMINDER_INTERVAL_MAX);
   });
 });

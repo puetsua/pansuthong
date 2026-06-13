@@ -46,14 +46,21 @@ describe("TimeTracking (#81)", () => {
     await waitFor(() => expect(api.deleteTimeEntry).toHaveBeenCalledWith("k_1", "te_1"));
   });
 
-  it("shows the task estimate beside tracked time", () => {
+  it("shows the estimate input seeded from the task", () => {
     render(<TimeTracking task={{ ...base, estimated_seconds: 90 * 60 }} />);
-    expect(screen.getByText("est. 1h 30m")).toBeTruthy();
+    expect((screen.getByLabelText("Estimated time") as HTMLInputElement).value).toBe("1h 30m");
   });
 
   it("marks the estimate as over once tracked time reaches it", () => {
     render(<TimeTracking task={{ ...base, estimated_seconds: 30 * 60, time_entries: [closed] }} />);
-    expect(screen.getByText("est. 30m").getAttribute("data-over")).toBe("true");
+    expect(screen.getByLabelText("Estimated time").getAttribute("data-over")).toBe("true");
+  });
+
+  it("reports estimate edits to the parent and reflects them live", () => {
+    const onEstimateChange = vi.fn();
+    render(<TimeTracking task={base} estimateInput="" onEstimateChange={onEstimateChange} />);
+    fireEvent.change(screen.getByLabelText("Estimated time"), { target: { value: "2h" } });
+    expect(onEstimateChange).toHaveBeenCalledWith("2h");
   });
 
   it("edits an entry's times", async () => {
@@ -73,6 +80,17 @@ describe("TimeTracking (#81)", () => {
     fireEvent.change(screen.getByLabelText("New entry end"), { target: { value: "2026-06-02T09:00" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(screen.getByText(/end must be after start/i)).toBeTruthy();
+    expect(api.addTimeEntry).not.toHaveBeenCalled();
+  });
+
+  it("rejects a manual entry that overlaps an existing session", async () => {
+    // Existing closed session 09:00–10:00; the new one straddles it.
+    render(<TimeTracking task={{ ...base, time_entries: [closed] }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
+    fireEvent.change(screen.getByLabelText("New entry start"), { target: { value: "2026-06-02T09:30" } });
+    fireEvent.change(screen.getByLabelText("New entry end"), { target: { value: "2026-06-02T10:30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(screen.getByText(/overlaps another/i)).toBeTruthy();
     expect(api.addTimeEntry).not.toHaveBeenCalled();
   });
 

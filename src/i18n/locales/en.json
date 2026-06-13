@@ -210,7 +210,8 @@
   },
   "timeTracking": {
     "timeTracked": "Time tracked",
-    "estimate": "est. {{estimate}}",
+    "estLabel": "/ est.",
+    "estimateAria": "Estimated time",
     "start": "Start",
     "stop": "Stop",
     "running": "running",
@@ -229,7 +230,8 @@
     "errEnterStartEnd": "Enter a start and end time.",
     "errEndAfterStart": "End must be after start.",
     "errEnterStart": "Enter a start time.",
-    "errEnterEnd": "Enter an end time."
+    "errEnterEnd": "Enter an end time.",
+    "errOverlap": "This session overlaps another one."
   },
   "timeEstimateReminder": {
     "title": "Task estimate reached",
@@ -375,6 +377,10 @@
     "soundSub": "Play a short sound when you mark a task done. Plays through the media volume.",
     "soundOn": "on",
     "soundOff": "off",
+    "reminderInterval": "Estimate reminder interval",
+    "reminderIntervalSub": "How often to re-notify while a running task keeps exceeding its time estimate.",
+    "minutesPreset": "{{count}} min",
+    "customReminderAria": "Custom reminder interval in minutes",
     "newTagWeight": "New tag weight",
     "newTagWeightSub": "The priority weight pre-filled when you create a new tag.",
     "weight": "Weight",

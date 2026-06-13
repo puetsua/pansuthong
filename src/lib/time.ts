@@ -44,3 +44,25 @@ export function formatDurationShort(ms: number): string {
   const h = Math.floor(total / 3600);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
+
+/**
+ * Whether the half-open interval `[startMs, endMs)` overlaps any of `entries`,
+ * skipping the entry whose id is `exceptId` (the one being edited). A `null`/open
+ * end (a running timer) extends to `+∞`. Touching at an endpoint isn't an overlap,
+ * so back-to-back sessions are allowed. Mirrors the Rust `time_entry_overlaps`
+ * guard so the editor catches a clash before the command rejects it (#81).
+ */
+export function overlapsExisting(
+  entries: TimeEntry[] | undefined,
+  startMs: number,
+  endMs: number | null,
+  exceptId?: string,
+): boolean {
+  const aEnd = endMs ?? Number.POSITIVE_INFINITY;
+  return (entries ?? []).some(e => {
+    if (e.id === exceptId) return false;
+    const bStart = Date.parse(e.start);
+    const bEnd = e.end != null ? Date.parse(e.end) : Number.POSITIVE_INFINITY;
+    return startMs < bEnd && bStart < aEnd;
+  });
+}

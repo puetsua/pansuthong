@@ -8,6 +8,7 @@ import {
   clampUpcomingDays, upcomingDays, UPCOMING_DAYS_MAX, UPCOMING_DAYS_MIN,
   dayStartHour, DAY_START_HOUR_MAX, DAY_START_HOUR_MIN,
   defaultTagPriority, soundOnComplete,
+  clampReminderInterval, reminderIntervalMinutes, REMINDER_INTERVAL_MAX, REMINDER_INTERVAL_MIN,
 } from "../lib/settings";
 import { clampWeight, WEIGHT_MAX, WEIGHT_MIN } from "../lib/tags";
 
@@ -51,6 +52,19 @@ export function SettingsView({ doc }: Props) {
 
   const soundOn = soundOnComplete(doc.settings);
   const setSound = (on: boolean) => { void applySettings({ sound_on_complete: on }); };
+
+  // Time-estimate reminder cadence: presets apply immediately; the free input
+  // commits on blur/Enter. This is how often a still-running task re-notifies
+  // once it passes its estimate.
+  const reminderMinutes = reminderIntervalMinutes(doc.settings);
+  const [draftReminder, setDraftReminder] = useState(String(reminderMinutes));
+  useEffect(() => { setDraftReminder(String(reminderMinutes)); }, [reminderMinutes]);
+  const setReminder = (n: number) => { void applySettings({ reminder_interval_minutes: n }); };
+  const commitDraftReminder = () => {
+    const n = clampReminderInterval(draftReminder);
+    setDraftReminder(String(n));
+    if (n !== reminderMinutes) setReminder(n);
+  };
 
   // Upcoming horizon: presets apply immediately; the free input commits on blur/Enter.
   const days = upcomingDays(doc.settings);
@@ -248,6 +262,34 @@ export function SettingsView({ doc }: Props) {
               {label}
             </button>
           ))}
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h2>{t("settings.reminderInterval")}</h2>
+        <p className="view-sub">{t("settings.reminderIntervalSub")}</p>
+        <div className="theme-options">
+          {[5, 10, 15, 30].map(n => (
+            <button
+              key={n}
+              className={`theme-option ${reminderMinutes === n ? "active" : ""}`}
+              aria-pressed={reminderMinutes === n}
+              onClick={() => setReminder(n)}
+            >
+              {t("settings.minutesPreset", { count: n })}
+            </button>
+          ))}
+          <input
+            type="number"
+            className="weight-input"
+            aria-label={t("settings.customReminderAria")}
+            min={REMINDER_INTERVAL_MIN}
+            max={REMINDER_INTERVAL_MAX}
+            value={draftReminder}
+            onChange={e => setDraftReminder(e.currentTarget.value)}
+            onBlur={commitDraftReminder}
+            onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+          />
         </div>
       </section>
 

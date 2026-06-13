@@ -377,6 +377,9 @@ pub fn add_time_entry(input: AddTimeEntryInput, state: State<'_, AppState>, app:
     }
     let updated = state.write(|d| {
         let t = task_mut(d, &input.task_id)?;
+        if t.time_entry_overlaps(input.start, Some(input.end), None) {
+            return Err(AppError::Invalid("time entry overlaps an existing entry".into()));
+        }
         t.time_entries.push(TimeEntry { id: new_time_entry_id(), start: input.start, end: Some(input.end) });
         t.updated_at = now_ms();
         Ok(t.clone())
@@ -399,17 +402,25 @@ pub struct UpdateTimeEntryInput {
 pub fn update_time_entry(input: UpdateTimeEntryInput, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
     let updated = state.write(|d| {
         let t = task_mut(d, &input.task_id)?;
-        let e = t.time_entries.iter_mut().find(|e| e.id == input.entry_id)
+        // Read the edited entry's current bounds by value (and confirm it exists)
+        // without holding the borrow across validation.
+        let (cur_start, cur_end) = t.time_entries.iter().find(|e| e.id == input.entry_id)
+            .map(|e| (e.start, e.end))
             .ok_or_else(|| AppError::NotFound(format!("time entry {}", input.entry_id)))?;
         // Validate the *candidate* values before mutating, so a rejected edit leaves
         // the entry untouched — `AppState::write` doesn't roll back on Err.
-        let new_start = input.start.unwrap_or(e.start);
-        let new_end = match input.end { Some(en) => Some(en), None => e.end };
+        let new_start = input.start.unwrap_or(cur_start);
+        let new_end = match input.end { Some(en) => Some(en), None => cur_end };
         if let Some(en) = new_end {
             if en <= new_start {
                 return Err(AppError::Invalid("time entry end must be after start".into()));
             }
         }
+        if t.time_entry_overlaps(new_start, new_end, Some(&input.entry_id)) {
+            return Err(AppError::Invalid("time entry overlaps an existing entry".into()));
+        }
+        let e = t.time_entries.iter_mut().find(|e| e.id == input.entry_id)
+            .ok_or_else(|| AppError::NotFound(format!("time entry {}", input.entry_id)))?;
         e.start = new_start;
         e.end = new_end;
         t.updated_at = now_ms();
@@ -673,6 +684,10 @@ const UPCOMING_DAYS_MIN: u32 = 1;
 const UPCOMING_DAYS_MAX: u32 = 365;
 const DAY_START_HOUR_MAX: u32 = 23;
 
+/// Bounds for the time-estimate re-notify interval, in minutes (1 minute .. 24 hours).
+const REMINDER_INTERVAL_MIN: u32 = 1;
+const REMINDER_INTERVAL_MAX: u32 = 1440;
+
 /// Bounds for a tag priority weight, mirrored by the configurable default (#79).
 const TAG_WEIGHT_MIN: i64 = -9999;
 const TAG_WEIGHT_MAX: i64 = 9999;
@@ -695,6 +710,7 @@ pub struct UpdateSettingsInput {
     #[serde(default)] pub default_tag_priority: Option<i64>,
     #[serde(default)] pub language: Option<String>,
     #[serde(default)] pub sound_on_complete: Option<bool>,
+    #[serde(default)] pub reminder_interval_minutes: Option<u32>,
 }
 
 #[tauri::command]
@@ -754,6 +770,14 @@ pub fn update_settings(
         }
         if let Some(on) = input.sound_on_complete {
             s.sound_on_complete = on;
+        }
+        if let Some(m) = input.reminder_interval_minutes {
+            if !(REMINDER_INTERVAL_MIN..=REMINDER_INTERVAL_MAX).contains(&m) {
+                return Err(AppError::Invalid(format!(
+                    "reminder_interval_minutes must be {REMINDER_INTERVAL_MIN}..={REMINDER_INTERVAL_MAX}, got {m}"
+                )));
+            }
+            s.reminder_interval_minutes = m;
         }
         Ok(())
     })?;
@@ -1387,6 +1411,16 @@ mod tests {
         assert_eq!(off.sound_on_complete, Some(false));
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.sound_on_complete, None);
+    }
+
+    #[test]
+    fn update_settings_input_parses_reminder_interval_minutes() {
+        // Pins the snake_case `reminder_interval_minutes` key the JS api sends.
+        let v: UpdateSettingsInput =
+            serde_json::from_str(r#"{"reminder_interval_minutes":30}"#).unwrap();
+        assert_eq!(v.reminder_interval_minutes, Some(30));
+        let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(absent.reminder_interval_minutes, None);
     }
 
     #[test]

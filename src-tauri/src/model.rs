@@ -527,6 +527,20 @@ impl Task {
         }
         stopped
     }
+
+    /// True if the half-open interval `[start, end)` overlaps any existing entry,
+    /// skipping the entry whose id equals `except` (the one being edited). An open
+    /// `end` (`None`, a running timer) extends to `+∞`. Intervals that merely touch
+    /// at an endpoint (one's `end` == the other's `start`) do not overlap, so
+    /// back-to-back sessions are allowed (#81).
+    pub fn time_entry_overlaps(&self, start: i64, end: Option<i64>, except: Option<&str>) -> bool {
+        let a_end = end.unwrap_or(i64::MAX);
+        self.time_entries.iter().any(|e| {
+            if except == Some(e.id.as_str()) { return false; }
+            let b_end = e.end.unwrap_or(i64::MAX);
+            start < b_end && e.start < a_end
+        })
+    }
 }
 
 impl Document {
@@ -643,6 +657,35 @@ mod tests {
         t.time_entries.push(TimeEntry { id: "te_2".into(), start: 8_000, end: None });
         assert!(t.stop_timer(2_000));
         assert_eq!(t.time_entries[1].end, Some(8_000));
+    }
+
+    #[test]
+    fn time_entry_overlaps_detects_clashes_and_allows_touching() {
+        let mut t = task();
+        // An existing closed session 1000..2000.
+        t.time_entries.push(TimeEntry { id: "te_1".into(), start: 1_000, end: Some(2_000) });
+
+        // A candidate landing inside / straddling it overlaps.
+        assert!(t.time_entry_overlaps(1_500, Some(2_500), None));
+        assert!(t.time_entry_overlaps(500, Some(1_500), None));
+        assert!(t.time_entry_overlaps(500, Some(2_500), None)); // fully contains it
+        assert!(t.time_entry_overlaps(1_200, Some(1_800), None)); // contained within
+
+        // Back-to-back (touching at an endpoint) is allowed, not an overlap.
+        assert!(!t.time_entry_overlaps(2_000, Some(3_000), None));
+        assert!(!t.time_entry_overlaps(0, Some(1_000), None));
+
+        // `except` skips the entry being edited (so an in-place edit can't clash with itself).
+        assert!(!t.time_entry_overlaps(1_000, Some(2_000), Some("te_1")));
+
+        // An open candidate (running timer, end = None) extends to +∞.
+        assert!(t.time_entry_overlaps(1_500, None, None));
+        assert!(!t.time_entry_overlaps(2_000, None, None)); // starts exactly at the existing end
+
+        // An existing open entry also extends to +∞ and clashes with anything after its start.
+        t.time_entries.push(TimeEntry { id: "te_2".into(), start: 5_000, end: None });
+        assert!(t.time_entry_overlaps(6_000, Some(7_000), None));
+        assert!(!t.time_entry_overlaps(4_000, Some(5_000), None)); // ends exactly at the open start
     }
 
     #[test]

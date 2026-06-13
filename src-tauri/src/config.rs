@@ -55,6 +55,11 @@ pub struct Settings {
     /// so older config.json files predating the sound still load (defaulting on).
     #[serde(default = "default_sound_on_complete")]
     pub sound_on_complete: bool,
+    /// How often (in minutes) to re-notify while a running task keeps exceeding its
+    /// time estimate. The UI bounds it to 1..=1440. `#[serde(default …)]` so older
+    /// config.json files predating the setting still load (defaulting to 10).
+    #[serde(default = "default_reminder_interval_minutes")]
+    pub reminder_interval_minutes: u32,
 }
 
 fn default_theme() -> String {
@@ -81,6 +86,10 @@ fn default_sound_on_complete() -> bool {
     true
 }
 
+fn default_reminder_interval_minutes() -> u32 {
+    10
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -92,6 +101,7 @@ impl Default for Settings {
             default_tag_priority: 0,
             language: default_language(),
             sound_on_complete: default_sound_on_complete(),
+            reminder_interval_minutes: default_reminder_interval_minutes(),
         }
     }
 }
@@ -405,6 +415,8 @@ mod tests {
         assert_eq!(s.default_tag_priority, 0);
         // A config.json predating the day-start-hour setting defaults to midnight (0).
         assert_eq!(s.day_start_hour, 0);
+        // A config.json predating the reminder-interval setting defaults to 10 minutes.
+        assert_eq!(s.reminder_interval_minutes, 10);
     }
 
     #[test]
@@ -414,6 +426,15 @@ mod tests {
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.day_start_hour, 4);
+    }
+
+    #[test]
+    fn settings_round_trip_preserves_reminder_interval() {
+        let mut s = Settings::default();
+        s.reminder_interval_minutes = 30;
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.reminder_interval_minutes, 30);
     }
 
     #[test]

@@ -206,7 +206,8 @@
   },
   "timeTracking": {
     "timeTracked": "已追蹤時間",
-    "estimate": "預估 {{estimate}}",
+    "estLabel": "/ 預估",
+    "estimateAria": "預估時間",
     "start": "開始",
     "stop": "停止",
     "running": "進行中",
@@ -225,7 +226,8 @@
     "errEnterStartEnd": "請輸入開始與結束時間。",
     "errEndAfterStart": "結束時間必須晚於開始時間。",
     "errEnterStart": "請輸入開始時間。",
-    "errEnterEnd": "請輸入結束時間。"
+    "errEnterEnd": "請輸入結束時間。",
+    "errOverlap": "此時段與其他時段重疊。"
   },
   "timeEstimateReminder": {
     "title": "任務已達預估時間",
@@ -371,6 +373,10 @@
     "soundSub": "標記任務完成時播放一段短音效。透過媒體音量播放。",
     "soundOn": "開",
     "soundOff": "關",
+    "reminderInterval": "預估時間提醒間隔",
+    "reminderIntervalSub": "當執行中的任務持續超過預估時間時，每隔多久再次通知。",
+    "minutesPreset": "{{count}} 分鐘",
+    "customReminderAria": "自訂提醒間隔（分鐘）",
     "newTagWeight": "新標籤權重",
     "newTagWeightSub": "建立新標籤時預先填入的優先權重。",
     "weight": "權重",

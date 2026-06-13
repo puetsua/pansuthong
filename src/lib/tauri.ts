@@ -12,6 +12,7 @@ export type Settings = {
   default_tag_priority?: number; // weight pre-filled for a new tag; -9999..9999, default 0 (#79)
   language?: "auto" | "en" | "zh-TW"; // UI language; "auto" follows the OS locale, default (#26)
   sound_on_complete?: boolean; // play a sound when a task is marked done; default true (#80)
+  reminder_interval_minutes?: number; // re-notify cadence for tasks past their estimate; 1..1440, default 10
 };
 
 export type Tag = {
@@ -197,7 +198,7 @@ export const api = {
                             day_start_hour?: number;
                             default_tag_color?: string; default_tag_priority?: number;
                             language?: "auto" | "en" | "zh-TW";
-                            sound_on_complete?: boolean }) =>
+                            sound_on_complete?: boolean; reminder_interval_minutes?: number }) =>
                                    invoke<void>("update_settings", { input }),
   listConflicts:    ()             => invoke<string[]>("list_conflicts"),
   readConflict:     (path: string) => invoke<TaskDiff[]>("read_conflict", { conflictPath: path }),

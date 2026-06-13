@@ -69,6 +69,20 @@ describe("TimeEstimateReminder", () => {
     expect(notification.sendNotification).toHaveBeenCalledTimes(2);
   });
 
+  it("repeats on the configured interval instead of the default", async () => {
+    render(<TimeEstimateReminder tasks={[running("2026-06-08T10:00:00+08:00")]} intervalMinutes={1} />);
+    await flush();
+    expect(notification.sendNotification).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(59_000);
+    await flush();
+    expect(notification.sendNotification).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(1_000);
+    await flush();
+    expect(notification.sendNotification).toHaveBeenCalledTimes(2);
+  });
+
   it("stops repeating after the timer is stopped", async () => {
     const { rerender } = render(<TimeEstimateReminder tasks={[running("2026-06-08T10:00:00+08:00")]} />);
     await flush();

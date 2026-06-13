@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Task, TimeEntry } from "./tauri";
-import { runningEntry, isTiming, elapsedMs, formatClock, formatDurationShort } from "./time";
+import { runningEntry, isTiming, elapsedMs, formatClock, formatDurationShort, overlapsExisting } from "./time";
 
 const base: Task = {
   id: "k_1", title: "t", notes: "", tag_ids: [], created_at: "1970-01-01T00:00:00Z",
@@ -70,5 +70,38 @@ describe("formatDurationShort (#81)", () => {
     expect(formatDurationShort(90_000)).toBe("1m");
     expect(formatDurationShort(3_600_000)).toBe("1h 0m");
     expect(formatDurationShort(5_025_000)).toBe("1h 23m");
+  });
+});
+
+describe("overlapsExisting (#81)", () => {
+  const e = (id: string, start: string, end?: string): TimeEntry => ({ id, start, end });
+  const closed = [e("a", "2026-06-02T09:00:00+08:00", "2026-06-02T10:00:00+08:00")];
+
+  it("flags a candidate that lands inside, straddles, or contains an entry", () => {
+    expect(overlapsExisting(closed, at("2026-06-02T09:30:00+08:00"), at("2026-06-02T10:30:00+08:00"))).toBe(true);
+    expect(overlapsExisting(closed, at("2026-06-02T08:30:00+08:00"), at("2026-06-02T09:30:00+08:00"))).toBe(true);
+    expect(overlapsExisting(closed, at("2026-06-02T08:00:00+08:00"), at("2026-06-02T11:00:00+08:00"))).toBe(true);
+  });
+
+  it("allows back-to-back sessions that only touch at an endpoint", () => {
+    expect(overlapsExisting(closed, at("2026-06-02T10:00:00+08:00"), at("2026-06-02T11:00:00+08:00"))).toBe(false);
+    expect(overlapsExisting(closed, at("2026-06-02T08:00:00+08:00"), at("2026-06-02T09:00:00+08:00"))).toBe(false);
+  });
+
+  it("skips the entry being edited via exceptId", () => {
+    expect(overlapsExisting(closed, at("2026-06-02T09:00:00+08:00"), at("2026-06-02T10:00:00+08:00"), "a")).toBe(false);
+  });
+
+  it("treats an open candidate or an open existing entry as extending to +infinity", () => {
+    // Open candidate (running timer) starting inside the closed entry.
+    expect(overlapsExisting(closed, at("2026-06-02T09:30:00+08:00"), null)).toBe(true);
+    // Open existing entry: anything starting after its start clashes.
+    const open = [e("b", "2026-06-02T12:00:00+08:00")];
+    expect(overlapsExisting(open, at("2026-06-02T13:00:00+08:00"), at("2026-06-02T14:00:00+08:00"))).toBe(true);
+    expect(overlapsExisting(open, at("2026-06-02T11:00:00+08:00"), at("2026-06-02T12:00:00+08:00"))).toBe(false);
+  });
+
+  it("never overlaps when the task has no entries", () => {
+    expect(overlapsExisting(undefined, at("2026-06-02T09:00:00+08:00"), at("2026-06-02T10:00:00+08:00"))).toBe(false);
   });
 });
