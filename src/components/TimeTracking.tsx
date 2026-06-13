@@ -68,8 +68,9 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
   const openAdd = () => {
     setEditingId(null);
     // Sample the clock now: `now` only ticks while a timer runs, so it can be stale.
+    // Default to a one-minute slot starting now, which the user then adjusts.
     const t = Date.now();
-    setDraft({ start: toLocalInput(t - 30 * 60_000), end: toLocalInput(t) });
+    setDraft({ start: toLocalInput(t), end: toLocalInput(t + 60_000) });
     setAdding(true);
   };
   const submitAdd = () => {

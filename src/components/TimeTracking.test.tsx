@@ -102,6 +102,16 @@ describe("TimeTracking (#81)", () => {
     expect(api.addTimeEntry).not.toHaveBeenCalled();
   });
 
+  it("defaults a new entry to now .. now + 1 minute", () => {
+    const before = Date.now();
+    render(<TimeTracking task={base} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
+    const startMs = new Date((screen.getByLabelText("New entry start") as HTMLInputElement).value).getTime();
+    const endMs = new Date((screen.getByLabelText("New entry end") as HTMLInputElement).value).getTime();
+    expect(endMs - startMs).toBe(60_000);
+    expect(Math.abs(startMs - before)).toBeLessThan(5_000); // ~now, not the old now-30min default
+  });
+
   it("adds a valid manual entry", async () => {
     render(<TimeTracking task={base} />);
     fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
