@@ -9,6 +9,7 @@
 
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -72,6 +73,17 @@ pub struct Settings {
     /// Time display format preset. `None` means "locale".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub time_format: Option<String>,
+    /// Selected theme preset id (#15). The frontend owns the preset list and token
+    /// semantics; Rust stores this opaquely. `None` = the built-in default preset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_preset: Option<String>,
+    /// Per-token color overrides for the light variant (#15), keyed by CSS custom
+    /// property name (e.g. "--c-accent") -> hex string. `None` = no overrides.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_colors_light: Option<HashMap<String, String>>,
+    /// Per-token color overrides for the dark variant (#15). See `theme_colors_light`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_colors_dark: Option<HashMap<String, String>>,
 }
 
 fn default_theme() -> String {
@@ -121,6 +133,9 @@ impl Default for Settings {
             date_time_format: default_date_time_format(),
             date_format: None,
             time_format: None,
+            theme_preset: None,
+            theme_colors_light: None,
+            theme_colors_dark: None,
         }
     }
 }

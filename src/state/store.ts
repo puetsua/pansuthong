@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { api, Document } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { isAndroid } from "../lib/platform";
+import { activeVariant, applyThemeToRoot } from "../lib/themes";
 import { buildIndexes, Indexes } from "./indexes";
 
 type DocState = {
@@ -51,11 +52,29 @@ export function useDocument(): DocState {
     };
   }, []);
 
+  // Theme (#15): `data-theme` drives the CSS color-scheme + base palette, while
+  // custom presets/overrides are applied as inline `--c-*` vars on <html>. The
+  // active variant follows the OS for `auto`, so re-resolve on a light/dark flip.
   useEffect(() => {
-    const theme = doc?.settings.theme ?? "auto";
-    if (theme === "auto") document.documentElement.removeAttribute("data-theme");
-    else                  document.documentElement.setAttribute("data-theme", theme);
-  }, [doc?.settings.theme]);
+    const root = document.documentElement;
+    const settings = doc?.settings;
+    const theme = settings?.theme ?? "auto";
+    if (theme === "auto") root.removeAttribute("data-theme");
+    else                  root.setAttribute("data-theme", theme);
+
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    const apply = () => {
+      const variant = activeVariant(theme, mq?.matches ?? false);
+      applyThemeToRoot(root, settings ?? { theme: "auto", sort_order: "priority" }, variant);
+    };
+    apply();
+
+    if (theme === "auto" && mq) {
+      const onChange = () => apply();
+      mq.addEventListener("change", onChange);
+      return () => mq.removeEventListener("change", onChange);
+    }
+  }, [doc?.settings]);
 
   // Android folder-sync triggers: pull on launch + when returning to the
   // foreground, and a debounced push after each local change. store-changed

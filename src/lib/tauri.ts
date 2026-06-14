@@ -19,6 +19,11 @@ export type Settings = {
   date_time_format?: DateTimeFormat; // legacy date-time display preset; default "locale"
   date_format?: DateFormat; // date display preset; default "locale"
   time_format?: TimeFormat; // time display preset; default "locale"
+  // Theme customization (#15). The frontend owns preset/token semantics; Rust stores
+  // these opaquely. Absent = default preset, no overrides.
+  theme_preset?: string; // id of the selected preset; default "default"
+  theme_colors_light?: Record<string, string>; // per-token hex overrides for the light variant
+  theme_colors_dark?: Record<string, string>;  // per-token hex overrides for the dark variant
 };
 
 export type Tag = {
@@ -206,7 +211,10 @@ export const api = {
                             language?: "auto" | "en" | "zh-TW";
                             sound_on_complete?: boolean; reminder_interval_minutes?: number;
                             date_time_format?: DateTimeFormat;
-                            date_format?: DateFormat; time_format?: TimeFormat }) =>
+                            date_format?: DateFormat; time_format?: TimeFormat;
+                            theme_preset?: string;
+                            theme_colors_light?: Record<string, string>;
+                            theme_colors_dark?: Record<string, string> }) =>
                                    invoke<void>("update_settings", { input }),
   listConflicts:    ()             => invoke<string[]>("list_conflicts"),
   readConflict:     (path: string) => invoke<TaskDiff[]>("read_conflict", { conflictPath: path }),

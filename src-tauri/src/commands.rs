@@ -7,6 +7,7 @@ use crate::store::AppState;
 use crate::sync::scan_conflict_files;
 use chrono::{Duration, NaiveDate};
 use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -747,6 +748,39 @@ fn is_time_format(s: &str) -> bool {
     )
 }
 
+/// A theme preset id (#15) is an opaque, frontend-owned identifier. Rust only
+/// shape-checks it — non-empty, bounded, and `[a-z0-9_-]` — so it can't carry junk
+/// into config.json; it never validates the id against the known preset list (the
+/// frontend falls back to the default preset for an unknown id).
+fn is_preset_id(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 64
+        && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+}
+
+/// A theme color-override token key (#15) is a CSS custom-property name like
+/// "--c-accent". Like preset ids, Rust only shape-checks it (bounded, `[a-z0-9_-]`);
+/// the frontend ignores any key outside its editable set when applying.
+fn is_token_key(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 40
+        && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+}
+
+/// Reject a theme override map whose keys aren't sane token names or whose values
+/// aren't hex colors, so a malformed map can't be persisted (#15).
+fn validate_theme_overrides(map: &HashMap<String, String>) -> Result<()> {
+    for (k, v) in map {
+        if !is_token_key(k) {
+            return Err(AppError::Invalid(format!("invalid theme color token: {k}")));
+        }
+        if !is_hex_color(v) {
+            return Err(AppError::Invalid(format!("invalid theme color value for {k}: {v}")));
+        }
+    }
+    Ok(())
+}
+
 #[derive(Deserialize)]
 pub struct UpdateSettingsInput {
     #[serde(default)] pub theme: Option<String>,
@@ -761,6 +795,9 @@ pub struct UpdateSettingsInput {
     #[serde(default)] pub date_time_format: Option<String>,
     #[serde(default)] pub date_format: Option<String>,
     #[serde(default)] pub time_format: Option<String>,
+    #[serde(default)] pub theme_preset: Option<String>,
+    #[serde(default)] pub theme_colors_light: Option<HashMap<String, String>>,
+    #[serde(default)] pub theme_colors_dark: Option<HashMap<String, String>>,
 }
 
 #[tauri::command]
@@ -846,6 +883,22 @@ pub fn update_settings(
                 return Err(AppError::Invalid(format!("invalid time_format: {fmt}")));
             }
             s.time_format = Some(fmt);
+        }
+        if let Some(id) = input.theme_preset {
+            if !is_preset_id(&id) {
+                return Err(AppError::Invalid(format!("invalid theme_preset: {id}")));
+            }
+            s.theme_preset = Some(id);
+        }
+        // Override maps replace wholesale; an empty map clears the variant's overrides
+        // (stored as None so config.json stays clean for the stock theme).
+        if let Some(map) = input.theme_colors_light {
+            validate_theme_overrides(&map)?;
+            s.theme_colors_light = if map.is_empty() { None } else { Some(map) };
+        }
+        if let Some(map) = input.theme_colors_dark {
+            validate_theme_overrides(&map)?;
+            s.theme_colors_dark = if map.is_empty() { None } else { Some(map) };
         }
         Ok(())
     })?;
@@ -1510,6 +1563,60 @@ mod tests {
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.date_format, None);
         assert_eq!(absent.time_format, None);
+    }
+
+    #[test]
+    fn update_settings_input_parses_theme_customization() {
+        // Pins the snake_case keys the JS api sends (#15).
+        let v: UpdateSettingsInput = serde_json::from_str(
+            r##"{"theme_preset":"slate","theme_colors_light":{"--c-accent":"#ff0000"},"theme_colors_dark":{"--c-bg":"#000000"}}"##,
+        ).unwrap();
+        assert_eq!(v.theme_preset.as_deref(), Some("slate"));
+        assert_eq!(
+            v.theme_colors_light.as_ref().unwrap().get("--c-accent").map(String::as_str),
+            Some("#ff0000")
+        );
+        assert_eq!(
+            v.theme_colors_dark.as_ref().unwrap().get("--c-bg").map(String::as_str),
+            Some("#000000")
+        );
+        let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(absent.theme_preset, None);
+        assert!(absent.theme_colors_light.is_none());
+        assert!(absent.theme_colors_dark.is_none());
+    }
+
+    #[test]
+    fn is_preset_id_accepts_sane_ids_and_rejects_junk() {
+        assert!(is_preset_id("default"));
+        assert!(is_preset_id("high_contrast"));
+        assert!(is_preset_id("a-b-1"));
+        assert!(!is_preset_id("")); // empty
+        assert!(!is_preset_id("Slate")); // uppercase
+        assert!(!is_preset_id("drop table")); // space
+        assert!(!is_preset_id(&"x".repeat(65))); // too long
+    }
+
+    #[test]
+    fn validate_theme_overrides_accepts_valid_token_hex_pairs() {
+        let mut m = HashMap::new();
+        m.insert("--c-accent".to_string(), "#ff0000".to_string());
+        m.insert("--c-bg".to_string(), "#fff".to_string());
+        assert!(validate_theme_overrides(&m).is_ok());
+    }
+
+    #[test]
+    fn validate_theme_overrides_rejects_non_hex_value() {
+        let mut m = HashMap::new();
+        m.insert("--c-accent".to_string(), "red".to_string());
+        assert!(validate_theme_overrides(&m).is_err());
+    }
+
+    #[test]
+    fn validate_theme_overrides_rejects_malformed_token_key() {
+        let mut m = HashMap::new();
+        m.insert("javascript:alert(1)".to_string(), "#ffffff".to_string());
+        assert!(validate_theme_overrides(&m).is_err());
     }
 
     #[test]
