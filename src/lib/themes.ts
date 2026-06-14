@@ -158,6 +158,19 @@ function defaultBase(variant: ThemeVariant): ThemeTokens {
   return THEME_PRESETS[0][variant];
 }
 
+/** Fill a (possibly partial) custom token map up to a complete variant map by
+ *  layering it over the default base. Used for previewing/editing custom presets. */
+export function fullTokens(map: Record<string, string> | undefined, variant: ThemeVariant): ThemeTokens {
+  return { ...defaultBase(variant), ...sanitizeTokens(map) };
+}
+
+/** The slice of the `updateSettings` patch the theme UI writes (#15). */
+export type ThemeSettingsPatch = {
+  theme?: "auto" | "light" | "dark";
+  theme_preset?: string;
+  custom_presets?: ThemePreset[];
+};
+
 /** Keep only known token keys carrying a valid hex value, so a malformed or hostile
  *  map can never set unexpected properties. */
 export function sanitizeTokens(map: Record<string, string> | undefined): ThemeTokens {

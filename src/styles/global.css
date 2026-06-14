@@ -526,6 +526,20 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 .theme-option.active { background: var(--c-accent); color: white; }
 
 /* Theme customization (#15) */
+/* Current-theme summary in Settings */
+.theme-current {
+  display: flex; align-items: center; gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.theme-current-name { font-weight: 600; margin-right: auto; }
+
+/* Picker modal */
+.theme-picker {
+  max-width: 560px; width: 92vw;
+  max-height: 86vh; overflow-y: auto;
+}
+.theme-picker-title { font-size: 1.05rem; font-weight: 600; margin: 0 0 var(--space-3); }
+
 /* Preset gallery */
 .theme-gallery {
   display: grid;
