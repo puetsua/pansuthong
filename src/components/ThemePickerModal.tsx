@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { Settings, ThemePreset } from "../lib/tauri";
 import {
   THEME_PRESETS, DEFAULT_PRESET_ID, ThemeTokens,
-  fullTokens, parseThemeJson, serializeThemeJson, type ThemeSettingsPatch,
+  fullTokens, serializeThemeJson, type ThemeSettingsPatch,
 } from "../lib/themes";
 import { ThemeEditorModal } from "./ThemeEditorModal";
 
@@ -28,8 +28,6 @@ export function ThemePickerModal({ settings, applySettings, onClose }: Props) {
   const presetId = settings.theme_preset ?? DEFAULT_PRESET_ID;
   const customs = settings.custom_presets ?? [];
   const [edit, setEdit] = useState<EditState>(null);
-  const [importText, setImportText] = useState("");
-  const [importErr, setImportErr] = useState<string | null>(null);
 
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   if (restoreFocusRef.current === null && typeof document !== "undefined") {
@@ -86,18 +84,6 @@ export function ThemePickerModal({ settings, applySettings, onClose }: Props) {
   const exportCard = (c: Card) =>
     void navigator.clipboard?.writeText(serializeThemeJson(c.name, c.light, c.dark)).catch(() => {});
 
-  const doImport = () => {
-    try {
-      const { name, light, dark } = parseThemeJson(importText);
-      const preset: ThemePreset = { id: newId(), name, light, dark };
-      applySettings({ custom_presets: [...customs, preset], theme_preset: preset.id });
-      setImportText("");
-      setImportErr(null);
-    } catch (e) {
-      setImportErr(t((e as Error).message));
-    }
-  };
-
   return createPortal(
     <div className="modal-backdrop">
       <div className="task-editor theme-picker" role="dialog" aria-modal="true"
@@ -140,27 +126,11 @@ export function ThemePickerModal({ settings, applySettings, onClose }: Props) {
               </div>
             </div>
           ))}
-        </div>
-
-        <div className="theme-gallery-actions">
-          <button type="button" className="theme-option" onClick={startNew}>{t("settings.themeNewPreset")}</button>
-        </div>
-
-        <details className="theme-import">
-          <summary>{t("settings.themeImport")}</summary>
-          <textarea
-            className="theme-json"
-            aria-label={t("settings.themeImport")}
-            placeholder={t("settings.themeImportPlaceholder")}
-            rows={4}
-            value={importText}
-            onChange={e => { setImportText(e.currentTarget.value); setImportErr(null); }}
-          />
-          {importErr && <p className="composer-error" role="alert">{importErr}</p>}
-          <button type="button" className="theme-option" onClick={doImport} disabled={!importText.trim()}>
-            {t("settings.themeImportButton")}
+          <button type="button" className="theme-card theme-card-new" onClick={startNew}>
+            <span className="theme-card-new-plus" aria-hidden="true">+</span>
+            <span className="theme-card-name">{t("settings.themeNewPreset")}</span>
           </button>
-        </details>
+        </div>
 
         <div className="te-actions">
           <span className="te-spacer" />

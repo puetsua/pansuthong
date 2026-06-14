@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeEditorModal } from "./ThemeEditorModal";
-import { getPreset } from "../lib/themes";
+import { getPreset, serializeThemeJson } from "../lib/themes";
 import type { ThemePreset } from "../lib/tauri";
 
 const base = getPreset("default");
@@ -55,6 +55,22 @@ describe("ThemeEditorModal", () => {
     expect(parsed.pansutong_theme).toBe(1);
     expect(parsed.name).toBe("Mine");
     expect(parsed.light["--c-accent"]).toBe("#abcdef");
+  });
+
+  it("imports a pasted theme into the editor fields", () => {
+    render(<ThemeEditorModal preset={{ ...working(), name: "" }} onSave={vi.fn()} onClose={vi.fn()} />);
+    const json = serializeThemeJson("Imported X", { "--c-accent": "#abcdef" }, {});
+    fireEvent.change(screen.getByLabelText("Import a theme"), { target: { value: json } });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Imported X");
+    expect((screen.getByLabelText("Accent") as HTMLInputElement).value).toBe("#abcdef");
+  });
+
+  it("shows an error for invalid import JSON", () => {
+    render(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Import a theme"), { target: { value: "nope" } });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    expect(screen.getByRole("alert")).toBeTruthy();
   });
 
   it("shows Delete only when onDelete is provided", () => {

@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ThemePickerModal } from "./ThemePickerModal";
 import type { Settings, ThemePreset } from "../lib/tauri";
-import { serializeThemeJson } from "../lib/themes";
 
 function settings(over: Partial<Settings> = {}): Settings {
   return { theme: "auto", sort_order: "priority", ...over };
@@ -56,25 +55,6 @@ describe("ThemePickerModal", () => {
     render(<ThemePickerModal settings={settings({ theme_preset: "custom_1", custom_presets: [mine] })} applySettings={apply} onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Delete Mine" }));
     expect(apply).toHaveBeenCalledWith({ custom_presets: [], theme_preset: "default" });
-  });
-
-  it("imports a pasted theme as a new custom preset", () => {
-    const apply = vi.fn();
-    render(<ThemePickerModal settings={settings()} applySettings={apply} onClose={vi.fn()} />);
-    const json = serializeThemeJson("Pasted", { "--c-accent": "#abcdef" }, {});
-    fireEvent.change(screen.getByLabelText("Import a theme"), { target: { value: json } });
-    fireEvent.click(screen.getByRole("button", { name: "Import" }));
-    const patch = apply.mock.calls[0][0];
-    expect(patch.custom_presets[0].name).toBe("Pasted");
-  });
-
-  it("shows an error and imports nothing for invalid JSON", () => {
-    const apply = vi.fn();
-    render(<ThemePickerModal settings={settings()} applySettings={apply} onClose={vi.fn()} />);
-    fireEvent.change(screen.getByLabelText("Import a theme"), { target: { value: "nonsense" } });
-    fireEvent.click(screen.getByRole("button", { name: "Import" }));
-    expect(apply).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toBeTruthy();
   });
 
   it("offers edit/duplicate/export/delete on a custom card", () => {

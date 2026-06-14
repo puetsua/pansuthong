@@ -531,7 +531,7 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   display: flex; align-items: center; gap: var(--space-3);
   margin-top: var(--space-2);
 }
-.theme-current-name { font-weight: 600; margin-right: auto; }
+.theme-current-name { font-weight: 600; }
 
 /* Picker modal */
 .theme-picker {
@@ -576,6 +576,17 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 }
 .theme-card-actions button:hover { background: var(--c-surface-2); color: var(--c-text); }
 .theme-card-delete:hover { color: var(--c-danger); }
+
+/* "New theme" tile sits as the last card in the gallery */
+.theme-card-new {
+  align-items: center; justify-content: center; gap: var(--space-1);
+  min-height: 96px;
+  color: var(--c-text-muted);
+  border-style: dashed;
+  background: var(--c-surface);
+}
+.theme-card-new:hover { color: var(--c-accent); border-color: var(--c-accent); }
+.theme-card-new-plus { font-size: 1.6rem; line-height: 1; }
 
 /* Palette preview (cards + editor) */
 .theme-palette { display: flex; gap: var(--space-1); }

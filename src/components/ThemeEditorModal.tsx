@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { ThemePreset } from "../lib/tauri";
-import { TOKEN_ORDER, TOKEN_LABEL_KEY, ThemeVariant, serializeThemeJson } from "../lib/themes";
+import { TOKEN_ORDER, TOKEN_LABEL_KEY, ThemeVariant, serializeThemeJson, parseThemeJson } from "../lib/themes";
 
 type Props = {
   /** Working copy to edit (full light + dark token maps). Its id is preserved. */
@@ -33,6 +33,8 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete }: Props) {
   const [tab, setTab] = useState<ThemeVariant>("light");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importErr, setImportErr] = useState<string | null>(null);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
@@ -69,6 +71,21 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete }: Props) {
       () => { setCopied(true); setTimeout(() => setCopied(false), 1500); },
       () => {},
     );
+  };
+
+  // Import a pasted theme into the editor's working fields (merged over the current
+  // tokens so every token still has a value); the user reviews then Saves.
+  const doImport = () => {
+    try {
+      const parsed = parseThemeJson(importText);
+      setName(parsed.name);
+      setLight(prev => ({ ...prev, ...parsed.light }));
+      setDark(prev => ({ ...prev, ...parsed.dark }));
+      setImportText("");
+      setImportErr(null);
+    } catch (e) {
+      setImportErr(t((e as Error).message));
+    }
   };
 
   return createPortal(
@@ -108,6 +125,18 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete }: Props) {
             );
           })}
         </div>
+
+        <details className="theme-import">
+          <summary>{t("settings.themeImport")}</summary>
+          <textarea className="theme-json" aria-label={t("settings.themeImport")}
+                    placeholder={t("settings.themeImportPlaceholder")} rows={4}
+                    value={importText}
+                    onChange={e => { setImportText(e.currentTarget.value); setImportErr(null); }} />
+          {importErr && <p className="composer-error" role="alert">{importErr}</p>}
+          <button type="button" className="theme-option" onClick={doImport} disabled={!importText.trim()}>
+            {t("settings.themeImportButton")}
+          </button>
+        </details>
 
         <details className="theme-export">
           <summary>{t("settings.themeExport")}</summary>
