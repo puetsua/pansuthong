@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { Tag, Task } from "../lib/tauri";
 import { TaskRow } from "./TaskRow";
+import { setDateFormat, setTimeFormat, DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT } from "../lib/dates";
 
 vi.mock("../lib/tauri", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/tauri")>();
@@ -108,22 +109,34 @@ describe("TaskRow time tracking (#81)", () => {
 });
 
 describe("TaskRow time-of-day (#93)", () => {
+  // Pin deterministic display formats (iso date + 24h time) so these assertions
+  // test the time-present/appended/absent behavior without depending on the
+  // runner's locale/ICU data, which varies the default `locale` rendering.
+  beforeEach(() => {
+    setDateFormat("iso");
+    setTimeFormat("twenty_four");
+  });
+  afterEach(() => {
+    setDateFormat(DEFAULT_DATE_FORMAT);
+    setTimeFormat(DEFAULT_TIME_FORMAT);
+  });
+
   it("shows the scheduled time when present", () => {
     render(<TaskRow task={{ ...baseTask, start_date: "2026-06-05", start_time: "09:30" }}
                     tags={tags} todayIso="2026-05-31" />);
-    expect(screen.getByText(/06-05 09:30/)).toBeTruthy();
+    expect(screen.getByText(/2026-06-05 09:30:00/)).toBeTruthy();
   });
 
   it("appends the due time to the due label", () => {
     render(<TaskRow task={{ ...baseTask, due_date: "2026-06-05", due_time: "17:00" }}
                     tags={tags} todayIso="2026-05-31" />);
-    expect(screen.getByText(/due 06-05 17:00/)).toBeTruthy();
+    expect(screen.getByText(/due 2026-06-05 17:00:00/)).toBeTruthy();
   });
 
   it("stays all-day (no time text) when no time is set", () => {
     render(<TaskRow task={{ ...baseTask, start_date: "2026-06-05" }}
                     tags={tags} todayIso="2026-05-31" />);
-    expect(screen.getByText("06-05")).toBeTruthy();
+    expect(screen.getByText("2026-06-05")).toBeTruthy();
   });
 });
 
