@@ -35,7 +35,8 @@
     "targets": "all",
     "windows": {
       "nsis": {
-        "installerHooks": "./windows/hooks.nsh"
+        "installerHooks": "./windows/hooks.nsh",
+        "template": "./windows/installer.nsi"
       }
     },
     "icon": [
