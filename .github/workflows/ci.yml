@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Lets the Release workflow reuse these checks as a pre-release gate.
+  workflow_call:
 
 jobs:
   frontend:

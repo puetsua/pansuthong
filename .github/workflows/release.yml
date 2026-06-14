@@ -13,11 +13,19 @@ permissions:
   contents: write # create the release and upload artifacts
 
 jobs:
+  # Gate the whole release on the CI suite (lint · types · tests · clippy · build
+  # smoke). If anything fails, no release is seeded and no artifacts are built or
+  # published — don't release failed stuff.
+  tests:
+    name: CI gate
+    uses: ./.github/workflows/ci.yml
+
   # Generate the release notes first and seed the GitHub Release with them, so the
   # build jobs only append artifacts (action-gh-release leaves an existing body
   # untouched when `body` is omitted).
   release-notes:
     name: Release notes (git-cliff)
+    needs: tests
     runs-on: ubuntu-latest
     outputs:
       # Exposed so the desktop job can embed the same notes in latest.json, which
