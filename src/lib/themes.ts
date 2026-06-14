@@ -1,8 +1,8 @@
-import type { Settings } from "./tauri";
+import type { Settings, ThemePreset } from "./tauri";
 
 // Theme customization (#15). Presets and color resolution live entirely in the
-// frontend — the Rust side only stores the selected preset id and the per-variant
-// color overrides as opaque strings (no theme logic, mobile-safe).
+// frontend — the Rust side only stores the active preset id and the user's custom
+// presets as opaque strings (no theme logic, mobile-safe).
 
 export type ThemeVariant = "light" | "dark";
 
@@ -20,9 +20,32 @@ export type Preset = {
 
 export const DEFAULT_PRESET_ID = "default";
 
-/** The subset of tokens the customization UI exposes (per variant). Override maps
- *  for any other token are ignored — those always come from the preset base. */
-export const EDITABLE_TOKENS = ["--c-accent", "--c-bg", "--c-surface", "--c-text"] as const;
+/** Every editable color token, in UI display order (primaries first). Drives the
+ *  editor's rows, the preview, and sanitization. */
+export const TOKEN_ORDER = [
+  "--c-accent", "--c-bg", "--c-surface", "--c-text",
+  "--c-surface-2", "--c-border", "--c-text-muted", "--c-text-subtle",
+  "--c-accent-bg", "--c-danger", "--c-success",
+] as const;
+
+/** Token -> i18n label key for the editor and previews. */
+export const TOKEN_LABEL_KEY: Record<string, string> = {
+  "--c-accent": "settings.themeColorAccent",
+  "--c-bg": "settings.themeColorBackground",
+  "--c-surface": "settings.themeColorSurface",
+  "--c-text": "settings.themeColorText",
+  "--c-surface-2": "settings.themeColorSurface2",
+  "--c-border": "settings.themeColorBorder",
+  "--c-text-muted": "settings.themeColorTextMuted",
+  "--c-text-subtle": "settings.themeColorTextSubtle",
+  "--c-accent-bg": "settings.themeColorAccentBg",
+  "--c-danger": "settings.themeColorDanger",
+  "--c-success": "settings.themeColorSuccess",
+};
+
+const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+/** Versioned envelope tag for import/export JSON. */
+export const THEME_JSON_VERSION = 1;
 
 export const THEME_PRESETS: Preset[] = [
   {
@@ -124,36 +147,51 @@ export const THEME_PRESETS: Preset[] = [
   },
 ];
 
-/** The preset for `id`, falling back to the default preset for an unknown/absent id. */
+/** The built-in preset for `id`, falling back to the default for an unknown/absent
+ *  id. Only consults built-ins — custom presets live in settings. */
 export function getPreset(id: string | undefined): Preset {
   return THEME_PRESETS.find(p => p.id === id) ?? THEME_PRESETS[0];
 }
 
-/** The effective token map for one variant: the preset's base layered with the
- *  user's per-variant overrides for the editable tokens. Non-editable and unknown
- *  override keys are ignored, so a malformed map can't change unexpected tokens. */
-export function resolveThemeVars(settings: Settings, variant: ThemeVariant): ThemeTokens {
-  const base = getPreset(settings.theme_preset)[variant];
-  const overrides = (variant === "light" ? settings.theme_colors_light : settings.theme_colors_dark) ?? {};
-  const out: ThemeTokens = { ...base };
-  for (const tok of EDITABLE_TOKENS) {
-    const v = overrides[tok];
-    if (typeof v === "string") out[tok] = v;
+/** The default built-in's variant map — the base custom presets layer over. */
+function defaultBase(variant: ThemeVariant): ThemeTokens {
+  return THEME_PRESETS[0][variant];
+}
+
+/** Keep only known token keys carrying a valid hex value, so a malformed or hostile
+ *  map can never set unexpected properties. */
+export function sanitizeTokens(map: Record<string, string> | undefined): ThemeTokens {
+  const out: ThemeTokens = {};
+  if (!map) return out;
+  for (const tok of TOKEN_ORDER) {
+    const v = map[tok];
+    if (typeof v === "string" && HEX.test(v)) out[tok] = v;
   }
   return out;
 }
 
-/** Whether a variant departs from the stock default (non-default preset or any
- *  override). When false the renderer leaves `tokens.css` untouched. */
-export function isVariantCustomized(settings: Settings, variant: ThemeVariant): boolean {
-  if ((settings.theme_preset ?? DEFAULT_PRESET_ID) !== DEFAULT_PRESET_ID) return true;
-  const overrides = variant === "light" ? settings.theme_colors_light : settings.theme_colors_dark;
-  return !!overrides && EDITABLE_TOKENS.some(tok => typeof overrides[tok] === "string");
+/** The custom preset with `id`, if any. */
+export function findCustomPreset(settings: Settings, id: string | undefined): ThemePreset | undefined {
+  return id ? settings.custom_presets?.find(p => p.id === id) : undefined;
 }
 
-/** Every token name a preset defines — used to clear inline overrides when a
- *  variant reverts to the stock default. */
-const ALL_TOKENS = Object.keys(THEME_PRESETS[0].light);
+/** The effective token map for one variant. A built-in id yields its complete map;
+ *  a custom id layers its (sanitized) tokens over the default base so a partial or
+ *  imported preset still renders fully; an unknown id falls back to the base. */
+export function resolveThemeVars(settings: Settings, variant: ThemeVariant): ThemeTokens {
+  const id = settings.theme_preset ?? DEFAULT_PRESET_ID;
+  const builtin = THEME_PRESETS.find(p => p.id === id);
+  if (builtin) return builtin[variant];
+  const custom = findCustomPreset(settings, id);
+  if (!custom) return defaultBase(variant);
+  return { ...defaultBase(variant), ...sanitizeTokens(custom[variant]) };
+}
+
+/** Whether the active theme departs from the stock default built-in. When false the
+ *  renderer leaves `tokens.css` untouched (today's behavior, byte-for-byte). */
+export function isThemeCustomized(settings: Settings): boolean {
+  return (settings.theme_preset ?? DEFAULT_PRESET_ID) !== DEFAULT_PRESET_ID;
+}
 
 /** The variant to render: an explicit light/dark theme wins; `auto` follows the
  *  OS preference (`prefersDark`). */
@@ -164,13 +202,39 @@ export function activeVariant(theme: string, prefersDark: boolean): ThemeVariant
 }
 
 /** Apply the active variant's effective tokens to `el` as inline custom properties,
- *  or clear them when the variant is the stock default (so `tokens.css` stays
- *  authoritative — today's behavior, byte-for-byte). */
+ *  or clear them for the stock default so `tokens.css` stays authoritative. */
 export function applyThemeToRoot(el: HTMLElement, settings: Settings, variant: ThemeVariant): void {
-  if (isVariantCustomized(settings, variant)) {
+  if (isThemeCustomized(settings)) {
     const vars = resolveThemeVars(settings, variant);
     for (const [k, v] of Object.entries(vars)) el.style.setProperty(k, v);
   } else {
-    for (const k of ALL_TOKENS) el.style.removeProperty(k);
+    for (const k of TOKEN_ORDER) el.style.removeProperty(k);
   }
+}
+
+/** Serialize a theme to the shareable JSON envelope (copy/paste import-export). */
+export function serializeThemeJson(name: string, light: ThemeTokens, dark: ThemeTokens): string {
+  return JSON.stringify({ pansutong_theme: THEME_JSON_VERSION, name, light, dark }, null, 2);
+}
+
+/** Parse a pasted theme JSON envelope into a sanitized name + token maps. Throws an
+ *  Error whose message is an i18n key on malformed input, so callers can localize. */
+export function parseThemeJson(text: string): { name: string; light: ThemeTokens; dark: ThemeTokens } {
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("settings.themeImportInvalidJson");
+  }
+  if (!data || typeof data !== "object" || (data as { pansutong_theme?: unknown }).pansutong_theme !== THEME_JSON_VERSION) {
+    throw new Error("settings.themeImportNotATheme");
+  }
+  const obj = data as { name?: unknown; light?: Record<string, string>; dark?: Record<string, string> };
+  const name = typeof obj.name === "string" && obj.name.trim() ? obj.name.trim() : "Imported";
+  const light = sanitizeTokens(obj.light);
+  const dark = sanitizeTokens(obj.dark);
+  if (Object.keys(light).length === 0 && Object.keys(dark).length === 0) {
+    throw new Error("settings.themeImportNoColors");
+  }
+  return { name, light, dark };
 }

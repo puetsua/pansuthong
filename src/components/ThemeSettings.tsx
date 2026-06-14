@@ -1,18 +1,18 @@
-import type { CSSProperties } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Settings } from "../lib/tauri";
+import type { Settings, ThemePreset } from "../lib/tauri";
 import {
-  THEME_PRESETS, EDITABLE_TOKENS, DEFAULT_PRESET_ID, resolveThemeVars,
-  type ThemeVariant,
+  THEME_PRESETS, DEFAULT_PRESET_ID, ThemeTokens, ThemeVariant,
+  sanitizeTokens, parseThemeJson, serializeThemeJson,
 } from "../lib/themes";
+import { ThemeEditorModal } from "./ThemeEditorModal";
 
 /** The slice of the settings patch this component writes (#15). A subset of the
  *  full `updateSettings` input, so SettingsView's `applySettings` is assignable. */
 export type ThemeSettingsPatch = {
   theme?: "auto" | "light" | "dark";
   theme_preset?: string;
-  theme_colors_light?: Record<string, string>;
-  theme_colors_dark?: Record<string, string>;
+  custom_presets?: ThemePreset[];
 };
 
 type Props = {
@@ -21,36 +21,73 @@ type Props = {
 };
 
 const MODES = ["auto", "light", "dark"] as const;
+// Representative tokens shown in a card's palette preview.
+const PREVIEW_TOKENS = ["--c-bg", "--c-surface", "--c-accent", "--c-text"] as const;
 
-// Editable token -> i18n label key. Mirrors EDITABLE_TOKENS' curated four (#15).
-const TOKEN_LABEL: Record<(typeof EDITABLE_TOKENS)[number], string> = {
-  "--c-accent": "settings.themeColorAccent",
-  "--c-bg": "settings.themeColorBackground",
-  "--c-surface": "settings.themeColorSurface",
-  "--c-text": "settings.themeColorText",
-};
+type Card = { id: string; name: string; light: ThemeTokens; dark: ThemeTokens; custom: boolean };
+type EditState = { preset: ThemePreset; existing: boolean } | null;
 
-type VariantRow = {
-  variant: ThemeVariant;
-  key: "theme_colors_light" | "theme_colors_dark";
-  label: string;
-};
+const base = THEME_PRESETS[0];
+/** Fill a (possibly partial) custom map up to a complete variant map. */
+function fullTokens(map: Record<string, string> | undefined, variant: ThemeVariant): ThemeTokens {
+  return { ...base[variant], ...sanitizeTokens(map) };
+}
+const newId = () => `custom_${crypto.randomUUID()}`;
 
 export function ThemeSettings({ settings, applySettings }: Props) {
   const { t } = useTranslation();
   const presetId = settings.theme_preset ?? DEFAULT_PRESET_ID;
+  const customs = settings.custom_presets ?? [];
+  const [edit, setEdit] = useState<EditState>(null);
+  const [importText, setImportText] = useState("");
+  const [importErr, setImportErr] = useState<string | null>(null);
 
-  const variants: VariantRow[] = [
-    { variant: "light", key: "theme_colors_light", label: t("settings.themeLightGroup") },
-    { variant: "dark", key: "theme_colors_dark", label: t("settings.themeDarkGroup") },
+  const cards: Card[] = [
+    ...THEME_PRESETS.map(p => ({ id: p.id, name: t(p.nameKey), light: p.light, dark: p.dark, custom: false })),
+    ...customs.map(p => ({
+      id: p.id, name: p.name,
+      light: fullTokens(p.light, "light"), dark: fullTokens(p.dark, "dark"), custom: true,
+    })),
   ];
 
-  const setColor = (key: VariantRow["key"], token: string, value: string) => {
-    const next = { ...(settings[key] ?? {}), [token]: value };
-    applySettings(key === "theme_colors_light" ? { theme_colors_light: next } : { theme_colors_dark: next });
+  const select = (id: string) => applySettings({ theme_preset: id });
+
+  const saveEdit = (preset: ThemePreset) => {
+    const others = customs.filter(p => p.id !== preset.id);
+    applySettings({ custom_presets: [...others, preset], theme_preset: preset.id });
+    setEdit(null);
   };
-  const resetVariant = (key: VariantRow["key"]) => {
-    applySettings(key === "theme_colors_light" ? { theme_colors_light: {} } : { theme_colors_dark: {} });
+
+  const deleteCustom = (id: string, name: string) => {
+    if (!window.confirm(t("settings.themeDeleteConfirm", { name }))) return;
+    const patch: ThemeSettingsPatch = { custom_presets: customs.filter(p => p.id !== id) };
+    if (presetId === id) patch.theme_preset = "default";
+    applySettings(patch);
+    setEdit(null);
+  };
+
+  const startNew = () =>
+    setEdit({ preset: { id: newId(), name: "", light: { ...base.light }, dark: { ...base.dark } }, existing: false });
+  const startDuplicate = (c: Card) =>
+    setEdit({
+      preset: { id: newId(), name: `${c.name} ${t("settings.themeCopySuffix")}`, light: { ...c.light }, dark: { ...c.dark } },
+      existing: false,
+    });
+  const startEdit = (c: Card) =>
+    setEdit({ preset: { id: c.id, name: c.name, light: { ...c.light }, dark: { ...c.dark } }, existing: true });
+  const exportCard = (c: Card) =>
+    void navigator.clipboard?.writeText(serializeThemeJson(c.name, c.light, c.dark)).catch(() => {});
+
+  const doImport = () => {
+    try {
+      const { name, light, dark } = parseThemeJson(importText);
+      const preset: ThemePreset = { id: newId(), name, light, dark };
+      applySettings({ custom_presets: [...customs, preset], theme_preset: preset.id });
+      setImportText("");
+      setImportErr(null);
+    } catch (e) {
+      setImportErr(t((e as Error).message));
+    }
   };
 
   return (
@@ -69,64 +106,73 @@ export function ThemeSettings({ settings, applySettings }: Props) {
         ))}
       </div>
 
-      <h3 className="settings-subhead">{t("settings.themePreset")}</h3>
       <p className="view-sub">{t("settings.themePresetSub")}</p>
-      <div className="theme-presets">
-        {THEME_PRESETS.map(p => (
-          <button
-            key={p.id}
-            type="button"
-            className={`theme-preset ${presetId === p.id ? "active" : ""}`}
-            aria-pressed={presetId === p.id}
-            onClick={() => applySettings({ theme_preset: p.id })}
-          >
-            <span
-              className="theme-preset-swatch"
-              aria-hidden="true"
-              style={{
-                "--sw-light": p.light["--c-surface"],
-                "--sw-dark": p.dark["--c-surface"],
-                "--sw-accent": p.light["--c-accent"],
-              } as CSSProperties}
-            />
-            <span>{t(p.nameKey)}</span>
-          </button>
+      <div className="theme-gallery">
+        {cards.map(c => (
+          <div className={`theme-card ${presetId === c.id ? "active" : ""}`} key={c.id}>
+            <button type="button" className="theme-card-select" aria-pressed={presetId === c.id} onClick={() => select(c.id)}>
+              <span className="theme-palette" aria-hidden="true">
+                {(["light", "dark"] as const).map(v => (
+                  <span className="theme-palette-row" key={v}>
+                    {PREVIEW_TOKENS.map(tk => (
+                      <span key={tk} className="theme-palette-swatch" style={{ background: c[v][tk] }} />
+                    ))}
+                  </span>
+                ))}
+              </span>
+              <span className="theme-card-name">{c.name}</span>
+            </button>
+            <div className="theme-card-actions">
+              {c.custom && (
+                <button type="button" aria-label={`${t("settings.themeEdit")} ${c.name}`} onClick={() => startEdit(c)}>
+                  {t("settings.themeEdit")}
+                </button>
+              )}
+              <button type="button" aria-label={`${t("settings.themeDuplicate")} ${c.name}`} onClick={() => startDuplicate(c)}>
+                {t("settings.themeDuplicate")}
+              </button>
+              <button type="button" aria-label={`${t("settings.themeExport")} ${c.name}`} onClick={() => exportCard(c)}>
+                {t("settings.themeExport")}
+              </button>
+              {c.custom && (
+                <button type="button" className="theme-card-delete" aria-label={`${t("settings.themeDelete")} ${c.name}`}
+                        onClick={() => deleteCustom(c.id, c.name)}>
+                  {t("settings.themeDelete")}
+                </button>
+              )}
+            </div>
+          </div>
         ))}
       </div>
 
-      <h3 className="settings-subhead">{t("settings.customizeColors")}</h3>
-      <p className="view-sub">{t("settings.customizeColorsSub")}</p>
-      <div className="theme-color-groups">
-        {variants.map(({ variant, key, label }) => {
-          const resolved = resolveThemeVars(settings, variant);
-          return (
-            <div className="theme-color-group" key={variant}>
-              <div className="theme-color-group-head">
-                <h4>{label}</h4>
-                <button
-                  type="button"
-                  className="theme-option"
-                  aria-label={`${t("settings.resetToPreset")} ${label}`}
-                  onClick={() => resetVariant(key)}
-                >
-                  {t("settings.resetToPreset")}
-                </button>
-              </div>
-              {EDITABLE_TOKENS.map(token => (
-                <label className="theme-color-row" key={token}>
-                  <span>{t(TOKEN_LABEL[token])}</span>
-                  <input
-                    type="color"
-                    aria-label={`${label} ${t(TOKEN_LABEL[token])}`}
-                    value={resolved[token]}
-                    onChange={e => setColor(key, token, e.currentTarget.value)}
-                  />
-                </label>
-              ))}
-            </div>
-          );
-        })}
+      <div className="theme-gallery-actions">
+        <button type="button" className="theme-option" onClick={startNew}>{t("settings.themeNewPreset")}</button>
       </div>
+
+      <details className="theme-import">
+        <summary>{t("settings.themeImport")}</summary>
+        <textarea
+          className="theme-json"
+          aria-label={t("settings.themeImport")}
+          placeholder={t("settings.themeImportPlaceholder")}
+          rows={4}
+          value={importText}
+          onChange={e => { setImportText(e.currentTarget.value); setImportErr(null); }}
+        />
+        {importErr && <p className="composer-error" role="alert">{importErr}</p>}
+        <button type="button" className="theme-option" onClick={doImport} disabled={!importText.trim()}>
+          {t("settings.themeImportButton")}
+        </button>
+      </details>
+
+      {edit && (
+        <ThemeEditorModal
+          preset={edit.preset}
+          onSave={saveEdit}
+          onClose={() => setEdit(null)}
+          onDelete={edit.existing ? () => deleteCustom(edit.preset.id, edit.preset.name) : undefined}
+        />
+      )}
     </section>
   );
 }

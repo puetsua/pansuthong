@@ -1,4 +1,4 @@
-use crate::config::{ConfigState, Settings};
+use crate::config::{ConfigState, Settings, ThemePreset};
 use crate::conflict::{apply_decisions, diff_tasks, tags_to_merge, Decision, TaskDiff};
 use crate::error::{AppError, Result};
 use crate::history::HistoryEntry;
@@ -767,9 +767,9 @@ fn is_token_key(s: &str) -> bool {
         && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
 
-/// Reject a theme override map whose keys aren't sane token names or whose values
+/// Reject a theme token map whose keys aren't sane token names or whose values
 /// aren't hex colors, so a malformed map can't be persisted (#15).
-fn validate_theme_overrides(map: &HashMap<String, String>) -> Result<()> {
+fn validate_theme_tokens(map: &HashMap<String, String>) -> Result<()> {
     for (k, v) in map {
         if !is_token_key(k) {
             return Err(AppError::Invalid(format!("invalid theme color token: {k}")));
@@ -777,6 +777,28 @@ fn validate_theme_overrides(map: &HashMap<String, String>) -> Result<()> {
         if !is_hex_color(v) {
             return Err(AppError::Invalid(format!("invalid theme color value for {k}: {v}")));
         }
+    }
+    Ok(())
+}
+
+/// A custom preset name (#15) is a free user-facing label; only bound its length so
+/// it can't bloat config.json.
+fn is_preset_name(s: &str) -> bool {
+    !s.is_empty() && s.chars().count() <= 60
+}
+
+/// Shape-validate every user-defined preset (#15): a sane id, a bounded name, and
+/// token maps that are well-formed. Rust never inspects token *meaning*.
+fn validate_custom_presets(presets: &[ThemePreset]) -> Result<()> {
+    for p in presets {
+        if !is_preset_id(&p.id) {
+            return Err(AppError::Invalid(format!("invalid custom preset id: {}", p.id)));
+        }
+        if !is_preset_name(&p.name) {
+            return Err(AppError::Invalid(format!("invalid custom preset name: {}", p.name)));
+        }
+        validate_theme_tokens(&p.light)?;
+        validate_theme_tokens(&p.dark)?;
     }
     Ok(())
 }
@@ -796,8 +818,7 @@ pub struct UpdateSettingsInput {
     #[serde(default)] pub date_format: Option<String>,
     #[serde(default)] pub time_format: Option<String>,
     #[serde(default)] pub theme_preset: Option<String>,
-    #[serde(default)] pub theme_colors_light: Option<HashMap<String, String>>,
-    #[serde(default)] pub theme_colors_dark: Option<HashMap<String, String>>,
+    #[serde(default)] pub custom_presets: Option<Vec<ThemePreset>>,
 }
 
 #[tauri::command]
@@ -890,15 +911,11 @@ pub fn update_settings(
             }
             s.theme_preset = Some(id);
         }
-        // Override maps replace wholesale; an empty map clears the variant's overrides
-        // (stored as None so config.json stays clean for the stock theme).
-        if let Some(map) = input.theme_colors_light {
-            validate_theme_overrides(&map)?;
-            s.theme_colors_light = if map.is_empty() { None } else { Some(map) };
-        }
-        if let Some(map) = input.theme_colors_dark {
-            validate_theme_overrides(&map)?;
-            s.theme_colors_dark = if map.is_empty() { None } else { Some(map) };
+        // The custom-preset list replaces wholesale; an empty list clears it (stored as
+        // None so config.json stays clean for the stock theme).
+        if let Some(presets) = input.custom_presets {
+            validate_custom_presets(&presets)?;
+            s.custom_presets = if presets.is_empty() { None } else { Some(presets) };
         }
         Ok(())
     })?;
@@ -1569,27 +1586,24 @@ mod tests {
     fn update_settings_input_parses_theme_customization() {
         // Pins the snake_case keys the JS api sends (#15).
         let v: UpdateSettingsInput = serde_json::from_str(
-            r##"{"theme_preset":"slate","theme_colors_light":{"--c-accent":"#ff0000"},"theme_colors_dark":{"--c-bg":"#000000"}}"##,
+            r##"{"theme_preset":"custom_1","custom_presets":[{"id":"custom_1","name":"Mine","light":{"--c-accent":"#ff0000"},"dark":{"--c-bg":"#000000"}}]}"##,
         ).unwrap();
-        assert_eq!(v.theme_preset.as_deref(), Some("slate"));
-        assert_eq!(
-            v.theme_colors_light.as_ref().unwrap().get("--c-accent").map(String::as_str),
-            Some("#ff0000")
-        );
-        assert_eq!(
-            v.theme_colors_dark.as_ref().unwrap().get("--c-bg").map(String::as_str),
-            Some("#000000")
-        );
+        assert_eq!(v.theme_preset.as_deref(), Some("custom_1"));
+        let presets = v.custom_presets.unwrap();
+        assert_eq!(presets.len(), 1);
+        assert_eq!(presets[0].id, "custom_1");
+        assert_eq!(presets[0].name, "Mine");
+        assert_eq!(presets[0].light.get("--c-accent").map(String::as_str), Some("#ff0000"));
+        assert_eq!(presets[0].dark.get("--c-bg").map(String::as_str), Some("#000000"));
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.theme_preset, None);
-        assert!(absent.theme_colors_light.is_none());
-        assert!(absent.theme_colors_dark.is_none());
+        assert!(absent.custom_presets.is_none());
     }
 
     #[test]
     fn is_preset_id_accepts_sane_ids_and_rejects_junk() {
         assert!(is_preset_id("default"));
-        assert!(is_preset_id("high_contrast"));
+        assert!(is_preset_id("custom_1a2b"));
         assert!(is_preset_id("a-b-1"));
         assert!(!is_preset_id("")); // empty
         assert!(!is_preset_id("Slate")); // uppercase
@@ -1597,26 +1611,37 @@ mod tests {
         assert!(!is_preset_id(&"x".repeat(65))); // too long
     }
 
-    #[test]
-    fn validate_theme_overrides_accepts_valid_token_hex_pairs() {
-        let mut m = HashMap::new();
-        m.insert("--c-accent".to_string(), "#ff0000".to_string());
-        m.insert("--c-bg".to_string(), "#fff".to_string());
-        assert!(validate_theme_overrides(&m).is_ok());
+    fn preset(id: &str, name: &str, light: &[(&str, &str)]) -> ThemePreset {
+        ThemePreset {
+            id: id.to_string(),
+            name: name.to_string(),
+            light: light.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            dark: HashMap::new(),
+        }
     }
 
     #[test]
-    fn validate_theme_overrides_rejects_non_hex_value() {
-        let mut m = HashMap::new();
-        m.insert("--c-accent".to_string(), "red".to_string());
-        assert!(validate_theme_overrides(&m).is_err());
+    fn validate_custom_presets_accepts_well_formed_presets() {
+        let ps = vec![preset("custom_1", "Mine", &[("--c-accent", "#ff0000"), ("--c-bg", "#fff")])];
+        assert!(validate_custom_presets(&ps).is_ok());
     }
 
     #[test]
-    fn validate_theme_overrides_rejects_malformed_token_key() {
-        let mut m = HashMap::new();
-        m.insert("javascript:alert(1)".to_string(), "#ffffff".to_string());
-        assert!(validate_theme_overrides(&m).is_err());
+    fn validate_custom_presets_rejects_non_hex_value() {
+        let ps = vec![preset("custom_1", "Mine", &[("--c-accent", "red")])];
+        assert!(validate_custom_presets(&ps).is_err());
+    }
+
+    #[test]
+    fn validate_custom_presets_rejects_malformed_token_key() {
+        let ps = vec![preset("custom_1", "Mine", &[("javascript:alert(1)", "#ffffff")])];
+        assert!(validate_custom_presets(&ps).is_err());
+    }
+
+    #[test]
+    fn validate_custom_presets_rejects_bad_id_or_empty_name() {
+        assert!(validate_custom_presets(&[preset("Bad Id", "Mine", &[])]).is_err());
+        assert!(validate_custom_presets(&[preset("custom_1", "", &[])]).is_err());
     }
 
     #[test]

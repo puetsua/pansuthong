@@ -73,17 +73,28 @@ pub struct Settings {
     /// Time display format preset. `None` means "locale".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub time_format: Option<String>,
-    /// Selected theme preset id (#15). The frontend owns the preset list and token
-    /// semantics; Rust stores this opaquely. `None` = the built-in default preset.
+    /// Active theme preset id (#15) — a built-in or a custom preset. The frontend
+    /// owns the preset list and token semantics; Rust stores this opaquely. `None` =
+    /// the built-in default preset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub theme_preset: Option<String>,
-    /// Per-token color overrides for the light variant (#15), keyed by CSS custom
-    /// property name (e.g. "--c-accent") -> hex string. `None` = no overrides.
+    /// User-defined themes (#15), device-local. Each carries a full light + dark token
+    /// map (CSS custom property name -> hex). Rust only shape-validates and stores
+    /// them; the frontend resolves/renders. `None` = no custom presets.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub theme_colors_light: Option<HashMap<String, String>>,
-    /// Per-token color overrides for the dark variant (#15). See `theme_colors_light`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub theme_colors_dark: Option<HashMap<String, String>>,
+    pub custom_presets: Option<Vec<ThemePreset>>,
+}
+
+/// A user-defined theme (#15). Opaque to Rust beyond shape validation: an id, a
+/// display name, and per-variant token maps keyed by CSS custom property name.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemePreset {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub light: HashMap<String, String>,
+    #[serde(default)]
+    pub dark: HashMap<String, String>,
 }
 
 fn default_theme() -> String {
@@ -134,8 +145,7 @@ impl Default for Settings {
             date_format: None,
             time_format: None,
             theme_preset: None,
-            theme_colors_light: None,
-            theme_colors_dark: None,
+            custom_presets: None,
         }
     }
 }

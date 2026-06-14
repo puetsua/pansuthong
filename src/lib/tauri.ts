@@ -20,10 +20,18 @@ export type Settings = {
   date_format?: DateFormat; // date display preset; default "locale"
   time_format?: TimeFormat; // time display preset; default "locale"
   // Theme customization (#15). The frontend owns preset/token semantics; Rust stores
-  // these opaquely. Absent = default preset, no overrides.
-  theme_preset?: string; // id of the selected preset; default "default"
-  theme_colors_light?: Record<string, string>; // per-token hex overrides for the light variant
-  theme_colors_dark?: Record<string, string>;  // per-token hex overrides for the dark variant
+  // these opaquely. Absent = built-in default preset, no customs.
+  theme_preset?: string; // active preset id (built-in or custom); default "default"
+  custom_presets?: ThemePreset[]; // user-defined, device-local named themes
+};
+
+/** A user-defined theme (#15): a full light + dark token set, keyed by CSS custom
+ *  property name (e.g. "--c-accent") -> hex. Imported/exported as JSON. */
+export type ThemePreset = {
+  id: string;
+  name: string;
+  light: Record<string, string>;
+  dark: Record<string, string>;
 };
 
 export type Tag = {
@@ -213,8 +221,7 @@ export const api = {
                             date_time_format?: DateTimeFormat;
                             date_format?: DateFormat; time_format?: TimeFormat;
                             theme_preset?: string;
-                            theme_colors_light?: Record<string, string>;
-                            theme_colors_dark?: Record<string, string> }) =>
+                            custom_presets?: ThemePreset[] }) =>
                                    invoke<void>("update_settings", { input }),
   listConflicts:    ()             => invoke<string[]>("list_conflicts"),
   readConflict:     (path: string) => invoke<TaskDiff[]>("read_conflict", { conflictPath: path }),

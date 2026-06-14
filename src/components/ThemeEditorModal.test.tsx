@@ -1,0 +1,68 @@
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { ThemeEditorModal } from "./ThemeEditorModal";
+import { getPreset } from "../lib/themes";
+import type { ThemePreset } from "../lib/tauri";
+
+const base = getPreset("default");
+function working(): ThemePreset {
+  return { id: "custom_1", name: "Mine", light: { ...base.light }, dark: { ...base.dark } };
+}
+
+describe("ThemeEditorModal", () => {
+  it("edits the light accent and saves the updated preset", () => {
+    const onSave = vi.fn();
+    render(<ThemeEditorModal preset={working()} onSave={onSave} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Accent"), { target: { value: "#ff0000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const saved = onSave.mock.calls[0][0] as ThemePreset;
+    expect(saved.id).toBe("custom_1");
+    expect(saved.light["--c-accent"]).toBe("#ff0000");
+    expect(saved.dark["--c-accent"]).toBe(base.dark["--c-accent"]); // untouched
+  });
+
+  it("edits the dark variant after switching tabs", () => {
+    const onSave = vi.fn();
+    render(<ThemeEditorModal preset={working()} onSave={onSave} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Dark" }));
+    expect((screen.getByLabelText("Accent") as HTMLInputElement).value).toBe(base.dark["--c-accent"]);
+    fireEvent.change(screen.getByLabelText("Accent"), { target: { value: "#00ff00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect((onSave.mock.calls[0][0] as ThemePreset).dark["--c-accent"]).toBe("#00ff00");
+  });
+
+  it("renames and saves", () => {
+    const onSave = vi.fn();
+    render(<ThemeEditorModal preset={working()} onSave={onSave} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Renamed" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect((onSave.mock.calls[0][0] as ThemePreset).name).toBe("Renamed");
+  });
+
+  it("blocks saving an empty name", () => {
+    const onSave = vi.fn();
+    render(<ThemeEditorModal preset={{ ...working(), name: "" }} onSave={onSave} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("exports the current theme as JSON reflecting edits", () => {
+    render(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Accent"), { target: { value: "#abcdef" } });
+    const ta = screen.getByLabelText("Theme JSON") as HTMLTextAreaElement;
+    const parsed = JSON.parse(ta.value);
+    expect(parsed.pansutong_theme).toBe(1);
+    expect(parsed.name).toBe("Mine");
+    expect(parsed.light["--c-accent"]).toBe("#abcdef");
+  });
+
+  it("shows Delete only when onDelete is provided", () => {
+    const { rerender } = render(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    const onDelete = vi.fn();
+    rerender(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} onDelete={onDelete} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalled();
+  });
+});
