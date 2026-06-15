@@ -385,7 +385,7 @@
     "themeDeleteConfirm": "Delete the theme “{{name}}”?",
     "themeImport": "Import",
     "themeImportPlaceholder": "Paste exported theme JSON here…",
-    "themeImportButton": "Override",
+    "themeImportButton": "Override Theme",
     "themeImportInvalidJson": "That doesn't look like valid JSON.",
     "themeImportNotATheme": "That JSON isn't a Pansutong theme.",
     "themeImportNoColors": "That theme has no usable colors.",

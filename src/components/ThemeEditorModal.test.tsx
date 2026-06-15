@@ -61,7 +61,7 @@ describe("ThemeEditorModal", () => {
     render(<ThemeEditorModal preset={{ ...working(), name: "" }} onSave={vi.fn()} onClose={vi.fn()} />);
     const json = serializeThemeJson("Imported X", { "--c-accent": "#abcdef" }, {});
     fireEvent.change(screen.getByLabelText("Import"), { target: { value: json } });
-    fireEvent.click(screen.getByRole("button", { name: "Override" }));
+    fireEvent.click(screen.getByRole("button", { name: "Override Theme" }));
     expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Imported X");
     expect((screen.getByLabelText("Accent") as HTMLInputElement).value).toBe("#abcdef");
   });
@@ -69,7 +69,7 @@ describe("ThemeEditorModal", () => {
   it("shows an error for invalid import JSON", () => {
     render(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Import"), { target: { value: "nope" } });
-    fireEvent.click(screen.getByRole("button", { name: "Override" }));
+    fireEvent.click(screen.getByRole("button", { name: "Override Theme" }));
     expect(screen.getByRole("alert")).toBeTruthy();
   });
 

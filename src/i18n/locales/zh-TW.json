@@ -381,7 +381,7 @@
     "themeDeleteConfirm": "要刪除配色「{{name}}」嗎？",
     "themeImport": "匯入",
     "themeImportPlaceholder": "在此貼上匯出的配色 JSON…",
-    "themeImportButton": "覆寫",
+    "themeImportButton": "覆寫配色",
     "themeImportInvalidJson": "這看起來不是有效的 JSON。",
     "themeImportNotATheme": "這段 JSON 不是 Pansutong 配色。",
     "themeImportNoColors": "這個配色沒有可用的顏色。",
