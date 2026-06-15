@@ -25,7 +25,7 @@ export const DEFAULT_PRESET_ID = "default";
 export const TOKEN_ORDER = [
   "--c-accent", "--c-bg", "--c-surface", "--c-text",
   "--c-surface-2", "--c-border", "--c-text-muted", "--c-text-subtle",
-  "--c-accent-bg", "--c-danger", "--c-success",
+  "--c-accent-bg", "--c-danger",
 ] as const;
 
 /** Token -> i18n label key for the editor and previews. */
@@ -40,7 +40,6 @@ export const TOKEN_LABEL_KEY: Record<string, string> = {
   "--c-text-subtle": "settings.themeColorTextSubtle",
   "--c-accent-bg": "settings.themeColorAccentBg",
   "--c-danger": "settings.themeColorDanger",
-  "--c-success": "settings.themeColorSuccess",
 };
 
 const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -56,13 +55,13 @@ export const THEME_PRESETS: Preset[] = [
       "--c-bg": "#f9fafb", "--c-surface": "#ffffff", "--c-surface-2": "#f3f4f6",
       "--c-border": "#e5e7eb", "--c-text": "#1f2937", "--c-text-muted": "#6b7280",
       "--c-text-subtle": "#9ca3af", "--c-accent": "#4338ca", "--c-accent-bg": "#eef2ff",
-      "--c-danger": "#dc2626", "--c-success": "#047857",
+      "--c-danger": "#dc2626",
     },
     dark: {
       "--c-bg": "#0f172a", "--c-surface": "#1e293b", "--c-surface-2": "#243044",
       "--c-border": "#334155", "--c-text": "#e2e8f0", "--c-text-muted": "#94a3b8",
       "--c-text-subtle": "#64748b", "--c-accent": "#818cf8", "--c-accent-bg": "#312e81",
-      "--c-danger": "#fca5a5", "--c-success": "#6ee7b7",
+      "--c-danger": "#fca5a5",
     },
   },
   {
@@ -72,13 +71,13 @@ export const THEME_PRESETS: Preset[] = [
       "--c-bg": "#f1f5f9", "--c-surface": "#ffffff", "--c-surface-2": "#e2e8f0",
       "--c-border": "#cbd5e1", "--c-text": "#0f172a", "--c-text-muted": "#475569",
       "--c-text-subtle": "#64748b", "--c-accent": "#0369a1", "--c-accent-bg": "#e0f2fe",
-      "--c-danger": "#dc2626", "--c-success": "#047857",
+      "--c-danger": "#dc2626",
     },
     dark: {
       "--c-bg": "#0b1220", "--c-surface": "#131c2e", "--c-surface-2": "#1c2840",
       "--c-border": "#2b3a55", "--c-text": "#e5edf7", "--c-text-muted": "#9fb1c9",
       "--c-text-subtle": "#6b7e99", "--c-accent": "#38bdf8", "--c-accent-bg": "#0c2a40",
-      "--c-danger": "#fca5a5", "--c-success": "#6ee7b7",
+      "--c-danger": "#fca5a5",
     },
   },
   {
@@ -88,13 +87,13 @@ export const THEME_PRESETS: Preset[] = [
       "--c-bg": "#f5efe3", "--c-surface": "#fffaf0", "--c-surface-2": "#efe6d4",
       "--c-border": "#ddcfb6", "--c-text": "#43381f", "--c-text-muted": "#6f6242",
       "--c-text-subtle": "#93855f", "--c-accent": "#9a6a2f", "--c-accent-bg": "#f3e6cf",
-      "--c-danger": "#b4452b", "--c-success": "#5d7a32",
+      "--c-danger": "#b4452b",
     },
     dark: {
       "--c-bg": "#211b12", "--c-surface": "#2c2419", "--c-surface-2": "#382e20",
       "--c-border": "#4d3f2c", "--c-text": "#ece2cf", "--c-text-muted": "#b8a888",
       "--c-text-subtle": "#8a7c5e", "--c-accent": "#d9a657", "--c-accent-bg": "#463318",
-      "--c-danger": "#e08b6a", "--c-success": "#a7c06b",
+      "--c-danger": "#e08b6a",
     },
   },
   {
@@ -104,13 +103,13 @@ export const THEME_PRESETS: Preset[] = [
       "--c-bg": "#ffffff", "--c-surface": "#ffffff", "--c-surface-2": "#f0f0f0",
       "--c-border": "#000000", "--c-text": "#000000", "--c-text-muted": "#1a1a1a",
       "--c-text-subtle": "#333333", "--c-accent": "#0000cc", "--c-accent-bg": "#e0e0ff",
-      "--c-danger": "#b00000", "--c-success": "#006600",
+      "--c-danger": "#b00000",
     },
     dark: {
       "--c-bg": "#000000", "--c-surface": "#0a0a0a", "--c-surface-2": "#1a1a1a",
       "--c-border": "#ffffff", "--c-text": "#ffffff", "--c-text-muted": "#e6e6e6",
       "--c-text-subtle": "#cccccc", "--c-accent": "#66b3ff", "--c-accent-bg": "#002b66",
-      "--c-danger": "#ff6666", "--c-success": "#66ff99",
+      "--c-danger": "#ff6666",
     },
   },
   {
@@ -120,13 +119,13 @@ export const THEME_PRESETS: Preset[] = [
       "--c-bg": "#f6faf7", "--c-surface": "#ffffff", "--c-surface-2": "#e9f3ec",
       "--c-border": "#d3e3d8", "--c-text": "#11261a", "--c-text-muted": "#4b6357",
       "--c-text-subtle": "#6e857a", "--c-accent": "#047857", "--c-accent-bg": "#d1fae5",
-      "--c-danger": "#dc2626", "--c-success": "#047857",
+      "--c-danger": "#dc2626",
     },
     dark: {
       "--c-bg": "#07120d", "--c-surface": "#0f1f17", "--c-surface-2": "#16291f",
       "--c-border": "#244536", "--c-text": "#d8f0e2", "--c-text-muted": "#93b8a4",
       "--c-text-subtle": "#6b8c7a", "--c-accent": "#34d399", "--c-accent-bg": "#064233",
-      "--c-danger": "#fca5a5", "--c-success": "#34d399",
+      "--c-danger": "#fca5a5",
     },
   },
   {
@@ -136,13 +135,13 @@ export const THEME_PRESETS: Preset[] = [
       "--c-bg": "#fdf6f8", "--c-surface": "#ffffff", "--c-surface-2": "#f8e8ee",
       "--c-border": "#efd2dc", "--c-text": "#2a1620", "--c-text-muted": "#6b4a57",
       "--c-text-subtle": "#8f6e7b", "--c-accent": "#be185d", "--c-accent-bg": "#fce7f0",
-      "--c-danger": "#dc2626", "--c-success": "#047857",
+      "--c-danger": "#dc2626",
     },
     dark: {
       "--c-bg": "#140a0f", "--c-surface": "#20131a", "--c-surface-2": "#2c1b24",
       "--c-border": "#4a2a39", "--c-text": "#f1dde7", "--c-text-muted": "#c39bac",
       "--c-text-subtle": "#977182", "--c-accent": "#f472b6", "--c-accent-bg": "#4a1130",
-      "--c-danger": "#fca5a5", "--c-success": "#6ee7b7",
+      "--c-danger": "#fca5a5",
     },
   },
 ];

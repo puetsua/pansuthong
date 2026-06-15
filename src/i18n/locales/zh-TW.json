@@ -416,7 +416,6 @@
     "themeColorTextSubtle": "輔助文字",
     "themeColorAccentBg": "強調背景",
     "themeColorDanger": "危險",
-    "themeColorSuccess": "成功",
     "sortOrder": "排序方式",
     "sortSub": "任務清單的排序方式。優先順序會依任務標籤中的最高權重排序。",
     "sortPriority": "優先順序",

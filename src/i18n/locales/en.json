@@ -420,7 +420,6 @@
     "themeColorTextSubtle": "Subtle text",
     "themeColorAccentBg": "Accent background",
     "themeColorDanger": "Danger",
-    "themeColorSuccess": "Success",
     "sortOrder": "Sort order",
     "sortSub": "How task lists are ordered. Priority sorts by the highest weight among a task's tags.",
     "sortPriority": "priority",

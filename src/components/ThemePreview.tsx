@@ -43,7 +43,6 @@ export function ThemePreview({ tokens, onHover }: Props) {
         </div>
         <div className="theme-preview-row">
           <span className="theme-preview-dot danger" data-token="--c-danger" />
-          <span className="theme-preview-dot success" data-token="--c-success" />
           <span className="theme-preview-raised" data-token="--c-surface-2">{t("settings.themePreviewRaised")}</span>
         </div>
       </div>

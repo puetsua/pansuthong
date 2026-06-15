@@ -689,7 +689,6 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 }
 .theme-preview-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 .theme-preview-dot.danger { background: var(--c-danger); }
-.theme-preview-dot.success { background: var(--c-success); }
 
 /* Delete confirmation sits above the editor */
 .theme-confirm-backdrop { z-index: 1000; }
