@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { ThemePreset } from "../lib/tauri";
 import { TOKEN_ORDER, TOKEN_LABEL_KEY, ThemeVariant, serializeThemeJson, parseThemeJson } from "../lib/themes";
+import { ThemePreview } from "./ThemePreview";
 
 type Props = {
   /** Working copy to edit (full light + dark token maps). Its id is preserved. */
@@ -111,6 +112,8 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete, initialTab
             </button>
           ))}
         </div>
+
+        <ThemePreview tokens={tokens} />
 
         <div className="theme-token-rows">
           {TOKEN_ORDER.map(token => {

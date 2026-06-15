@@ -47,6 +47,14 @@ describe("ThemeEditorModal", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it("renders a live preview that reflects edits to the active tab", () => {
+    render(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Accent"), { target: { value: "#ff0000" } });
+    const preview = document.querySelector(".theme-preview") as HTMLElement;
+    expect(preview.style.getPropertyValue("--c-accent")).toBe("#ff0000");
+    expect(preview.style.getPropertyValue("--c-bg")).toBe(base.light["--c-bg"]);
+  });
+
   it("exports the current theme as JSON reflecting edits", () => {
     render(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Accent"), { target: { value: "#abcdef" } });
