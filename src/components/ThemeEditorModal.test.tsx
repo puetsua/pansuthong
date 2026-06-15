@@ -55,6 +55,17 @@ describe("ThemeEditorModal", () => {
     expect(preview.style.getPropertyValue("--c-bg")).toBe(base.light["--c-bg"]);
   });
 
+  it("highlights the matching token row when hovering the preview", () => {
+    render(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} />);
+    const accentInPreview = document.querySelector('.theme-preview [data-token="--c-accent"]') as HTMLElement;
+    const row = (screen.getByLabelText("Accent").closest(".theme-token-row")) as HTMLElement;
+    expect(row.className).not.toContain("is-highlighted");
+    fireEvent.mouseEnter(accentInPreview);
+    expect(row.className).toContain("is-highlighted");
+    fireEvent.mouseLeave(accentInPreview);
+    expect(row.className).not.toContain("is-highlighted");
+  });
+
   it("exports the current theme as JSON reflecting edits", () => {
     render(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Accent"), { target: { value: "#abcdef" } });

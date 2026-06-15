@@ -39,6 +39,7 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete, initialTab
   const [importText, setImportText] = useState("");
   const [importErr, setImportErr] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [hovered, setHovered] = useState<string | null>(null);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
@@ -113,13 +114,15 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete, initialTab
           ))}
         </div>
 
-        <ThemePreview tokens={tokens} />
+        <ThemePreview tokens={tokens} onHover={setHovered} />
 
         <div className="theme-token-rows">
           {TOKEN_ORDER.map(token => {
             const label = t(TOKEN_LABEL_KEY[token]);
             return (
-              <div className="theme-token-row" key={token}>
+              <div className={`theme-token-row ${hovered === token ? "is-highlighted" : ""}`}
+                   key={token}
+                   onMouseEnter={() => setHovered(token)} onMouseLeave={() => setHovered(null)}>
                 <span className="theme-token-label">{label}</span>
                 <input type="color" aria-label={label}
                        value={toColorValue(tokens[token])}
