@@ -14,6 +14,7 @@ import {
   dateFormat, timeFormat,
 } from "../lib/settings";
 import { clampWeight, WEIGHT_MAX, WEIGHT_MIN } from "../lib/tags";
+import { ThemeSettings } from "../components/ThemeSettings";
 
 type Props = { doc: Document };
 
@@ -36,12 +37,6 @@ export function SettingsView({ doc }: Props) {
     } catch (e) {
       setSettingsErr(errorMessage(e));
     }
-  };
-
-  const theme = doc.settings.theme;
-  const setTheme = (next: "auto" | "light" | "dark") => { void applySettings({ theme: next }); };
-  const themeLabel: Record<"auto" | "light" | "dark", string> = {
-    auto: t("settings.themeAuto"), light: t("settings.themeLight"), dark: t("settings.themeDark"),
   };
 
   const sortOrder = doc.settings.sort_order;
@@ -199,21 +194,7 @@ export function SettingsView({ doc }: Props) {
 
       {settingsErr && <p className="composer-error" role="alert">{t("settings.saveError", { error: settingsErr })}</p>}
 
-      <section className="settings-section">
-        <h2>{t("settings.theme")}</h2>
-        <div className="theme-options">
-          {(["auto", "light", "dark"] as const).map(opt => (
-            <button
-              key={opt}
-              className={`theme-option ${theme === opt ? "active" : ""}`}
-              aria-pressed={theme === opt}
-              onClick={() => setTheme(opt)}
-            >
-              {themeLabel[opt]}
-            </button>
-          ))}
-        </div>
-      </section>
+      <ThemeSettings settings={doc.settings} applySettings={applySettings} />
 
       <section className="settings-section">
         <h2>{t("settings.language")}</h2>
