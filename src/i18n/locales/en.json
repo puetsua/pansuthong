@@ -494,9 +494,9 @@
     "syncNow": "Sync now",
     "changeFolder": "Change folder…",
     "unlink": "Unlink",
-    "pickFolderHintAndroid": "Pick a Syncthing- or Drive-synced folder to keep tasks in sync across devices. On first link it adopts that folder's tasks.json if present, otherwise it seeds it.",
+    "pickFolderHintAndroid": "Pick a synced folder (for example one managed by a cloud drive) to keep tasks in sync across devices. On first link it adopts that folder's tasks.json if present, otherwise it seeds it.",
     "pickFolder": "Pick folder…",
-    "desktopHint": "Point this at a Syncthing-managed folder to sync across devices. On first link it adopts that folder's tasks.json if present, otherwise it seeds it.",
+    "desktopHint": "Point this at a folder that syncs across your devices to keep tasks in sync. On first link it adopts that folder's tasks.json if present, otherwise it seeds it.",
     "chooseFolder": "Choose folder…",
     "useDefault": "Use default location"
   }

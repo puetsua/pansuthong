@@ -1,7 +1,7 @@
 //! Android folder-sync mirror layer.
 //!
 //! The app-private `tasks.json` remains the crash-safe master (store.rs). This
-//! module mirrors it (and Syncthing conflict copies) to/from a user-picked SAF
+//! module mirrors it (and any sync-tool conflict copies) to/from a user-picked SAF
 //! folder. All SAF I/O is hidden behind `SafBackend` so the mirror logic is
 //! testable on desktop; the real Android backend lives in the `android` submodule.
 
@@ -503,7 +503,7 @@ mod tests {
     }
 
     #[test]
-    fn is_conflict_filename_matches_syncthing_copies() {
+    fn is_conflict_filename_matches_sync_conflict_copies() {
         assert!(is_conflict_filename(
             "tasks.sync-conflict-20260530-120000-ABCDEF.json", "tasks", "tasks.json"));
         assert!(!is_conflict_filename("tasks.json", "tasks", "tasks.json")); // the main file

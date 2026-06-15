@@ -8,7 +8,7 @@ fn touch(path: &PathBuf, contents: &str) {
 }
 
 #[test]
-fn scanner_finds_syncthing_conflict_siblings() {
+fn scanner_finds_sync_conflict_siblings() {
     let dir  = tempdir().unwrap();
     let data = dir.path().join("tasks.json");
     touch(&data, "{}");

@@ -490,9 +490,9 @@
     "syncNow": "立即同步",
     "changeFolder": "變更資料夾…",
     "unlink": "取消連結",
-    "pickFolderHintAndroid": "選擇一個由 Syncthing 或 Drive 同步的資料夾，讓任務在裝置間保持同步。首次連結時，若該資料夾已有 tasks.json 則會採用它，否則會建立一個。",
+    "pickFolderHintAndroid": "選擇一個會在裝置間同步的資料夾（例如由雲端硬碟同步），讓任務在裝置間保持同步。首次連結時，若該資料夾已有 tasks.json 則會採用它，否則會建立一個。",
     "pickFolder": "選擇資料夾…",
-    "desktopHint": "將此指向由 Syncthing 管理的資料夾以在裝置間同步。首次連結時，若該資料夾已有 tasks.json 則會採用它，否則會建立一個。",
+    "desktopHint": "將此指向一個會在裝置間同步的資料夾以保持同步。首次連結時，若該資料夾已有 tasks.json 則會採用它，否則會建立一個。",
     "chooseFolder": "選擇資料夾…",
     "useDefault": "使用預設位置"
   }

@@ -1082,8 +1082,8 @@ pub fn clear_data_folder(
 }
 
 // ───────────────────────── Android SAF folder sync ─────────────────────────
-// Mirror the app-private tasks.json (and Syncthing conflict copies) to/from a
-// user-picked SAF folder (e.g. a Google Drive or Syncthing folder). All SAF I/O
+// Mirror the app-private tasks.json (and any sync-tool conflict copies) to/from a
+// user-picked SAF folder (e.g. a cloud-synced folder). All SAF I/O
 // lives behind a trait in safsync.rs; these commands wire it to the app. Desktop
 // builds get inert stubs so the command names always resolve in generate_handler!.
 
