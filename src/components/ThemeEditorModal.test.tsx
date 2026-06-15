@@ -57,12 +57,13 @@ describe("ThemeEditorModal", () => {
 
   it("highlights the matching token row when hovering the preview", () => {
     render(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} />);
+    const preview = document.querySelector(".theme-preview") as HTMLElement;
     const accentInPreview = document.querySelector('.theme-preview [data-token="--c-accent"]') as HTMLElement;
     const row = (screen.getByLabelText("Accent").closest(".theme-token-row")) as HTMLElement;
     expect(row.className).not.toContain("is-highlighted");
-    fireEvent.mouseEnter(accentInPreview);
+    fireEvent.mouseOver(accentInPreview);
     expect(row.className).toContain("is-highlighted");
-    fireEvent.mouseLeave(accentInPreview);
+    fireEvent.mouseLeave(preview);
     expect(row.className).not.toContain("is-highlighted");
   });
 

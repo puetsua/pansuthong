@@ -21,10 +21,14 @@ describe("ThemePreview", () => {
   it("reports the hovered element's token via onHover", () => {
     const onHover = vi.fn();
     const { container } = render(<ThemePreview tokens={{}} onHover={onHover} />);
+    const root = container.querySelector(".theme-preview") as HTMLElement;
     const accent = container.querySelector('[data-token="--c-accent"]') as HTMLElement;
-    fireEvent.mouseEnter(accent);
-    expect(onHover).toHaveBeenCalledWith("--c-accent");
-    fireEvent.mouseLeave(accent);
+    fireEvent.mouseOver(accent);
+    expect(onHover).toHaveBeenLastCalledWith("--c-accent");
+    // moving onto the bare background area resolves to --c-bg, not nothing
+    fireEvent.mouseOver(root);
+    expect(onHover).toHaveBeenLastCalledWith("--c-bg");
+    fireEvent.mouseLeave(root);
     expect(onHover).toHaveBeenLastCalledWith(null);
   });
 });

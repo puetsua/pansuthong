@@ -666,8 +666,11 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);
   padding: var(--space-3);
-  display: flex; flex-direction: column; gap: var(--space-2);
+  /* align-items: flex-start so text rows size to their content — hovering the
+     empty space beside text resolves to the surface, not the text token. */
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2);
 }
+.theme-preview-title, .theme-preview-muted { max-width: 100%; }
 .theme-preview-title { color: var(--c-text); font-weight: 600; }
 .theme-preview-muted { color: var(--c-text-muted); font-size: 0.85rem; }
 .theme-preview-subtle { color: var(--c-text-subtle); font-size: 0.8rem; }
