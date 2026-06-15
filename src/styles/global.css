@@ -680,6 +680,11 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
    tokens from the inline vars on .theme-preview. */
 .theme-preview-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
 .theme-preview-main .task-row { margin-bottom: 0; font-size: 0.82rem; cursor: default; }
+/* Don't let the title stretch across the row, or hovering the empty space past
+   the text would still map to the Text token. Size it to its content so that
+   space resolves to the row's surface instead. */
+.theme-preview-main .task-main { flex: 1; min-width: 0; }
+.theme-preview-main .task-title { flex: 0 1 auto; }
 .theme-preview-main .task-row:hover { border-color: var(--c-border); } /* don't fight the hover-to-map */
 .theme-preview-main .task-row[data-timing="true"]:hover { border-color: var(--c-accent); }
 .tp-check {
