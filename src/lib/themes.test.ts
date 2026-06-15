@@ -117,6 +117,11 @@ describe("theme JSON import/export", () => {
     expect(() => parseThemeJson(JSON.stringify({ hello: 1 }))).toThrow();
   });
 
+  it("returns an empty name when none is provided (caller prompts for one)", () => {
+    const parsed = parseThemeJson(JSON.stringify({ pansutong_theme: 1, light: { "--c-accent": "#fff" }, dark: {} }));
+    expect(parsed.name).toBe("");
+  });
+
   it("rejects a theme with no usable colors", () => {
     expect(() => parseThemeJson(JSON.stringify({ pansutong_theme: 1, name: "x", light: {}, dark: {} }))).toThrow();
   });

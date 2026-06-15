@@ -68,6 +68,11 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete, initialTab
   const save = () => {
     const trimmed = name.trim();
     if (!trimmed) { setError(t("settings.themeNameEmpty")); return; }
+    const isHex = (v: string) => HEX6.test(v) || HEX3.test(v);
+    if (![...Object.values(light), ...Object.values(dark)].every(isHex)) {
+      setError(t("settings.themeColorInvalid"));
+      return;
+    }
     onSave({ id: preset.id, name: trimmed, light, dark });
   };
 

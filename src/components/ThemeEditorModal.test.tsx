@@ -40,6 +40,15 @@ describe("ThemeEditorModal", () => {
     expect((onSave.mock.calls[0][0] as ThemePreset).name).toBe("Renamed");
   });
 
+  it("blocks saving when a hex value is invalid", () => {
+    const onSave = vi.fn();
+    render(<ThemeEditorModal preset={working()} onSave={onSave} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Accent hex"), { target: { value: "nope" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByText(/valid hex/i)).toBeTruthy();
+  });
+
   it("blocks saving an empty name", () => {
     const onSave = vi.fn();
     render(<ThemeEditorModal preset={{ ...working(), name: "" }} onSave={onSave} onClose={vi.fn()} />);

@@ -248,7 +248,9 @@ export function parseThemeJson(text: string): { name: string; light: ThemeTokens
     throw new Error("settings.themeImportNotATheme");
   }
   const obj = data as { name?: unknown; light?: Record<string, string>; dark?: Record<string, string> };
-  const name = typeof obj.name === "string" && obj.name.trim() ? obj.name.trim() : "Imported";
+  // No localized default here (this module has no i18n); an empty name lets the
+  // editor's name-required flow prompt the user.
+  const name = typeof obj.name === "string" ? obj.name.trim() : "";
   const light = sanitizeTokens(obj.light);
   const dark = sanitizeTokens(obj.dark);
   if (Object.keys(light).length === 0 && Object.keys(dark).length === 0) {
