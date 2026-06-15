@@ -656,6 +656,10 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 /* Live preview inside the editor — a mini app layout (sidebar + content) */
 .theme-preview {
   background: var(--c-bg);
+  /* Set color (not just the vars) so inherited text uses the preview's --c-text,
+     not the document's current theme — otherwise the opposite-mode tab shows the
+     app's text color on the preview surface. */
+  color: var(--c-text);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   padding: var(--space-3);
