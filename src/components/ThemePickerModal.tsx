@@ -65,8 +65,8 @@ export function ThemePickerModal({ settings, applySettings, onClose }: Props) {
     setEdit(null);
   };
 
-  const deleteCustom = (id: string, name: string) => {
-    if (!window.confirm(t("settings.themeDeleteConfirm", { name }))) return;
+  // Confirmation is handled in the editor's own dialog before this runs.
+  const deleteCustom = (id: string) => {
     const patch: ThemeSettingsPatch = { custom_presets: customs.filter(p => p.id !== id) };
     if (presetId === id) patch.theme_preset = "default";
     applySettings(patch);
@@ -129,9 +129,10 @@ export function ThemePickerModal({ settings, applySettings, onClose }: Props) {
       {edit && (
         <ThemeEditorModal
           preset={edit.preset}
+          initialTab={variant}
           onSave={saveEdit}
           onClose={() => setEdit(null)}
-          onDelete={edit.existing ? () => deleteCustom(edit.preset.id, edit.preset.name) : undefined}
+          onDelete={edit.existing ? () => deleteCustom(edit.preset.id) : undefined}
         />
       )}
     </div>,

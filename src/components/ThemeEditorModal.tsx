@@ -11,6 +11,8 @@ type Props = {
   onClose: () => void;
   /** When provided, an existing custom preset is being edited and Delete is shown. */
   onDelete?: () => void;
+  /** Which variant tab to open on (defaults to light). */
+  initialTab?: ThemeVariant;
 };
 
 const HEX6 = /^#[0-9a-f]{6}$/i;
@@ -25,16 +27,17 @@ function toColorValue(v: string | undefined): string {
   return "#000000";
 }
 
-export function ThemeEditorModal({ preset, onSave, onClose, onDelete }: Props) {
+export function ThemeEditorModal({ preset, onSave, onClose, onDelete, initialTab = "light" }: Props) {
   const { t } = useTranslation();
   const [name, setName] = useState(preset.name);
   const [light, setLight] = useState<Record<string, string>>({ ...preset.light });
   const [dark, setDark] = useState<Record<string, string>>({ ...preset.dark });
-  const [tab, setTab] = useState<ThemeVariant>("light");
+  const [tab, setTab] = useState<ThemeVariant>(initialTab);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [importText, setImportText] = useState("");
   const [importErr, setImportErr] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
@@ -126,7 +129,7 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete }: Props) {
           })}
         </div>
 
-        <details className="theme-import">
+        <details className="theme-collapse">
           <summary>{t("settings.themeImport")}</summary>
           <textarea className="theme-json" aria-label={t("settings.themeImport")}
                     placeholder={t("settings.themeImportPlaceholder")} rows={4}
@@ -138,7 +141,7 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete }: Props) {
           </button>
         </details>
 
-        <details className="theme-export">
+        <details className="theme-collapse">
           <summary>{t("settings.themeExport")}</summary>
           <textarea className="theme-json" readOnly aria-label={t("settings.themeExportJsonLabel")}
                     rows={6} value={json} onFocus={e => e.currentTarget.select()} />
@@ -151,7 +154,7 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete }: Props) {
 
         <div className="te-actions">
           {onDelete && (
-            <button type="button" className="te-delete" onClick={onDelete}>{t("settings.themeDelete")}</button>
+            <button type="button" className="te-delete" onClick={() => setConfirmingDelete(true)}>{t("settings.themeDelete")}</button>
           )}
           <span className="te-spacer" />
           <button type="button" onClick={onClose}>{t("settings.themeCancel")}</button>
@@ -160,6 +163,22 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete }: Props) {
           </button>
         </div>
       </div>
+
+      {confirmingDelete && onDelete && (
+        <div className="modal-backdrop theme-confirm-backdrop">
+          <div className="task-editor theme-confirm" role="alertdialog" aria-modal="true"
+               aria-label={t("settings.themeDelete")} onClick={e => e.stopPropagation()}>
+            <p>{t("settings.themeDeleteConfirm", { name: name.trim() || preset.name })}</p>
+            <div className="te-actions">
+              <span className="te-spacer" />
+              <button type="button" onClick={() => setConfirmingDelete(false)}>{t("settings.themeCancel")}</button>
+              <button type="button" className="te-delete" onClick={() => { setConfirmingDelete(false); onDelete(); }}>
+                {t("settings.themeDelete")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   );

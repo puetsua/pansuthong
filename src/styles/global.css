@@ -599,16 +599,19 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 .theme-palette-swatch { width: 20px; height: 16px; }
 
 .theme-gallery-actions { margin-top: var(--space-3); }
-.theme-import {
-  margin-top: var(--space-3);
+/* Shared collapsible (import + export in the editor share one look) */
+.theme-collapse {
+  margin-top: var(--space-2);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   padding: 0 var(--space-3);
 }
-.theme-import > summary {
-  cursor: pointer; font-size: 0.9rem; font-weight: 600;
+.theme-collapse > summary {
+  cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--c-text-muted);
   padding: var(--space-2) 0; list-style-position: inside;
 }
+.theme-collapse[open] > summary { color: var(--c-text); }
+.theme-collapse > .theme-option { margin-bottom: var(--space-2); }
 .theme-json {
   width: 100%; box-sizing: border-box;
   font-family: var(--font-mono); font-size: 0.8rem;
@@ -642,8 +645,9 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 .theme-token-hex {
   width: 86px; font-family: var(--font-mono); font-size: 0.8rem;
 }
-.theme-export { margin-top: var(--space-3); }
-.theme-export > summary { cursor: pointer; font-size: 0.85rem; color: var(--c-text-muted); }
+/* Delete confirmation sits above the editor */
+.theme-confirm-backdrop { z-index: 1000; }
+.theme-confirm { max-width: 360px; }
 code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2px 5px; border-radius: 4px; }
 
 .conflict-banner {

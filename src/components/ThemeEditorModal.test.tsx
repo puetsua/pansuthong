@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ThemeEditorModal } from "./ThemeEditorModal";
 import { getPreset, serializeThemeJson } from "../lib/themes";
 import type { ThemePreset } from "../lib/tauri";
@@ -73,12 +73,34 @@ describe("ThemeEditorModal", () => {
     expect(screen.getByRole("alert")).toBeTruthy();
   });
 
+  it("opens on the dark tab when initialTab is dark", () => {
+    render(<ThemeEditorModal preset={working()} initialTab="dark" onSave={vi.fn()} onClose={vi.fn()} />);
+    expect((screen.getByLabelText("Accent") as HTMLInputElement).value).toBe(base.dark["--c-accent"]);
+  });
+
   it("shows Delete only when onDelete is provided", () => {
     const { rerender } = render(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    rerender(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} onDelete={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
+  });
+
+  it("confirms before deleting via a dialog", () => {
     const onDelete = vi.fn();
-    rerender(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} onDelete={onDelete} />);
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    render(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} onDelete={onDelete} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete" })); // footer trigger
+    const dlg = screen.getByRole("alertdialog");
+    expect(onDelete).not.toHaveBeenCalled(); // not yet — awaiting confirmation
+    fireEvent.click(within(dlg).getByRole("button", { name: "Delete" }));
     expect(onDelete).toHaveBeenCalled();
+  });
+
+  it("cancels deletion without calling onDelete", () => {
+    const onDelete = vi.fn();
+    render(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} onDelete={onDelete} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cancel" }));
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 });

@@ -49,12 +49,12 @@ describe("ThemePickerModal", () => {
     expect(patch.theme_preset).toBe(patch.custom_presets[0].id);
   });
 
-  it("deletes a custom preset from the editor", () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+  it("deletes a custom preset from the editor after confirming", () => {
     const apply = vi.fn();
     render(<ThemePickerModal settings={settings({ theme_preset: "custom_1", custom_presets: [mine] })} applySettings={apply} onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Edit Mine" }));
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" })); // footer trigger
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete" }));
     expect(apply).toHaveBeenCalledWith({ custom_presets: [], theme_preset: "default" });
   });
 
