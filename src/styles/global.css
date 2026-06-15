@@ -676,34 +676,16 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   align-self: flex-start;
 }
 .tp-nav-active { background: var(--c-accent-bg); color: var(--c-accent); font-weight: 600; }
-.theme-preview-surface {
-  flex: 1;
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-3);
-  /* align-items: flex-start so text rows size to their content — hovering the
-     empty space beside text resolves to the surface, not the text token. */
-  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2);
+/* The main column reuses the real .task-row styles, which pick up the edited
+   tokens from the inline vars on .theme-preview. */
+.theme-preview-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.theme-preview-main .task-row { margin-bottom: 0; font-size: 0.82rem; cursor: default; }
+.theme-preview-main .task-row:hover { border-color: var(--c-border); } /* don't fight the hover-to-map */
+.theme-preview-main .task-row[data-timing="true"]:hover { border-color: var(--c-accent); }
+.tp-check {
+  flex-shrink: 0; width: 15px; height: 15px;
+  border: 1.5px solid var(--c-border); border-radius: var(--radius-sm);
 }
-.theme-preview-title, .theme-preview-muted { max-width: 100%; }
-.theme-preview-title { color: var(--c-text); font-weight: 600; }
-.theme-preview-muted { color: var(--c-text-muted); font-size: 0.85rem; }
-.theme-preview-subtle { color: var(--c-text-subtle); font-size: 0.8rem; }
-.theme-preview-row { display: flex; align-items: center; gap: var(--space-2); }
-.theme-preview-accent {
-  background: var(--c-accent); color: #fff;
-  border-radius: var(--radius-sm); padding: var(--space-1) var(--space-3); font-size: 0.85rem;
-}
-.theme-preview-chip {
-  background: var(--c-accent-bg); color: var(--c-accent);
-  border-radius: var(--radius-sm); padding: 2px 8px; font-size: 0.8rem;
-}
-.theme-preview-raised {
-  background: var(--c-surface-2); color: var(--c-text-muted);
-  border-radius: var(--radius-sm); padding: 2px 8px; font-size: 0.8rem;
-}
-.theme-preview-delete { color: var(--c-danger); font-size: 0.8rem; font-weight: 600; }
 
 /* Delete confirmation sits above the editor */
 .theme-confirm-backdrop { z-index: 1000; }

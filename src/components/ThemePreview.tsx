@@ -37,19 +37,35 @@ export function ThemePreview({ tokens, onHover }: Props) {
           <span className="tp-nav" data-token="--c-text-muted">{t("nav.inbox")}</span>
           <span className="tp-nav" data-token="--c-text-muted">{t("nav.upcoming")}</span>
         </div>
-        <div className="theme-preview-surface" data-token="--c-surface">
-          <div className="theme-preview-title" data-token="--c-text">{t("settings.themePreviewTitle")}</div>
-          <div className="theme-preview-muted" data-token="--c-text-muted">{t("settings.themePreviewBody")}</div>
-          <div className="theme-preview-row">
-            <button type="button" tabIndex={-1} className="theme-preview-accent" data-token="--c-accent">
-              {t("settings.themePreviewAction")}
-            </button>
-            <span className="theme-preview-chip" data-token="--c-accent-bg">{t("settings.themePreviewTag")}</span>
-            <span className="theme-preview-subtle" data-token="--c-text-subtle">{t("settings.themePreviewSubtle")}</span>
+        <div className="theme-preview-main">
+          {/* A normal task row */}
+          <div className="task-row" data-token="--c-surface">
+            <span className="task-main">
+              <span className="task-title" data-token="--c-text">{t("settings.themePreviewTitle")}</span>
+              <span className="task-tag" data-token="--c-accent-bg"
+                    style={{ background: "var(--c-accent-bg)", color: "var(--c-accent)" }}>
+                {t("settings.themePreviewTag")}
+              </span>
+              <span className="task-when late" data-token="--c-danger">{t("settings.themePreviewOverdue")}</span>
+            </span>
+            <span className="task-timer" data-token="--c-text-muted">
+              <span className="task-timer-icon" aria-hidden>▶</span>
+            </span>
+            <span className="tp-check" data-token="--c-border" />
           </div>
-          <div className="theme-preview-row">
-            <span className="theme-preview-raised" data-token="--c-surface-2">{t("settings.themePreviewRaised")}</span>
-            <span className="theme-preview-delete" data-token="--c-danger">{t("settings.themeDelete")}</span>
+          {/* A running-timer task row */}
+          <div className="task-row" data-timing="true" data-token="--c-accent-bg">
+            <span className="task-main">
+              <span className="task-title" data-token="--c-text">{t("settings.themePreviewTask2")}</span>
+              <span className="task-when" data-token="--c-text-subtle"
+                    style={{ color: "var(--c-text-subtle)" }}>{t("settings.themePreviewTimeLeft")}</span>
+            </span>
+            <span className="task-timer" data-running="true" data-token="--c-accent">
+              <span className="task-timer-icon" aria-hidden>■</span>
+              <span className="task-timer-time">12:30</span>
+            </span>
+            <span className="tp-check" data-token="--c-border" />
+            <div className="task-row-progress"><div className="task-row-progress-fill" style={{ width: "60%" }} /></div>
           </div>
         </div>
       </div>

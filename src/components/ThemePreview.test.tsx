@@ -18,19 +18,21 @@ describe("ThemePreview", () => {
     expect(root.style.getPropertyValue("--c-evil")).toBe("");
   });
 
-  it("maps the delete text to the danger token", () => {
+  it("maps the overdue label to the danger token", () => {
     const onHover = vi.fn();
     const { container } = render(<ThemePreview tokens={{}} onHover={onHover} />);
-    const del = container.querySelector('[data-token="--c-danger"]') as HTMLElement;
-    expect(del.textContent).toBe("Delete");
-    fireEvent.mouseOver(del);
+    const danger = container.querySelector('[data-token="--c-danger"]') as HTMLElement;
+    expect(danger.className).toContain("task-when");
+    fireEvent.mouseOver(danger);
     expect(onHover).toHaveBeenLastCalledWith("--c-danger");
   });
 
-  it("renders a sidebar with nav items", () => {
+  it("renders a sidebar plus a normal and a timing task row", () => {
     const { container } = render(<ThemePreview tokens={{}} />);
     expect(container.querySelector(".theme-preview-sidebar")).toBeTruthy();
     expect(container.querySelectorAll(".tp-nav").length).toBeGreaterThanOrEqual(3);
+    expect(container.querySelectorAll(".task-row").length).toBe(2);
+    expect(container.querySelector('.task-row[data-timing="true"]')).toBeTruthy();
   });
 
   it("reports the hovered element's token via onHover", () => {
