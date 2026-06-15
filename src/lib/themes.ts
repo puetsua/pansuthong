@@ -206,6 +206,12 @@ export function isThemeCustomized(settings: Settings): boolean {
   return (settings.theme_preset ?? DEFAULT_PRESET_ID) !== DEFAULT_PRESET_ID;
 }
 
+/** Whether the OS currently prefers a dark color scheme (false outside a DOM, e.g.
+ *  in tests). */
+export function prefersDarkScheme(): boolean {
+  return typeof window !== "undefined" && !!window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
+}
+
 /** The variant to render: an explicit light/dark theme wins; `auto` follows the
  *  OS preference (`prefersDark`). */
 export function activeVariant(theme: string, prefersDark: boolean): ThemeVariant {

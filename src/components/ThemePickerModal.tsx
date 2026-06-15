@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { Settings, ThemePreset } from "../lib/tauri";
 import {
   THEME_PRESETS, DEFAULT_PRESET_ID, ThemeTokens,
-  fullTokens, serializeThemeJson, type ThemeSettingsPatch,
+  fullTokens, serializeThemeJson, activeVariant, prefersDarkScheme, type ThemeSettingsPatch,
 } from "../lib/themes";
 import { ThemeEditorModal } from "./ThemeEditorModal";
 
@@ -26,6 +26,7 @@ const newId = () => `custom_${crypto.randomUUID()}`;
 export function ThemePickerModal({ settings, applySettings, onClose }: Props) {
   const { t } = useTranslation();
   const presetId = settings.theme_preset ?? DEFAULT_PRESET_ID;
+  const variant = activeVariant(settings.theme, prefersDarkScheme());
   const customs = settings.custom_presets ?? [];
   const [edit, setEdit] = useState<EditState>(null);
 
@@ -95,13 +96,11 @@ export function ThemePickerModal({ settings, applySettings, onClose }: Props) {
             <div className={`theme-card ${presetId === c.id ? "active" : ""}`} key={c.id}>
               <button type="button" className="theme-card-select" aria-pressed={presetId === c.id} onClick={() => select(c.id)}>
                 <span className="theme-palette" aria-hidden="true">
-                  {(["light", "dark"] as const).map(v => (
-                    <span className="theme-palette-row" key={v}>
-                      {PREVIEW_TOKENS.map(tk => (
-                        <span key={tk} className="theme-palette-swatch" style={{ background: c[v][tk] }} />
-                      ))}
-                    </span>
-                  ))}
+                  <span className="theme-palette-row" data-variant={variant}>
+                    {PREVIEW_TOKENS.map(tk => (
+                      <span key={tk} className="theme-palette-swatch" style={{ background: c[variant][tk] }} />
+                    ))}
+                  </span>
                 </span>
                 <span className="theme-card-name">{c.name}</span>
               </button>

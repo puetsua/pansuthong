@@ -66,6 +66,14 @@ describe("ThemePickerModal", () => {
     expect(within(card).getByRole("button", { name: "Delete Mine" })).toBeTruthy();
   });
 
+  it("previews only the active variant on cards", () => {
+    render(<ThemePickerModal settings={settings({ theme: "dark" })} applySettings={vi.fn()} onClose={vi.fn()} />);
+    const card = screen.getByRole("button", { name: "Slate" }).closest(".theme-card") as HTMLElement;
+    const rows = card.querySelectorAll(".theme-palette-row");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].getAttribute("data-variant")).toBe("dark");
+  });
+
   it("closes via Done", () => {
     const onClose = vi.fn();
     render(<ThemePickerModal settings={settings()} applySettings={vi.fn()} onClose={onClose} />);

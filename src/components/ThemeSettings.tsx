@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Settings } from "../lib/tauri";
-import { THEME_PRESETS, DEFAULT_PRESET_ID, getPreset, fullTokens, type ThemeSettingsPatch } from "../lib/themes";
+import { THEME_PRESETS, DEFAULT_PRESET_ID, getPreset, fullTokens, activeVariant, prefersDarkScheme, type ThemeSettingsPatch } from "../lib/themes";
 import { ThemePickerModal } from "./ThemePickerModal";
 
 export type { ThemeSettingsPatch };
@@ -18,6 +18,7 @@ export function ThemeSettings({ settings, applySettings }: Props) {
   const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
 
+  const variant = activeVariant(settings.theme, prefersDarkScheme());
   const presetId = settings.theme_preset ?? DEFAULT_PRESET_ID;
   const builtin = THEME_PRESETS.find(p => p.id === presetId);
   const custom = builtin ? undefined : settings.custom_presets?.find(p => p.id === presetId);
@@ -48,13 +49,11 @@ export function ThemeSettings({ settings, applySettings }: Props) {
       <p className="view-sub">{t("settings.themePresetSub")}</p>
       <div className="theme-current">
         <span className="theme-palette" aria-hidden="true">
-          {(["light", "dark"] as const).map(v => (
-            <span className="theme-palette-row" key={v}>
-              {PREVIEW_TOKENS.map(tk => (
-                <span key={tk} className="theme-palette-swatch" style={{ background: current[v][tk] }} />
-              ))}
-            </span>
-          ))}
+          <span className="theme-palette-row" data-variant={variant}>
+            {PREVIEW_TOKENS.map(tk => (
+              <span key={tk} className="theme-palette-swatch" style={{ background: current[variant][tk] }} />
+            ))}
+          </span>
         </span>
         <span className="theme-current-name">{current.name}</span>
         <button type="button" className="theme-option" onClick={() => setPickerOpen(true)}>

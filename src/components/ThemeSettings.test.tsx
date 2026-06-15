@@ -27,6 +27,13 @@ describe("ThemeSettings", () => {
     expect(screen.getByText("Mine")).toBeTruthy();
   });
 
+  it("previews only the active variant", () => {
+    const { container } = render(<ThemeSettings settings={settings({ theme: "dark", theme_preset: "slate" })} applySettings={vi.fn()} />);
+    const rows = container.querySelectorAll(".theme-palette-row");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].getAttribute("data-variant")).toBe("dark");
+  });
+
   it("opens the theme picker modal", () => {
     render(<ThemeSettings settings={settings()} applySettings={vi.fn()} />);
     expect(screen.queryByRole("dialog")).toBeNull();
