@@ -42,10 +42,6 @@ export function ThemePreview({ tokens, onHover }: Props) {
           <div className="task-row" data-token="--c-surface">
             <span className="task-main">
               <span className="task-title" data-token="--c-text">{t("settings.themePreviewTitle")}</span>
-              <span className="task-tag" data-token="--c-accent-bg"
-                    style={{ background: "var(--c-accent-bg)", color: "var(--c-accent)" }}>
-                {t("settings.themePreviewTag")}
-              </span>
               <span className="task-when late" data-token="--c-danger">{t("settings.themePreviewOverdue")}</span>
             </span>
             <span className="task-timer" data-token="--c-text-muted">
