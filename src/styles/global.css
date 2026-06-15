@@ -653,7 +653,7 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 .theme-token-hex {
   width: 86px; font-family: var(--font-mono); font-size: 0.8rem;
 }
-/* Live preview inside the editor */
+/* Live preview inside the editor — a mini app layout (sidebar + content) */
 .theme-preview {
   background: var(--c-bg);
   border: 1px solid var(--c-border);
@@ -661,7 +661,23 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   padding: var(--space-3);
   margin: var(--space-2) 0 var(--space-3);
 }
+.theme-preview-app { display: flex; gap: var(--space-3); align-items: stretch; }
+.theme-preview-sidebar {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 96px;
+}
+.tp-nav {
+  color: var(--c-text-muted); font-size: 0.8rem;
+  padding: 3px var(--space-2); border-radius: var(--radius-sm);
+  align-self: flex-start;
+}
+.tp-nav-active { background: var(--c-accent-bg); color: var(--c-accent); font-weight: 600; }
 .theme-preview-surface {
+  flex: 1;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);
@@ -687,8 +703,7 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   background: var(--c-surface-2); color: var(--c-text-muted);
   border-radius: var(--radius-sm); padding: 2px 8px; font-size: 0.8rem;
 }
-.theme-preview-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
-.theme-preview-dot.danger { background: var(--c-danger); }
+.theme-preview-delete { color: var(--c-danger); font-size: 0.8rem; font-weight: 600; }
 
 /* Delete confirmation sits above the editor */
 .theme-confirm-backdrop { z-index: 1000; }

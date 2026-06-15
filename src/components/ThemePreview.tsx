@@ -31,19 +31,26 @@ export function ThemePreview({ tokens, onHover }: Props) {
   return (
     <div className="theme-preview" style={style} aria-hidden="true" data-token="--c-bg"
          onMouseOver={handleOver} onMouseLeave={handleLeave}>
-      <div className="theme-preview-surface" data-token="--c-surface">
-        <div className="theme-preview-title" data-token="--c-text">{t("settings.themePreviewTitle")}</div>
-        <div className="theme-preview-muted" data-token="--c-text-muted">{t("settings.themePreviewBody")}</div>
-        <div className="theme-preview-row">
-          <button type="button" tabIndex={-1} className="theme-preview-accent" data-token="--c-accent">
-            {t("settings.themePreviewAction")}
-          </button>
-          <span className="theme-preview-chip" data-token="--c-accent-bg">{t("settings.themePreviewTag")}</span>
-          <span className="theme-preview-subtle" data-token="--c-text-subtle">{t("settings.themePreviewSubtle")}</span>
+      <div className="theme-preview-app">
+        <div className="theme-preview-sidebar" data-token="--c-surface-2">
+          <span className="tp-nav tp-nav-active" data-token="--c-accent-bg">{t("nav.today")}</span>
+          <span className="tp-nav" data-token="--c-text-muted">{t("nav.inbox")}</span>
+          <span className="tp-nav" data-token="--c-text-muted">{t("nav.upcoming")}</span>
         </div>
-        <div className="theme-preview-row">
-          <span className="theme-preview-dot danger" data-token="--c-danger" />
-          <span className="theme-preview-raised" data-token="--c-surface-2">{t("settings.themePreviewRaised")}</span>
+        <div className="theme-preview-surface" data-token="--c-surface">
+          <div className="theme-preview-title" data-token="--c-text">{t("settings.themePreviewTitle")}</div>
+          <div className="theme-preview-muted" data-token="--c-text-muted">{t("settings.themePreviewBody")}</div>
+          <div className="theme-preview-row">
+            <button type="button" tabIndex={-1} className="theme-preview-accent" data-token="--c-accent">
+              {t("settings.themePreviewAction")}
+            </button>
+            <span className="theme-preview-chip" data-token="--c-accent-bg">{t("settings.themePreviewTag")}</span>
+            <span className="theme-preview-subtle" data-token="--c-text-subtle">{t("settings.themePreviewSubtle")}</span>
+          </div>
+          <div className="theme-preview-row">
+            <span className="theme-preview-raised" data-token="--c-surface-2">{t("settings.themePreviewRaised")}</span>
+            <span className="theme-preview-delete" data-token="--c-danger">{t("settings.themeDelete")}</span>
+          </div>
         </div>
       </div>
     </div>

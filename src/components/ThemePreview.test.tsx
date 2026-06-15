@@ -18,6 +18,21 @@ describe("ThemePreview", () => {
     expect(root.style.getPropertyValue("--c-evil")).toBe("");
   });
 
+  it("maps the delete text to the danger token", () => {
+    const onHover = vi.fn();
+    const { container } = render(<ThemePreview tokens={{}} onHover={onHover} />);
+    const del = container.querySelector('[data-token="--c-danger"]') as HTMLElement;
+    expect(del.textContent).toBe("Delete");
+    fireEvent.mouseOver(del);
+    expect(onHover).toHaveBeenLastCalledWith("--c-danger");
+  });
+
+  it("renders a sidebar with nav items", () => {
+    const { container } = render(<ThemePreview tokens={{}} />);
+    expect(container.querySelector(".theme-preview-sidebar")).toBeTruthy();
+    expect(container.querySelectorAll(".tp-nav").length).toBeGreaterThanOrEqual(3);
+  });
+
   it("reports the hovered element's token via onHover", () => {
     const onHover = vi.fn();
     const { container } = render(<ThemePreview tokens={{}} onHover={onHover} />);
