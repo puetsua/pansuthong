@@ -2,7 +2,10 @@ use crate::config::{ConfigState, Settings, ThemePreset};
 use crate::conflict::{apply_decisions, diff_tasks, tags_to_merge, Decision, TaskDiff};
 use crate::error::{AppError, Result};
 use crate::history::HistoryEntry;
-use crate::model::{new_tag_id, new_task_id, new_time_entry_id, now_ms, Recurrence, Tag, Task, TemplateTask, TimeEntry, YearlyDate};
+use crate::model::{
+    new_tag_id, new_task_id, new_time_entry_id, now_ms, Recurrence, Tag, Task, TemplateTask,
+    TimeEntry, Tombstone, YearlyDate,
+};
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
 use chrono::{Duration, NaiveDate};
@@ -26,7 +29,10 @@ pub struct DocumentView {
     // ISO-8601 local time with offset (second precision), consistent with the
     // on-disk file and the frontend's string-typed `last_modified`. Omitted when 0
     // (never edited), so the UI shows an em dash instead of a 1970 date.
-    #[serde(skip_serializing_if = "crate::model::is_zero", serialize_with = "crate::model::iso_secs::serialize")]
+    #[serde(
+        skip_serializing_if = "crate::model::is_zero",
+        serialize_with = "crate::model::iso_secs::serialize"
+    )]
     last_modified: i64,
     settings: Settings,
     tags: Vec<Tag>,
@@ -74,13 +80,20 @@ pub fn sync_now(
 #[derive(Deserialize)]
 pub struct NewTaskInput {
     pub title: String,
-    #[serde(default)] pub due_date: Option<NaiveDate>,
-    #[serde(default)] pub due_time: Option<String>,
-    #[serde(default)] pub start_date: Option<NaiveDate>,
-    #[serde(default)] pub start_time: Option<String>,
-    #[serde(default)] pub notes: String,
-    #[serde(default)] pub tag_ids: Vec<String>,
-    #[serde(default)] pub estimated_seconds: Option<i64>,
+    #[serde(default)]
+    pub due_date: Option<NaiveDate>,
+    #[serde(default)]
+    pub due_time: Option<String>,
+    #[serde(default)]
+    pub start_date: Option<NaiveDate>,
+    #[serde(default)]
+    pub start_time: Option<String>,
+    #[serde(default)]
+    pub notes: String,
+    #[serde(default)]
+    pub tag_ids: Vec<String>,
+    #[serde(default)]
+    pub estimated_seconds: Option<i64>,
 }
 
 /// Reject a time-of-day that isn't a valid "HH:MM" (#93). `None` (all-day) is
@@ -113,7 +126,9 @@ fn validate_estimated_seconds(seconds: Option<i64>) -> Result<()> {
 /// tag references (which silently behave as untagged, landing in Inbox at
 /// priority 0) (#40).
 fn retain_known_tags(ids: Vec<String>, tags: &[Tag]) -> Vec<String> {
-    ids.into_iter().filter(|id| tags.iter().any(|t| &t.id == id)).collect()
+    ids.into_iter()
+        .filter(|id| tags.iter().any(|t| &t.id == id))
+        .collect()
 }
 
 /// Upper bound for a template's relative date offset (#71). 0 = today; the editor
@@ -133,7 +148,10 @@ fn validate_offset_days(days: Option<i64>) -> Result<()> {
     Ok(())
 }
 
-fn due_date_from_offset(occurrence_date: NaiveDate, due_offset_days: Option<i64>) -> Option<NaiveDate> {
+fn due_date_from_offset(
+    occurrence_date: NaiveDate,
+    due_offset_days: Option<i64>,
+) -> Option<NaiveDate> {
     due_offset_days.map(|days| occurrence_date + Duration::days(days))
 }
 
@@ -144,7 +162,9 @@ fn validate_recurrence(rec: Option<&Recurrence>) -> Result<()> {
         None => Ok(()),
         Some(Recurrence::Weekly { weekdays }) => {
             if weekdays.is_empty() {
-                return Err(AppError::Invalid("weekly recurrence needs at least one weekday".into()));
+                return Err(AppError::Invalid(
+                    "weekly recurrence needs at least one weekday".into(),
+                ));
             }
             if weekdays.iter().any(|d| !(1..=7).contains(d)) {
                 return Err(AppError::Invalid("weekday must be 1..=7 (Mon..Sun)".into()));
@@ -153,7 +173,9 @@ fn validate_recurrence(rec: Option<&Recurrence>) -> Result<()> {
         }
         Some(Recurrence::Monthly { days }) => {
             if days.is_empty() {
-                return Err(AppError::Invalid("monthly recurrence needs at least one day".into()));
+                return Err(AppError::Invalid(
+                    "monthly recurrence needs at least one day".into(),
+                ));
             }
             if days.iter().any(|d| !(1..=31).contains(d)) {
                 return Err(AppError::Invalid("monthly day must be 1..=31".into()));
@@ -163,7 +185,9 @@ fn validate_recurrence(rec: Option<&Recurrence>) -> Result<()> {
         Some(Recurrence::Daily) => Ok(()),
         Some(Recurrence::Yearly { dates }) => {
             if dates.is_empty() {
-                return Err(AppError::Invalid("yearly recurrence needs at least one date".into()));
+                return Err(AppError::Invalid(
+                    "yearly recurrence needs at least one date".into(),
+                ));
             }
             for YearlyDate { month, day } in dates {
                 if !(1..=12).contains(month) {
@@ -171,9 +195,12 @@ fn validate_recurrence(rec: Option<&Recurrence>) -> Result<()> {
                 }
                 // Reject a day that can never occur in the chosen month, so a yearly
                 // date is never silently inert. February allows 29 (leap-only).
-                let max_day = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][(*month as usize) - 1];
+                let max_day =
+                    [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][(*month as usize) - 1];
                 if !(1..=max_day).contains(day) {
-                    return Err(AppError::Invalid("yearly day must be a valid day for the chosen month".into()));
+                    return Err(AppError::Invalid(
+                        "yearly day must be a valid day for the chosen month".into(),
+                    ));
                 }
             }
             Ok(())
@@ -184,11 +211,19 @@ fn validate_recurrence(rec: Option<&Recurrence>) -> Result<()> {
 /// A scheduled template must designate a recurrence tag, and it must be one of the
 /// template's own tags — so a task spawned from it carries that tag and suppresses
 /// the ghost (#9). A template with no schedule needs no recurrence tag.
-fn validate_recurrence_tag(recurrence: Option<&Recurrence>, tag_id: Option<&String>, tag_ids: &[String]) -> Result<()> {
+fn validate_recurrence_tag(
+    recurrence: Option<&Recurrence>,
+    tag_id: Option<&String>,
+    tag_ids: &[String],
+) -> Result<()> {
     if recurrence.is_some() {
-        let id = tag_id.ok_or_else(|| AppError::Invalid("a recurring template needs a recurrence tag".into()))?;
+        let id = tag_id.ok_or_else(|| {
+            AppError::Invalid("a recurring template needs a recurrence tag".into())
+        })?;
         if !tag_ids.iter().any(|t| t == id) {
-            return Err(AppError::Invalid("the recurrence tag must be one of the template's tags".into()));
+            return Err(AppError::Invalid(
+                "the recurrence tag must be one of the template's tags".into(),
+            ));
         }
     }
     Ok(())
@@ -210,7 +245,7 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
             title,
             due_date: input.due_date,
             // A time without its date is meaningless; drop it (all-day).
-            due_time:       input.due_date.and(input.due_time),
+            due_time: input.due_date.and(input.due_time),
             start_date: input.start_date,
             start_time: input.start_date.and(input.start_time),
             notes: input.notes,
@@ -245,24 +280,39 @@ where
 #[derive(Deserialize)]
 pub struct UpdateTaskInput {
     pub id: String,
-    #[serde(default)] pub title: Option<String>,
-    #[serde(default, deserialize_with = "double_option")] pub due_date: Option<Option<NaiveDate>>,
-    #[serde(default, deserialize_with = "double_option")] pub due_time: Option<Option<String>>,
-    #[serde(default, deserialize_with = "double_option")] pub start_date: Option<Option<NaiveDate>>,
-    #[serde(default, deserialize_with = "double_option")] pub start_time: Option<Option<String>>,
-    #[serde(default)] pub notes: Option<String>,
-    #[serde(default)] pub tag_ids: Option<Vec<String>>,
-    #[serde(default, deserialize_with = "double_option")] pub estimated_seconds: Option<Option<i64>>,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub due_date: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub due_time: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub start_date: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub start_time: Option<Option<String>>,
+    #[serde(default)]
+    pub notes: Option<String>,
+    #[serde(default)]
+    pub tag_ids: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub estimated_seconds: Option<Option<i64>>,
 }
 
 #[tauri::command]
-pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
+pub fn update_task(
+    input: UpdateTaskInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Task> {
     let updated = state.write(|d| {
         // Snapshot known tag ids before the mutable task borrow so dangling
         // references can be stripped (#40).
         let known: std::collections::HashSet<String> =
             d.tags.iter().map(|t| t.id.clone()).collect();
-        let t = d.tasks.iter_mut().find(|t| t.id == input.id)
+        let t = d
+            .tasks
+            .iter_mut()
+            .find(|t| t.id == input.id)
             .ok_or_else(|| AppError::NotFound(format!("task {}", input.id)))?;
         if let Some(v) = input.title {
             let trimmed = v.trim().to_string();
@@ -271,21 +321,43 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
             }
             t.title = trimmed;
         }
-        if let Some(ref v) = input.due_time       { validate_time(v.as_deref())?; }
-        if let Some(ref v) = input.start_time { validate_time(v.as_deref())?; }
-        if let Some(v) = input.estimated_seconds { validate_estimated_seconds(v)?; }
-        if let Some(v) = input.due_date       { t.due_date = v; }
-        if let Some(v) = input.due_time       { t.due_time = v; }
-        if let Some(v) = input.start_date { t.start_date = v; }
-        if let Some(v) = input.start_time { t.start_time = v; }
-        if let Some(v) = input.notes          { t.notes = v; }
-        if let Some(v) = input.tag_ids        {
+        if let Some(ref v) = input.due_time {
+            validate_time(v.as_deref())?;
+        }
+        if let Some(ref v) = input.start_time {
+            validate_time(v.as_deref())?;
+        }
+        if let Some(v) = input.estimated_seconds {
+            validate_estimated_seconds(v)?;
+        }
+        if let Some(v) = input.due_date {
+            t.due_date = v;
+        }
+        if let Some(v) = input.due_time {
+            t.due_time = v;
+        }
+        if let Some(v) = input.start_date {
+            t.start_date = v;
+        }
+        if let Some(v) = input.start_time {
+            t.start_time = v;
+        }
+        if let Some(v) = input.notes {
+            t.notes = v;
+        }
+        if let Some(v) = input.tag_ids {
             t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
         }
-        if let Some(v) = input.estimated_seconds { t.estimated_seconds = v; }
+        if let Some(v) = input.estimated_seconds {
+            t.estimated_seconds = v;
+        }
         // A time without its date is meaningless; clearing a date drops its time.
-        if t.due_date.is_none()       { t.due_time = None; }
-        if t.start_date.is_none() { t.start_time = None; }
+        if t.due_date.is_none() {
+            t.due_time = None;
+        }
+        if t.start_date.is_none() {
+            t.start_time = None;
+        }
         t.updated_at = now_ms();
         Ok(t.clone())
     })?;
@@ -296,9 +368,17 @@ pub fn update_task(input: UpdateTaskInput, state: State<'_, AppState>, app: AppH
 /// Toggle a task's completion. Finishing a task also archives it (sending it out
 /// of the active views); reopening it restores the task. See `Task::set_done`.
 #[tauri::command]
-pub fn set_task_done(id: String, done: bool, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
+pub fn set_task_done(
+    id: String,
+    done: bool,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Task> {
     let updated = state.write(|d| {
-        let t = d.tasks.iter_mut().find(|t| t.id == id)
+        let t = d
+            .tasks
+            .iter_mut()
+            .find(|t| t.id == id)
             .ok_or_else(|| AppError::NotFound(format!("task {id}")))?;
         t.set_done(done, now_ms());
         Ok(t.clone())
@@ -310,11 +390,17 @@ pub fn set_task_done(id: String, done: bool, state: State<'_, AppState>, app: Ap
 #[tauri::command]
 pub fn delete_task(id: String, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
     state.write(|d| {
+        let ts = now_ms();
         let before = d.tasks.len();
         d.tasks.retain(|t| t.id != id);
         if d.tasks.len() == before {
             return Err(AppError::NotFound(format!("task {id}")));
         }
+        d.deleted_tasks.push(Tombstone {
+            id: id.clone(),
+            deleted_at: ts,
+            deleted_by: None,
+        });
         Ok(())
     })?;
     emit_changed(&app);
@@ -329,7 +415,9 @@ pub fn delete_task(id: String, state: State<'_, AppState>, app: AppHandle) -> Re
 
 /// Look up a task by id for a mutating command, or a NotFound error.
 fn task_mut<'a>(d: &'a mut crate::model::Document, id: &str) -> Result<&'a mut Task> {
-    d.tasks.iter_mut().find(|t| t.id == id)
+    d.tasks
+        .iter_mut()
+        .find(|t| t.id == id)
         .ok_or_else(|| AppError::NotFound(format!("task {id}")))
 }
 
@@ -341,7 +429,11 @@ pub fn start_timer(id: String, state: State<'_, AppState>, app: AppHandle) -> Re
         let t = task_mut(d, &id)?;
         if t.running_entry().is_none() {
             let ts = now_ms();
-            t.time_entries.push(TimeEntry { id: new_time_entry_id(), start: ts, end: None });
+            t.time_entries.push(TimeEntry {
+                id: new_time_entry_id(),
+                start: ts,
+                end: None,
+            });
             t.updated_at = ts;
         }
         Ok(t.clone())
@@ -356,7 +448,9 @@ pub fn stop_timer(id: String, state: State<'_, AppState>, app: AppHandle) -> Res
     let updated = state.write(|d| {
         let t = task_mut(d, &id)?;
         let ts = now_ms();
-        if t.stop_timer(ts) { t.updated_at = ts; }
+        if t.stop_timer(ts) {
+            t.updated_at = ts;
+        }
         Ok(t.clone())
     })?;
     emit_changed(&app);
@@ -372,16 +466,28 @@ pub struct AddTimeEntryInput {
 
 /// Manually add a finished session (#81). Closed only: both ends required, `end > start`.
 #[tauri::command]
-pub fn add_time_entry(input: AddTimeEntryInput, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
+pub fn add_time_entry(
+    input: AddTimeEntryInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Task> {
     if input.end <= input.start {
-        return Err(AppError::Invalid("time entry end must be after start".into()));
+        return Err(AppError::Invalid(
+            "time entry end must be after start".into(),
+        ));
     }
     let updated = state.write(|d| {
         let t = task_mut(d, &input.task_id)?;
         if t.time_entry_overlaps(input.start, Some(input.end), None) {
-            return Err(AppError::Invalid("time entry overlaps an existing entry".into()));
+            return Err(AppError::Invalid(
+                "time entry overlaps an existing entry".into(),
+            ));
         }
-        t.time_entries.push(TimeEntry { id: new_time_entry_id(), start: input.start, end: Some(input.end) });
+        t.time_entries.push(TimeEntry {
+            id: new_time_entry_id(),
+            start: input.start,
+            end: Some(input.end),
+        });
         t.updated_at = now_ms();
         Ok(t.clone())
     })?;
@@ -393,34 +499,53 @@ pub fn add_time_entry(input: AddTimeEntryInput, state: State<'_, AppState>, app:
 pub struct UpdateTimeEntryInput {
     pub task_id: String,
     pub entry_id: String,
-    #[serde(default)] pub start: Option<i64>,
-    #[serde(default)] pub end: Option<i64>,
+    #[serde(default)]
+    pub start: Option<i64>,
+    #[serde(default)]
+    pub end: Option<i64>,
 }
 
 /// Edit an existing entry's start and/or end (#81). A closed entry must keep
 /// `end > start`; the running entry's start can be moved (its `end` stays open).
 #[tauri::command]
-pub fn update_time_entry(input: UpdateTimeEntryInput, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
+pub fn update_time_entry(
+    input: UpdateTimeEntryInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Task> {
     let updated = state.write(|d| {
         let t = task_mut(d, &input.task_id)?;
         // Read the edited entry's current bounds by value (and confirm it exists)
         // without holding the borrow across validation.
-        let (cur_start, cur_end) = t.time_entries.iter().find(|e| e.id == input.entry_id)
+        let (cur_start, cur_end) = t
+            .time_entries
+            .iter()
+            .find(|e| e.id == input.entry_id)
             .map(|e| (e.start, e.end))
             .ok_or_else(|| AppError::NotFound(format!("time entry {}", input.entry_id)))?;
         // Validate the *candidate* values before mutating, so a rejected edit leaves
         // the entry untouched — `AppState::write` doesn't roll back on Err.
         let new_start = input.start.unwrap_or(cur_start);
-        let new_end = match input.end { Some(en) => Some(en), None => cur_end };
+        let new_end = match input.end {
+            Some(en) => Some(en),
+            None => cur_end,
+        };
         if let Some(en) = new_end {
             if en <= new_start {
-                return Err(AppError::Invalid("time entry end must be after start".into()));
+                return Err(AppError::Invalid(
+                    "time entry end must be after start".into(),
+                ));
             }
         }
         if t.time_entry_overlaps(new_start, new_end, Some(&input.entry_id)) {
-            return Err(AppError::Invalid("time entry overlaps an existing entry".into()));
+            return Err(AppError::Invalid(
+                "time entry overlaps an existing entry".into(),
+            ));
         }
-        let e = t.time_entries.iter_mut().find(|e| e.id == input.entry_id)
+        let e = t
+            .time_entries
+            .iter_mut()
+            .find(|e| e.id == input.entry_id)
             .ok_or_else(|| AppError::NotFound(format!("time entry {}", input.entry_id)))?;
         e.start = new_start;
         e.end = new_end;
@@ -439,7 +564,11 @@ pub struct DeleteTimeEntryInput {
 
 /// Remove a time entry (#81). Deleting the open interval simply stops timing.
 #[tauri::command]
-pub fn delete_time_entry(input: DeleteTimeEntryInput, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
+pub fn delete_time_entry(
+    input: DeleteTimeEntryInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Task> {
     let updated = state.write(|d| {
         let t = task_mut(d, &input.task_id)?;
         let before = t.time_entries.len();
@@ -462,17 +591,28 @@ pub fn delete_time_entry(input: DeleteTimeEntryInput, state: State<'_, AppState>
 #[derive(Deserialize)]
 pub struct NewTemplateInput {
     pub title: String,
-    #[serde(default)] pub notes: String,
-    #[serde(default)] pub tag_ids: Vec<String>,
-    #[serde(default)] pub due_offset_days: Option<i64>,
-    #[serde(default)] pub start_offset_days: Option<i64>,
-    #[serde(default)] pub estimated_seconds: Option<i64>,
-    #[serde(default)] pub recurrence: Option<Recurrence>,
-    #[serde(default)] pub recurrence_tag_id: Option<String>,
+    #[serde(default)]
+    pub notes: String,
+    #[serde(default)]
+    pub tag_ids: Vec<String>,
+    #[serde(default)]
+    pub due_offset_days: Option<i64>,
+    #[serde(default)]
+    pub start_offset_days: Option<i64>,
+    #[serde(default)]
+    pub estimated_seconds: Option<i64>,
+    #[serde(default)]
+    pub recurrence: Option<Recurrence>,
+    #[serde(default)]
+    pub recurrence_tag_id: Option<String>,
 }
 
 #[tauri::command]
-pub fn add_template(input: NewTemplateInput, state: State<'_, AppState>, app: AppHandle) -> Result<TemplateTask> {
+pub fn add_template(
+    input: NewTemplateInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<TemplateTask> {
     let title = input.title.trim().to_string();
     if title.is_empty() {
         return Err(AppError::Invalid("title is empty".into()));
@@ -484,9 +624,17 @@ pub fn add_template(input: NewTemplateInput, state: State<'_, AppState>, app: Ap
     let ts = now_ms();
     let saved = state.write(|d| {
         let tag_ids = retain_known_tags(input.tag_ids, &d.tags);
-        validate_recurrence_tag(input.recurrence.as_ref(), input.recurrence_tag_id.as_ref(), &tag_ids)?;
+        validate_recurrence_tag(
+            input.recurrence.as_ref(),
+            input.recurrence_tag_id.as_ref(),
+            &tag_ids,
+        )?;
         // A non-recurring template carries no recurrence tag.
-        let recurrence_tag_id = if input.recurrence.is_some() { input.recurrence_tag_id.clone() } else { None };
+        let recurrence_tag_id = if input.recurrence.is_some() {
+            input.recurrence_tag_id.clone()
+        } else {
+            None
+        };
         let tmpl = TemplateTask {
             id: new_task_id(),
             title,
@@ -510,22 +658,37 @@ pub fn add_template(input: NewTemplateInput, state: State<'_, AppState>, app: Ap
 #[derive(Deserialize)]
 pub struct UpdateTemplateInput {
     pub id: String,
-    #[serde(default)] pub title: Option<String>,
-    #[serde(default)] pub notes: Option<String>,
-    #[serde(default)] pub tag_ids: Option<Vec<String>>,
-    #[serde(default, deserialize_with = "double_option")] pub due_offset_days: Option<Option<i64>>,
-    #[serde(default, deserialize_with = "double_option")] pub start_offset_days: Option<Option<i64>>,
-    #[serde(default, deserialize_with = "double_option")] pub estimated_seconds: Option<Option<i64>>,
-    #[serde(default, deserialize_with = "double_option")] pub recurrence: Option<Option<Recurrence>>,
-    #[serde(default, deserialize_with = "double_option")] pub recurrence_tag_id: Option<Option<String>>,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub notes: Option<String>,
+    #[serde(default)]
+    pub tag_ids: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub due_offset_days: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub start_offset_days: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub estimated_seconds: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub recurrence: Option<Option<Recurrence>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub recurrence_tag_id: Option<Option<String>>,
 }
 
 #[tauri::command]
-pub fn update_template(input: UpdateTemplateInput, state: State<'_, AppState>, app: AppHandle) -> Result<TemplateTask> {
+pub fn update_template(
+    input: UpdateTemplateInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<TemplateTask> {
     let updated = state.write(|d| {
         let known: std::collections::HashSet<String> =
             d.tags.iter().map(|t| t.id.clone()).collect();
-        let t = d.template_tasks.iter_mut().find(|t| t.id == input.id)
+        let t = d
+            .template_tasks
+            .iter_mut()
+            .find(|t| t.id == input.id)
             .ok_or_else(|| AppError::NotFound(format!("template {}", input.id)))?;
         if let Some(v) = input.title {
             let trimmed = v.trim().to_string();
@@ -534,21 +697,42 @@ pub fn update_template(input: UpdateTemplateInput, state: State<'_, AppState>, a
             }
             t.title = trimmed;
         }
-        if let Some(v) = input.notes   { t.notes = v; }
+        if let Some(v) = input.notes {
+            t.notes = v;
+        }
         if let Some(v) = input.tag_ids {
             t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
         }
-        if let Some(v) = input.due_offset_days       { validate_offset_days(v)?; t.due_offset_days = v; }
-        if let Some(v) = input.start_offset_days { validate_offset_days(v)?; t.start_offset_days = v; }
-        if let Some(v) = input.estimated_seconds { validate_estimated_seconds(v)?; t.estimated_seconds = v; }
+        if let Some(v) = input.due_offset_days {
+            validate_offset_days(v)?;
+            t.due_offset_days = v;
+        }
+        if let Some(v) = input.start_offset_days {
+            validate_offset_days(v)?;
+            t.start_offset_days = v;
+        }
+        if let Some(v) = input.estimated_seconds {
+            validate_estimated_seconds(v)?;
+            t.estimated_seconds = v;
+        }
         // Recurrence + its designated tag, validated together against the final tags.
-        let new_recurrence = match input.recurrence { Some(v) => v, None => t.recurrence.clone() };
-        let new_rec_tag    = match input.recurrence_tag_id { Some(v) => v, None => t.recurrence_tag_id.clone() };
+        let new_recurrence = match input.recurrence {
+            Some(v) => v,
+            None => t.recurrence.clone(),
+        };
+        let new_rec_tag = match input.recurrence_tag_id {
+            Some(v) => v,
+            None => t.recurrence_tag_id.clone(),
+        };
         validate_recurrence(new_recurrence.as_ref())?;
         validate_recurrence_tag(new_recurrence.as_ref(), new_rec_tag.as_ref(), &t.tag_ids)?;
         t.recurrence = new_recurrence;
         // A template with no schedule carries no recurrence tag.
-        t.recurrence_tag_id = if t.recurrence.is_some() { new_rec_tag } else { None };
+        t.recurrence_tag_id = if t.recurrence.is_some() {
+            new_rec_tag
+        } else {
+            None
+        };
         t.updated_at = now_ms();
         Ok(t.clone())
     })?;
@@ -559,11 +743,17 @@ pub fn update_template(input: UpdateTemplateInput, state: State<'_, AppState>, a
 #[tauri::command]
 pub fn delete_template(id: String, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
     state.write(|d| {
+        let ts = now_ms();
         let before = d.template_tasks.len();
         d.template_tasks.retain(|t| t.id != id);
         if d.template_tasks.len() == before {
             return Err(AppError::NotFound(format!("template {id}")));
         }
+        d.deleted_template_tasks.push(Tombstone {
+            id: id.clone(),
+            deleted_at: ts,
+            deleted_by: None,
+        });
         Ok(())
     })?;
     emit_changed(&app);
@@ -591,7 +781,10 @@ pub fn spawn_recurring_task(
 ) -> Result<Task> {
     let ts = now_ms();
     let saved = state.write(|d| {
-        let tmpl = d.template_tasks.iter().find(|t| t.id == input.template_id)
+        let tmpl = d
+            .template_tasks
+            .iter()
+            .find(|t| t.id == input.template_id)
             .ok_or_else(|| AppError::NotFound(format!("template {}", input.template_id)))?
             .clone();
         let task = Task {
@@ -620,14 +813,26 @@ pub fn spawn_recurring_task(
 pub struct NewTagInput {
     pub name: String,
     pub color: String,
-    #[serde(default)] pub priority: i64,
-    #[serde(default)] pub pinned: bool,
+    #[serde(default)]
+    pub priority: i64,
+    #[serde(default)]
+    pub pinned: bool,
 }
 
 #[tauri::command]
 pub fn add_tag(input: NewTagInput, state: State<'_, AppState>, app: AppHandle) -> Result<Tag> {
-    let t = Tag { id: new_tag_id(), name: input.name, color: input.color, priority: input.priority, pinned: input.pinned };
-    let saved = state.write(|d| { d.tags.push(t.clone()); Ok(t) })?;
+    let t = Tag {
+        id: new_tag_id(),
+        name: input.name,
+        color: input.color,
+        priority: input.priority,
+        pinned: input.pinned,
+        updated_at: now_ms(),
+    };
+    let saved = state.write(|d| {
+        d.tags.push(t.clone());
+        Ok(t)
+    })?;
     emit_changed(&app);
     Ok(saved)
 }
@@ -635,16 +840,24 @@ pub fn add_tag(input: NewTagInput, state: State<'_, AppState>, app: AppHandle) -
 #[tauri::command]
 pub fn delete_tag(id: String, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
     state.write(|d| {
+        let ts = now_ms();
         let before = d.tags.len();
         d.tags.retain(|t| t.id != id);
         if d.tags.len() == before {
             return Err(AppError::NotFound(format!("tag {id}")));
         }
+        d.deleted_tags.push(Tombstone {
+            id: id.clone(),
+            deleted_at: ts,
+            deleted_by: None,
+        });
         for task in d.tasks.iter_mut() {
             task.tag_ids.retain(|tid| tid != &id);
+            task.updated_at = ts;
         }
         for tmpl in d.template_tasks.iter_mut() {
             tmpl.tag_ids.retain(|tid| tid != &id);
+            tmpl.updated_at = ts;
         }
         Ok(())
     })?;
@@ -654,26 +867,46 @@ pub fn delete_tag(id: String, state: State<'_, AppState>, app: AppHandle) -> Res
 
 #[derive(Deserialize)]
 pub struct UpdateTagInput {
-    pub id:    String,
-    #[serde(default)] pub name:     Option<String>,
-    #[serde(default)] pub color:    Option<String>,
-    #[serde(default)] pub priority: Option<i64>,
-    #[serde(default)] pub pinned:   Option<bool>,
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default)]
+    pub priority: Option<i64>,
+    #[serde(default)]
+    pub pinned: Option<bool>,
 }
 
 #[tauri::command]
-pub fn update_tag(input: UpdateTagInput, state: State<'_, AppState>, app: AppHandle) -> Result<crate::model::Tag> {
+pub fn update_tag(
+    input: UpdateTagInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<crate::model::Tag> {
     let updated = state.write(|d| {
-        let t = d.tags.iter_mut().find(|t| t.id == input.id)
+        let t = d
+            .tags
+            .iter_mut()
+            .find(|t| t.id == input.id)
             .ok_or_else(|| AppError::NotFound(format!("tag {}", input.id)))?;
         if let Some(v) = input.name {
             let trimmed = v.trim().to_string();
-            if trimmed.is_empty() { return Err(AppError::Invalid("name is empty".into())); }
+            if trimmed.is_empty() {
+                return Err(AppError::Invalid("name is empty".into()));
+            }
             t.name = trimmed;
         }
-        if let Some(v) = input.color    { t.color = v; }
-        if let Some(v) = input.priority { t.priority = v; }
-        if let Some(v) = input.pinned   { t.pinned = v; }
+        if let Some(v) = input.color {
+            t.color = v;
+        }
+        if let Some(v) = input.priority {
+            t.priority = v;
+        }
+        if let Some(v) = input.pinned {
+            t.pinned = v;
+        }
+        t.updated_at = now_ms();
         Ok(t.clone())
     })?;
     emit_changed(&app);
@@ -697,7 +930,9 @@ const TAG_WEIGHT_MAX: i64 = 9999;
 /// default tag color (#79) so a malformed value can't be stored and then
 /// pre-filled into every new tag's swatch.
 fn is_hex_color(s: &str) -> bool {
-    let Some(hex) = s.strip_prefix('#') else { return false };
+    let Some(hex) = s.strip_prefix('#') else {
+        return false;
+    };
     (hex.len() == 3 || hex.len() == 6) && hex.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
@@ -755,7 +990,8 @@ fn is_time_format(s: &str) -> bool {
 fn is_preset_id(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 64
-        && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
 
 /// A theme color-override token key (#15) is a CSS custom-property name like
@@ -764,7 +1000,8 @@ fn is_preset_id(s: &str) -> bool {
 fn is_token_key(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 40
-        && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
 
 /// Reject a theme token map whose keys aren't sane token names or whose values
@@ -775,7 +1012,9 @@ fn validate_theme_tokens(map: &HashMap<String, String>) -> Result<()> {
             return Err(AppError::Invalid(format!("invalid theme color token: {k}")));
         }
         if !is_hex_color(v) {
-            return Err(AppError::Invalid(format!("invalid theme color value for {k}: {v}")));
+            return Err(AppError::Invalid(format!(
+                "invalid theme color value for {k}: {v}"
+            )));
         }
     }
     Ok(())
@@ -792,10 +1031,16 @@ fn is_preset_name(s: &str) -> bool {
 fn validate_custom_presets(presets: &[ThemePreset]) -> Result<()> {
     for p in presets {
         if !is_preset_id(&p.id) {
-            return Err(AppError::Invalid(format!("invalid custom preset id: {}", p.id)));
+            return Err(AppError::Invalid(format!(
+                "invalid custom preset id: {}",
+                p.id
+            )));
         }
         if !is_preset_name(&p.name) {
-            return Err(AppError::Invalid(format!("invalid custom preset name: {}", p.name)));
+            return Err(AppError::Invalid(format!(
+                "invalid custom preset name: {}",
+                p.name
+            )));
         }
         validate_theme_tokens(&p.light)?;
         validate_theme_tokens(&p.dark)?;
@@ -805,20 +1050,34 @@ fn validate_custom_presets(presets: &[ThemePreset]) -> Result<()> {
 
 #[derive(Deserialize)]
 pub struct UpdateSettingsInput {
-    #[serde(default)] pub theme: Option<String>,
-    #[serde(default)] pub sort_order: Option<String>,
-    #[serde(default)] pub upcoming_days: Option<u32>,
-    #[serde(default)] pub day_start_hour: Option<u32>,
-    #[serde(default)] pub default_tag_color: Option<String>,
-    #[serde(default)] pub default_tag_priority: Option<i64>,
-    #[serde(default)] pub language: Option<String>,
-    #[serde(default)] pub sound_on_complete: Option<bool>,
-    #[serde(default)] pub reminder_interval_minutes: Option<u32>,
-    #[serde(default)] pub date_time_format: Option<String>,
-    #[serde(default)] pub date_format: Option<String>,
-    #[serde(default)] pub time_format: Option<String>,
-    #[serde(default)] pub theme_preset: Option<String>,
-    #[serde(default)] pub custom_presets: Option<Vec<ThemePreset>>,
+    #[serde(default)]
+    pub theme: Option<String>,
+    #[serde(default)]
+    pub sort_order: Option<String>,
+    #[serde(default)]
+    pub upcoming_days: Option<u32>,
+    #[serde(default)]
+    pub day_start_hour: Option<u32>,
+    #[serde(default)]
+    pub default_tag_color: Option<String>,
+    #[serde(default)]
+    pub default_tag_priority: Option<i64>,
+    #[serde(default)]
+    pub language: Option<String>,
+    #[serde(default)]
+    pub sound_on_complete: Option<bool>,
+    #[serde(default)]
+    pub reminder_interval_minutes: Option<u32>,
+    #[serde(default)]
+    pub date_time_format: Option<String>,
+    #[serde(default)]
+    pub date_format: Option<String>,
+    #[serde(default)]
+    pub time_format: Option<String>,
+    #[serde(default)]
+    pub theme_preset: Option<String>,
+    #[serde(default)]
+    pub custom_presets: Option<Vec<ThemePreset>>,
 }
 
 #[tauri::command]
@@ -945,13 +1204,20 @@ fn validate_conflict_path(candidate: &str, data_path: &Path) -> Result<PathBuf> 
     // stale entry and add a Windows `\\?\` prefix mismatch.
     match candidate.parent() {
         Some(p) if p == data_dir => {}
-        _ => return Err(AppError::Invalid("conflict path is not in the data directory".into())),
+        _ => {
+            return Err(AppError::Invalid(
+                "conflict path is not in the data directory".into(),
+            ))
+        }
     }
     let name = candidate
         .file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| AppError::Invalid("conflict path has no file name".into()))?;
-    let stem = data_path.file_stem().and_then(|s| s.to_str()).unwrap_or("tasks");
+    let stem = data_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("tasks");
     let data_file_name = data_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
     if !crate::sync::is_conflict_file_name(name, stem, data_file_name) {
         return Err(AppError::Invalid("not a recognized conflict file".into()));
@@ -1004,7 +1270,11 @@ pub fn resolve_conflict(
 }
 
 #[tauri::command]
-pub fn dismiss_conflict(conflict_path: String, app: AppHandle, state: State<'_, AppState>) -> Result<()> {
+pub fn dismiss_conflict(
+    conflict_path: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<()> {
     let path = validate_conflict_path(&conflict_path, &state.path())?;
     let _ = std::fs::remove_file(&path);
     // Mirror the deletion into the synced SAF folder, using the validated path (#49).
@@ -1056,12 +1326,15 @@ pub fn set_data_folder(
     if !folder_path.is_dir() {
         return Err(AppError::Invalid(format!("not a folder: {folder}")));
     }
-    let new_path = folder_path.join("tasks.json");
+    let new_path = folder_path.join(crate::config::data_file_name(&config.device_id()));
     state.repoint(new_path.clone())?;
     config.set_folder(Some(folder))?;
     crate::sync::restart(&watcher, &app, new_path);
     emit_changed(&app);
-    let _ = app.emit("conflicts-detected", &crate::sync::scan_conflict_files(&state.path()));
+    let _ = app.emit(
+        "conflicts-detected",
+        &crate::sync::scan_conflict_files(&state.path()),
+    );
     Ok(data_location(&state, &config))
 }
 
@@ -1073,7 +1346,7 @@ pub fn clear_data_folder(
     app: AppHandle,
 ) -> Result<DataLocation> {
     let default_dir = default_data_dir(&app)?;
-    let new_path = default_dir.join("tasks.json");
+    let new_path = default_dir.join(crate::config::data_file_name(&config.device_id()));
     state.repoint(new_path.clone())?;
     config.set_folder(None)?;
     crate::sync::restart(&watcher, &app, new_path);
@@ -1090,7 +1363,9 @@ pub fn clear_data_folder(
 #[cfg(target_os = "android")]
 fn saf_delete_conflict(app: &AppHandle, conflict_path: &std::path::Path) {
     use crate::safsync::SafBackend as _;
-    let Some(name) = conflict_path.file_name().and_then(|s| s.to_str()) else { return };
+    let Some(name) = conflict_path.file_name().and_then(|s| s.to_str()) else {
+        return;
+    };
     let saf = app.state::<crate::safsync::SafSync>();
     let folder_json = saf.inner.lock().unwrap().folder_uri_json.clone();
     if let Some(json) = folder_json {
@@ -1127,7 +1402,11 @@ fn saf_persist(state: &AppState, saf: &crate::safsync::SafSync) {
 /// device's copy (the Google Drive data-loss bug). A folder that simply has no
 /// remote yet pulls cleanly (`ok = true`).
 #[cfg(target_os = "android")]
-fn saf_run_pull(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync) -> (bool, crate::safsync::SyncStatus) {
+fn saf_run_pull(
+    app: &AppHandle,
+    state: &AppState,
+    saf: &crate::safsync::SafSync,
+) -> (bool, crate::safsync::SyncStatus) {
     use crate::safsync::{self, android::AndroidSafBackend};
     let path = state.path();
     let (folder_json, last_hash) = {
@@ -1153,9 +1432,15 @@ fn saf_run_pull(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync
                     saf_persist(state, saf); // persist the advanced last_synced_hash
                     let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
                 }
-                Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); ok = false; }
+                Err(e) => {
+                    saf.inner.lock().unwrap().last_error = Some(e.to_string());
+                    ok = false;
+                }
             },
-            Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); ok = false; }
+            Err(e) => {
+                saf.inner.lock().unwrap().last_error = Some(e.to_string());
+                ok = false;
+            }
         }
     }
     (ok, saf.status(conflicts))
@@ -1165,7 +1450,11 @@ fn saf_run_pull(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync
 /// document and load the folder's `tasks.json` outright (no conflict file). Used
 /// only by the explicit folder-pick action, not routine sync.
 #[cfg(target_os = "android")]
-fn saf_run_switch(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync) -> crate::safsync::SyncStatus {
+fn saf_run_switch(
+    app: &AppHandle,
+    state: &AppState,
+    saf: &crate::safsync::SafSync,
+) -> crate::safsync::SyncStatus {
     use crate::safsync::{self, android::AndroidSafBackend};
     let path = state.path();
     let folder_json = saf.inner.lock().unwrap().folder_uri_json.clone();
@@ -1187,24 +1476,33 @@ fn saf_run_switch(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSy
                     saf_persist(state, saf);
                     let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
                 }
-                Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); }
+                Err(e) => {
+                    saf.inner.lock().unwrap().last_error = Some(e.to_string());
+                }
             },
-            Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); }
+            Err(e) => {
+                saf.inner.lock().unwrap().last_error = Some(e.to_string());
+            }
         }
     }
     saf.status(conflicts)
 }
 
 #[cfg(target_os = "android")]
-fn saf_run_push(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync) -> crate::safsync::SyncStatus {
+fn saf_run_push(
+    app: &AppHandle,
+    state: &AppState,
+    saf: &crate::safsync::SafSync,
+) -> crate::safsync::SyncStatus {
     use crate::safsync::{self, android::AndroidSafBackend};
+    let path = state.path();
     let (folder_json, last_hash) = {
         let g = saf.inner.lock().unwrap();
         (g.folder_uri_json.clone(), g.last_synced_hash)
     };
     if let Some(json) = folder_json {
         match AndroidSafBackend::from_json(app, &json) {
-            Ok(backend) => match safsync::push_out(state, &backend, last_hash) {
+            Ok(backend) => match safsync::push_out(state, &backend, &path, last_hash) {
                 Ok(Some(h)) => {
                     {
                         let mut g = saf.inner.lock().unwrap();
@@ -1215,9 +1513,13 @@ fn saf_run_push(app: &AppHandle, state: &AppState, saf: &crate::safsync::SafSync
                     saf_persist(state, saf); // persist the advanced last_synced_hash
                 }
                 Ok(None) => {}
-                Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); }
+                Err(e) => {
+                    saf.inner.lock().unwrap().last_error = Some(e.to_string());
+                }
             },
-            Err(e) => { saf.inner.lock().unwrap().last_error = Some(e.to_string()); }
+            Err(e) => {
+                saf.inner.lock().unwrap().last_error = Some(e.to_string());
+            }
         }
     }
     saf.status(saf_conflict_count(&state.path()))
@@ -1242,11 +1544,14 @@ pub async fn saf_pick_folder(
             g.last_synced_hash = None; // force a real sync on first link
             g.last_error = None;
         }
-        safsync::save_config(&state.path(), &safsync::SyncConfig {
-            folder_uri_json: Some(json.clone()),
-            folder_label: Some(label),
-            last_synced_hash: None, // the seed/pull below persists the real hash
-        })?;
+        safsync::save_config(
+            &state.path(),
+            &safsync::SyncConfig {
+                folder_uri_json: Some(json.clone()),
+                folder_label: Some(label),
+                last_synced_hash: None, // the seed/pull below persists the real hash
+            },
+        )?;
         // Choosing a folder, decided fail-safe. If it already has a tasks.json,
         // SWITCH to it: discard the local in-memory document and load the folder's
         // data outright (no conflict file). If the folder is confirmed empty, SEED
@@ -1258,7 +1563,8 @@ pub async fn saf_pick_folder(
             LinkAction::Pull => saf_run_switch(&app, &state, &saf),
             LinkAction::Seed => saf_run_push(&app, &state, &saf),
             LinkAction::Abort => {
-                let msg = "Couldn't read the selected folder, so its contents were left untouched. \
+                let msg =
+                    "Couldn't read the selected folder, so its contents were left untouched. \
                            Check the folder is reachable and try linking again.";
                 saf.inner.lock().unwrap().last_error = Some(msg.into());
                 saf.status(saf_conflict_count(&state.path()))
@@ -1327,19 +1633,29 @@ pub fn saf_status(
 // Desktop/iOS stubs (no SAF): keep the command names resolvable for the handler.
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
-pub fn saf_pick_folder() -> crate::safsync::SyncStatus { crate::safsync::SyncStatus::unlinked() }
+pub fn saf_pick_folder() -> crate::safsync::SyncStatus {
+    crate::safsync::SyncStatus::unlinked()
+}
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
-pub fn saf_clear_folder() -> Result<()> { Ok(()) }
+pub fn saf_clear_folder() -> Result<()> {
+    Ok(())
+}
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
-pub fn saf_push() -> crate::safsync::SyncStatus { crate::safsync::SyncStatus::unlinked() }
+pub fn saf_push() -> crate::safsync::SyncStatus {
+    crate::safsync::SyncStatus::unlinked()
+}
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
-pub fn saf_sync_now() -> crate::safsync::SyncStatus { crate::safsync::SyncStatus::unlinked() }
+pub fn saf_sync_now() -> crate::safsync::SyncStatus {
+    crate::safsync::SyncStatus::unlinked()
+}
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
-pub fn saf_status() -> crate::safsync::SyncStatus { crate::safsync::SyncStatus::unlinked() }
+pub fn saf_status() -> crate::safsync::SyncStatus {
+    crate::safsync::SyncStatus::unlinked()
+}
 
 #[cfg(test)]
 mod tests {
@@ -1356,7 +1672,10 @@ mod tests {
     fn time_entry_inputs_parse_the_keys_the_js_sends(/* #81 */) {
         let add: AddTimeEntryInput =
             serde_json::from_str(r#"{"task_id":"k_1","start":1000,"end":2000}"#).unwrap();
-        assert_eq!((add.task_id.as_str(), add.start, add.end), ("k_1", 1000, 2000));
+        assert_eq!(
+            (add.task_id.as_str(), add.start, add.end),
+            ("k_1", 1000, 2000)
+        );
 
         // Update: start and/or end are optional; absent stays None.
         let upd: UpdateTimeEntryInput =
@@ -1367,7 +1686,10 @@ mod tests {
 
         let del: DeleteTimeEntryInput =
             serde_json::from_str(r#"{"task_id":"k_1","entry_id":"te_1"}"#).unwrap();
-        assert_eq!((del.task_id.as_str(), del.entry_id.as_str()), ("k_1", "te_1"));
+        assert_eq!(
+            (del.task_id.as_str(), del.entry_id.as_str()),
+            ("k_1", "te_1")
+        );
     }
 
     #[test]
@@ -1382,7 +1704,10 @@ mod tests {
     fn update_task_input_value_sets_field() {
         let v: UpdateTaskInput =
             serde_json::from_str(r#"{"id":"t_1","due_date":"2026-06-01"}"#).unwrap();
-        assert_eq!(v.due_date, Some(Some(NaiveDate::from_ymd_opt(2026, 6, 1).unwrap())));
+        assert_eq!(
+            v.due_date,
+            Some(Some(NaiveDate::from_ymd_opt(2026, 6, 1).unwrap()))
+        );
     }
 
     #[test]
@@ -1430,19 +1755,18 @@ mod tests {
 
     #[test]
     fn validate_time_accepts_hh_mm_and_rejects_garbage(/* #93 */) {
-        assert!(validate_time(None).is_ok());          // all-day
+        assert!(validate_time(None).is_ok()); // all-day
         assert!(validate_time(Some("00:00")).is_ok());
         assert!(validate_time(Some("09:30")).is_ok());
         assert!(validate_time(Some("23:59")).is_ok());
-        assert!(validate_time(Some("24:00")).is_err());    // hour out of range
-        assert!(validate_time(Some("5pm")).is_err());      // not HH:MM
+        assert!(validate_time(Some("24:00")).is_err()); // hour out of range
+        assert!(validate_time(Some("5pm")).is_err()); // not HH:MM
         assert!(validate_time(Some("09:30:00")).is_err()); // trailing seconds
     }
 
     #[test]
     fn update_tag_input_priority_parses() {
-        let v: UpdateTagInput =
-            serde_json::from_str(r#"{"id":"t_1","priority":9}"#).unwrap();
+        let v: UpdateTagInput = serde_json::from_str(r#"{"id":"t_1","priority":9}"#).unwrap();
         assert_eq!(v.priority, Some(9));
         let absent: UpdateTagInput = serde_json::from_str(r#"{"id":"t_1"}"#).unwrap();
         assert_eq!(absent.priority, None);
@@ -1454,8 +1778,7 @@ mod tests {
         // value drives the toggle (#78).
         let absent: UpdateTagInput = serde_json::from_str(r#"{"id":"t_1"}"#).unwrap();
         assert_eq!(absent.pinned, None);
-        let set: UpdateTagInput =
-            serde_json::from_str(r#"{"id":"t_1","pinned":true}"#).unwrap();
+        let set: UpdateTagInput = serde_json::from_str(r#"{"id":"t_1","pinned":true}"#).unwrap();
         assert_eq!(set.pinned, Some(true));
     }
 
@@ -1476,9 +1799,14 @@ mod tests {
 
     #[test]
     fn retain_known_tags_strips_unknown_ids() {
-        let tags = vec![
-            Tag { id: "t_known".into(), name: "k".into(), color: "#000".into(), priority: 0, pinned: false },
-        ];
+        let tags = vec![Tag {
+            id: "t_known".into(),
+            name: "k".into(),
+            color: "#000".into(),
+            priority: 0,
+            pinned: false,
+            updated_at: 1,
+        }];
         let out = retain_known_tags(
             vec!["t_known".into(), "t_unknown".into(), "t_known".into()],
             &tags,
@@ -1545,7 +1873,8 @@ mod tests {
     #[test]
     fn update_settings_input_parses_sound_on_complete() {
         // Pins the snake_case `sound_on_complete` key the JS api sends (#80).
-        let off: UpdateSettingsInput = serde_json::from_str(r#"{"sound_on_complete":false}"#).unwrap();
+        let off: UpdateSettingsInput =
+            serde_json::from_str(r#"{"sound_on_complete":false}"#).unwrap();
         assert_eq!(off.sound_on_complete, Some(false));
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.sound_on_complete, None);
@@ -1573,8 +1902,10 @@ mod tests {
 
     #[test]
     fn update_settings_input_parses_date_and_time_formats() {
-        let v: UpdateSettingsInput =
-            serde_json::from_str(r#"{"date_format":"chinese_lunar","time_format":"chinese_day_period"}"#).unwrap();
+        let v: UpdateSettingsInput = serde_json::from_str(
+            r#"{"date_format":"chinese_lunar","time_format":"chinese_day_period"}"#,
+        )
+        .unwrap();
         assert_eq!(v.date_format.as_deref(), Some("chinese_lunar"));
         assert_eq!(v.time_format.as_deref(), Some("chinese_day_period"));
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
@@ -1593,8 +1924,14 @@ mod tests {
         assert_eq!(presets.len(), 1);
         assert_eq!(presets[0].id, "custom_1");
         assert_eq!(presets[0].name, "Mine");
-        assert_eq!(presets[0].light.get("--c-accent").map(String::as_str), Some("#ff0000"));
-        assert_eq!(presets[0].dark.get("--c-bg").map(String::as_str), Some("#000000"));
+        assert_eq!(
+            presets[0].light.get("--c-accent").map(String::as_str),
+            Some("#ff0000")
+        );
+        assert_eq!(
+            presets[0].dark.get("--c-bg").map(String::as_str),
+            Some("#000000")
+        );
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.theme_preset, None);
         assert!(absent.custom_presets.is_none());
@@ -1615,14 +1952,21 @@ mod tests {
         ThemePreset {
             id: id.to_string(),
             name: name.to_string(),
-            light: light.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            light: light
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
             dark: HashMap::new(),
         }
     }
 
     #[test]
     fn validate_custom_presets_accepts_well_formed_presets() {
-        let ps = vec![preset("custom_1", "Mine", &[("--c-accent", "#ff0000"), ("--c-bg", "#fff")])];
+        let ps = vec![preset(
+            "custom_1",
+            "Mine",
+            &[("--c-accent", "#ff0000"), ("--c-bg", "#fff")],
+        )];
         assert!(validate_custom_presets(&ps).is_ok());
     }
 
@@ -1634,7 +1978,11 @@ mod tests {
 
     #[test]
     fn validate_custom_presets_rejects_malformed_token_key() {
-        let ps = vec![preset("custom_1", "Mine", &[("javascript:alert(1)", "#ffffff")])];
+        let ps = vec![preset(
+            "custom_1",
+            "Mine",
+            &[("javascript:alert(1)", "#ffffff")],
+        )];
         assert!(validate_custom_presets(&ps).is_err());
     }
 
@@ -1747,8 +2095,14 @@ mod tests {
     fn new_template_input_parses_recurrence() {
         let v: NewTemplateInput = serde_json::from_str(
             r#"{"title":"t","recurrence":{"kind":"weekly","weekdays":[1,5]}}"#,
-        ).unwrap();
-        assert_eq!(v.recurrence, Some(crate::model::Recurrence::Weekly { weekdays: vec![1, 5] }));
+        )
+        .unwrap();
+        assert_eq!(
+            v.recurrence,
+            Some(crate::model::Recurrence::Weekly {
+                weekdays: vec![1, 5]
+            })
+        );
         let plain: NewTemplateInput = serde_json::from_str(r#"{"title":"t"}"#).unwrap();
         assert_eq!(plain.recurrence, None);
     }
@@ -1758,7 +2112,10 @@ mod tests {
         use crate::model::{Recurrence, YearlyDate};
         let yd = |month, day| YearlyDate { month, day };
         assert!(validate_recurrence(None).is_ok());
-        assert!(validate_recurrence(Some(&Recurrence::Weekly { weekdays: vec![1, 7] })).is_ok());
+        assert!(validate_recurrence(Some(&Recurrence::Weekly {
+            weekdays: vec![1, 7]
+        }))
+        .is_ok());
         assert!(validate_recurrence(Some(&Recurrence::Monthly { days: vec![1, 31] })).is_ok());
         // Empty weekday set is meaningless.
         assert!(validate_recurrence(Some(&Recurrence::Weekly { weekdays: vec![] })).is_err());
@@ -1774,16 +2131,40 @@ mod tests {
         assert!(validate_recurrence(Some(&Recurrence::Daily)).is_ok());
         // Yearly: needs at least one date; each month 1..=12 and day valid for it
         // (Feb allows 29 for leap years).
-        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(3, 15), yd(12, 25)] })).is_ok());
-        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(2, 29)] })).is_ok());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly {
+            dates: vec![yd(3, 15), yd(12, 25)]
+        }))
+        .is_ok());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly {
+            dates: vec![yd(2, 29)]
+        }))
+        .is_ok());
         assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![] })).is_err());
-        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(0, 1)] })).is_err());
-        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(13, 1)] })).is_err());
-        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(2, 30)] })).is_err());
-        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(4, 31)] })).is_err());
-        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(1, 0)] })).is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly {
+            dates: vec![yd(0, 1)]
+        }))
+        .is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly {
+            dates: vec![yd(13, 1)]
+        }))
+        .is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly {
+            dates: vec![yd(2, 30)]
+        }))
+        .is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly {
+            dates: vec![yd(4, 31)]
+        }))
+        .is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly {
+            dates: vec![yd(1, 0)]
+        }))
+        .is_err());
         // One bad date among good ones still fails.
-        assert!(validate_recurrence(Some(&Recurrence::Yearly { dates: vec![yd(1, 1), yd(4, 31)] })).is_err());
+        assert!(validate_recurrence(Some(&Recurrence::Yearly {
+            dates: vec![yd(1, 1), yd(4, 31)]
+        }))
+        .is_err());
     }
 
     #[test]
@@ -1792,8 +2173,16 @@ mod tests {
         let weekly = Recurrence::Weekly { weekdays: vec![1] };
         assert!(validate_recurrence_tag(None, None, &[]).is_ok()); // no schedule, no tag: fine
         assert!(validate_recurrence_tag(Some(&weekly), None, &["t_a".into()]).is_err()); // scheduled, none chosen
-        assert!(validate_recurrence_tag(Some(&weekly), Some(&"t_b".to_string()), &["t_a".into()]).is_err()); // not a template tag
-        assert!(validate_recurrence_tag(Some(&weekly), Some(&"t_a".to_string()), &["t_a".into(), "t_b".into()]).is_ok());
+        assert!(
+            validate_recurrence_tag(Some(&weekly), Some(&"t_b".to_string()), &["t_a".into()])
+                .is_err()
+        ); // not a template tag
+        assert!(validate_recurrence_tag(
+            Some(&weekly),
+            Some(&"t_a".to_string()),
+            &["t_a".into(), "t_b".into()]
+        )
+        .is_ok());
     }
 
     #[test]
@@ -1827,10 +2216,12 @@ mod tests {
     #[test]
     fn spawn_recurring_task_input_parses_camel_case_keys() {
         // The JS api sends { templateId, occurrenceDate }.
-        let v: SpawnRecurringTaskInput = serde_json::from_str(
-            r#"{"templateId":"k_1","occurrenceDate":"2026-06-08"}"#,
-        ).unwrap();
+        let v: SpawnRecurringTaskInput =
+            serde_json::from_str(r#"{"templateId":"k_1","occurrenceDate":"2026-06-08"}"#).unwrap();
         assert_eq!(v.template_id, "k_1");
-        assert_eq!(v.occurrence_date, NaiveDate::from_ymd_opt(2026, 6, 8).unwrap());
+        assert_eq!(
+            v.occurrence_date,
+            NaiveDate::from_ymd_opt(2026, 6, 8).unwrap()
+        );
     }
 }

@@ -12,11 +12,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use uuid::Uuid;
 
 const CONFIG_FILE: &str = "config.json";
 /// Pre-rename filename, migrated to `config.json` on first launch.
 const LEGACY_FILE: &str = "data_location.json";
-const DATA_FILE: &str = "tasks.json";
+const LEGACY_DATA_FILE: &str = "tasks.json";
 
 /// App settings. Formerly persisted inside the synced `Document`; now device-local.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -155,20 +156,45 @@ pub struct Config {
     /// Absolute folder path chosen by the user; `None` = use the default dir.
     #[serde(default)]
     pub folder: Option<String>,
+    /// Stable per-install id used to name this device's sync replica.
+    #[serde(default = "new_device_id")]
+    pub device_id: String,
     #[serde(default)]
     pub settings: Settings,
+}
+
+fn new_device_id() -> String {
+    Uuid::new_v4().simple().to_string()
 }
 
 fn config_path(default_dir: &Path) -> PathBuf {
     default_dir.join(CONFIG_FILE)
 }
 
-/// Resolve the effective tasks.json path: `<folder>/tasks.json` if a valid
-/// folder is configured, else `<default_dir>/tasks.json`.
-pub fn resolve_data_path(default_dir: &Path, folder: &Option<String>) -> PathBuf {
+pub fn data_file_name(device_id: &str) -> String {
+    let clean: String = device_id
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect();
+    let id = if clean.is_empty() {
+        "device"
+    } else {
+        clean.as_str()
+    };
+    format!("tasks_{id}.json")
+}
+
+pub fn legacy_data_file_name() -> &'static str {
+    LEGACY_DATA_FILE
+}
+
+/// Resolve this device's writable replica path: `<folder>/tasks_<device>.json`
+/// if a valid folder is configured, else `<default_dir>/tasks_<device>.json`.
+pub fn resolve_data_path(default_dir: &Path, folder: &Option<String>, device_id: &str) -> PathBuf {
+    let file = data_file_name(device_id);
     match folder {
-        Some(f) if Path::new(f).is_dir() => Path::new(f).join(DATA_FILE),
-        _ => default_dir.join(DATA_FILE),
+        Some(f) if Path::new(f).is_dir() => Path::new(f).join(file),
+        _ => default_dir.join(file),
     }
 }
 
@@ -193,6 +219,9 @@ fn persist(path: &Path, cfg: &Config) -> Result<()> {
 pub fn load_or_migrate(default_dir: &Path) -> Config {
     if let Ok(bytes) = std::fs::read(config_path(default_dir)) {
         if let Ok(cfg) = serde_json::from_slice::<Config>(&bytes) {
+            if let Err(e) = persist(&config_path(default_dir), &cfg) {
+                eprintln!("warning: failed to persist config.json device id: {e}");
+            }
             return cfg;
         }
     }
@@ -204,9 +233,22 @@ pub fn load_or_migrate(default_dir: &Path) -> Config {
     // settings forever (migration is one-shot). Defer: use defaults this
     // session and retry the migration on the next launch.
     let folder_unavailable = matches!(&folder, Some(f) if !Path::new(f).is_dir());
-    let data_path = resolve_data_path(default_dir, &folder);
-    let settings = lift_settings_from_tasks(&data_path);
-    let cfg = Config { folder, settings };
+    let device_id = new_device_id();
+    let data_path = resolve_data_path(default_dir, &folder, &device_id);
+    let legacy_data_path = match &folder {
+        Some(f) if Path::new(f).is_dir() => Path::new(f).join(LEGACY_DATA_FILE),
+        _ => default_dir.join(LEGACY_DATA_FILE),
+    };
+    let settings = if data_path.exists() {
+        lift_settings_from_tasks(&data_path)
+    } else {
+        lift_settings_from_tasks(&legacy_data_path)
+    };
+    let cfg = Config {
+        folder,
+        device_id,
+        settings,
+    };
     if !folder_unavailable {
         if let Err(e) = persist(&config_path(default_dir), &cfg) {
             eprintln!("warning: failed to write migrated config.json: {e}");
@@ -277,7 +319,11 @@ impl ConfigState {
         let mut g = self.inner.lock().unwrap();
         let mut next = g.settings.clone();
         f(&mut next)?;
-        let candidate = Config { folder: g.folder.clone(), settings: next };
+        let candidate = Config {
+            folder: g.folder.clone(),
+            device_id: g.device_id.clone(),
+            settings: next,
+        };
         persist(&self.path, &candidate)?;
         g.settings = candidate.settings.clone();
         Ok(g.settings.clone())
@@ -287,10 +333,18 @@ impl ConfigState {
     /// after the write succeeds, keeping memory and disk consistent.
     pub fn set_folder(&self, folder: Option<String>) -> Result<()> {
         let mut g = self.inner.lock().unwrap();
-        let candidate = Config { folder, settings: g.settings.clone() };
+        let candidate = Config {
+            folder,
+            device_id: g.device_id.clone(),
+            settings: g.settings.clone(),
+        };
         persist(&self.path, &candidate)?;
         g.folder = candidate.folder;
         Ok(())
+    }
+
+    pub fn device_id(&self) -> String {
+        self.inner.lock().unwrap().device_id.clone()
     }
 }
 
@@ -304,7 +358,7 @@ mod tests {
         let dir = tempdir().unwrap();
         // Pre-rename world: no config.json, settings live in tasks.json.
         std::fs::write(
-            dir.path().join(DATA_FILE),
+            dir.path().join(LEGACY_DATA_FILE),
             r#"{"tasks":[],"tags":[],"settings":{"theme":"dark","sort_order":"date","upcoming_days":30}}"#,
         )
         .unwrap();
@@ -328,7 +382,10 @@ mod tests {
         let folder_str = folder.path().to_string_lossy().to_string();
         std::fs::write(
             dir.path().join(LEGACY_FILE),
-            format!(r#"{{"folder":{}}}"#, serde_json::to_string(&folder_str).unwrap()),
+            format!(
+                r#"{{"folder":{}}}"#,
+                serde_json::to_string(&folder_str).unwrap()
+            ),
         )
         .unwrap();
 
@@ -361,7 +418,7 @@ mod tests {
         .unwrap();
         std::fs::write(dir.path().join(LEGACY_FILE), r#"{"folder":"/somewhere"}"#).unwrap();
         std::fs::write(
-            dir.path().join(DATA_FILE),
+            dir.path().join(LEGACY_DATA_FILE),
             r#"{"tasks":[],"tags":[],"settings":{"theme":"dark"}}"#,
         )
         .unwrap();
@@ -402,7 +459,11 @@ mod tests {
             Err(crate::error::AppError::Invalid("bad".into()))
         });
         assert!(result.is_err());
-        assert_eq!(state.settings().theme, "auto", "memory must not keep the partial mutation");
+        assert_eq!(
+            state.settings().theme,
+            "auto",
+            "memory must not keep the partial mutation"
+        );
 
         // No config.json was written (first successful persist creates it).
         assert!(!config_path(dir.path()).exists());
@@ -424,7 +485,10 @@ mod tests {
         // Folder is still surfaced for this session...
         assert_eq!(cfg.folder.as_deref(), Some("/no/such/folder/at/all"));
         // ...but nothing was persisted, so next launch retries the migration.
-        assert!(!config_path(dir.path()).exists(), "migration must be deferred, not locked in");
+        assert!(
+            !config_path(dir.path()).exists(),
+            "migration must be deferred, not locked in"
+        );
     }
 
     #[test]
@@ -432,7 +496,7 @@ mod tests {
         // A partial settings object lacking `theme` keeps the other fields.
         let dir = tempdir().unwrap();
         std::fs::write(
-            dir.path().join(DATA_FILE),
+            dir.path().join(LEGACY_DATA_FILE),
             r#"{"tasks":[],"tags":[],"settings":{"sort_order":"date","upcoming_days":21}}"#,
         )
         .unwrap();

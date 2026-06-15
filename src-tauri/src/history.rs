@@ -18,31 +18,70 @@ pub struct HistoryEntry {
 }
 
 pub fn history_path(data_path: &Path) -> PathBuf {
+    let file_name = data_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| {
+            name.strip_prefix("tasks_")
+                .and_then(|rest| rest.strip_suffix(".json"))
+                .map(|device| format!("history_{device}.jsonl"))
+        })
+        .unwrap_or_else(|| "history.jsonl".to_string());
+    data_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join(file_name)
+}
+
+fn legacy_history_path(data_path: &Path) -> PathBuf {
     data_path
         .parent()
         .unwrap_or_else(|| Path::new("."))
         .join("history.jsonl")
 }
 
-pub fn read_history(data_path: &Path, limit: usize) -> Result<Vec<HistoryEntry>> {
-    let path = history_path(data_path);
-    if !path.exists() {
-        return Ok(Vec::new());
+fn history_replica_paths(data_path: &Path) -> Vec<PathBuf> {
+    let parent = data_path.parent().unwrap_or_else(|| Path::new("."));
+    let mut paths = Vec::new();
+    let legacy = legacy_history_path(data_path);
+    if legacy.exists() {
+        paths.push(legacy);
     }
+    if let Ok(entries) = fs::read_dir(parent) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with("history_") && name.ends_with(".jsonl") {
+                paths.push(entry.path());
+            }
+        }
+    }
+    paths.sort();
+    paths.dedup();
+    paths
+}
 
-    let file = fs::File::open(path)?;
-    let reader = BufReader::new(file);
+pub fn read_history(data_path: &Path, limit: usize) -> Result<Vec<HistoryEntry>> {
     let mut entries = Vec::new();
-    for line in reader.lines() {
-        let line = line?;
-        if line.trim().is_empty() {
-            continue;
-        }
-        if let Ok(entry) = serde_json::from_str::<HistoryEntry>(&line) {
-            entries.push(entry);
+    for path in history_replica_paths(data_path) {
+        let file = fs::File::open(path)?;
+        let reader = BufReader::new(file);
+        for line in reader.lines() {
+            let line = line?;
+            if line.trim().is_empty() {
+                continue;
+            }
+            if let Ok(entry) = serde_json::from_str::<HistoryEntry>(&line) {
+                entries.push(entry);
+            }
         }
     }
-    entries.reverse();
+    entries.sort_by(|a, b| {
+        b.timestamp
+            .cmp(&a.timestamp)
+            .then_with(|| b.entity.cmp(&a.entity))
+            .then_with(|| b.entity_id.cmp(&a.entity_id))
+            .then_with(|| b.event.cmp(&a.event))
+    });
     entries.truncate(limit);
     Ok(entries)
 }
@@ -316,6 +355,7 @@ mod tests {
             color: "#000000".into(),
             priority: 0,
             pinned: false,
+            updated_at: 1,
         });
         before.tasks.push(task("k_1", "Ship"));
 
@@ -360,5 +400,73 @@ mod tests {
         let entries = read_history(&data, 1).unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].entity_id, "k_2");
+    }
+
+    #[test]
+    fn device_replica_history_path_matches_task_replica() {
+        let dir = tempdir().unwrap();
+        let data = dir.path().join("tasks_desktop.json");
+        append_history(
+            &data,
+            &[entry(
+                1_000,
+                "task.created",
+                "task",
+                "k_1",
+                "One".into(),
+                "Created task",
+            )],
+        )
+        .unwrap();
+
+        assert!(dir.path().join("history_desktop.jsonl").exists());
+        assert!(!dir.path().join("history.jsonl").exists());
+    }
+
+    #[test]
+    fn reads_merged_history_replicas_newest_first() {
+        let dir = tempdir().unwrap();
+        let data = dir.path().join("tasks_desktop.json");
+        append_history(
+            &data,
+            &[entry(
+                1_000,
+                "task.created",
+                "task",
+                "k_desktop",
+                "Desktop".into(),
+                "Created task",
+            )],
+        )
+        .unwrap();
+
+        let mobile_history = dir.path().join("history_mobile.jsonl");
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(mobile_history)
+            .unwrap();
+        serde_json::to_writer(
+            &mut file,
+            &entry(
+                2_000,
+                "task.created",
+                "task",
+                "k_mobile",
+                "Mobile".into(),
+                "Created task",
+            ),
+        )
+        .unwrap();
+        file.write_all(b"\n").unwrap();
+
+        let entries = read_history(&data, 10).unwrap();
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.entity_id.as_str())
+                .collect::<Vec<_>>(),
+            ["k_mobile", "k_desktop"]
+        );
     }
 }

@@ -9,12 +9,16 @@ fn touch(path: &PathBuf, contents: &str) {
 
 #[test]
 fn scanner_finds_syncthing_conflict_siblings() {
-    let dir  = tempdir().unwrap();
+    let dir = tempdir().unwrap();
     let data = dir.path().join("tasks.json");
     touch(&data, "{}");
 
-    let c1 = dir.path().join("tasks.sync-conflict-20260528-123045-7AB2C9D.json");
-    let c2 = dir.path().join("tasks.sync-conflict-20260528-090000-ZZZZZ.json");
+    let c1 = dir
+        .path()
+        .join("tasks.sync-conflict-20260528-123045-7AB2C9D.json");
+    let c2 = dir
+        .path()
+        .join("tasks.sync-conflict-20260528-090000-ZZZZZ.json");
     touch(&c1, "{}");
     touch(&c2, "{}");
 
@@ -26,7 +30,7 @@ fn scanner_finds_syncthing_conflict_siblings() {
 
 #[test]
 fn scanner_finds_dropbox_style_conflicts() {
-    let dir  = tempdir().unwrap();
+    let dir = tempdir().unwrap();
     let data = dir.path().join("tasks.json");
     touch(&data, "{}");
 
@@ -34,13 +38,16 @@ fn scanner_finds_dropbox_style_conflicts() {
     touch(&c, "{}");
 
     let found = scan_conflict_files(&data);
-    assert!(found.iter().any(|p| p == &c.to_string_lossy()),
-            "expected to find dropbox-style sibling; got {:?}", found);
+    assert!(
+        found.iter().any(|p| p == &c.to_string_lossy()),
+        "expected to find dropbox-style sibling; got {:?}",
+        found
+    );
 }
 
 #[test]
 fn scanner_ignores_the_data_file_itself() {
-    let dir  = tempdir().unwrap();
+    let dir = tempdir().unwrap();
     let data = dir.path().join("tasks.json");
     touch(&data, "{}");
     let found = scan_conflict_files(&data);
@@ -49,11 +56,11 @@ fn scanner_ignores_the_data_file_itself() {
 
 #[test]
 fn scanner_ignores_unrelated_files() {
-    let dir  = tempdir().unwrap();
+    let dir = tempdir().unwrap();
     let data = dir.path().join("tasks.json");
     touch(&data, "{}");
     touch(&dir.path().join("notes.txt"), "hi");
-    touch(&dir.path().join("readme.md"),  "hi");
+    touch(&dir.path().join("readme.md"), "hi");
     let found = scan_conflict_files(&data);
     assert!(found.is_empty());
 }

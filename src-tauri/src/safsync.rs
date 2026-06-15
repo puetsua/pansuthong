@@ -6,6 +6,7 @@
 //! testable on desktop; the real Android backend lives in the `android` submodule.
 
 use crate::error::{AppError, Result};
+use crate::model::{merge_documents, Document};
 use crate::store::AppState;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -19,14 +20,16 @@ const CONFLICT_NEEDLE: &str = "conflict";
 /// Abstraction over the picked SAF folder. Implemented for real on Android and
 /// with an in-memory fake in tests.
 pub trait SafBackend {
-    /// Remote `tasks.json` bytes, or `None` if it doesn't exist yet.
+    /// Legacy remote `tasks.json` bytes, or `None` if it doesn't exist yet.
     fn read_tasks(&self) -> Result<Option<Vec<u8>>>;
-    /// Create-or-overwrite the remote `tasks.json`.
+    /// Create-or-overwrite the legacy remote `tasks.json`.
     fn write_tasks(&self, bytes: &[u8]) -> Result<()>;
     /// Names of all files directly in the folder.
     fn list_file_names(&self) -> Result<Vec<String>>;
     /// Read a file in the folder by name.
     fn read_file(&self, name: &str) -> Result<Vec<u8>>;
+    /// Create-or-overwrite a JSON file in the folder by name.
+    fn write_file(&self, name: &str, bytes: &[u8]) -> Result<()>;
     /// Delete a file in the folder by name (no-op if absent).
     fn delete_file(&self, name: &str) -> Result<()>;
 }
@@ -43,6 +46,19 @@ pub fn is_conflict_filename(name: &str, base_stem: &str, base_filename: &str) ->
         && name.starts_with(base_stem)
         && name.ends_with(".json")
         && name.contains(CONFLICT_NEEDLE)
+}
+
+fn is_replica_filename(name: &str) -> bool {
+    name.starts_with("tasks_") && name.ends_with(".json") && !name.contains(CONFLICT_NEEDLE)
+}
+
+fn writable_replica_name(data_path: &Path) -> String {
+    data_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|name| is_replica_filename(name))
+        .unwrap_or(BASE_FILENAME)
+        .to_string()
 }
 
 /// What a first link to a picked folder should do, decided **fail-safe**.
@@ -65,7 +81,10 @@ pub enum LinkAction {
 /// read the folder" for "the folder is empty" — the latter is what overwrote a
 /// real remote on first link (the Drive data-loss bug).
 pub fn remote_has_tasks(backend: &dyn SafBackend) -> Result<bool> {
-    Ok(backend.list_file_names()?.iter().any(|n| n == BASE_FILENAME))
+    Ok(backend
+        .list_file_names()?
+        .iter()
+        .any(|n| n == BASE_FILENAME || is_replica_filename(n)))
 }
 
 /// Decide a first link's action without ever risking the remote: only `Seed`
@@ -74,9 +93,9 @@ pub fn remote_has_tasks(backend: &dyn SafBackend) -> Result<bool> {
 /// remote is left untouched and the error is surfaced instead).
 pub fn first_link_action(backend: &dyn SafBackend) -> LinkAction {
     match remote_has_tasks(backend) {
-        Ok(true)  => LinkAction::Pull,
+        Ok(true) => LinkAction::Pull,
         Ok(false) => LinkAction::Seed,
-        Err(_)    => LinkAction::Abort,
+        Err(_) => LinkAction::Abort,
     }
 }
 
@@ -85,6 +104,7 @@ pub fn first_link_action(backend: &dyn SafBackend) -> LinkAction {
 pub fn push_out(
     state: &AppState,
     backend: &dyn SafBackend,
+    data_path: &Path,
     last_synced_hash: Option<[u8; 32]>,
 ) -> Result<Option<[u8; 32]>> {
     let bytes = state.read(serde_json::to_vec_pretty)?;
@@ -92,7 +112,7 @@ pub fn push_out(
     if Some(h) == last_synced_hash {
         return Ok(None);
     }
-    backend.write_tasks(&bytes)?;
+    backend.write_file(&writable_replica_name(data_path), &bytes)?;
     Ok(Some(h))
 }
 
@@ -117,12 +137,11 @@ pub fn pull_in(
     // 1. Mirror conflict files first (independent of main-file validity).
     let conflict_count = mirror_conflict_files(backend, dir)?;
 
-    // 2. Adopt a changed, VALID remote tasks.json (last-write-wins), preserving
-    //    any diverged local edits as a conflict file (#34) and writing the remote
-    //    bytes verbatim so the synced hash matches what's on disk (no re-push echo).
+    // 2. Adopt a changed, VALID merged remote replica document, preserving any
+    //    diverged local edits as a conflict file (#34).
     let mut new_hash = last_synced_hash;
     let mut imported = false;
-    if let Some(remote) = backend.read_tasks()? {
+    if let Some(remote) = read_merged_remote(backend)? {
         let h = sha256(&remote);
         if Some(h) != last_synced_hash {
             match state.adopt_synced(&remote, last_synced_hash) {
@@ -132,13 +151,19 @@ pub fn pull_in(
                 }
                 Err(_) => {
                     // Torn/garbage or newer-version remote: skip, keep the shadow intact.
-                    return Err(AppError::Invalid("saf: remote tasks.json is not valid JSON".into()));
+                    return Err(AppError::Invalid(
+                        "saf: remote tasks.json is not valid JSON".into(),
+                    ));
                 }
             }
         }
     }
 
-    Ok(PullOutcome { imported, new_synced_hash: new_hash, conflict_count })
+    Ok(PullOutcome {
+        imported,
+        new_synced_hash: new_hash,
+        conflict_count,
+    })
 }
 
 /// Copy every conflict file from the folder into the app-private `dir` so the
@@ -170,11 +195,39 @@ pub fn switch_to_remote(
 ) -> Result<PullOutcome> {
     let dir = data_path.parent().unwrap_or_else(|| Path::new("."));
     let conflict_count = mirror_conflict_files(backend, dir)?;
-    let (imported, new_synced_hash) = match backend.read_tasks()? {
+    let (imported, new_synced_hash) = match read_merged_remote(backend)? {
         Some(remote) => (true, Some(state.load_replacing_local(&remote)?)),
         None => (false, None),
     };
-    Ok(PullOutcome { imported, new_synced_hash, conflict_count })
+    Ok(PullOutcome {
+        imported,
+        new_synced_hash,
+        conflict_count,
+    })
+}
+
+fn read_merged_remote(backend: &dyn SafBackend) -> Result<Option<Vec<u8>>> {
+    let names = backend.list_file_names()?;
+    let replica_names: Vec<_> = names
+        .iter()
+        .filter(|name| is_replica_filename(name))
+        .cloned()
+        .collect();
+    let mut docs = Vec::new();
+    if replica_names.is_empty() {
+        if let Some(bytes) = backend.read_tasks()? {
+            docs.push(serde_json::from_slice::<Document>(&bytes)?);
+        }
+    } else {
+        for name in replica_names {
+            let bytes = backend.read_file(&name)?;
+            docs.push(serde_json::from_slice::<Document>(&bytes)?);
+        }
+    }
+    if docs.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(serde_json::to_vec_pretty(&merge_documents(docs))?))
 }
 
 /// Status surfaced to the UI.
@@ -303,15 +356,20 @@ pub mod android {
             if !present {
                 return Ok(None);
             }
-            let uri = fs.resolve_file_uri(&self.folder, BASE_FILENAME).map_err(saferr)?;
+            let uri = fs
+                .resolve_file_uri(&self.folder, BASE_FILENAME)
+                .map_err(saferr)?;
             Ok(Some(fs.read(&uri).map_err(saferr)?))
         }
         fn write_tasks(&self, bytes: &[u8]) -> Result<()> {
+            self.write_file(BASE_FILENAME, bytes)
+        }
+        fn write_file(&self, name: &str, bytes: &[u8]) -> Result<()> {
             let fs = self.app.android_fs();
-            let uri = match fs.resolve_file_uri(&self.folder, BASE_FILENAME) {
+            let uri = match fs.resolve_file_uri(&self.folder, name) {
                 Ok(u) => u,
                 Err(_) => fs
-                    .create_new_file(&self.folder, BASE_FILENAME, Some("application/json"))
+                    .create_new_file(&self.folder, name, Some("application/json"))
                     .map_err(saferr)?,
             };
             fs.write(&uri, bytes).map_err(saferr)
@@ -345,9 +403,16 @@ pub mod android {
     /// Returns the picked folder's `to_json_string()` + a display label.
     pub async fn pick_and_persist(app: &AppHandle) -> Result<Option<(String, String)>> {
         let api = app.android_fs_async();
-        let picked = api.file_picker().pick_dir(None, false).await.map_err(saferr)?;
+        let picked = api
+            .file_picker()
+            .pick_dir(None, false)
+            .await
+            .map_err(saferr)?;
         let Some(uri) = picked else { return Ok(None) };
-        api.file_picker().persist_uri_permission(&uri).await.map_err(saferr)?;
+        api.file_picker()
+            .persist_uri_permission(&uri)
+            .await
+            .map_err(saferr)?;
         let json = uri.to_json_string().map_err(saferr)?;
         let label = folder_label(&uri);
         Ok(Some((json, label)))
@@ -357,12 +422,16 @@ pub mod android {
     pub fn folder_label(uri: &FileUri) -> String {
         let raw = uri.uri.rsplit('/').next().unwrap_or(&uri.uri);
         // Decode the few characters that matter for display.
-        raw.replace("%2F", "/").replace("%3A", ":").replace("%20", " ")
+        raw.replace("%2F", "/")
+            .replace("%3A", ":")
+            .replace("%20", " ")
     }
 
     /// Check the persisted read+write permission still holds.
     pub fn permission_ok(app: &AppHandle, folder_uri_json: &str) -> bool {
-        let Ok(uri) = FileUri::from_json_str(folder_uri_json) else { return false };
+        let Ok(uri) = FileUri::from_json_str(folder_uri_json) else {
+            return false;
+        };
         app.android_fs()
             .file_picker()
             .check_persisted_uri_permission(&uri, UriPermission::ReadAndWrite)
@@ -384,8 +453,13 @@ mod tests {
     }
     impl FakeBackend {
         fn with(files: &[(&str, &[u8])]) -> Self {
-            let m = files.iter().map(|(n, b)| (n.to_string(), b.to_vec())).collect();
-            FakeBackend { files: Mutex::new(m) }
+            let m = files
+                .iter()
+                .map(|(n, b)| (n.to_string(), b.to_vec()))
+                .collect();
+            FakeBackend {
+                files: Mutex::new(m),
+            }
         }
     }
     impl SafBackend for FakeBackend {
@@ -393,14 +467,28 @@ mod tests {
             Ok(self.files.lock().unwrap().get("tasks.json").cloned())
         }
         fn write_tasks(&self, bytes: &[u8]) -> crate::error::Result<()> {
-            self.files.lock().unwrap().insert("tasks.json".into(), bytes.to_vec());
+            self.files
+                .lock()
+                .unwrap()
+                .insert("tasks.json".into(), bytes.to_vec());
+            Ok(())
+        }
+        fn write_file(&self, name: &str, bytes: &[u8]) -> crate::error::Result<()> {
+            self.files
+                .lock()
+                .unwrap()
+                .insert(name.into(), bytes.to_vec());
             Ok(())
         }
         fn list_file_names(&self) -> crate::error::Result<Vec<String>> {
             Ok(self.files.lock().unwrap().keys().cloned().collect())
         }
         fn read_file(&self, name: &str) -> crate::error::Result<Vec<u8>> {
-            self.files.lock().unwrap().get(name).cloned()
+            self.files
+                .lock()
+                .unwrap()
+                .get(name)
+                .cloned()
                 .ok_or_else(|| crate::error::AppError::NotFound(name.into()))
         }
         fn delete_file(&self, name: &str) -> crate::error::Result<()> {
@@ -420,13 +508,18 @@ mod tests {
         fn write_tasks(&self, _bytes: &[u8]) -> crate::error::Result<()> {
             panic!("write_tasks must never be called when the folder state is unknown");
         }
+        fn write_file(&self, _name: &str, _bytes: &[u8]) -> crate::error::Result<()> {
+            panic!("write_file must never be called when the folder state is unknown");
+        }
         fn list_file_names(&self) -> crate::error::Result<Vec<String>> {
             Err(crate::error::AppError::Invalid("saf: list failed".into()))
         }
         fn read_file(&self, name: &str) -> crate::error::Result<Vec<u8>> {
             Err(crate::error::AppError::NotFound(name.into()))
         }
-        fn delete_file(&self, _name: &str) -> crate::error::Result<()> { Ok(()) }
+        fn delete_file(&self, _name: &str) -> crate::error::Result<()> {
+            Ok(())
+        }
     }
 
     fn temp_state() -> (tempfile::TempDir, AppState, std::path::PathBuf) {
@@ -468,19 +561,29 @@ mod tests {
         let (_d, state, path) = temp_state();
         // Local has un-synced data. The OLD pull behavior preserved it as a
         // conflict file; switching the data source must DISCARD it instead.
-        state.write(|d| {
-            d.tags.push(crate::model::Tag {
-                id: "g_local".into(), name: "local".into(), color: "#fff".into(),
-                priority: 0, pinned: false,
-            });
-            Ok(())
-        }).unwrap();
+        state
+            .write(|d| {
+                d.tags.push(crate::model::Tag {
+                    id: "g_local".into(),
+                    name: "local".into(),
+                    color: "#fff".into(),
+                    priority: 0,
+                    pinned: false,
+                    updated_at: 1,
+                });
+                Ok(())
+            })
+            .unwrap();
 
         // The new folder holds a different document — this is what should load.
         let mut remote_doc = crate::model::Document::default();
         remote_doc.tags.push(crate::model::Tag {
-            id: "g_remote".into(), name: "remote".into(), color: "#fff".into(),
-            priority: 0, pinned: false,
+            id: "g_remote".into(),
+            name: "remote".into(),
+            color: "#fff".into(),
+            priority: 0,
+            pinned: false,
+            updated_at: 1,
         });
         let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
         let backend = FakeBackend::with(&[("tasks.json", &remote)]);
@@ -488,10 +591,15 @@ mod tests {
         let out = switch_to_remote(&state, &backend, &path).unwrap();
         assert!(out.imported);
         // Remote loaded outright.
-        assert_eq!(state.read(|d| d.tags.iter().map(|t| t.id.clone()).collect::<Vec<_>>()), ["g_remote"]);
+        assert_eq!(
+            state.read(|d| d.tags.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["g_remote"]
+        );
         // Local discarded — no conflict file (unlike routine pull_in).
-        assert!(crate::sync::scan_conflict_files(&path).is_empty(),
-                "switching data source discards local without a conflict file");
+        assert!(
+            crate::sync::scan_conflict_files(&path).is_empty(),
+            "switching data source discards local without a conflict file"
+        );
     }
 
     #[test]
@@ -505,10 +613,17 @@ mod tests {
     #[test]
     fn is_conflict_filename_matches_syncthing_copies() {
         assert!(is_conflict_filename(
-            "tasks.sync-conflict-20260530-120000-ABCDEF.json", "tasks", "tasks.json"));
+            "tasks.sync-conflict-20260530-120000-ABCDEF.json",
+            "tasks",
+            "tasks.json"
+        ));
         assert!(!is_conflict_filename("tasks.json", "tasks", "tasks.json")); // the main file
         assert!(!is_conflict_filename("notes.json", "tasks", "tasks.json")); // wrong stem
-        assert!(!is_conflict_filename("tasks.backup.json", "tasks", "tasks.json")); // no "conflict"
+        assert!(!is_conflict_filename(
+            "tasks.backup.json",
+            "tasks",
+            "tasks.json"
+        )); // no "conflict"
     }
 
     #[test]
@@ -516,11 +631,27 @@ mod tests {
         let (_d, state, _p) = temp_state();
         let backend = FakeBackend::default();
         // First push writes and returns a hash.
-        let h1 = push_out(&state, &backend, None).unwrap();
+        let h1 = push_out(
+            &state,
+            &backend,
+            &std::path::PathBuf::from("tasks_android.json"),
+            None,
+        )
+        .unwrap();
         assert!(h1.is_some());
-        assert!(backend.files.lock().unwrap().contains_key("tasks.json"));
+        assert!(backend
+            .files
+            .lock()
+            .unwrap()
+            .contains_key("tasks_android.json"));
         // Second push with the same last_synced_hash is suppressed (no new hash).
-        let h2 = push_out(&state, &backend, h1).unwrap();
+        let h2 = push_out(
+            &state,
+            &backend,
+            &std::path::PathBuf::from("tasks_android.json"),
+            h1,
+        )
+        .unwrap();
         assert!(h2.is_none());
     }
 
@@ -535,13 +666,17 @@ mod tests {
             color: "#fff".into(),
             priority: 0,
             pinned: false,
+            updated_at: 1,
         });
         let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
         let backend = FakeBackend::with(&[("tasks.json", &remote)]);
 
         let out = pull_in(&state, &backend, &path, None).unwrap();
         assert!(out.imported);
-        assert_eq!(state.read(|d| d.tags.iter().map(|t| t.id.clone()).collect::<Vec<_>>()), ["g_remote"]);
+        assert_eq!(
+            state.read(|d| d.tags.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["g_remote"]
+        );
         let h = out.new_synced_hash;
 
         // Pulling again with the same hash imports nothing.
@@ -561,6 +696,7 @@ mod tests {
                     color: "#fff".into(),
                     priority: 0,
                     pinned: false,
+                    updated_at: 1,
                 });
                 Ok(())
             })
@@ -574,14 +710,28 @@ mod tests {
         // First link (last_synced_hash = None): adopt remote, preserve local.
         let out = pull_in(&state, &backend, &path, None).unwrap();
         assert!(out.imported);
-        assert!(state.read(|d| d.tags.is_empty()), "remote (no tags) was adopted");
+        assert!(
+            state.read(|d| d.tags.is_empty()),
+            "remote (no tags) was adopted"
+        );
 
         // The diverged local doc must survive as a conflict file to reconcile.
         let conflicts = crate::sync::scan_conflict_files(&path);
-        assert_eq!(conflicts.len(), 1, "diverged local data preserved as a conflict file");
+        assert_eq!(
+            conflicts.len(),
+            1,
+            "diverged local data preserved as a conflict file"
+        );
         let bytes = std::fs::read(&conflicts[0]).unwrap();
         let preserved: crate::model::Document = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(preserved.tags.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["g_local"]);
+        assert_eq!(
+            preserved
+                .tags
+                .iter()
+                .map(|t| t.id.as_str())
+                .collect::<Vec<_>>(),
+            ["g_local"]
+        );
     }
 
     #[test]
@@ -596,6 +746,7 @@ mod tests {
                     color: "#fff".into(),
                     priority: 0,
                     pinned: false,
+                    updated_at: 1,
                 });
                 Ok(())
             })
@@ -610,13 +761,17 @@ mod tests {
             color: "#fff".into(),
             priority: 0,
             pinned: false,
+            updated_at: 1,
         });
         let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
         let backend = FakeBackend::with(&[("tasks.json", &remote)]);
 
         let out = pull_in(&state, &backend, &path, Some(synced_hash)).unwrap();
         assert!(out.imported);
-        assert!(state.read(|d| d.tags.iter().any(|t| t.id == "g_remote")), "remote edit adopted");
+        assert!(
+            state.read(|d| d.tags.iter().any(|t| t.id == "g_remote")),
+            "remote edit adopted"
+        );
         // No spurious conflict file: local was merely behind, not diverged.
         assert!(
             crate::sync::scan_conflict_files(&path).is_empty(),
@@ -631,7 +786,10 @@ mod tests {
         let conflict_bytes = serde_json::to_vec_pretty(&before).unwrap();
         let backend = FakeBackend::with(&[
             ("tasks.json", b"{ this is not valid json"),
-            ("tasks.sync-conflict-20260530-120000-AAA.json", &conflict_bytes),
+            (
+                "tasks.sync-conflict-20260530-120000-AAA.json",
+                &conflict_bytes,
+            ),
             ("unrelated.txt", b"ignore me"),
         ]);
 

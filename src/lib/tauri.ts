@@ -40,6 +40,7 @@ export type Tag = {
   color: string;
   priority: number; // weight; -9999..9999. A task's priority = max weight of its tags.
   pinned?: boolean; // shown in the curated sidebar tag list; absent = false (#78)
+  updated_at?: string; // ISO-8601 local time w/ offset of last tag edit; omitted for older tags
 };
 
 /**

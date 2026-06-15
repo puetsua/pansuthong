@@ -1,4 +1,4 @@
-use pansutong_lib::model::{new_task_id, Task};
+use pansutong_lib::model::{new_task_id, Task, CURRENT_VERSION};
 use pansutong_lib::store::AppState;
 use std::fs;
 use tempfile::tempdir;
@@ -28,7 +28,7 @@ fn open_creates_default_document_when_missing() {
     let state = AppState::open(path.clone()).unwrap();
     assert!(path.exists());
     state.read(|d| {
-        assert_eq!(d.version, 8);
+        assert_eq!(d.version, CURRENT_VERSION);
         assert!(d.tasks.is_empty());
     });
 }
@@ -39,7 +39,12 @@ fn write_persists_and_round_trips() {
     let path = dir.path().join("tasks.json");
     {
         let state = AppState::open(path.clone()).unwrap();
-        state.write(|d| { d.tasks.push(make_task("hello")); Ok(()) }).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(make_task("hello"));
+                Ok(())
+            })
+            .unwrap();
     }
     let state = AppState::open(path.clone()).unwrap();
     state.read(|d| {
@@ -53,8 +58,14 @@ fn atomic_write_leaves_no_tmp_file() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("tasks.json");
     let state = AppState::open(path.clone()).unwrap();
-    state.write(|d| { d.tasks.push(make_task("a")); Ok(()) }).unwrap();
-    let entries: Vec<_> = fs::read_dir(dir.path()).unwrap()
+    state
+        .write(|d| {
+            d.tasks.push(make_task("a"));
+            Ok(())
+        })
+        .unwrap();
+    let entries: Vec<_> = fs::read_dir(dir.path())
+        .unwrap()
         .filter_map(|e| e.ok())
         .map(|e| e.file_name().to_string_lossy().to_string())
         .collect();
@@ -68,7 +79,12 @@ fn hash_updates_after_write() {
     let path = dir.path().join("tasks.json");
     let state = AppState::open(path.clone()).unwrap();
     let before = state.last_written_hash();
-    state.write(|d| { d.tasks.push(make_task("x")); Ok(()) }).unwrap();
+    state
+        .write(|d| {
+            d.tasks.push(make_task("x"));
+            Ok(())
+        })
+        .unwrap();
     let after = state.last_written_hash();
     assert_ne!(before, after);
 }
