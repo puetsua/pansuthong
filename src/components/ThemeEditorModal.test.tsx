@@ -60,16 +60,16 @@ describe("ThemeEditorModal", () => {
   it("imports a pasted theme into the editor fields", () => {
     render(<ThemeEditorModal preset={{ ...working(), name: "" }} onSave={vi.fn()} onClose={vi.fn()} />);
     const json = serializeThemeJson("Imported X", { "--c-accent": "#abcdef" }, {});
-    fireEvent.change(screen.getByLabelText("Import a theme"), { target: { value: json } });
-    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    fireEvent.change(screen.getByLabelText("Import"), { target: { value: json } });
+    fireEvent.click(screen.getByRole("button", { name: "Override" }));
     expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Imported X");
     expect((screen.getByLabelText("Accent") as HTMLInputElement).value).toBe("#abcdef");
   });
 
   it("shows an error for invalid import JSON", () => {
     render(<ThemeEditorModal preset={working()} onSave={vi.fn()} onClose={vi.fn()} />);
-    fireEvent.change(screen.getByLabelText("Import a theme"), { target: { value: "nope" } });
-    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    fireEvent.change(screen.getByLabelText("Import"), { target: { value: "nope" } });
+    fireEvent.click(screen.getByRole("button", { name: "Override" }));
     expect(screen.getByRole("alert")).toBeTruthy();
   });
 
