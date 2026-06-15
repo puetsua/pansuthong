@@ -41,7 +41,7 @@ export function ThemePreview({ tokens, onHover }: Props) {
           {/* A normal task row */}
           <div className="task-row" data-token="--c-surface">
             <span className="task-main">
-              <span className="task-title" data-token="--c-text">{t("settings.themePreviewTitle")}</span>
+              <span className="task-title"><span className="tp-text" data-token="--c-text">{t("settings.themePreviewTitle")}</span></span>
               <span className="task-when late" data-token="--c-danger">{t("settings.themePreviewOverdue")}</span>
             </span>
             <span className="task-timer" data-token="--c-text-muted">
@@ -52,7 +52,7 @@ export function ThemePreview({ tokens, onHover }: Props) {
           {/* A running-timer task row */}
           <div className="task-row" data-timing="true" data-token="--c-accent-bg">
             <span className="task-main">
-              <span className="task-title" data-token="--c-text">{t("settings.themePreviewTask2")}</span>
+              <span className="task-title"><span className="tp-text" data-token="--c-text">{t("settings.themePreviewTask2")}</span></span>
               <span className="task-when" data-token="--c-text-subtle"
                     style={{ color: "var(--c-text-subtle)" }}>{t("settings.themePreviewTimeLeft")}</span>
             </span>
