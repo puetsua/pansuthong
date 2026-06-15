@@ -49,21 +49,22 @@ describe("ThemePickerModal", () => {
     expect(patch.theme_preset).toBe(patch.custom_presets[0].id);
   });
 
-  it("deletes a custom preset", () => {
+  it("deletes a custom preset from the editor", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const apply = vi.fn();
     render(<ThemePickerModal settings={settings({ theme_preset: "custom_1", custom_presets: [mine] })} applySettings={apply} onClose={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Delete Mine" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Mine" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(apply).toHaveBeenCalledWith({ custom_presets: [], theme_preset: "default" });
   });
 
-  it("offers edit/duplicate/export/delete on a custom card", () => {
+  it("offers edit and duplicate on a custom card, but not export or delete", () => {
     render(<ThemePickerModal settings={settings({ custom_presets: [mine] })} applySettings={vi.fn()} onClose={vi.fn()} />);
     const card = screen.getByRole("button", { name: "Mine" }).closest(".theme-card") as HTMLElement;
     expect(within(card).getByRole("button", { name: "Edit Mine" })).toBeTruthy();
     expect(within(card).getByRole("button", { name: "Duplicate Mine" })).toBeTruthy();
-    expect(within(card).getByRole("button", { name: "Export Mine" })).toBeTruthy();
-    expect(within(card).getByRole("button", { name: "Delete Mine" })).toBeTruthy();
+    expect(within(card).queryByRole("button", { name: "Export Mine" })).toBeNull();
+    expect(within(card).queryByRole("button", { name: "Delete Mine" })).toBeNull();
   });
 
   it("previews only the active variant on cards", () => {

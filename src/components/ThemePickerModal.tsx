@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { Settings, ThemePreset } from "../lib/tauri";
 import {
   THEME_PRESETS, DEFAULT_PRESET_ID, ThemeTokens,
-  fullTokens, serializeThemeJson, activeVariant, prefersDarkScheme, type ThemeSettingsPatch,
+  fullTokens, activeVariant, prefersDarkScheme, type ThemeSettingsPatch,
 } from "../lib/themes";
 import { ThemeEditorModal } from "./ThemeEditorModal";
 
@@ -82,8 +82,6 @@ export function ThemePickerModal({ settings, applySettings, onClose }: Props) {
     });
   const startEdit = (c: Card) =>
     setEdit({ preset: { id: c.id, name: c.name, light: { ...c.light }, dark: { ...c.dark } }, existing: true });
-  const exportCard = (c: Card) =>
-    void navigator.clipboard?.writeText(serializeThemeJson(c.name, c.light, c.dark)).catch(() => {});
 
   return createPortal(
     <div className="modal-backdrop">
@@ -113,15 +111,6 @@ export function ThemePickerModal({ settings, applySettings, onClose }: Props) {
                 <button type="button" aria-label={`${t("settings.themeDuplicate")} ${c.name}`} onClick={() => startDuplicate(c)}>
                   {t("settings.themeDuplicate")}
                 </button>
-                <button type="button" aria-label={`${t("settings.themeExport")} ${c.name}`} onClick={() => exportCard(c)}>
-                  {t("settings.themeExport")}
-                </button>
-                {c.custom && (
-                  <button type="button" className="theme-card-delete" aria-label={`${t("settings.themeDelete")} ${c.name}`}
-                          onClick={() => deleteCustom(c.id, c.name)}>
-                    {t("settings.themeDelete")}
-                  </button>
-                )}
               </div>
             </div>
           ))}
