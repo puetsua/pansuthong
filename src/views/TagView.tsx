@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useParams, Navigate, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Composer } from "../components/Composer";
-import { GhostRow } from "../components/GhostRow";
-import { TaskList } from "../components/TaskList";
+import { RowList } from "../components/RowList";
 import { TagEditor } from "../components/TagEditor";
 import { Indexes } from "../state/indexes";
 import { useHeldCompletions, withHeld } from "../state/heldCompletions";
@@ -27,6 +26,7 @@ export function TagView({ doc, indexes }: Props) {
   const active = indexes.byTag.get(id) ?? [];
   const tasks = withHeld(active, held);
   const ghosts = indexes.ghostsForDate(indexes.todayIso).filter(g => g.tag_ids.includes(id));
+  const rows = indexes.mergeRows(tasks, ghosts);
   const open  = active.filter(t => !isDone(t)).length;
 
   return (
@@ -40,10 +40,9 @@ export function TagView({ doc, indexes }: Props) {
         <p className="view-sub">{t("tagView.subtitle", { open, total: tasks.length })}</p>
       </header>
       <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} contextTagId={id} />
-      {ghosts.map(g => <GhostRow key={g.id} ghost={g} tags={indexes.tagsById} />)}
-      <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={indexes.todayIso}
-                emptyText={t("tagView.empty")}
-                onCompleted={onCompleted} onReopened={onReopened} />
+      <RowList rows={rows} tags={indexes.tagsById} todayIso={indexes.todayIso}
+               emptyText={t("tagView.empty")}
+               onCompleted={onCompleted} onReopened={onReopened} />
       {editing && (
         <TagEditor
           tag={tag}

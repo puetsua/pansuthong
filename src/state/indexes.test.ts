@@ -460,3 +460,62 @@ describe("ghostsForDate", () => {
     expect(buildIndexes(d).ghostsForDate("2026-06-08").map(g => g.title)).toEqual(["Push-ups"]);
   });
 });
+
+// Weighted tags + a daily recurring template tagged "mid", so its ghost has a
+// weight (5) that sits between the two real tasks (9 and 1).
+const WEIGHTED_TAGS = [
+  { id: "t_hi", name: "hi", color: "#000", priority: 9 },
+  { id: "t_mid", name: "mid", color: "#000", priority: 5 },
+  { id: "t_lo", name: "lo", color: "#000", priority: 1 },
+];
+const ISO = "2026-06-08";
+function recurMergeDoc(order: SortOrder): Document {
+  return doc({
+    settings: { theme: "auto", sort_order: order },
+    tags: WEIGHTED_TAGS,
+    tasks: [
+      { id: "k_hi", title: "hi", notes: "", tag_ids: ["t_hi"], created_at: "1970-01-01T00:00:00Z", start_date: ISO },
+      { id: "k_lo", title: "lo", notes: "", tag_ids: ["t_lo"], created_at: "1970-01-01T00:00:00Z", start_date: ISO },
+    ],
+    template_tasks: [
+      { id: "tmpl_mid", title: "recur-mid", notes: "", tag_ids: ["t_mid"], created_at: "",
+        recurrence: { kind: "daily" }, recurrence_tag_id: "t_mid" },
+    ],
+  });
+}
+
+describe("mergeRows interleaves ghosts with tasks (promotion keeps order)", () => {
+  const label = (r: { kind: "task"; task: Task } | { kind: "ghost"; ghost: unknown }) =>
+    r.kind === "ghost" ? "MID" : r.task.id;
+
+  it("priority mode: a ghost sorts by its tag weight, between higher and lower tasks", () => {
+    const ix = buildIndexes(recurMergeDoc("priority"));
+    const ghosts = ix.ghostsForDate(ISO);
+    expect(ghosts.map(g => g.title)).toEqual(["recur-mid"]);
+    const rows = ix.mergeRows(ix.today(ISO), ghosts);
+    expect(rows.map(label)).toEqual(["k_hi", "MID", "k_lo"]);
+  });
+
+  it("the ghost occupies the exact slot its promoted task would (no reorder on promote)", () => {
+    const ghosted = buildIndexes(recurMergeDoc("priority"));
+    const ghostOrder = ghosted.mergeRows(ghosted.today(ISO), ghosted.ghostsForDate(ISO)).map(label);
+    // Promote = a real task started ISO with the mid tag, appended to the doc.
+    const promoted = buildIndexes(doc({
+      settings: { theme: "auto", sort_order: "priority" },
+      tags: WEIGHTED_TAGS,
+      tasks: [
+        { id: "k_hi", title: "hi", notes: "", tag_ids: ["t_hi"], created_at: "1970-01-01T00:00:00Z", start_date: ISO },
+        { id: "k_lo", title: "lo", notes: "", tag_ids: ["t_lo"], created_at: "1970-01-01T00:00:00Z", start_date: ISO },
+        { id: "k_mid", title: "recur-mid", notes: "", tag_ids: ["t_mid"], created_at: "1970-01-01T00:00:00Z", start_date: ISO },
+      ],
+    }));
+    const taskOrder = promoted.today(ISO).map(t => (t.id === "k_mid" ? "MID" : t.id));
+    expect(ghostOrder).toEqual(taskOrder);
+  });
+
+  it("weight merge (Upcoming): interleaves by weight regardless of the global sort order", () => {
+    const ix = buildIndexes(recurMergeDoc("date"));
+    const rows = ix.mergeRowsByWeight(ix.today(ISO), ix.ghostsForDate(ISO));
+    expect(rows.map(label)).toEqual(["k_hi", "MID", "k_lo"]);
+  });
+});

@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Composer } from "../components/Composer";
-import { GhostRow } from "../components/GhostRow";
+import { RowList } from "../components/RowList";
 import { TaskList } from "../components/TaskList";
 import { Document, Task, isDone } from "../lib/tauri";
 import { formatIsoDate, isoLt } from "../lib/dates";
@@ -24,7 +24,10 @@ export function TodayView({ doc, indexes }: Props) {
   const all = indexes.today(today);
   const overdue = all.filter(task => isOverdue(task, today));
   const todays = all.filter(task => !isOverdue(task, today));
-  const ghosts = indexes.ghostsForDate(today);
+  // Recurring ghosts for today are merged into the same sorted sequence as today's
+  // tasks, so a ghost sits where its promoted task would (#9) — promoting it no
+  // longer jumps it out of a separate block at the top.
+  const todayRows = indexes.mergeRows(todays, indexes.ghostsForDate(today));
   const remaining = openCount(all);
   return (
     <section>
@@ -33,9 +36,8 @@ export function TodayView({ doc, indexes }: Props) {
         <p className="view-sub">{todayLabel} · {t("common.taskCount", { count: remaining })}</p>
       </header>
       <Composer startDate={today} todayIso={today} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} />
-      {ghosts.map(g => <GhostRow key={g.id} ghost={g} tags={indexes.tagsById} />)}
-      <TaskList tasks={todays} tags={indexes.tagsById} todayIso={today}
-                emptyText={t("today.empty")} />
+      <RowList rows={todayRows} tags={indexes.tagsById} todayIso={today}
+               emptyText={t("today.empty")} />
       {overdue.length > 0 && (
         <div className="overdue-group">
           <h3 className="overdue-heading">{t("today.overdue")} · {t("common.taskCount", { count: overdue.length })}</h3>

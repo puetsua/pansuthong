@@ -1,12 +1,10 @@
 import dayjs from "dayjs";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { GhostRow } from "../components/GhostRow";
-import { TaskList } from "../components/TaskList";
-import { effectivePriority, Indexes } from "../state/indexes";
+import { RowList } from "../components/RowList";
+import { Indexes, Row } from "../state/indexes";
 import { useHeldCompletions } from "../state/heldCompletions";
 import { Document, Task } from "../lib/tauri";
-import { GhostTask } from "../lib/recurrence";
 import { dateFormat, upcomingDays } from "../lib/settings";
 import { currentLocale } from "../i18n";
 import { formatIsoDate } from "../lib/dates";
@@ -24,9 +22,12 @@ export function UpcomingView({ doc, indexes }: Props) {
   // is left or refreshed, so a mis-click can be undone in place (#recover).
   const { held, onCompleted, onReopened } = useHeldCompletions(doc.tasks);
   const groups = buildGroups(indexes, today, horizon, held, t, dateFmt, locale);
-  const totalCount =
-    new Set(groups.flatMap(g => g.tasks.map(t => t.id))).size +
-    groups.reduce((n, g) => n + g.ghosts.length, 0);
+  const seen = new Set<string>();
+  let ghostCount = 0;
+  for (const g of groups) for (const r of g.rows) {
+    if (r.kind === "task") seen.add(r.task.id); else ghostCount++;
+  }
+  const totalCount = seen.size + ghostCount;
 
   return (
     <section>
@@ -37,11 +38,8 @@ export function UpcomingView({ doc, indexes }: Props) {
       {groups.map(g => (
         <div key={g.date} className="upcoming-group">
           <h3 className="upcoming-day">{g.label}</h3>
-          {g.ghosts.map(gh => <GhostRow key={gh.id} ghost={gh} tags={indexes.tagsById} />)}
-          {g.tasks.length > 0 && (
-            <TaskList tasks={g.tasks} tags={indexes.tagsById} todayIso={today}
-                      onCompleted={onCompleted} onReopened={onReopened} />
-          )}
+          <RowList rows={g.rows} tags={indexes.tagsById} todayIso={today}
+                   onCompleted={onCompleted} onReopened={onReopened} />
         </div>
       ))}
       {totalCount === 0 && (
@@ -51,7 +49,7 @@ export function UpcomingView({ doc, indexes }: Props) {
   );
 }
 
-type Group = { date: string; label: string; tasks: Task[]; ghosts: GhostTask[] };
+type Group = { date: string; label: string; rows: Row[] };
 
 function buildGroups(
   indexes: Indexes,
@@ -68,16 +66,18 @@ function buildGroups(
   for (let i = 1; i <= horizon; i++) {
     const day = today.add(i, "day");
     const iso = day.format("YYYY-MM-DD");
-    // All tasks in a group share this date, so order them by priority (weight desc),
-    // then append any held completions for that day (they sort to the bottom).
-    const tasks = indexes.tasks
-      .filter(t => onDay(t, iso))
-      .sort((a, b) => effectivePriority(b, indexes.tagsById) - effectivePriority(a, indexes.tagsById));
-    const heldForDay = held.filter(t => onDay(t, iso) && !tasks.some(a => a.id === t.id));
-    const all = [...tasks, ...heldForDay];
+    // Open tasks and recurring ghosts share this date, so order them together by
+    // weight (a ghost lands where its promoted task would). Held completions for the
+    // day are appended after, so they stay de-emphasised at the bottom.
+    const open = indexes.tasks.filter(task => onDay(task, iso));
     const ghosts = indexes.ghostsForDate(iso);
-    if (all.length > 0 || ghosts.length > 0) {
-      result.push({ date: iso, label: labelFor(day, today, t, dateFmt, locale), tasks: all, ghosts });
+    const heldForDay = held.filter(task => onDay(task, iso) && !open.some(a => a.id === task.id));
+    const rows: Row[] = [
+      ...indexes.mergeRowsByWeight(open, ghosts),
+      ...heldForDay.map((task): Row => ({ kind: "task", task })),
+    ];
+    if (rows.length > 0) {
+      result.push({ date: iso, label: labelFor(day, today, t, dateFmt, locale), rows });
     }
   }
   return result;

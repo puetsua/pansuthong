@@ -3,11 +3,24 @@ import { addDaysIso, isoLt, logicalDayOf, todayIso as computeTodayIso } from "..
 import { dayStartHour } from "../lib/settings";
 import { GhostTask, occursOn } from "../lib/recurrence";
 
+/** A row in a date-based view: either a real task or a computed recurring ghost.
+ *  Letting the two share one sorted sequence keeps a ghost in the same slot its
+ *  promoted task takes, so promoting it doesn't reshuffle the list (#9). */
+export type Row =
+  | { kind: "task"; task: Task }
+  | { kind: "ghost"; ghost: GhostTask };
+
 export type Indexes = {
   byTag:     Map<string, Task[]>;
   today:     (todayIso: string) => Task[];
   /** Recurring-template ghost rows for a given day (YYYY-MM-DD); computed, never stored. */
   ghostsForDate: (iso: string) => GhostTask[];
+  /** Tasks + ghosts merged into one list sorted by the configured order, so a ghost
+   *  sits where its promoted task would (used by Today and tag views). */
+  mergeRows: (tasks: Task[], ghosts: GhostTask[]) => Row[];
+  /** Tasks + ghosts merged by tag weight only, preserving input order within a tie
+   *  (used by Upcoming, which orders each day by weight). */
+  mergeRowsByWeight: (tasks: Task[], ghosts: GhostTask[]) => Row[];
   /** The current logical day (YYYY-MM-DD), honoring the day-start-hour setting. */
   todayIso:  string;
   inbox:     Task[];
@@ -21,16 +34,21 @@ export type Indexes = {
   tasks:        Task[];
 };
 
-/** Highest weight among a task's *resolvable* tags; 0 if it has none (or only unknown tags). */
-export function effectivePriority(task: Task, tagsById: Map<string, Tag>): number {
+/** Highest weight among a set of *resolvable* tags; 0 if none resolve. */
+function priorityOfTags(tagIds: string[], tagsById: Map<string, Tag>): number {
   let max = 0;
   let seen = false;
-  for (const id of task.tag_ids) {
+  for (const id of tagIds) {
     const tag = tagsById.get(id);
     if (!tag) continue;   // unknown/dangling id contributes nothing (no phantom weight-0)
     if (!seen || tag.priority > max) { max = tag.priority; seen = true; }
   }
   return max;
+}
+
+/** Highest weight among a task's *resolvable* tags; 0 if it has none (or only unknown tags). */
+export function effectivePriority(task: Task, tagsById: Map<string, Tag>): number {
+  return priorityOfTags(task.tag_ids, tagsById);
 }
 
 /** "date[Ttime]" so same-day tasks order by time; missing time = start-of-day (#93). */
@@ -83,6 +101,59 @@ function sortTasks(tasks: Task[], order: SortOrder, tagsById: Map<string, Tag>):
     tasks.sort((a, b) => byOpenFirst(a, b) || byWeightDesc(a, b) || byDateAsc(a, b));
   }
   return tasks;
+}
+
+// ── Mixed task/ghost rows ───────────────────────────────────────────────────
+// A ghost sorts as the open task it becomes when promoted: start_date = its
+// occurrence date, plus its template due date and tags. Comparing rows by that
+// same key keeps a ghost in the slot its promotion would land in.
+type RowKey = { tagIds: string[]; date?: string; done: boolean };
+
+function rowKey(row: Row): RowKey {
+  if (row.kind === "task") {
+    const t = row.task;
+    const s = moment(t.start_date, t.start_time);
+    const d = moment(t.due_date, t.due_time);
+    return { tagIds: t.tag_ids, date: s && d ? (s < d ? s : d) : (s ?? d), done: isDone(t) };
+  }
+  const g = row.ghost;
+  return { tagIds: g.tag_ids, date: moment(g.occurrenceDate) ?? moment(g.due_date), done: false };
+}
+
+function rowOpenFirst(a: RowKey, b: RowKey): number {
+  return a.done === b.done ? 0 : a.done ? 1 : -1;
+}
+function rowDateAsc(a: RowKey, b: RowKey): number {
+  if (a.date === b.date) return 0;
+  if (a.date === undefined) return 1;
+  if (b.date === undefined) return -1;
+  return a.date < b.date ? -1 : 1;
+}
+
+/** Build rows with real tasks first, then ghosts — so a ghost ties *after* a
+ *  same-key task, matching where its promoted (newly-appended) task would sort. */
+function toRows(tasks: Task[], ghosts: GhostTask[]): Row[] {
+  return [
+    ...tasks.map((task): Row => ({ kind: "task", task })),
+    ...ghosts.map((ghost): Row => ({ kind: "ghost", ghost })),
+  ];
+}
+
+function sortRowsByOrder(rows: Row[], order: SortOrder, tagsById: Map<string, Tag>): Row[] {
+  const k = new Map(rows.map(r => [r, rowKey(r)]));
+  const w = (r: Row) => priorityOfTags(k.get(r)!.tagIds, tagsById);
+  const byWeightDesc = (a: Row, b: Row) => w(b) - w(a);
+  const byDate = (a: Row, b: Row) => rowDateAsc(k.get(a)!, k.get(b)!);
+  const byOpen = (a: Row, b: Row) => rowOpenFirst(k.get(a)!, k.get(b)!);
+  if (order === "date") rows.sort((a, b) => byOpen(a, b) || byDate(a, b) || byWeightDesc(a, b));
+  else                  rows.sort((a, b) => byOpen(a, b) || byWeightDesc(a, b) || byDate(a, b));
+  return rows;
+}
+
+function sortRowsByWeight(rows: Row[], tagsById: Map<string, Tag>): Row[] {
+  const w = (r: Row) => priorityOfTags(rowKey(r).tagIds, tagsById);
+  rows.sort((a, b) => w(b) - w(a));
+  return rows;
 }
 
 export function buildIndexes(doc: Document): Indexes {
@@ -190,5 +261,10 @@ export function buildIndexes(doc: Document): Indexes {
     return out;
   };
 
-  return { byTag, today, ghostsForDate, todayIso, inbox, archived, templates, tagsById, tagsByName, tasks: active };
+  const mergeRows = (tasks: Task[], ghosts: GhostTask[]): Row[] =>
+    sortRowsByOrder(toRows(tasks, ghosts), order, tagsById);
+  const mergeRowsByWeight = (tasks: Task[], ghosts: GhostTask[]): Row[] =>
+    sortRowsByWeight(toRows(tasks, ghosts), tagsById);
+
+  return { byTag, today, ghostsForDate, mergeRows, mergeRowsByWeight, todayIso, inbox, archived, templates, tagsById, tagsByName, tasks: active };
 }
