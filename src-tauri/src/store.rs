@@ -1,5 +1,5 @@
 use crate::error::{AppError, Result};
-use crate::model::{Document, CURRENT_VERSION};
+use crate::model::{merge_documents, Document, CURRENT_VERSION};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
@@ -14,32 +14,42 @@ struct Inner {
     doc: Document,
     path: PathBuf,
     last_written_hash: [u8; 32],
+    last_seen_replicas_hash: [u8; 32],
 }
 
 impl AppState {
     /// Load `Document` from `path` (or write a default if absent).
     pub fn open(path: PathBuf) -> Result<Self> {
-        let (doc, bytes) = if path.exists() {
-            let s = fs::read_to_string(&path)?;
-            let d = parse_checked(s.as_bytes())?;
-            (d, s.into_bytes())
+        ensure_parent(&path)?;
+        seed_from_legacy_if_needed(&path)?;
+        let doc = match read_merged_document(&path)? {
+            Some(doc) => doc,
+            None if path.exists() => parse_checked(&fs::read(&path)?)?,
+            None => Document::default(),
+        };
+        let bytes = if path.exists() {
+            fs::read(&path)?
         } else {
-            let d = Document::default();
-            let bytes = serde_json::to_vec_pretty(&d)?;
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)?;
-            }
+            let bytes = serde_json::to_vec_pretty(&doc)?;
             atomic_write(&path, &bytes)?;
-            (d, bytes)
+            bytes
         };
         let hash = sha256(&bytes);
+        let replicas_hash = replicas_hash(&path)?;
         Ok(Self {
-            inner: Mutex::new(Inner { doc, path, last_written_hash: hash }),
+            inner: Mutex::new(Inner {
+                doc,
+                path,
+                last_written_hash: hash,
+                last_seen_replicas_hash: replicas_hash,
+            }),
         })
     }
 
     pub fn read<F, T>(&self, f: F) -> T
-    where F: FnOnce(&Document) -> T {
+    where
+        F: FnOnce(&Document) -> T,
+    {
         let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         f(&g.doc)
     }
@@ -50,7 +60,9 @@ impl AppState {
     /// older-format file (the new shape drops the legacy `done`/`archived` keys, so
     /// an older app build then correctly refuses the file via `parse_checked`).
     pub fn write<F, T>(&self, f: F) -> Result<T>
-    where F: FnOnce(&mut Document) -> Result<T> {
+    where
+        F: FnOnce(&mut Document) -> Result<T>,
+    {
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let before = g.doc.clone();
         let value = f(&mut g.doc)?;
@@ -64,6 +76,7 @@ impl AppState {
             eprintln!("warning: failed to append history: {e}");
         }
         g.last_written_hash = sha256(&bytes);
+        g.last_seen_replicas_hash = replicas_hash(&g.path)?;
         Ok(value)
     }
 
@@ -75,16 +88,48 @@ impl AppState {
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         g.doc = doc;
         g.last_written_hash = sha256(&bytes);
+        g.last_seen_replicas_hash = replicas_hash(&g.path)?;
         Ok(())
     }
 
+    pub fn reload_replicas_if_changed(&self) -> Result<bool> {
+        let path = self.path();
+        let hash = replicas_hash(&path)?;
+        {
+            let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+            if hash == g.last_seen_replicas_hash {
+                return Ok(false);
+            }
+        }
+        let doc = match read_merged_document(&path)? {
+            Some(doc) => doc,
+            None if path.exists() => parse_checked(&fs::read(&path)?)?,
+            None => Document::default(),
+        };
+        let own_hash = fs::read(&path)
+            .map(|bytes| sha256(&bytes))
+            .unwrap_or([0; 32]);
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        g.doc = doc;
+        g.last_written_hash = own_hash;
+        g.last_seen_replicas_hash = hash;
+        Ok(true)
+    }
+
     pub fn path(&self) -> PathBuf {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).path.clone()
+        self.inner
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .path
+            .clone()
     }
 
     #[allow(dead_code)] // used by Phase 2 sync
     pub fn last_written_hash(&self) -> [u8; 32] {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).last_written_hash
+        self.inner
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .last_written_hash
     }
 
     /// Relocate the master data file to `new_path`. If `new_path` already exists,
@@ -95,21 +140,35 @@ impl AppState {
     /// leaves the master intact. Updates the stored path and loop-suppression hash.
     pub fn repoint(&self, new_path: std::path::PathBuf) -> Result<()> {
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        if new_path.exists() {
-            let bytes = std::fs::read(&new_path)?;
-            let target_doc = parse_checked(&bytes)?;
+        ensure_parent(&new_path)?;
+        seed_from_legacy_if_needed(&new_path)?;
+        if new_path.exists() || has_replicas(&new_path) {
+            let target_doc = match read_merged_document(&new_path)? {
+                Some(doc) => doc,
+                None if new_path.exists() => parse_checked(&fs::read(&new_path)?)?,
+                None => Document::default(),
+            };
             // Changing the data source discards the current in-memory document and
             // loads the target folder's data outright (validated above, so an
             // invalid target leaves the master intact). The local doc is not
             // preserved as a conflict file — the user is deliberately switching
             // sources.
             g.doc = target_doc;
+            let bytes = if new_path.exists() {
+                std::fs::read(&new_path)?
+            } else {
+                let bytes = serde_json::to_vec_pretty(&g.doc)?;
+                atomic_write(&new_path, &bytes)?;
+                bytes
+            };
             g.last_written_hash = sha256(&bytes);
+            g.last_seen_replicas_hash = replicas_hash(&new_path)?;
             g.path = new_path;
         } else {
             let bytes = serde_json::to_vec_pretty(&g.doc)?;
             atomic_write(&new_path, &bytes)?;
             g.last_written_hash = sha256(&bytes);
+            g.last_seen_replicas_hash = replicas_hash(&new_path)?;
             g.path = new_path;
         }
         Ok(())
@@ -129,7 +188,11 @@ impl AppState {
     /// last synced) adopts cleanly with no spurious conflict file. The document is
     /// validated before anything is touched, so torn/garbage or newer-version
     /// bytes leave the master intact. Returns the adopted bytes' hash.
-    pub fn adopt_synced(&self, bytes: &[u8], last_synced_hash: Option<[u8; 32]>) -> Result<[u8; 32]> {
+    pub fn adopt_synced(
+        &self,
+        bytes: &[u8],
+        last_synced_hash: Option<[u8; 32]>,
+    ) -> Result<[u8; 32]> {
         let doc = parse_checked(bytes)?; // validate before mutating the master
         let hash = sha256(bytes);
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -143,6 +206,7 @@ impl AppState {
         atomic_write(&g.path, bytes)?;
         g.doc = doc;
         g.last_written_hash = hash;
+        g.last_seen_replicas_hash = replicas_hash(&g.path)?;
         Ok(hash)
     }
 
@@ -160,6 +224,7 @@ impl AppState {
         atomic_write(&g.path, bytes)?;
         g.doc = doc;
         g.last_written_hash = hash;
+        g.last_seen_replicas_hash = replicas_hash(&g.path)?;
         Ok(hash)
     }
 }
@@ -181,12 +246,98 @@ fn doc_has_data(d: &Document) -> bool {
     !d.tasks.is_empty() || !d.tags.is_empty()
 }
 
+fn ensure_parent(path: &Path) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    Ok(())
+}
+
+fn is_replica_name(name: &str) -> bool {
+    name.starts_with("tasks_")
+        && name.ends_with(".json")
+        && !name.to_lowercase().contains("conflict")
+}
+
+fn legacy_path(path: &Path) -> PathBuf {
+    path.with_file_name(crate::config::legacy_data_file_name())
+}
+
+fn seed_from_legacy_if_needed(path: &Path) -> Result<()> {
+    if path.exists() || has_replicas(path) {
+        return Ok(());
+    }
+    let legacy = legacy_path(path);
+    if legacy.exists() {
+        let bytes = fs::read(&legacy)?;
+        let _ = parse_checked(&bytes)?;
+        atomic_write(path, &bytes)?;
+    }
+    Ok(())
+}
+
+fn replica_paths(path: &Path) -> Result<Vec<PathBuf>> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let mut paths = Vec::new();
+    if !parent.exists() {
+        return Ok(paths);
+    }
+    for entry in fs::read_dir(parent)? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        if is_replica_name(&name) {
+            paths.push(entry.path());
+        }
+    }
+    if paths.is_empty() && path.exists() {
+        paths.push(path.to_path_buf());
+    }
+    paths.sort();
+    Ok(paths)
+}
+
+fn has_replicas(path: &Path) -> bool {
+    replica_paths(path).map_or(false, |paths| !paths.is_empty())
+}
+
+fn read_merged_document(path: &Path) -> Result<Option<Document>> {
+    let mut docs = Vec::new();
+    for replica in replica_paths(path)? {
+        let bytes = fs::read(&replica)?;
+        docs.push(parse_checked(&bytes)?);
+    }
+    if docs.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(merge_documents(docs)))
+}
+
+fn replicas_hash(path: &Path) -> Result<[u8; 32]> {
+    let mut h = Sha256::new();
+    for replica in replica_paths(path)? {
+        h.update(
+            replica
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .as_bytes(),
+        );
+        h.update([0]);
+        h.update(fs::read(replica)?);
+        h.update([0]);
+    }
+    Ok(h.finalize().into())
+}
+
 /// Save `local_bytes` beside `target_path` as a conflict file the conflict UI
 /// will surface, so adopting a folder that already has data never silently
 /// discards the local document (#34).
 fn write_local_conflict(target_path: &Path, local_bytes: &[u8]) -> Result<()> {
     let parent = target_path.parent().unwrap_or_else(|| Path::new("."));
-    let stem = target_path.file_stem().and_then(|s| s.to_str()).unwrap_or("tasks");
+    let stem = target_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("tasks");
     let name = format!("{stem}.conflict-local-{}.json", crate::model::now_ms());
     atomic_write(&parent.join(name), local_bytes)
 }
@@ -228,10 +379,18 @@ mod repoint_tests {
         let state = AppState::open(dir.path().join("tasks.json")).unwrap();
         let before = state.read(|d| d.last_modified);
 
-        state.write(|d| { d.tasks.push(sample_task("k_x")); Ok(()) }).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_x"));
+                Ok(())
+            })
+            .unwrap();
 
         let after = state.read(|d| d.last_modified);
-        assert!(after > before, "write should bump last_modified ({after} !> {before})");
+        assert!(
+            after > before,
+            "write should bump last_modified ({after} !> {before})"
+        );
 
         // The bump is persisted to disk, not just held in memory. On disk the
         // stamp is ISO-8601 at second precision, so it equals the in-memory value
@@ -246,7 +405,12 @@ mod repoint_tests {
         let dir = tempdir().unwrap();
         let state = AppState::open(dir.path().join("tasks.json")).unwrap();
         // mutate so the seeded copy is observable
-        state.write(|d| { d.tasks.push(sample_task("k_seed")); Ok(()) }).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_seed"));
+                Ok(())
+            })
+            .unwrap();
 
         let target_dir = tempdir().unwrap();
         let new_path = target_dir.path().join("tasks.json");
@@ -257,7 +421,10 @@ mod repoint_tests {
         assert_eq!(state.path(), new_path);
         let bytes = std::fs::read(&new_path).unwrap();
         let doc: crate::model::Document = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(doc.tasks.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["k_seed"]);
+        assert_eq!(
+            doc.tasks.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
+            ["k_seed"]
+        );
     }
 
     #[test]
@@ -276,7 +443,10 @@ mod repoint_tests {
 
         assert_eq!(state.path(), new_path);
         // In-memory doc adopted the target's content.
-        assert_eq!(state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()), ["k_theirs"]);
+        assert_eq!(
+            state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["k_theirs"]
+        );
         // Hash now matches the adopted bytes, so the watcher won't re-import.
         let h = {
             use sha2::{Digest, Sha256};
@@ -290,10 +460,19 @@ mod repoint_tests {
 
     fn sample_task(id: &str) -> crate::model::Task {
         crate::model::Task {
-            id: id.into(), title: id.into(),
-            due_date: None, due_time: None, start_date: None, start_time: None, notes: String::new(),
-            tag_ids: Vec::new(), estimated_seconds: None,
-            created_at: 0, completed_at: None, updated_at: 0, time_entries: Vec::new(),
+            id: id.into(),
+            title: id.into(),
+            due_date: None,
+            due_time: None,
+            start_date: None,
+            start_time: None,
+            notes: String::new(),
+            tag_ids: Vec::new(),
+            estimated_seconds: None,
+            created_at: 0,
+            completed_at: None,
+            updated_at: 0,
+            time_entries: Vec::new(),
         }
     }
 
@@ -305,7 +484,10 @@ mod repoint_tests {
         doc.version = CURRENT_VERSION + 1;
         std::fs::write(&path, serde_json::to_vec_pretty(&doc).unwrap()).unwrap();
 
-        assert!(AppState::open(path).is_err(), "a newer-version file must be refused");
+        assert!(
+            AppState::open(path).is_err(),
+            "a newer-version file must be refused"
+        );
     }
 
     #[test]
@@ -325,7 +507,12 @@ mod repoint_tests {
         let state = AppState::open(dir.path().join("tasks.json")).unwrap();
         // Local-only data. Changing the data source discards it in favor of the
         // target folder's data — no conflict file is written.
-        state.write(|d| { d.tasks.push(sample_task("k_local")); Ok(()) }).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_local"));
+                Ok(())
+            })
+            .unwrap();
 
         // Target folder already holds a different tasks.json (the new source).
         let target_dir = tempdir().unwrap();
@@ -337,10 +524,15 @@ mod repoint_tests {
         state.repoint(new_path.clone()).unwrap();
 
         // The target's data was loaded outright...
-        assert_eq!(state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()), ["k_theirs"]);
+        assert_eq!(
+            state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["k_theirs"]
+        );
         // ...and the local doc was discarded, NOT preserved as a conflict file.
-        assert!(crate::sync::scan_conflict_files(&new_path).is_empty(),
-                "changing the data source discards local data without a conflict file");
+        assert!(
+            crate::sync::scan_conflict_files(&new_path).is_empty(),
+            "changing the data source discards local data without a conflict file"
+        );
     }
 
     #[test]
@@ -363,8 +555,16 @@ mod repoint_tests {
         // With unwrap_or_else(|e| e.into_inner()) the guard is recovered, so reads
         // and writes keep working.
         let _ = state.read(|d| d.tasks.len());
-        state.write(|d| { d.tasks.push(sample_task("k_after")); Ok(()) }).unwrap();
-        assert_eq!(state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()), ["k_after"]);
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_after"));
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(
+            state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["k_after"]
+        );
     }
 
     #[test]
@@ -381,7 +581,33 @@ mod repoint_tests {
 
         state.repoint(new_path.clone()).unwrap();
 
-        assert!(crate::sync::scan_conflict_files(&new_path).is_empty(),
-                "no conflict file when there is no local data to lose");
+        assert!(
+            crate::sync::scan_conflict_files(&new_path).is_empty(),
+            "no conflict file when there is no local data to lose"
+        );
+    }
+
+    #[test]
+    fn open_merges_sibling_device_replicas() {
+        let dir = tempdir().unwrap();
+        let desktop_path = dir.path().join("tasks_desktop.json");
+        let mobile_path = dir.path().join("tasks_mobile.json");
+
+        let mut desktop = Document::default();
+        desktop.tasks.push(sample_task("k_desktop"));
+        std::fs::write(&desktop_path, serde_json::to_vec_pretty(&desktop).unwrap()).unwrap();
+
+        let mut mobile = Document::default();
+        mobile.tasks.push(sample_task("k_mobile"));
+        std::fs::write(&mobile_path, serde_json::to_vec_pretty(&mobile).unwrap()).unwrap();
+
+        let state = AppState::open(desktop_path).unwrap();
+        let ids = state.read(|d| {
+            d.tasks
+                .iter()
+                .map(|task| task.id.clone())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(ids, ["k_desktop", "k_mobile"]);
     }
 }

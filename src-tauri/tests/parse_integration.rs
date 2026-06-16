@@ -1,7 +1,9 @@
 use chrono::NaiveDate;
 use pansutong_lib::parse::{parse, ParsedInput};
 
-fn today() -> NaiveDate { NaiveDate::from_ymd_opt(2026, 5, 28).unwrap() } // Thu
+fn today() -> NaiveDate {
+    NaiveDate::from_ymd_opt(2026, 5, 28).unwrap()
+} // Thu
 
 #[test]
 fn plain_title_passes_through() {
@@ -51,7 +53,10 @@ fn due_today() {
 #[test]
 fn due_tomorrow() {
     let p = parse("Renew passport due tomorrow", today());
-    assert_eq!(p.due_date, Some(NaiveDate::from_ymd_opt(2026, 5, 29).unwrap()));
+    assert_eq!(
+        p.due_date,
+        Some(NaiveDate::from_ymd_opt(2026, 5, 29).unwrap())
+    );
 }
 
 #[test]
@@ -68,21 +73,33 @@ fn start_keyword_with_sched_scheduled_aliases() {
 #[test]
 fn due_weekday_next_occurrence() {
     let p = parse("Ship release due fri", today());
-    assert_eq!(p.due_date, Some(NaiveDate::from_ymd_opt(2026, 5, 29).unwrap()));
+    assert_eq!(
+        p.due_date,
+        Some(NaiveDate::from_ymd_opt(2026, 5, 29).unwrap())
+    );
     let p2 = parse("Standup due thu", today());
-    assert_eq!(p2.due_date, Some(NaiveDate::from_ymd_opt(2026, 6, 4).unwrap()));
+    assert_eq!(
+        p2.due_date,
+        Some(NaiveDate::from_ymd_opt(2026, 6, 4).unwrap())
+    );
 }
 
 #[test]
 fn due_mm_dd_assumes_current_year() {
     let p = parse("Birthday due 6/10", today());
-    assert_eq!(p.due_date, Some(NaiveDate::from_ymd_opt(2026, 6, 10).unwrap()));
+    assert_eq!(
+        p.due_date,
+        Some(NaiveDate::from_ymd_opt(2026, 6, 10).unwrap())
+    );
 }
 
 #[test]
 fn due_iso_date() {
     let p = parse("Plan due 2027-01-15", today());
-    assert_eq!(p.due_date, Some(NaiveDate::from_ymd_opt(2027, 1, 15).unwrap()));
+    assert_eq!(
+        p.due_date,
+        Some(NaiveDate::from_ymd_opt(2027, 1, 15).unwrap())
+    );
 }
 
 #[test]
@@ -98,7 +115,10 @@ fn all_features_together() {
     // Note: our grammar treats every #word as a tag. "#248" becomes tag "248".
     assert!(p.tag_names.contains(&"248".to_string()));
     assert!(p.tag_names.contains(&"work".to_string()));
-    assert_eq!(p.due_date, Some(NaiveDate::from_ymd_opt(2026, 5, 29).unwrap()));
+    assert_eq!(
+        p.due_date,
+        Some(NaiveDate::from_ymd_opt(2026, 5, 29).unwrap())
+    );
     assert_eq!(p.title, "Review PR");
 }
 
@@ -114,7 +134,10 @@ fn quoted_tag_coexists_with_plain_tags_and_dates() {
     let p = parse("Plan #\"big project\" #work due fri", today());
     assert_eq!(p.title, "Plan");
     assert_eq!(p.tag_names, vec!["big project", "work"]);
-    assert_eq!(p.due_date, Some(NaiveDate::from_ymd_opt(2026, 5, 29).unwrap()));
+    assert_eq!(
+        p.due_date,
+        Some(NaiveDate::from_ymd_opt(2026, 5, 29).unwrap())
+    );
 }
 
 #[test]

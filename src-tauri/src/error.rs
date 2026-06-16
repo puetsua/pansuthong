@@ -12,10 +12,10 @@ pub enum AppError {
 impl std::fmt::Display for AppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AppError::Io(e)        => write!(f, "io: {e}"),
-            AppError::Serde(e)     => write!(f, "serde: {e}"),
-            AppError::NotFound(s)  => write!(f, "not found: {s}"),
-            AppError::Invalid(s)   => write!(f, "invalid: {s}"),
+            AppError::Io(e) => write!(f, "io: {e}"),
+            AppError::Serde(e) => write!(f, "serde: {e}"),
+            AppError::NotFound(s) => write!(f, "not found: {s}"),
+            AppError::Invalid(s) => write!(f, "invalid: {s}"),
         }
     }
 }
@@ -23,11 +23,15 @@ impl std::fmt::Display for AppError {
 impl std::error::Error for AppError {}
 
 impl From<io::Error> for AppError {
-    fn from(e: io::Error) -> Self { AppError::Io(e) }
+    fn from(e: io::Error) -> Self {
+        AppError::Io(e)
+    }
 }
 
 impl From<serde_json::Error> for AppError {
-    fn from(e: serde_json::Error) -> Self { AppError::Serde(e) }
+    fn from(e: serde_json::Error) -> Self {
+        AppError::Serde(e)
+    }
 }
 
 // Tauri commands need errors that serialize.

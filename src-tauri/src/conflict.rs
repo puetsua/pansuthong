@@ -8,25 +8,34 @@ pub enum TaskDiff {
     // `Task` is boxed so the variants stay uniform in size (a `Task` grew once it
     // carried time entries, #81); `Box<Task>` serializes identically to `Task`, so
     // the wire shape the frontend consumes is unchanged.
-    Differs { id: String, mine: Box<Task>, theirs: Box<Task> },
-    OnlyMine   { id: String, mine: Box<Task> },
-    OnlyTheirs { id: String, theirs: Box<Task> },
+    Differs {
+        id: String,
+        mine: Box<Task>,
+        theirs: Box<Task>,
+    },
+    OnlyMine {
+        id: String,
+        mine: Box<Task>,
+    },
+    OnlyTheirs {
+        id: String,
+        theirs: Box<Task>,
+    },
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum Decision {
-    KeepMine   { id: String },
+    KeepMine { id: String },
     KeepTheirs { id: String },
-    KeepBoth   { id: String },
-    Drop       { id: String },
+    KeepBoth { id: String },
+    Drop { id: String },
 }
 
 pub fn diff_tasks(mine: &Document, theirs: &Document) -> Vec<TaskDiff> {
     let theirs_by_id: HashMap<&str, &Task> =
         theirs.tasks.iter().map(|t| (t.id.as_str(), t)).collect();
-    let mine_by_id: HashMap<&str, &Task> =
-        mine.tasks.iter().map(|t| (t.id.as_str(), t)).collect();
+    let mine_by_id: HashMap<&str, &Task> = mine.tasks.iter().map(|t| (t.id.as_str(), t)).collect();
 
     let mut out = Vec::new();
 
@@ -34,24 +43,28 @@ pub fn diff_tasks(mine: &Document, theirs: &Document) -> Vec<TaskDiff> {
         match theirs_by_id.get(t.id.as_str()) {
             Some(theirs_t) if task_equal(t, theirs_t) => continue,
             Some(theirs_t) => out.push(TaskDiff::Differs {
-                id: t.id.clone(), mine: Box::new(t.clone()), theirs: Box::new((*theirs_t).clone()),
+                id: t.id.clone(),
+                mine: Box::new(t.clone()),
+                theirs: Box::new((*theirs_t).clone()),
             }),
-            None => out.push(TaskDiff::OnlyMine { id: t.id.clone(), mine: Box::new(t.clone()) }),
+            None => out.push(TaskDiff::OnlyMine {
+                id: t.id.clone(),
+                mine: Box::new(t.clone()),
+            }),
         }
     }
     for t in &theirs.tasks {
         if !mine_by_id.contains_key(t.id.as_str()) {
-            out.push(TaskDiff::OnlyTheirs { id: t.id.clone(), theirs: Box::new(t.clone()) });
+            out.push(TaskDiff::OnlyTheirs {
+                id: t.id.clone(),
+                theirs: Box::new(t.clone()),
+            });
         }
     }
     out
 }
 
-pub fn apply_decisions(
-    mine: &Document,
-    theirs: &Document,
-    decisions: &[Decision],
-) -> Vec<Task> {
+pub fn apply_decisions(mine: &Document, theirs: &Document, decisions: &[Decision]) -> Vec<Task> {
     let theirs_by_id: HashMap<&str, &Task> =
         theirs.tasks.iter().map(|t| (t.id.as_str(), t)).collect();
     let mut decided: HashMap<&str, &Decision> = HashMap::new();
@@ -93,13 +106,18 @@ pub fn apply_decisions(
     }
 
     for t in &theirs.tasks {
-        if already.contains(&t.id) { continue; }
+        if already.contains(&t.id) {
+            continue;
+        }
         match decided.get(t.id.as_str()) {
-            None => { out.push(t.clone()); }   // default: keep theirs-only tasks
-            Some(Decision::KeepTheirs { .. }) |
-            Some(Decision::KeepBoth   { .. }) => { out.push(t.clone()); }
-            Some(Decision::Drop       { .. }) => { /* skip */ }
-            Some(Decision::KeepMine   { .. }) => { /* skip — "keep mine" on theirs-only = drop */ }
+            None => {
+                out.push(t.clone());
+            } // default: keep theirs-only tasks
+            Some(Decision::KeepTheirs { .. }) | Some(Decision::KeepBoth { .. }) => {
+                out.push(t.clone());
+            }
+            Some(Decision::Drop { .. }) => { /* skip */ }
+            Some(Decision::KeepMine { .. }) => { /* skip — "keep mine" on theirs-only = drop */ }
         }
     }
 
@@ -134,10 +152,10 @@ pub fn tags_to_merge(tasks: &[Task], mine: &Document, theirs: &Document) -> Vec<
 
 fn decision_id(d: &Decision) -> &str {
     match d {
-        Decision::KeepMine   { id } |
-        Decision::KeepTheirs { id } |
-        Decision::KeepBoth   { id } |
-        Decision::Drop       { id } => id.as_str(),
+        Decision::KeepMine { id }
+        | Decision::KeepTheirs { id }
+        | Decision::KeepBoth { id }
+        | Decision::Drop { id } => id.as_str(),
     }
 }
 
@@ -158,16 +176,31 @@ mod merge_tests {
     use super::*;
 
     fn tag(id: &str) -> Tag {
-        Tag { id: id.into(), name: id.into(), color: "#000".into(), priority: 5, pinned: false }
+        Tag {
+            id: id.into(),
+            name: id.into(),
+            color: "#000".into(),
+            priority: 5,
+            pinned: false,
+            updated_at: 1,
+        }
     }
 
     fn task_with_tags(id: &str, tag_ids: &[&str]) -> Task {
         Task {
-            id: id.into(), title: id.into(),
-            due_date: None, due_time: None, start_date: None, start_time: None, notes: String::new(),
+            id: id.into(),
+            title: id.into(),
+            due_date: None,
+            due_time: None,
+            start_date: None,
+            start_time: None,
+            notes: String::new(),
             tag_ids: tag_ids.iter().map(|s| s.to_string()).collect(),
             estimated_seconds: None,
-            created_at: 0, completed_at: None, updated_at: 0, time_entries: Vec::new(),
+            created_at: 0,
+            completed_at: None,
+            updated_at: 0,
+            time_entries: Vec::new(),
         }
     }
 
@@ -179,7 +212,10 @@ mod merge_tests {
         let kept = task_with_tags("k_1", &["t_work"]);
 
         let added = tags_to_merge(&[kept], &mine, &theirs);
-        assert_eq!(added.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["t_work"]);
+        assert_eq!(
+            added.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
+            ["t_work"]
+        );
     }
 
     #[test]

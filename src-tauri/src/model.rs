@@ -1,5 +1,6 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 /// Shortened uuid (12 hex chars) with a type prefix. Stable across devices.
@@ -8,9 +9,15 @@ fn short_id(prefix: &str) -> String {
     format!("{prefix}_{}", &hex[..12])
 }
 
-pub fn new_task_id()    -> String { short_id("k") }
-pub fn new_tag_id()     -> String { short_id("t") }
-pub fn new_time_entry_id() -> String { short_id("te") }
+pub fn new_task_id() -> String {
+    short_id("k")
+}
+pub fn new_tag_id() -> String {
+    short_id("t")
+}
+pub fn new_time_entry_id() -> String {
+    short_id("te")
+}
 
 /// Epoch milliseconds. Used in memory for created_at/updated_at/last_modified and
 /// for unique conflict-file names. UTC-based, so it's stable across devices and
@@ -20,13 +27,18 @@ pub fn new_time_entry_id() -> String { short_id("te") }
 /// keeps full millisecond resolution.
 pub fn now_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 /// True when a timestamp is the epoch-0 "unset" sentinel. Used by
 /// `skip_serializing_if` so a never-edited document / pre-`updated_at` task omits
 /// the key entirely rather than writing a misleading 1970 timestamp.
-pub(crate) fn is_zero(ms: &i64) -> bool { *ms == 0 }
+pub(crate) fn is_zero(ms: &i64) -> bool {
+    *ms == 0
+}
 
 /// Serde for an `i64` epoch-millis field stored as an ISO-8601 local-time string
 /// at second precision (e.g. `2026-06-01T20:34:56+08:00`). Deserialization accepts
@@ -47,25 +59,30 @@ pub(crate) mod iso_secs {
     pub(super) fn to_iso(ms: i64) -> String {
         match Local.timestamp_millis_opt(ms).single() {
             Some(dt) => dt.to_rfc3339_opts(SecondsFormat::Secs, false),
-            None      => ms.to_string(),
+            None => ms.to_string(),
         }
     }
 
     /// ISO-8601 string -> epoch millis (any offset is normalized to UTC).
     pub(super) fn from_iso(s: &str) -> Option<i64> {
-        DateTime::parse_from_rfc3339(s).ok().map(|dt| dt.timestamp_millis())
+        DateTime::parse_from_rfc3339(s)
+            .ok()
+            .map(|dt| dt.timestamp_millis())
     }
 
     /// Accept either a JSON integer (legacy epoch millis) or an ISO-8601 string.
     #[derive(Deserialize)]
     #[serde(untagged)]
-    pub(super) enum IntOrIso { Int(i64), Iso(String) }
+    pub(super) enum IntOrIso {
+        Int(i64),
+        Iso(String),
+    }
 
     impl IntOrIso {
         pub(super) fn into_ms<E: serde::de::Error>(self) -> Result<i64, E> {
             match self {
                 IntOrIso::Int(ms) => Ok(ms),
-                IntOrIso::Iso(s)  => from_iso(&s)
+                IntOrIso::Iso(s) => from_iso(&s)
                     .ok_or_else(|| E::custom(format!("invalid ISO-8601 timestamp: {s}"))),
             }
         }
@@ -90,14 +107,14 @@ mod iso_secs_opt {
     pub fn serialize<S: Serializer>(ms: &Option<i64>, s: S) -> Result<S::Ok, S::Error> {
         match ms {
             Some(v) => iso_secs::serialize(v, s),
-            None    => s.serialize_none(),
+            None => s.serialize_none(),
         }
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<i64>, D::Error> {
         match Option::<IntOrIso>::deserialize(d)? {
             Some(v) => v.into_ms().map(Some),
-            None    => Ok(None),
+            None => Ok(None),
         }
     }
 }
@@ -111,14 +128,18 @@ pub struct TimeEntry {
     pub id: String,
     #[serde(with = "iso_secs")]
     pub start: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "iso_secs_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "iso_secs_opt"
+    )]
     pub end: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tag {
-    pub id:    String,
-    pub name:  String,
+    pub id: String,
+    pub name: String,
     pub color: String,
     /// Priority weight. A task's effective priority is the max weight among its
     /// tags (0 if it has none). `#[serde(default)]` = 0 for tags written before
@@ -132,6 +153,22 @@ pub struct Tag {
     /// Synced like the rest of the tag, so a curated sidebar follows across devices.
     #[serde(default)]
     pub pinned: bool,
+    /// Epoch millis of the last edit to this tag. Missing legacy values fall back
+    /// to the containing document's `last_modified` during replica merges.
+    #[serde(default, skip_serializing_if = "is_zero", with = "iso_secs")]
+    pub updated_at: i64,
+}
+
+/// A delete marker used by per-device replica files. Without this, an older
+/// replica that still contains an entity would resurrect it after another device
+/// deleted it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tombstone {
+    pub id: String,
+    #[serde(with = "iso_secs")]
+    pub deleted_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_by: Option<String>,
 }
 
 /// A fixed calendar date (month 1..=12 + day-of-month) within a year, used by the
@@ -139,7 +176,7 @@ pub struct Tag {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct YearlyDate {
     pub month: u8,
-    pub day:   u8,
+    pub day: u8,
 }
 
 /// A template's recurrence schedule (#9). The frontend projects "ghost" rows from
@@ -170,13 +207,23 @@ pub enum Recurrence {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum RecurrenceCompat {
-    Weekly  { weekdays: Vec<u8> },
-    Monthly { #[serde(default)] day: Option<u8>, #[serde(default)] days: Option<Vec<u8>> },
+    Weekly {
+        weekdays: Vec<u8>,
+    },
+    Monthly {
+        #[serde(default)]
+        day: Option<u8>,
+        #[serde(default)]
+        days: Option<Vec<u8>>,
+    },
     Daily,
-    Yearly  {
-        #[serde(default)] month: Option<u8>,
-        #[serde(default)] day:   Option<u8>,
-        #[serde(default)] dates: Option<Vec<YearlyDate>>,
+    Yearly {
+        #[serde(default)]
+        month: Option<u8>,
+        #[serde(default)]
+        day: Option<u8>,
+        #[serde(default)]
+        dates: Option<Vec<YearlyDate>>,
     },
 }
 
@@ -187,13 +234,19 @@ impl From<RecurrenceCompat> for Recurrence {
             RecurrenceCompat::Daily => Recurrence::Daily,
             RecurrenceCompat::Monthly { day, days } => {
                 let mut days = days.unwrap_or_default();
-                if days.is_empty() { if let Some(d) = day { days.push(d); } }
+                if days.is_empty() {
+                    if let Some(d) = day {
+                        days.push(d);
+                    }
+                }
                 Recurrence::Monthly { days }
             }
             RecurrenceCompat::Yearly { month, day, dates } => {
                 let mut dates = dates.unwrap_or_default();
                 if dates.is_empty() {
-                    if let (Some(month), Some(day)) = (month, day) { dates.push(YearlyDate { month, day }); }
+                    if let (Some(month), Some(day)) = (month, day) {
+                        dates.push(YearlyDate { month, day });
+                    }
                 }
                 Recurrence::Yearly { dates }
             }
@@ -204,7 +257,7 @@ impl From<RecurrenceCompat> for Recurrence {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(from = "TaskCompat")]
 pub struct Task {
-    pub id:    String,
+    pub id: String,
     pub title: String,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub due_date: Option<NaiveDate>,
@@ -226,20 +279,28 @@ pub struct Task {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub estimated_seconds: Option<i64>,
     #[serde(serialize_with = "iso_secs::serialize")]
-    pub created_at:   i64,
+    pub created_at: i64,
     /// Epoch millis the task was completed. The **single source of truth** for
     /// completion *and* archival: `Some` = done and swept out of the active views
     /// (Today/Inbox/tag/Upcoming); `None` = active. The previously-separate
     /// `done`/`archived`/`archived_at` fields collapsed into this one and are now
     /// derived via `done()`/`archived()`/`archived_at()`. Legacy files that still
     /// carry those keys are folded in on load by `TaskCompat`.
-    #[serde(skip_serializing_if = "Option::is_none", default, serialize_with = "iso_secs_opt::serialize")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        serialize_with = "iso_secs_opt::serialize"
+    )]
     pub completed_at: Option<i64>,
     /// Epoch millis of the last edit to this task. `#[serde(default)]` = 0 for
     /// tasks written before this field existed (UI falls back to created_at);
     /// `skip_serializing_if` then omits the key rather than writing a 1970 ISO date.
-    #[serde(default, skip_serializing_if = "is_zero", serialize_with = "iso_secs::serialize")]
-    pub updated_at:   i64,
+    #[serde(
+        default,
+        skip_serializing_if = "is_zero",
+        serialize_with = "iso_secs::serialize"
+    )]
+    pub updated_at: i64,
     /// Recorded time-tracking sessions (#81). An entry with no `end` is the running
     /// timer. `#[serde(default)]` = empty for tasks written before this field
     /// existed; `skip_serializing_if` then omits the key entirely so untracked
@@ -256,7 +317,7 @@ pub struct Task {
 /// `add_task`). Carries only blueprint fields: no completion/dates of its own.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemplateTask {
-    pub id:    String,
+    pub id: String,
     pub title: String,
     #[serde(default)]
     pub notes: String,
@@ -271,7 +332,11 @@ pub struct TemplateTask {
     pub due_offset_days: Option<i64>,
     /// The spawned task's start date is today + this many days. `None` = none.
     /// Legacy files wrote `scheduled_offset_days`; the alias keeps them loading (#renamed).
-    #[serde(skip_serializing_if = "Option::is_none", default, alias = "scheduled_offset_days")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        alias = "scheduled_offset_days"
+    )]
     pub start_offset_days: Option<i64>,
     /// The spawned task's estimated effort in whole seconds. `None` = no estimate.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -295,7 +360,7 @@ impl TemplateTask {
     /// template never had are simply dropped.
     fn from_legacy(c: TaskCompat) -> Self {
         TemplateTask {
-            id:    c.id,
+            id: c.id,
             title: c.title,
             notes: c.notes,
             tag_ids: c.tag_ids,
@@ -303,7 +368,9 @@ impl TemplateTask {
             updated_at: c.updated_at,
             due_offset_days: c.due_offset_days,
             start_offset_days: c.start_offset_days,
-            estimated_seconds: c.estimated_seconds.or_else(|| c.estimated_minutes.map(|m| m * 60)),
+            estimated_seconds: c
+                .estimated_seconds
+                .or_else(|| c.estimated_minutes.map(|m| m * 60)),
             recurrence: None,
             recurrence_tag_id: None,
         }
@@ -318,10 +385,10 @@ impl TemplateTask {
 /// `0` as a "done, time unknown" sentinel. New files never write the legacy keys.
 #[derive(Deserialize)]
 struct TaskCompat {
-    id:    String,
+    id: String,
     title: String,
     #[serde(default)]
-    done:  bool,
+    done: bool,
     #[serde(default)]
     due_date: Option<NaiveDate>,
     #[serde(default)]
@@ -362,7 +429,11 @@ struct TaskCompat {
 impl From<TaskCompat> for Task {
     fn from(c: TaskCompat) -> Self {
         let completed_at = c.completed_at.or_else(|| {
-            if c.done || c.archived { c.archived_at.or(Some(0)) } else { None }
+            if c.done || c.archived {
+                c.archived_at.or(Some(0))
+            } else {
+                None
+            }
         });
         Task {
             id: c.id,
@@ -373,7 +444,9 @@ impl From<TaskCompat> for Task {
             start_time: c.start_time,
             notes: c.notes,
             tag_ids: c.tag_ids,
-            estimated_seconds: c.estimated_seconds.or_else(|| c.estimated_minutes.map(|m| m * 60)),
+            estimated_seconds: c
+                .estimated_seconds
+                .or_else(|| c.estimated_minutes.map(|m| m * 60)),
             created_at: c.created_at,
             completed_at,
             updated_at: c.updated_at,
@@ -399,7 +472,9 @@ impl From<TaskCompat> for Task {
 /// `monthly {days}`, `yearly {month,day}` → `yearly {dates}`, #9): new builds still
 /// read the old single-day shapes via `RecurrenceCompat`, but a 0.2.0 build can't
 /// parse the new `days`/`dates` keys, so the higher version flags the mismatch.
-pub const CURRENT_VERSION: u32 = 8;
+/// Bumped to 9 when per-device replica merging added tag `updated_at` and delete
+/// tombstones; older builds would silently drop tombstones and resurrect deletes.
+pub const CURRENT_VERSION: u32 = 9;
 
 /// Files written before `version` existed are assumed compatible with the
 /// current schema (the model is additive/backward-compatible), so an absent
@@ -412,7 +487,7 @@ fn default_version() -> u32 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(from = "DocumentCompat")]
 pub struct Document {
-    pub version:  u32,
+    pub version: u32,
     /// Epoch millis of the last edit to the document (any task/tag change).
     /// Bumped by `AppState::write`. Shown as "Last synced"; identical on all
     /// devices when in sync. `#[serde(default)]` = 0 for pre-existing files;
@@ -421,23 +496,32 @@ pub struct Document {
     #[serde(default, skip_serializing_if = "is_zero", with = "iso_secs")]
     pub last_modified: i64,
     #[serde(default)]
-    pub tags:     Vec<Tag>,
+    pub tags: Vec<Tag>,
     #[serde(default)]
-    pub tasks:    Vec<Task>,
+    pub tasks: Vec<Task>,
     /// Reusable blueprints, kept separate from active `tasks` (v5+). Older files
     /// have none here; their `is_template` tasks are lifted in by `DocumentCompat`.
     #[serde(default)]
     pub template_tasks: Vec<TemplateTask>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deleted_tasks: Vec<Tombstone>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deleted_tags: Vec<Tombstone>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deleted_template_tasks: Vec<Tombstone>,
 }
 
 impl Default for Document {
     fn default() -> Self {
         Self {
-            version:  CURRENT_VERSION,
+            version: CURRENT_VERSION,
             last_modified: 0,
-            tags:     Vec::new(),
-            tasks:    Vec::new(),
+            tags: Vec::new(),
+            tasks: Vec::new(),
             template_tasks: Vec::new(),
+            deleted_tasks: Vec::new(),
+            deleted_tags: Vec::new(),
+            deleted_template_tasks: Vec::new(),
         }
     }
 }
@@ -462,6 +546,12 @@ struct DocumentCompat {
     tasks: Vec<TaskCompat>,
     #[serde(default)]
     template_tasks: Vec<TemplateTask>,
+    #[serde(default)]
+    deleted_tasks: Vec<Tombstone>,
+    #[serde(default)]
+    deleted_tags: Vec<Tombstone>,
+    #[serde(default)]
+    deleted_template_tasks: Vec<Tombstone>,
 }
 
 impl From<DocumentCompat> for Document {
@@ -484,6 +574,9 @@ impl From<DocumentCompat> for Document {
             tags: c.tags,
             tasks,
             template_tasks,
+            deleted_tasks: c.deleted_tasks,
+            deleted_tags: c.deleted_tags,
+            deleted_template_tasks: c.deleted_template_tasks,
         }
     }
 }
@@ -492,15 +585,21 @@ impl Task {
     /// True if the task is completed. Since `done`/`archived`/`archived_at`
     /// merged into `completed_at`, "done" and "archived" are the same state: a
     /// completed task is swept out of the active views.
-    pub fn done(&self) -> bool { self.completed_at.is_some() }
+    pub fn done(&self) -> bool {
+        self.completed_at.is_some()
+    }
 
     /// True if the task is archived — identical to `done()` now that completion
     /// and archival are one state. Kept as a named accessor so call sites that
     /// mean "hidden from active views" stay readable.
-    pub fn archived(&self) -> bool { self.completed_at.is_some() }
+    pub fn archived(&self) -> bool {
+        self.completed_at.is_some()
+    }
 
     /// Epoch millis the task was archived (= completed), or `None` if active.
-    pub fn archived_at(&self) -> Option<i64> { self.completed_at }
+    pub fn archived_at(&self) -> Option<i64> {
+        self.completed_at
+    }
 
     /// Set or clear completion. Completing sweeps the task out of the active
     /// views (Today/Inbox/tag); reopening restores it. `completed_at` is the
@@ -508,7 +607,9 @@ impl Task {
     pub fn set_done(&mut self, done: bool, ts: i64) {
         self.completed_at = if done { Some(ts) } else { None };
         // Finishing a task stops its clock; you're no longer working on it (#81).
-        if done { self.stop_timer(ts); }
+        if done {
+            self.stop_timer(ts);
+        }
         self.updated_at = ts;
     }
 
@@ -536,7 +637,9 @@ impl Task {
     pub fn time_entry_overlaps(&self, start: i64, end: Option<i64>, except: Option<&str>) -> bool {
         let a_end = end.unwrap_or(i64::MAX);
         self.time_entries.iter().any(|e| {
-            if except == Some(e.id.as_str()) { return false; }
+            if except == Some(e.id.as_str()) {
+                return false;
+            }
             let b_end = e.end.unwrap_or(i64::MAX);
             start < b_end && e.start < a_end
         })
@@ -550,30 +653,48 @@ impl Document {
     /// invisible). An unknown tag id counts as unpinned, matching its
     /// "behaves as untagged" handling.
     pub fn task_in_inbox(&self, task: &Task) -> bool {
-        !task.tag_ids.iter().any(|id| self.tags.iter().any(|t| t.id == *id && t.pinned))
+        !task
+            .tag_ids
+            .iter()
+            .any(|id| self.tags.iter().any(|t| t.id == *id && t.pinned))
     }
 
     /// Today: starting today, OR (due < today AND !done), OR due == today.
     /// Archived tasks never appear in active views. (Templates live in their own
     /// list, so `tasks` no longer contains any.)
     pub fn tasks_today(&self, today: NaiveDate) -> Vec<&Task> {
-        self.tasks.iter().filter(|t| {
-            if t.archived() { return false; }
-            if t.start_date == Some(today) { return true; }
-            if let Some(due) = t.due_date {
-                if due == today { return true; }
-                if due < today && !t.done() { return true; }
-            }
-            false
-        }).collect()
+        self.tasks
+            .iter()
+            .filter(|t| {
+                if t.archived() {
+                    return false;
+                }
+                if t.start_date == Some(today) {
+                    return true;
+                }
+                if let Some(due) = t.due_date {
+                    if due == today {
+                        return true;
+                    }
+                    if due < today && !t.done() {
+                        return true;
+                    }
+                }
+                false
+            })
+            .collect()
     }
 
     pub fn tasks_inbox(&self) -> Vec<&Task> {
-        self.tasks.iter().filter(|t| !t.archived() && self.task_in_inbox(t)).collect()
+        self.tasks
+            .iter()
+            .filter(|t| !t.archived() && self.task_in_inbox(t))
+            .collect()
     }
 
     pub fn tasks_for_tag(&self, tag_id: &str) -> Vec<&Task> {
-        self.tasks.iter()
+        self.tasks
+            .iter()
             .filter(|t| !t.archived() && t.tag_ids.iter().any(|id| id == tag_id))
             .collect()
     }
@@ -583,6 +704,176 @@ impl Document {
     pub fn tasks_templates(&self) -> &[TemplateTask] {
         &self.template_tasks
     }
+}
+
+fn latest_tombstones(
+    tombstones: impl IntoIterator<Item = Tombstone>,
+) -> HashMap<String, Tombstone> {
+    let mut out = HashMap::new();
+    for tombstone in tombstones {
+        out.entry(tombstone.id.clone())
+            .and_modify(|existing: &mut Tombstone| {
+                if tombstone.deleted_at > existing.deleted_at {
+                    *existing = tombstone.clone();
+                }
+            })
+            .or_insert(tombstone);
+    }
+    out
+}
+
+fn task_stamp(task: &Task) -> i64 {
+    task.updated_at.max(task.created_at)
+}
+
+fn template_stamp(template: &TemplateTask) -> i64 {
+    template.updated_at.max(template.created_at)
+}
+
+fn tag_stamp(tag: &Tag, doc_last_modified: i64) -> i64 {
+    tag.updated_at.max(doc_last_modified)
+}
+
+fn merge_time_entries(into: &mut Task, from: &Task) {
+    let mut seen: HashSet<String> = into
+        .time_entries
+        .iter()
+        .map(|entry| entry.id.clone())
+        .collect();
+    for entry in &from.time_entries {
+        if seen.insert(entry.id.clone()) {
+            into.time_entries.push(entry.clone());
+        }
+    }
+    into.time_entries
+        .sort_by_key(|entry| (entry.start, entry.id.clone()));
+}
+
+/// Merge per-device replica documents into one computed document. Entity-level
+/// latest-write-wins keeps different devices from fighting over one physical
+/// cloud file; tombstones prevent deletes from being resurrected by stale replicas.
+pub fn merge_documents(replicas: Vec<Document>) -> Document {
+    let mut merged = Document::default();
+    let mut tasks: HashMap<String, (i64, Task)> = HashMap::new();
+    let mut tags: HashMap<String, (i64, Tag)> = HashMap::new();
+    let mut templates: HashMap<String, (i64, TemplateTask)> = HashMap::new();
+    let mut deleted_tasks = Vec::new();
+    let mut deleted_tags = Vec::new();
+    let mut deleted_templates = Vec::new();
+
+    for doc in replicas {
+        merged.version = merged.version.max(doc.version);
+        merged.last_modified = merged.last_modified.max(doc.last_modified);
+        deleted_tasks.extend(doc.deleted_tasks.clone());
+        deleted_tags.extend(doc.deleted_tags.clone());
+        deleted_templates.extend(doc.deleted_template_tasks.clone());
+
+        for task in doc.tasks {
+            let stamp = task_stamp(&task);
+            tasks
+                .entry(task.id.clone())
+                .and_modify(|(_, existing)| merge_time_entries(existing, &task))
+                .or_insert_with(|| (stamp, task.clone()));
+            if let Some((existing_stamp, existing)) = tasks.get_mut(&task.id) {
+                if stamp > *existing_stamp {
+                    let mut winner = task;
+                    merge_time_entries(&mut winner, existing);
+                    *existing_stamp = stamp;
+                    *existing = winner;
+                }
+            }
+        }
+
+        for tag in doc.tags {
+            let stamp = tag_stamp(&tag, doc.last_modified);
+            tags.entry(tag.id.clone())
+                .and_modify(|(existing_stamp, existing)| {
+                    if stamp > *existing_stamp {
+                        *existing_stamp = stamp;
+                        *existing = tag.clone();
+                    }
+                })
+                .or_insert((stamp, tag));
+        }
+
+        for template in doc.template_tasks {
+            let stamp = template_stamp(&template);
+            templates
+                .entry(template.id.clone())
+                .and_modify(|(existing_stamp, existing)| {
+                    if stamp > *existing_stamp {
+                        *existing_stamp = stamp;
+                        *existing = template.clone();
+                    }
+                })
+                .or_insert((stamp, template));
+        }
+    }
+
+    let task_tombs = latest_tombstones(deleted_tasks);
+    let tag_tombs = latest_tombstones(deleted_tags);
+    let template_tombs = latest_tombstones(deleted_templates);
+
+    merged.tags = tags
+        .into_values()
+        .filter(|(stamp, tag)| {
+            tag_tombs
+                .get(&tag.id)
+                .map_or(true, |t| t.deleted_at < *stamp)
+        })
+        .map(|(_, tag)| tag)
+        .collect();
+    merged.tags.sort_by(|a, b| {
+        a.name
+            .to_lowercase()
+            .cmp(&b.name.to_lowercase())
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    let live_tag_ids: HashSet<String> = merged.tags.iter().map(|tag| tag.id.clone()).collect();
+
+    merged.tasks = tasks
+        .into_values()
+        .filter(|(stamp, task)| {
+            task_tombs
+                .get(&task.id)
+                .map_or(true, |t| t.deleted_at < *stamp)
+        })
+        .map(|(_, mut task)| {
+            task.tag_ids.retain(|id| live_tag_ids.contains(id));
+            task
+        })
+        .collect();
+    merged
+        .tasks
+        .sort_by_key(|task| (task.created_at, task.id.clone()));
+
+    merged.template_tasks = templates
+        .into_values()
+        .filter(|(stamp, template)| {
+            template_tombs
+                .get(&template.id)
+                .map_or(true, |t| t.deleted_at < *stamp)
+        })
+        .map(|(_, mut template)| {
+            template.tag_ids.retain(|id| live_tag_ids.contains(id));
+            if !template
+                .recurrence_tag_id
+                .as_ref()
+                .map_or(false, |id| live_tag_ids.contains(id))
+            {
+                template.recurrence_tag_id = None;
+            }
+            template
+        })
+        .collect();
+    merged
+        .template_tasks
+        .sort_by_key(|template| (template.created_at, template.id.clone()));
+
+    merged.deleted_tasks = task_tombs.into_values().collect();
+    merged.deleted_tags = tag_tombs.into_values().collect();
+    merged.deleted_template_tasks = template_tombs.into_values().collect();
+    merged
 }
 
 #[cfg(test)]
@@ -612,11 +903,13 @@ mod tests {
         // A tag written before `pinned` existed (no key) must load as unpinned,
         // so an upgrade keeps legacy tags out of the curated sidebar rather than
         // failing the parse.
-        let t: Tag = serde_json::from_str(r##"{"id":"t_1","name":"work","color":"#000"}"##).unwrap();
+        let t: Tag =
+            serde_json::from_str(r##"{"id":"t_1","name":"work","color":"#000"}"##).unwrap();
         assert!(!t.pinned);
         // And a present value round-trips.
         let pinned: Tag =
-            serde_json::from_str(r##"{"id":"t_2","name":"home","color":"#111","pinned":true}"##).unwrap();
+            serde_json::from_str(r##"{"id":"t_2","name":"home","color":"#111","pinned":true}"##)
+                .unwrap();
         assert!(pinned.pinned);
     }
 
@@ -638,7 +931,10 @@ mod tests {
         t.set_done(false, 200);
         assert!(!t.done());
         assert_eq!(t.completed_at, None);
-        assert!(!t.archived(), "reopening a task restores it to the active views");
+        assert!(
+            !t.archived(),
+            "reopening a task restores it to the active views"
+        );
         assert_eq!(t.archived_at(), None);
         assert_eq!(t.updated_at, 200);
     }
@@ -646,7 +942,11 @@ mod tests {
     #[test]
     fn stop_timer_closes_the_open_interval_and_clamps_end() {
         let mut t = task();
-        t.time_entries.push(TimeEntry { id: "te_1".into(), start: 1_000, end: None });
+        t.time_entries.push(TimeEntry {
+            id: "te_1".into(),
+            start: 1_000,
+            end: None,
+        });
         assert!(t.running_entry().is_some());
         assert!(t.stop_timer(5_000));
         assert_eq!(t.time_entries[0].end, Some(5_000));
@@ -654,7 +954,11 @@ mod tests {
         // A second stop with nothing running is a no-op.
         assert!(!t.stop_timer(9_000));
         // A backwards clock can't record negative time: end is clamped to start.
-        t.time_entries.push(TimeEntry { id: "te_2".into(), start: 8_000, end: None });
+        t.time_entries.push(TimeEntry {
+            id: "te_2".into(),
+            start: 8_000,
+            end: None,
+        });
         assert!(t.stop_timer(2_000));
         assert_eq!(t.time_entries[1].end, Some(8_000));
     }
@@ -663,7 +967,11 @@ mod tests {
     fn time_entry_overlaps_detects_clashes_and_allows_touching() {
         let mut t = task();
         // An existing closed session 1000..2000.
-        t.time_entries.push(TimeEntry { id: "te_1".into(), start: 1_000, end: Some(2_000) });
+        t.time_entries.push(TimeEntry {
+            id: "te_1".into(),
+            start: 1_000,
+            end: Some(2_000),
+        });
 
         // A candidate landing inside / straddling it overlaps.
         assert!(t.time_entry_overlaps(1_500, Some(2_500), None));
@@ -683,7 +991,11 @@ mod tests {
         assert!(!t.time_entry_overlaps(2_000, None, None)); // starts exactly at the existing end
 
         // An existing open entry also extends to +∞ and clashes with anything after its start.
-        t.time_entries.push(TimeEntry { id: "te_2".into(), start: 5_000, end: None });
+        t.time_entries.push(TimeEntry {
+            id: "te_2".into(),
+            start: 5_000,
+            end: None,
+        });
         assert!(t.time_entry_overlaps(6_000, Some(7_000), None));
         assert!(!t.time_entry_overlaps(4_000, Some(5_000), None)); // ends exactly at the open start
     }
@@ -691,10 +1003,18 @@ mod tests {
     #[test]
     fn completing_a_task_stops_its_running_timer() {
         let mut t = task();
-        t.time_entries.push(TimeEntry { id: "te_1".into(), start: 1_000, end: None });
+        t.time_entries.push(TimeEntry {
+            id: "te_1".into(),
+            start: 1_000,
+            end: None,
+        });
         t.set_done(true, 4_000);
         assert!(t.done());
-        assert_eq!(t.time_entries[0].end, Some(4_000), "finishing the task closes the open interval");
+        assert_eq!(
+            t.time_entries[0].end,
+            Some(4_000),
+            "finishing the task closes the open interval"
+        );
         assert!(t.running_entry().is_none());
     }
 
@@ -703,12 +1023,23 @@ mod tests {
         // Empty: the key is omitted entirely (untracked tasks serialize as before).
         let bare = task();
         let json = serde_json::to_string(&bare).unwrap();
-        assert!(!json.contains("time_entries"), "empty time_entries must not be written");
+        assert!(
+            !json.contains("time_entries"),
+            "empty time_entries must not be written"
+        );
 
         // Open + closed entries round-trip; the open one omits `end`.
         let mut t = task();
-        t.time_entries.push(TimeEntry { id: "te_1".into(), start: 1_000, end: Some(2_000) });
-        t.time_entries.push(TimeEntry { id: "te_2".into(), start: 3_000, end: None });
+        t.time_entries.push(TimeEntry {
+            id: "te_1".into(),
+            start: 1_000,
+            end: Some(2_000),
+        });
+        t.time_entries.push(TimeEntry {
+            id: "te_2".into(),
+            start: 3_000,
+            end: None,
+        });
         let json = serde_json::to_string(&t).unwrap();
         let back: Task = serde_json::from_str(&json).unwrap();
         assert_eq!(back.time_entries.len(), 2);
@@ -720,8 +1051,7 @@ mod tests {
     fn task_without_time_entries_loads_with_empty_list() {
         // A file written before #81 has no `time_entries` key; it must default to
         // empty rather than failing the parse.
-        let t: Task =
-            serde_json::from_str(r##"{"id":"k_1","title":"t","created_at":0}"##).unwrap();
+        let t: Task = serde_json::from_str(r##"{"id":"k_1","title":"t","created_at":0}"##).unwrap();
         assert!(t.time_entries.is_empty());
     }
 
@@ -729,15 +1059,24 @@ mod tests {
     fn estimated_seconds_round_trip_and_omit_when_absent() {
         let bare = task();
         let json = serde_json::to_string(&bare).unwrap();
-        assert!(!json.contains("estimated_seconds"), "absent estimate must not be written");
+        assert!(
+            !json.contains("estimated_seconds"),
+            "absent estimate must not be written"
+        );
 
-        let with_estimate: Task =
-            serde_json::from_str(r##"{"id":"k_1","title":"t","created_at":0,"estimated_seconds":50}"##).unwrap();
+        let with_estimate: Task = serde_json::from_str(
+            r##"{"id":"k_1","title":"t","created_at":0,"estimated_seconds":50}"##,
+        )
+        .unwrap();
         assert_eq!(with_estimate.estimated_seconds, Some(50));
-        assert!(serde_json::to_string(&with_estimate).unwrap().contains("\"estimated_seconds\":50"));
+        assert!(serde_json::to_string(&with_estimate)
+            .unwrap()
+            .contains("\"estimated_seconds\":50"));
 
-        let legacy_minutes: Task =
-            serde_json::from_str(r##"{"id":"k_1","title":"t","created_at":0,"estimated_minutes":45}"##).unwrap();
+        let legacy_minutes: Task = serde_json::from_str(
+            r##"{"id":"k_1","title":"t","created_at":0,"estimated_minutes":45}"##,
+        )
+        .unwrap();
         assert_eq!(legacy_minutes.estimated_seconds, Some(45 * 60));
     }
 
@@ -756,13 +1095,16 @@ mod tests {
         // Legacy done task with neither completed_at nor archived_at → preserved
         // as completed with the epoch-0 "time unknown" sentinel, not un-completed.
         let no_ts: Task =
-            serde_json::from_str(r##"{"id":"k_2","title":"t","done":true,"created_at":0}"##).unwrap();
+            serde_json::from_str(r##"{"id":"k_2","title":"t","done":true,"created_at":0}"##)
+                .unwrap();
         assert_eq!(no_ts.completed_at, Some(0));
         assert!(no_ts.done());
 
         // A legacy active task stays active.
-        let active: Task =
-            serde_json::from_str(r##"{"id":"k_3","title":"t","done":false,"created_at":0,"archived":false}"##).unwrap();
+        let active: Task = serde_json::from_str(
+            r##"{"id":"k_3","title":"t","done":false,"created_at":0,"archived":false}"##,
+        )
+        .unwrap();
         assert_eq!(active.completed_at, None);
         assert!(!active.done());
     }
@@ -781,8 +1123,14 @@ mod tests {
         let json = serde_json::to_string(&t).unwrap();
         assert!(json.contains("\"start_date\":\"2026-06-05\""), "{json}");
         assert!(json.contains("\"start_time\":\"09:30\""), "{json}");
-        assert!(!json.contains("scheduled_date"), "no legacy key written: {json}");
-        assert!(!json.contains("scheduled_time"), "no legacy key written: {json}");
+        assert!(
+            !json.contains("scheduled_date"),
+            "no legacy key written: {json}"
+        );
+        assert!(
+            !json.contains("scheduled_time"),
+            "no legacy key written: {json}"
+        );
     }
 
     #[test]
@@ -796,46 +1144,78 @@ mod tests {
         // local time — see timestamps_serialize_as_iso_local_seconds); this test
         // guards only that the legacy keys are gone.
         let v: serde_json::Value = serde_json::from_str(&json).unwrap();
-        let completed = v["completed_at"].as_str().expect("completed_at is an ISO string");
+        let completed = v["completed_at"]
+            .as_str()
+            .expect("completed_at is an ISO string");
         assert_eq!(
-            chrono::DateTime::parse_from_rfc3339(completed).unwrap().timestamp_millis(),
+            chrono::DateTime::parse_from_rfc3339(completed)
+                .unwrap()
+                .timestamp_millis(),
             1_780_317_296_000,
         );
         assert!(!json.contains("\"done\""), "no legacy done key: {json}");
-        assert!(!json.contains("\"archived\""), "no legacy archived key: {json}");
-        assert!(!json.contains("archived_at"), "no legacy archived_at key: {json}");
+        assert!(
+            !json.contains("\"archived\""),
+            "no legacy archived key: {json}"
+        );
+        assert!(
+            !json.contains("archived_at"),
+            "no legacy archived_at key: {json}"
+        );
     }
 
     #[test]
     fn timestamps_serialize_as_iso_local_seconds() {
         use chrono::{DateTime, Local, SecondsFormat, TimeZone};
         let ms = 1_780_317_296_000; // 2026-06-01T12:34:56Z
-        // The instant rendered in the machine's local time, e.g. 2026-06-01T20:34:56+08:00.
-        let expect = |ms: i64| Local.timestamp_millis_opt(ms).single().unwrap()
-            .to_rfc3339_opts(SecondsFormat::Secs, false);
+                                    // The instant rendered in the machine's local time, e.g. 2026-06-01T20:34:56+08:00.
+        let expect = |ms: i64| {
+            Local
+                .timestamp_millis_opt(ms)
+                .single()
+                .unwrap()
+                .to_rfc3339_opts(SecondsFormat::Secs, false)
+        };
 
         let mut t = task();
         t.created_at = ms;
         t.updated_at = ms;
         let json = serde_json::to_string(&t).unwrap();
-        assert!(json.contains(&format!("\"created_at\":\"{}\"", expect(ms))), "{json}");
-        assert!(json.contains(&format!("\"updated_at\":\"{}\"", expect(ms))), "{json}");
+        assert!(
+            json.contains(&format!("\"created_at\":\"{}\"", expect(ms))),
+            "{json}"
+        );
+        assert!(
+            json.contains(&format!("\"updated_at\":\"{}\"", expect(ms))),
+            "{json}"
+        );
 
         // Whatever offset is written, the string round-trips to the same instant.
         let v: serde_json::Value = serde_json::from_str(&json).unwrap();
         let created = v["created_at"].as_str().unwrap();
-        assert_eq!(DateTime::parse_from_rfc3339(created).unwrap().timestamp_millis(), ms);
+        assert_eq!(
+            DateTime::parse_from_rfc3339(created)
+                .unwrap()
+                .timestamp_millis(),
+            ms
+        );
 
         // updated_at == 0 (the "never edited" sentinel) is omitted, not written as 1970.
         t.updated_at = 0;
         let json = serde_json::to_string(&t).unwrap();
-        assert!(!json.contains("updated_at"), "zero updated_at is skipped: {json}");
+        assert!(
+            !json.contains("updated_at"),
+            "zero updated_at is skipped: {json}"
+        );
 
         // Document.last_modified == 0 is likewise omitted, but a real stamp is ISO local.
         let mut doc = Document::default();
-        assert!(!serde_json::to_string(&doc).unwrap().contains("last_modified"));
+        assert!(!serde_json::to_string(&doc)
+            .unwrap()
+            .contains("last_modified"));
         doc.last_modified = ms;
-        assert!(serde_json::to_string(&doc).unwrap()
+        assert!(serde_json::to_string(&doc)
+            .unwrap()
             .contains(&format!("\"last_modified\":\"{}\"", expect(ms))));
     }
 
@@ -880,14 +1260,96 @@ mod tests {
     }
 
     #[test]
+    fn merge_documents_uses_latest_entity_by_id() {
+        let mut old = Document::default();
+        let mut old_task = task();
+        old_task.id = "k_shared".into();
+        old_task.title = "old".into();
+        old_task.created_at = 1;
+        old_task.updated_at = 10;
+        old.tasks.push(old_task);
+
+        let mut new = Document::default();
+        let mut new_task = task();
+        new_task.id = "k_shared".into();
+        new_task.title = "new".into();
+        new_task.created_at = 1;
+        new_task.updated_at = 20;
+        new.tasks.push(new_task);
+
+        let merged = merge_documents(vec![old, new]);
+        assert_eq!(merged.tasks.len(), 1);
+        assert_eq!(merged.tasks[0].title, "new");
+    }
+
+    #[test]
+    fn merge_documents_tombstone_suppresses_older_entity() {
+        let mut stale = Document::default();
+        let mut stale_task = task();
+        stale_task.id = "k_deleted".into();
+        stale_task.title = "stale".into();
+        stale_task.created_at = 1;
+        stale_task.updated_at = 10;
+        stale.tasks.push(stale_task);
+
+        let mut deleting = Document::default();
+        deleting.deleted_tasks.push(Tombstone {
+            id: "k_deleted".into(),
+            deleted_at: 20,
+            deleted_by: Some("desktop".into()),
+        });
+
+        let merged = merge_documents(vec![stale, deleting]);
+        assert!(merged.tasks.is_empty());
+        assert_eq!(merged.deleted_tasks.len(), 1);
+    }
+
+    #[test]
+    fn merge_documents_unions_time_entries_on_same_task() {
+        let mut left = Document::default();
+        let mut left_task = task();
+        left_task.id = "k_shared".into();
+        left_task.updated_at = 10;
+        left_task.time_entries.push(TimeEntry {
+            id: "te_left".into(),
+            start: 1,
+            end: Some(2),
+        });
+        left.tasks.push(left_task);
+
+        let mut right = Document::default();
+        let mut right_task = task();
+        right_task.id = "k_shared".into();
+        right_task.updated_at = 20;
+        right_task.time_entries.push(TimeEntry {
+            id: "te_right".into(),
+            start: 3,
+            end: Some(4),
+        });
+        right.tasks.push(right_task);
+
+        let merged = merge_documents(vec![left, right]);
+        let ids: Vec<_> = merged.tasks[0]
+            .time_entries
+            .iter()
+            .map(|entry| entry.id.as_str())
+            .collect();
+        assert_eq!(ids, ["te_left", "te_right"]);
+    }
+
+    #[test]
     fn templates_live_in_their_own_list_and_never_in_active_views() {
         let today = NaiveDate::from_ymd_opt(2026, 5, 31).unwrap();
         let mut doc = Document::default();
         // A pinned tag, so the real task below is surfaced in its tag view and
         // stays out of Inbox (Inbox now catches tasks with no pinned tag).
         doc.tags.push(Tag {
-            id: "t_work".into(), name: "work".into(), color: "#000".into(),
-            priority: 0, pinned: true,
+            id: "t_work".into(),
+            name: "work".into(),
+            color: "#000".into(),
+            priority: 0,
+            pinned: true,
+            updated_at: 1,
         });
         // Templates carry tags/offsets but live in `template_tasks`, so they can't
         // land in Today/Inbox/tag views no matter what they reference.
@@ -930,9 +1392,13 @@ mod tests {
                     {"id":"k_real","title":"real","created_at":0}
                 ]
             }"##,
-        ).unwrap();
+        )
+        .unwrap();
 
-        assert_eq!(doc.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>(), ["k_real"]);
+        assert_eq!(
+            doc.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>(),
+            ["k_real"]
+        );
         assert_eq!(doc.template_tasks.len(), 1);
         let t = &doc.template_tasks[0];
         assert_eq!(t.id, "k_tmpl");
@@ -948,7 +1414,11 @@ mod tests {
     #[test]
     fn v5_document_round_trips_template_tasks_without_is_template() {
         let mut doc = Document::default();
-        doc.tasks.push({ let mut t = task(); t.id = "k_real".into(); t });
+        doc.tasks.push({
+            let mut t = task();
+            t.id = "k_real".into();
+            t
+        });
         let mut tmpl = template("k_tmpl");
         tmpl.due_offset_days = Some(2);
         tmpl.estimated_seconds = Some(50);
@@ -957,11 +1427,17 @@ mod tests {
         let json = serde_json::to_string(&doc).unwrap();
         // Templates serialize under template_tasks; a task never carries is_template.
         assert!(json.contains("\"template_tasks\""), "{json}");
-        assert!(!json.contains("is_template"), "no legacy is_template key: {json}");
+        assert!(
+            !json.contains("is_template"),
+            "no legacy is_template key: {json}"
+        );
         assert!(json.contains("\"estimated_seconds\":50"), "{json}");
 
         let back: Document = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>(), ["k_real"]);
+        assert_eq!(
+            back.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>(),
+            ["k_real"]
+        );
         assert_eq!(back.template_tasks.len(), 1);
         assert_eq!(back.template_tasks[0].due_offset_days, Some(2));
         assert_eq!(back.template_tasks[0].estimated_seconds, Some(50));
@@ -971,7 +1447,12 @@ mod tests {
     fn recurrence_round_trips_weekly_and_monthly() {
         let weekly: Recurrence =
             serde_json::from_str(r#"{"kind":"weekly","weekdays":[1,3,5]}"#).unwrap();
-        assert_eq!(weekly, Recurrence::Weekly { weekdays: vec![1, 3, 5] });
+        assert_eq!(
+            weekly,
+            Recurrence::Weekly {
+                weekdays: vec![1, 3, 5]
+            }
+        );
         let monthly: Recurrence =
             serde_json::from_str(r#"{"kind":"monthly","days":[1,15]}"#).unwrap();
         assert_eq!(monthly, Recurrence::Monthly { days: vec![1, 15] });
@@ -985,14 +1466,28 @@ mod tests {
     fn recurrence_round_trips_daily_and_yearly() {
         let daily: Recurrence = serde_json::from_str(r#"{"kind":"daily"}"#).unwrap();
         assert_eq!(daily, Recurrence::Daily);
-        assert_eq!(serde_json::to_string(&Recurrence::Daily).unwrap(), r#"{"kind":"daily"}"#);
+        assert_eq!(
+            serde_json::to_string(&Recurrence::Daily).unwrap(),
+            r#"{"kind":"daily"}"#
+        );
 
-        let yearly: Recurrence =
-            serde_json::from_str(r#"{"kind":"yearly","dates":[{"month":3,"day":15},{"month":12,"day":25}]}"#).unwrap();
-        assert_eq!(yearly, Recurrence::Yearly {
-            dates: vec![YearlyDate { month: 3, day: 15 }, YearlyDate { month: 12, day: 25 }],
-        });
-        let json = serde_json::to_string(&Recurrence::Yearly { dates: vec![YearlyDate { month: 12, day: 25 }] }).unwrap();
+        let yearly: Recurrence = serde_json::from_str(
+            r#"{"kind":"yearly","dates":[{"month":3,"day":15},{"month":12,"day":25}]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            yearly,
+            Recurrence::Yearly {
+                dates: vec![
+                    YearlyDate { month: 3, day: 15 },
+                    YearlyDate { month: 12, day: 25 }
+                ],
+            }
+        );
+        let json = serde_json::to_string(&Recurrence::Yearly {
+            dates: vec![YearlyDate { month: 12, day: 25 }],
+        })
+        .unwrap();
         assert_eq!(json, r#"{"kind":"yearly","dates":[{"month":12,"day":25}]}"#);
     }
 
@@ -1002,35 +1497,53 @@ mod tests {
         // Both must fold into the multi-day shapes on load.
         let monthly: Recurrence = serde_json::from_str(r#"{"kind":"monthly","day":15}"#).unwrap();
         assert_eq!(monthly, Recurrence::Monthly { days: vec![15] });
-        let yearly: Recurrence = serde_json::from_str(r#"{"kind":"yearly","month":3,"day":15}"#).unwrap();
-        assert_eq!(yearly, Recurrence::Yearly { dates: vec![YearlyDate { month: 3, day: 15 }] });
+        let yearly: Recurrence =
+            serde_json::from_str(r#"{"kind":"yearly","month":3,"day":15}"#).unwrap();
+        assert_eq!(
+            yearly,
+            Recurrence::Yearly {
+                dates: vec![YearlyDate { month: 3, day: 15 }]
+            }
+        );
     }
 
     #[test]
     fn template_without_recurrence_loads_and_omits_the_key() {
         // A template written before #9 has no `recurrence` key: it must load as None
         // and re-serialize without the key (backward compatible).
-        let t: TemplateTask = serde_json::from_str(
-            r#"{"id":"k_1","title":"t","created_at":0}"#,
-        ).unwrap();
+        let t: TemplateTask =
+            serde_json::from_str(r#"{"id":"k_1","title":"t","created_at":0}"#).unwrap();
         assert!(t.recurrence.is_none());
         let json = serde_json::to_string(&t).unwrap();
-        assert!(!json.contains("recurrence"), "absent recurrence must not be written: {json}");
+        assert!(
+            !json.contains("recurrence"),
+            "absent recurrence must not be written: {json}"
+        );
 
         // A present schedule round-trips.
         let mut sched = template("k_2");
-        sched.recurrence = Some(Recurrence::Weekly { weekdays: vec![1, 2, 3, 4, 5] });
+        sched.recurrence = Some(Recurrence::Weekly {
+            weekdays: vec![1, 2, 3, 4, 5],
+        });
         let back: TemplateTask =
             serde_json::from_str(&serde_json::to_string(&sched).unwrap()).unwrap();
-        assert_eq!(back.recurrence, Some(Recurrence::Weekly { weekdays: vec![1, 2, 3, 4, 5] }));
+        assert_eq!(
+            back.recurrence,
+            Some(Recurrence::Weekly {
+                weekdays: vec![1, 2, 3, 4, 5]
+            })
+        );
     }
 
     #[test]
     fn template_recurrence_tag_id_round_trips_and_omits_when_absent() {
         // Absent -> None, omitted on write (backward compatible).
-        let t: TemplateTask = serde_json::from_str(r#"{"id":"k_1","title":"t","created_at":0}"#).unwrap();
+        let t: TemplateTask =
+            serde_json::from_str(r#"{"id":"k_1","title":"t","created_at":0}"#).unwrap();
         assert!(t.recurrence_tag_id.is_none());
-        assert!(!serde_json::to_string(&t).unwrap().contains("recurrence_tag_id"));
+        assert!(!serde_json::to_string(&t)
+            .unwrap()
+            .contains("recurrence_tag_id"));
         // Present value round-trips.
         let mut s = template("k_2");
         s.recurrence_tag_id = Some("t_ex".into());

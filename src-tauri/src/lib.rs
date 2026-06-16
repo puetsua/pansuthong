@@ -98,16 +98,14 @@ pub fn run() {
 
     builder
         .setup(|app| {
-            let default_dir = app
-                .path()
-                .app_data_dir()
-                .expect("app_data_dir resolvable");
+            let default_dir = app.path().app_data_dir().expect("app_data_dir resolvable");
             std::fs::create_dir_all(&default_dir).expect("create app data dir");
             // Device-local config: chosen folder + settings. Migrates legacy
             // data_location.json / tasks.json settings on first launch.
             let config = crate::config::load_or_migrate(&default_dir);
             // Effective path honours a device-local custom folder, if set.
-            let path = crate::config::resolve_data_path(&default_dir, &config.folder);
+            let path =
+                crate::config::resolve_data_path(&default_dir, &config.folder, &config.device_id);
             if let Some(parent) = path.parent() {
                 let _ = std::fs::create_dir_all(parent);
             }
@@ -120,7 +118,9 @@ pub fn run() {
             if sync_handle.is_none() {
                 eprintln!("warning: filesystem watcher failed to start");
             }
-            app.manage(crate::sync::WatcherHandle(std::sync::Mutex::new(sync_handle)));
+            app.manage(crate::sync::WatcherHandle(std::sync::Mutex::new(
+                sync_handle,
+            )));
 
             // Android folder-sync: restore the previously linked SAF folder (if any)
             // and manage the sync runtime state. The sidecar (sync.json) lives beside

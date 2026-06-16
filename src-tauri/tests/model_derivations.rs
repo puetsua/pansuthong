@@ -8,19 +8,29 @@ fn load(name: &str) -> Document {
     serde_json::from_str(&s).unwrap()
 }
 
-fn today() -> NaiveDate { NaiveDate::from_ymd_opt(2026, 5, 28).unwrap() }
+fn today() -> NaiveDate {
+    NaiveDate::from_ymd_opt(2026, 5, 28).unwrap()
+}
 
 #[test]
 fn today_view_includes_overdue_scheduled_and_due() {
     let doc = load("sample");
-    let ids: Vec<&str> = doc.tasks_today(today()).iter().map(|t| t.id.as_str()).collect();
+    let ids: Vec<&str> = doc
+        .tasks_today(today())
+        .iter()
+        .map(|t| t.id.as_str())
+        .collect();
     assert_eq!(ids, vec!["k_overdue1", "k_today1", "k_today2", "k_reno1"]);
 }
 
 #[test]
 fn today_view_excludes_future_tasks() {
     let doc = load("sample");
-    let ids: Vec<&str> = doc.tasks_today(today()).iter().map(|t| t.id.as_str()).collect();
+    let ids: Vec<&str> = doc
+        .tasks_today(today())
+        .iter()
+        .map(|t| t.id.as_str())
+        .collect();
     assert!(!ids.contains(&"k_future1"));
 }
 
@@ -37,7 +47,11 @@ fn inbox_contains_tasks_with_no_pinned_tag() {
 #[test]
 fn tag_lookup_returns_tasks_with_that_tag() {
     let doc = load("sample");
-    let urgent: Vec<&str> = doc.tasks_for_tag("t_urgent").iter().map(|t| t.id.as_str()).collect();
+    let urgent: Vec<&str> = doc
+        .tasks_for_tag("t_urgent")
+        .iter()
+        .map(|t| t.id.as_str())
+        .collect();
     assert_eq!(urgent, vec!["k_overdue1"]);
 }
 
@@ -65,11 +79,30 @@ fn archived_tasks_drop_out_of_active_views() {
     )
     .unwrap();
 
-    let today_ids: Vec<&str> = doc.tasks_today(today()).iter().map(|t| t.id.as_str()).collect();
-    assert_eq!(today_ids, vec!["k_open"], "archived task excluded from Today");
+    let today_ids: Vec<&str> = doc
+        .tasks_today(today())
+        .iter()
+        .map(|t| t.id.as_str())
+        .collect();
+    assert_eq!(
+        today_ids,
+        vec!["k_open"],
+        "archived task excluded from Today"
+    );
 
-    let tag_ids: Vec<&str> = doc.tasks_for_tag("t_a").iter().map(|t| t.id.as_str()).collect();
-    assert_eq!(tag_ids, vec!["k_open"], "archived task excluded from tag view");
+    let tag_ids: Vec<&str> = doc
+        .tasks_for_tag("t_a")
+        .iter()
+        .map(|t| t.id.as_str())
+        .collect();
+    assert_eq!(
+        tag_ids,
+        vec!["k_open"],
+        "archived task excluded from tag view"
+    );
 
-    assert!(doc.tasks_inbox().is_empty(), "archived untagged task excluded from Inbox");
+    assert!(
+        doc.tasks_inbox().is_empty(),
+        "archived untagged task excluded from Inbox"
+    );
 }
