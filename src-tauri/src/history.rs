@@ -70,8 +70,11 @@ pub fn read_history(data_path: &Path, limit: usize) -> Result<Vec<HistoryEntry>>
             if line.trim().is_empty() {
                 continue;
             }
-            if let Ok(entry) = serde_json::from_str::<HistoryEntry>(&line) {
-                entries.push(entry);
+            match serde_json::from_str::<HistoryEntry>(&line) {
+                Ok(entry) => entries.push(entry),
+                // A torn/partial append (the log is appended non-atomically) would
+                // otherwise vanish silently. Surface it instead of dropping it mute.
+                Err(e) => eprintln!("warning: skipping unparseable history line: {e}"),
             }
         }
     }

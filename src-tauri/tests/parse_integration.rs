@@ -94,6 +94,16 @@ fn due_mm_dd_assumes_current_year() {
 }
 
 #[test]
+fn due_mm_dd_that_already_passed_rolls_to_next_year() {
+    // Quick-entry dates are forward-looking (like the weekday parser). A bare
+    // month/day that has already passed this year means next year — so "1/2"
+    // entered on Dec 31 is next January, not the current (past) year.
+    let dec31 = NaiveDate::from_ymd_opt(2026, 12, 31).unwrap();
+    let p = parse("Pay rent due 1/2", dec31);
+    assert_eq!(p.due_date, Some(NaiveDate::from_ymd_opt(2027, 1, 2).unwrap()));
+}
+
+#[test]
 fn due_iso_date() {
     let p = parse("Plan due 2027-01-15", today());
     assert_eq!(

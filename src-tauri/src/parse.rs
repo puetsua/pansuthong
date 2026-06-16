@@ -110,6 +110,14 @@ fn parse_date(word: &str, today: NaiveDate) -> Option<NaiveDate> {
         return Some(d);
     }
     if let Ok(d) = NaiveDate::parse_from_str(&format!("{}/{}", today.format("%Y"), w), "%Y/%m/%d") {
+        // A bare month/day is forward-looking (like the weekday parser above): if
+        // it has already passed this year, roll to next year so e.g. "1/2" entered
+        // on Dec 31 means next January rather than a date ten months in the past.
+        if d < today {
+            if let Some(next) = d.with_year(d.year() + 1) {
+                return Some(next);
+            }
+        }
         return Some(d);
     }
     None
