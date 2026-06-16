@@ -154,22 +154,31 @@ pub fn pull_in(
     let mut imported = false;
     let mut warning = None;
     match read_merged_remote(backend) {
-        Ok(Some(remote)) => {
-            let h = sha256(&remote);
-            if Some(h) != last_synced_hash {
-                match state.adopt_synced(&remote, last_synced_hash) {
-                    Ok(hash) => {
-                        new_hash = Some(hash);
-                        imported = true;
-                    }
-                    Err(_) => {
-                        warning =
-                            Some("saf: remote tasks.json is not valid; kept local data".into());
+        Ok((maybe_remote, skipped)) => {
+            if !skipped.is_empty() {
+                warning = Some(format!(
+                    "saf: skipped {} unreadable replica(s): {}",
+                    skipped.len(),
+                    skipped.join(", ")
+                ));
+            }
+            if let Some(remote) = maybe_remote {
+                let h = sha256(&remote);
+                if Some(h) != last_synced_hash {
+                    match state.adopt_synced(&remote, last_synced_hash) {
+                        Ok(hash) => {
+                            new_hash = Some(hash);
+                            imported = true;
+                        }
+                        Err(_) => {
+                            warning = Some(
+                                "saf: remote tasks.json is not valid; kept local data".into(),
+                            );
+                        }
                     }
                 }
             }
         }
-        Ok(None) => {}
         Err(e) => {
             warning = Some(format!("saf: could not read remote: {e}"));
         }
@@ -262,7 +271,9 @@ pub fn switch_to_remote(
     let dir = data_path.parent().unwrap_or_else(|| Path::new("."));
     let conflict_count = mirror_conflict_files(backend, dir)?;
     let attachments_imported = mirror_remote_attachment_files(backend, dir)?;
-    let (imported, new_synced_hash) = match read_merged_remote(backend)? {
+    // The explicit folder-switch loads the remote outright; skipped replicas are
+    // already logged in read_merged_remote.
+    let (imported, new_synced_hash) = match read_merged_remote(backend)?.0 {
         Some(remote) => (true, Some(state.load_replacing_local(&remote)?)),
         None => (false, None),
     };
@@ -274,7 +285,10 @@ pub fn switch_to_remote(
     })
 }
 
-fn read_merged_remote(backend: &dyn SafBackend) -> Result<Option<Vec<u8>>> {
+/// Returns the merged remote bytes (if any) plus the names of any replicas that
+/// were skipped because they couldn't be read or parsed, so the caller can
+/// surface degraded sync rather than silently dropping a device's data.
+fn read_merged_remote(backend: &dyn SafBackend) -> Result<(Option<Vec<u8>>, Vec<String>)> {
     let names = backend.list_file_names()?;
     let replica_names: Vec<_> = names
         .iter()
@@ -282,6 +296,7 @@ fn read_merged_remote(backend: &dyn SafBackend) -> Result<Option<Vec<u8>>> {
         .cloned()
         .collect();
     let mut docs = Vec::new();
+    let mut skipped = Vec::new();
     if replica_names.is_empty() {
         if let Some(bytes) = backend.read_tasks()? {
             docs.push(serde_json::from_slice::<Document>(&bytes)?);
@@ -290,20 +305,27 @@ fn read_merged_remote(backend: &dyn SafBackend) -> Result<Option<Vec<u8>>> {
         for name in replica_names {
             // Skip a replica that can't be read or parsed (a not-yet-materialized
             // cloud file, or a torn mid-sync write) and merge the healthy rest,
-            // rather than letting one bad replica sink the whole pull.
+            // rather than letting one bad replica sink the whole pull — but record
+            // it so the skip is surfaced, not silent.
             match backend.read_file(&name) {
                 Ok(bytes) => match serde_json::from_slice::<Document>(&bytes) {
                     Ok(doc) => docs.push(doc),
-                    Err(e) => eprintln!("saf: skipping unparseable replica {name}: {e}"),
+                    Err(e) => {
+                        eprintln!("saf: skipping unparseable replica {name}: {e}");
+                        skipped.push(name);
+                    }
                 },
-                Err(e) => eprintln!("saf: skipping unreadable replica {name}: {e}"),
+                Err(e) => {
+                    eprintln!("saf: skipping unreadable replica {name}: {e}");
+                    skipped.push(name);
+                }
             }
         }
     }
     if docs.is_empty() {
-        return Ok(None);
+        return Ok((None, skipped));
     }
-    Ok(Some(serde_json::to_vec_pretty(&merge_documents(docs))?))
+    Ok((Some(serde_json::to_vec_pretty(&merge_documents(docs))?), skipped))
 }
 
 /// Status surfaced to the UI.
@@ -888,5 +910,33 @@ mod tests {
         // The conflict file must have been mirrored into the app-private dir.
         let mirrored = path.with_file_name("tasks.sync-conflict-20260530-120000-AAA.json");
         assert!(mirrored.exists());
+    }
+
+    #[test]
+    fn pull_skips_a_bad_replica_and_warns_but_imports_the_good_one() {
+        let (_d, state, path) = temp_state();
+        let mut good = Document::default();
+        good.tags.push(crate::model::Tag {
+            id: "t_1".into(),
+            name: "work".into(),
+            color: "#000".into(),
+            priority: 0,
+            pinned: false,
+            updated_at: 1,
+        });
+        let good_bytes = serde_json::to_vec_pretty(&good).unwrap();
+        let backend = FakeBackend::with(&[
+            ("tasks_good.json", &good_bytes),
+            ("tasks_bad.json", b"{ not valid json"),
+        ]);
+
+        let out = pull_in(&state, &backend, &path, None).expect("pull is non-fatal");
+        assert!(
+            out.warning.as_deref().unwrap_or("").contains("tasks_bad.json"),
+            "the skipped replica is surfaced as a warning, got {:?}",
+            out.warning
+        );
+        assert!(out.imported, "the healthy replica was still imported");
+        assert_eq!(state.read(|d| d.tags.len()), 1, "good replica's tag merged in");
     }
 }
