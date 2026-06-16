@@ -760,6 +760,16 @@ fn merge_time_entries(into: &mut Task, from: &Task) {
 /// Merge per-device replica documents into one computed document. Entity-level
 /// latest-write-wins keeps different devices from fighting over one physical
 /// cloud file; tombstones prevent deletes from being resurrected by stale replicas.
+///
+/// LIMITATION — silent loss on concurrent edits: when two replicas edit the *same*
+/// entity, the lower-stamped edit is discarded with no conflict file and no history
+/// entry (only time-entry *additions* survive both sides, since they union by id).
+/// This differs from the whole-document divergence path in `store::adopt_synced`,
+/// which preserves the loser as a `.sync-conflict` file. The narrowing here is
+/// intentional (replicas are per-device, so same-entity collisions are rare), but
+/// it is a real data-loss window, made worse by clock skew that can mis-rank which
+/// edit is actually newer. Surfacing discarded edits (e.g. a history marker) needs
+/// dedup state because this runs on every read/poll — see the merge-engine notes.
 pub fn merge_documents(replicas: Vec<Document>) -> Document {
     let mut merged = Document::default();
     let mut tasks: HashMap<String, (i64, Task)> = HashMap::new();
