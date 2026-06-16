@@ -1813,6 +1813,13 @@ pub fn clear_data_folder(
     config.set_folder(None)?;
     crate::sync::restart(&watcher, &app, new_path);
     emit_changed(&app);
+    // Refresh the conflict badge for the new (default) folder, mirroring
+    // set_data_folder, so stale conflicts from the previous folder don't linger
+    // until the next poll tick.
+    let _ = app.emit(
+        "conflicts-detected",
+        &crate::sync::scan_conflict_files(&state.path()),
+    );
     Ok(data_location(&state, &config))
 }
 
@@ -1885,7 +1892,9 @@ fn saf_run_pull(
                         let mut g = saf.inner.lock().unwrap_or_else(|e| e.into_inner());
                         g.last_synced_hash = out.new_synced_hash;
                         g.last_synced_ms = Some(now_ms());
-                        g.last_error = None;
+                        // A non-fatal warning (e.g. an invalid remote main doc)
+                        // surfaces here without discarding the mirrored conflicts.
+                        g.last_error = out.warning.clone();
                     }
                     conflicts = out.conflict_count;
                     if out.imported {
@@ -1929,7 +1938,9 @@ fn saf_run_switch(
                         let mut g = saf.inner.lock().unwrap_or_else(|e| e.into_inner());
                         g.last_synced_hash = out.new_synced_hash;
                         g.last_synced_ms = Some(now_ms());
-                        g.last_error = None;
+                        // A non-fatal warning (e.g. an invalid remote main doc)
+                        // surfaces here without discarding the mirrored conflicts.
+                        g.last_error = out.warning.clone();
                     }
                     conflicts = out.conflict_count;
                     if out.imported {

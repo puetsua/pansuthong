@@ -6,7 +6,7 @@
 //! testable on desktop; the real Android backend lives in the `android` submodule.
 
 use crate::commands::is_attachment_filename;
-use crate::error::{AppError, Result};
+use crate::error::Result;
 use crate::model::{merge_documents, Document};
 use crate::store::AppState;
 use serde::{Deserialize, Serialize};
@@ -124,6 +124,10 @@ pub struct PullOutcome {
     pub imported: bool,
     pub new_synced_hash: Option<[u8; 32]>,
     pub conflict_count: usize,
+    /// A non-fatal problem (e.g. the remote main document didn't parse) surfaced
+    /// to `last_error` without throwing away the conflict files / attachments this
+    /// pass already mirrored. `None` = clean pull.
+    pub warning: Option<String>,
 }
 
 /// Mirror the folder into app-private: adopt a changed remote `tasks.json`
@@ -142,24 +146,32 @@ pub fn pull_in(
     let attachments_imported = mirror_remote_attachment_files(backend, dir)?;
 
     // 2. Adopt a changed, VALID merged remote replica document, preserving any
-    //    diverged local edits as a conflict file (#34).
+    //    diverged local edits as a conflict file (#34). A torn/garbage or
+    //    newer-version remote is reported as a non-fatal warning rather than a
+    //    hard error, so the conflict files and attachments mirrored above this
+    //    pass still surface (and we retry adoption next pull, hash unchanged).
     let mut new_hash = last_synced_hash;
     let mut imported = false;
-    if let Some(remote) = read_merged_remote(backend)? {
-        let h = sha256(&remote);
-        if Some(h) != last_synced_hash {
-            match state.adopt_synced(&remote, last_synced_hash) {
-                Ok(hash) => {
-                    new_hash = Some(hash);
-                    imported = true;
-                }
-                Err(_) => {
-                    // Torn/garbage or newer-version remote: skip, keep the shadow intact.
-                    return Err(AppError::Invalid(
-                        "saf: remote tasks.json is not valid JSON".into(),
-                    ));
+    let mut warning = None;
+    match read_merged_remote(backend) {
+        Ok(Some(remote)) => {
+            let h = sha256(&remote);
+            if Some(h) != last_synced_hash {
+                match state.adopt_synced(&remote, last_synced_hash) {
+                    Ok(hash) => {
+                        new_hash = Some(hash);
+                        imported = true;
+                    }
+                    Err(_) => {
+                        warning =
+                            Some("saf: remote tasks.json is not valid; kept local data".into());
+                    }
                 }
             }
+        }
+        Ok(None) => {}
+        Err(e) => {
+            warning = Some(format!("saf: could not read remote: {e}"));
         }
     }
 
@@ -167,6 +179,7 @@ pub fn pull_in(
         imported: imported || attachments_imported,
         new_synced_hash: new_hash,
         conflict_count,
+        warning,
     })
 }
 
@@ -257,6 +270,7 @@ pub fn switch_to_remote(
         imported: imported || attachments_imported,
         new_synced_hash,
         conflict_count,
+        warning: None,
     })
 }
 
@@ -274,8 +288,16 @@ fn read_merged_remote(backend: &dyn SafBackend) -> Result<Option<Vec<u8>>> {
         }
     } else {
         for name in replica_names {
-            let bytes = backend.read_file(&name)?;
-            docs.push(serde_json::from_slice::<Document>(&bytes)?);
+            // Skip a replica that can't be read or parsed (a not-yet-materialized
+            // cloud file, or a torn mid-sync write) and merge the healthy rest,
+            // rather than letting one bad replica sink the whole pull.
+            match backend.read_file(&name) {
+                Ok(bytes) => match serde_json::from_slice::<Document>(&bytes) {
+                    Ok(doc) => docs.push(doc),
+                    Err(e) => eprintln!("saf: skipping unparseable replica {name}: {e}"),
+                },
+                Err(e) => eprintln!("saf: skipping unreadable replica {name}: {e}"),
+            }
         }
     }
     if docs.is_empty() {
@@ -376,8 +398,8 @@ pub mod android {
     use tauri::AppHandle;
     use tauri_plugin_android_fs::{AndroidFsExt, Entry, FileUri, UriPermission};
 
-    fn saferr(e: impl std::fmt::Display) -> AppError {
-        AppError::Invalid(format!("saf: {e}"))
+    fn saferr(e: impl std::fmt::Display) -> crate::error::AppError {
+        crate::error::AppError::Invalid(format!("saf: {e}"))
     }
 
     /// Real SAF backend bound to a picked folder URI.
@@ -853,10 +875,11 @@ mod tests {
             ("unrelated.txt", b"ignore me"),
         ]);
 
-        // Garbage tasks.json must NOT clobber the shadow.
-        let result = pull_in(&state, &backend, &path, None);
-        // Either it errored on parse OR skipped import; the shadow doc is unchanged either way.
-        let _ = result; // parse error is acceptable for the main file
+        // Garbage tasks.json must NOT clobber the shadow, and must NOT abort the
+        // pull: the conflict mirror already done this pass has to survive.
+        let out = pull_in(&state, &backend, &path, None).expect("pull is non-fatal on bad remote");
+        assert!(out.warning.is_some(), "invalid remote surfaces a non-fatal warning");
+        assert_eq!(out.conflict_count, 1, "the conflict file was still mirrored");
         assert_eq!(
             state.read(|d| (d.tasks.len(), d.tags.len())),
             (before.tasks.len(), before.tags.len())
