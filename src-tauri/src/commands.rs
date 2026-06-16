@@ -1744,7 +1744,7 @@ fn saf_delete_conflict(app: &AppHandle, conflict_path: &std::path::Path) {
         return;
     };
     let saf = app.state::<crate::safsync::SafSync>();
-    let folder_json = saf.inner.lock().unwrap().folder_uri_json.clone();
+    let folder_json = saf.inner.lock().unwrap_or_else(|e| e.into_inner()).folder_uri_json.clone();
     if let Some(json) = folder_json {
         if let Ok(backend) = crate::safsync::android::AndroidSafBackend::from_json(app, &json) {
             let _ = backend.delete_file(name);
@@ -1763,7 +1763,7 @@ fn saf_conflict_count(path: &std::path::Path) -> usize {
 #[cfg(target_os = "android")]
 fn saf_persist(state: &AppState, saf: &crate::safsync::SafSync) {
     let cfg = {
-        let g = saf.inner.lock().unwrap();
+        let g = saf.inner.lock().unwrap_or_else(|e| e.into_inner());
         crate::safsync::SyncConfig {
             folder_uri_json: g.folder_uri_json.clone(),
             folder_label: g.folder_label.clone(),
@@ -1787,7 +1787,7 @@ fn saf_run_pull(
     use crate::safsync::{self, android::AndroidSafBackend};
     let path = state.path();
     let (folder_json, last_hash) = {
-        let g = saf.inner.lock().unwrap();
+        let g = saf.inner.lock().unwrap_or_else(|e| e.into_inner());
         (g.folder_uri_json.clone(), g.last_synced_hash)
     };
     let mut conflicts = 0usize;
@@ -1797,7 +1797,7 @@ fn saf_run_pull(
             Ok(backend) => match safsync::pull_in(state, &backend, &path, last_hash) {
                 Ok(out) => {
                     {
-                        let mut g = saf.inner.lock().unwrap();
+                        let mut g = saf.inner.lock().unwrap_or_else(|e| e.into_inner());
                         g.last_synced_hash = out.new_synced_hash;
                         g.last_synced_ms = Some(now_ms());
                         g.last_error = None;
@@ -1810,12 +1810,12 @@ fn saf_run_pull(
                     let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
                 }
                 Err(e) => {
-                    saf.inner.lock().unwrap().last_error = Some(e.to_string());
+                    saf.inner.lock().unwrap_or_else(|e| e.into_inner()).last_error = Some(e.to_string());
                     ok = false;
                 }
             },
             Err(e) => {
-                saf.inner.lock().unwrap().last_error = Some(e.to_string());
+                saf.inner.lock().unwrap_or_else(|e| e.into_inner()).last_error = Some(e.to_string());
                 ok = false;
             }
         }
@@ -1834,14 +1834,14 @@ fn saf_run_switch(
 ) -> crate::safsync::SyncStatus {
     use crate::safsync::{self, android::AndroidSafBackend};
     let path = state.path();
-    let folder_json = saf.inner.lock().unwrap().folder_uri_json.clone();
+    let folder_json = saf.inner.lock().unwrap_or_else(|e| e.into_inner()).folder_uri_json.clone();
     let mut conflicts = 0usize;
     if let Some(json) = folder_json {
         match AndroidSafBackend::from_json(app, &json) {
             Ok(backend) => match safsync::switch_to_remote(state, &backend, &path) {
                 Ok(out) => {
                     {
-                        let mut g = saf.inner.lock().unwrap();
+                        let mut g = saf.inner.lock().unwrap_or_else(|e| e.into_inner());
                         g.last_synced_hash = out.new_synced_hash;
                         g.last_synced_ms = Some(now_ms());
                         g.last_error = None;
@@ -1854,11 +1854,11 @@ fn saf_run_switch(
                     let _ = app.emit("conflicts-detected", &scan_conflict_files(&path));
                 }
                 Err(e) => {
-                    saf.inner.lock().unwrap().last_error = Some(e.to_string());
+                    saf.inner.lock().unwrap_or_else(|e| e.into_inner()).last_error = Some(e.to_string());
                 }
             },
             Err(e) => {
-                saf.inner.lock().unwrap().last_error = Some(e.to_string());
+                saf.inner.lock().unwrap_or_else(|e| e.into_inner()).last_error = Some(e.to_string());
             }
         }
     }
@@ -1874,7 +1874,7 @@ fn saf_run_push(
     use crate::safsync::{self, android::AndroidSafBackend};
     let path = state.path();
     let (folder_json, last_hash) = {
-        let g = saf.inner.lock().unwrap();
+        let g = saf.inner.lock().unwrap_or_else(|e| e.into_inner());
         (g.folder_uri_json.clone(), g.last_synced_hash)
     };
     if let Some(json) = folder_json {
@@ -1882,7 +1882,7 @@ fn saf_run_push(
             Ok(backend) => match safsync::push_out(state, &backend, &path, last_hash) {
                 Ok(Some(h)) => {
                     {
-                        let mut g = saf.inner.lock().unwrap();
+                        let mut g = saf.inner.lock().unwrap_or_else(|e| e.into_inner());
                         g.last_synced_hash = Some(h);
                         g.last_synced_ms = Some(now_ms());
                         g.last_error = None;
@@ -1891,11 +1891,11 @@ fn saf_run_push(
                 }
                 Ok(None) => {}
                 Err(e) => {
-                    saf.inner.lock().unwrap().last_error = Some(e.to_string());
+                    saf.inner.lock().unwrap_or_else(|e| e.into_inner()).last_error = Some(e.to_string());
                 }
             },
             Err(e) => {
-                saf.inner.lock().unwrap().last_error = Some(e.to_string());
+                saf.inner.lock().unwrap_or_else(|e| e.into_inner()).last_error = Some(e.to_string());
             }
         }
     }
@@ -1914,7 +1914,7 @@ pub async fn saf_pick_folder(
     let picked = safsync::android::pick_and_persist(&app).await?;
     if let Some((json, label)) = picked {
         {
-            let mut g = saf.inner.lock().unwrap();
+            let mut g = saf.inner.lock().unwrap_or_else(|e| e.into_inner());
             g.folder_uri_json = Some(json.clone());
             g.folder_label = Some(label.clone());
             g.permission_ok = true;
@@ -1943,7 +1943,7 @@ pub async fn saf_pick_folder(
                 let msg =
                     "Couldn't read the selected folder, so its contents were left untouched. \
                            Check the folder is reachable and try linking again.";
-                saf.inner.lock().unwrap().last_error = Some(msg.into());
+                saf.inner.lock().unwrap_or_else(|e| e.into_inner()).last_error = Some(msg.into());
                 saf.status(saf_conflict_count(&state.path()))
             }
         });
@@ -1958,7 +1958,7 @@ pub fn saf_clear_folder(
     saf: State<'_, crate::safsync::SafSync>,
 ) -> Result<()> {
     {
-        let mut g = saf.inner.lock().unwrap();
+        let mut g = saf.inner.lock().unwrap_or_else(|e| e.into_inner());
         g.folder_uri_json = None;
         g.folder_label = None;
         g.permission_ok = false;

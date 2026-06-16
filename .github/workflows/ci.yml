@@ -46,6 +46,24 @@ jobs:
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml
 
+  android:
+    name: Android (compile check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: android
+      # The desktop CI never compiles the Android target, so an #[cfg(target_os =
+      # "android")] regression (e.g. the SAF sync paths) only surfaces at release
+      # time. `cargo check` compiles the cdylib lib for Android without linking, so
+      # it needs no NDK and stays a fast gate that catches those breaks early.
+      - run: cargo check --manifest-path src-tauri/Cargo.toml --lib --target aarch64-linux-android
+
   build:
     name: Build (desktop smoke)
     runs-on: ubuntu-latest
