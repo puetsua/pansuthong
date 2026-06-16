@@ -185,12 +185,23 @@ fn file_display_name(path: &Path) -> Result<String> {
         })
 }
 
+/// Per-attachment size ceiling. Attachments are copied into the data folder and
+/// mirrored to the sync folder, so an unbounded file would OOM on import and
+/// bloat every device's synced copy. 50 MiB is generous for notes/images/PDFs.
+const MAX_ATTACHMENT_BYTES: u64 = 50 * 1024 * 1024;
+
 fn attachment_from_bytes(
     data_path: &Path,
     name: String,
     mime_type: Option<String>,
     bytes: &[u8],
 ) -> Result<Attachment> {
+    if bytes.len() as u64 > MAX_ATTACHMENT_BYTES {
+        return Err(AppError::Invalid(format!(
+            "attachment {name} is too large ({} bytes); max {MAX_ATTACHMENT_BYTES}",
+            bytes.len()
+        )));
+    }
     let id = new_attachment_id();
     let relative = managed_attachment_name(&id, &name);
     let dest = attachment_abs_path(data_path, &relative)?;
@@ -240,10 +251,46 @@ fn attachments_from_paths(data_path: &Path, paths: Vec<String>) -> Result<Vec<At
     for raw in paths {
         let path = PathBuf::from(raw);
         let name = file_display_name(&path)?;
+        // Reject oversized files by metadata before reading, so a huge file is
+        // never buffered into memory in the first place.
+        if std::fs::metadata(&path)?.len() > MAX_ATTACHMENT_BYTES {
+            return Err(AppError::Invalid(format!(
+                "attachment {name} is too large; max {MAX_ATTACHMENT_BYTES} bytes"
+            )));
+        }
         let bytes = std::fs::read(&path)?;
         out.push(attachment_from_bytes(data_path, name, None, &bytes)?);
     }
     Ok(out)
+}
+
+/// Reject an attachments array whose entries don't point at a managed attachment
+/// file (`attachment_*`, no path separators). The file ops re-validate on read,
+/// but this keeps a crafted IPC payload from persisting a bogus/absolute path
+/// into the synced document in the first place.
+fn validate_attachments(attachments: &[Attachment]) -> Result<()> {
+    for a in attachments {
+        if !is_attachment_filename(&a.path) {
+            return Err(AppError::Invalid(format!(
+                "invalid attachment path: {:?}",
+                a.path
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Validate a new tag's name and color the way `update_tag`/`update_settings`
+/// already validate edits, so the create path can't persist a blank-named or
+/// non-hex-color tag into the synced document.
+fn validate_new_tag(name: &str, color: &str) -> Result<()> {
+    if name.trim().is_empty() {
+        return Err(AppError::Invalid("name is empty".into()));
+    }
+    if !is_hex_color(color) {
+        return Err(AppError::Invalid(format!("invalid color: {color}")));
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -616,6 +663,7 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
     validate_time(input.due_time.as_deref())?;
     validate_time(input.start_time.as_deref())?;
     validate_estimated_seconds(input.estimated_seconds)?;
+    validate_attachments(&input.attachments)?;
     let ts = now_ms();
     let saved = state.write(|d| {
         let task = Task {
@@ -727,6 +775,7 @@ pub fn update_task(
             t.notes = v;
         }
         if let Some(v) = input.attachments {
+            validate_attachments(&v)?;
             t.attachments = v;
         }
         if let Some(v) = input.tag_ids {
@@ -1012,6 +1061,7 @@ pub fn add_template(
     validate_offset_days(input.start_offset_days)?;
     validate_estimated_seconds(input.estimated_seconds)?;
     validate_recurrence(input.recurrence.as_ref())?;
+    validate_attachments(&input.attachments)?;
     let ts = now_ms();
     let saved = state.write(|d| {
         let tag_ids = retain_known_tags(input.tag_ids, &d.tags);
@@ -1095,6 +1145,7 @@ pub fn update_template(
             t.notes = v;
         }
         if let Some(v) = input.attachments {
+            validate_attachments(&v)?;
             t.attachments = v;
         }
         if let Some(v) = input.tag_ids {
@@ -1224,9 +1275,10 @@ pub struct NewTagInput {
 
 #[tauri::command]
 pub fn add_tag(input: NewTagInput, state: State<'_, AppState>, app: AppHandle) -> Result<Tag> {
+    validate_new_tag(&input.name, &input.color)?;
     let t = Tag {
         id: new_tag_id(),
-        name: input.name,
+        name: input.name.trim().to_string(),
         color: input.color,
         priority: input.priority,
         pinned: input.pinned,
@@ -2095,6 +2147,45 @@ mod tests {
             updated_at: 0,
             time_entries: Vec::new(),
         }
+    }
+
+    #[test]
+    fn validate_new_tag_rejects_blank_name_and_bad_color() {
+        assert!(validate_new_tag("  ", "#fff").is_err(), "blank name rejected");
+        assert!(validate_new_tag("work", "blue").is_err(), "non-hex color rejected");
+        assert!(validate_new_tag("work", "#10b981").is_ok(), "valid tag accepted");
+    }
+
+    #[test]
+    fn validate_attachments_rejects_unmanaged_paths() {
+        let bad = vec![Attachment {
+            id: "a".into(),
+            name: "x".into(),
+            path: "../../etc/passwd".into(),
+            mime_type: None,
+            size: None,
+            created_at: 0,
+        }];
+        assert!(validate_attachments(&bad).is_err(), "traversal path rejected");
+
+        let ok = vec![Attachment {
+            id: "a".into(),
+            name: "x".into(),
+            path: "attachment_a_x.bin".into(),
+            mime_type: None,
+            size: None,
+            created_at: 0,
+        }];
+        assert!(validate_attachments(&ok).is_ok(), "managed path accepted");
+    }
+
+    #[test]
+    fn attachment_from_bytes_rejects_oversized_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("tasks_dev.json");
+        let oversized = vec![0u8; (MAX_ATTACHMENT_BYTES + 1) as usize];
+        let res = attachment_from_bytes(&data, "big.bin".into(), None, &oversized);
+        assert!(res.is_err(), "a file over the cap must be rejected");
     }
 
     #[test]
