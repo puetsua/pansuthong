@@ -111,6 +111,13 @@ pub fn run() {
             }
             let state = AppState::open(path.clone()).expect("open store");
             app.manage(state);
+            // Attachments live beside the data file and are served to the webview
+            // via the asset protocol (convertFileSrc). The default app-data dir is
+            // covered by the config scope ($APPDATA), but a user-chosen folder is
+            // only known at runtime, so allow its directory here too.
+            if let Some(parent) = path.parent() {
+                let _ = app.asset_protocol_scope().allow_directory(parent, false);
+            }
             app.manage(crate::config::ConfigState::new(&default_dir, config));
 
             let handle = app.handle().clone();

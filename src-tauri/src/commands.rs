@@ -1791,6 +1791,9 @@ pub fn set_data_folder(
     let new_path = folder_path.join(crate::config::data_file_name(&config.device_id()));
     state.repoint(new_path.clone())?;
     config.set_folder(Some(folder))?;
+    // Allow serving attachments from the newly-chosen folder via the asset
+    // protocol (the default app-data dir is covered by the config scope).
+    let _ = app.asset_protocol_scope().allow_directory(&folder_path, false);
     crate::sync::restart(&watcher, &app, new_path);
     emit_changed(&app);
     let _ = app.emit(
