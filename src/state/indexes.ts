@@ -117,7 +117,13 @@ function rowKey(row: Row): RowKey {
     return { tagIds: t.tag_ids, date: s && d ? (s < d ? s : d) : (s ?? d), done: isDone(t) };
   }
   const g = row.ghost;
-  return { tagIds: g.tag_ids, date: moment(g.occurrenceDate) ?? moment(g.due_date), done: false };
+  // Mirror the task branch exactly: a promoted ghost becomes a task with
+  // start_date = occurrenceDate and due_date = g.due_date, so key it on the
+  // earliest of the two. (occurrenceDate is always set, so the previous
+  // `?? moment(g.due_date)` fallback was dead code.)
+  const s = moment(g.occurrenceDate);
+  const d = moment(g.due_date);
+  return { tagIds: g.tag_ids, date: s && d ? (s < d ? s : d) : (s ?? d), done: false };
 }
 
 function rowOpenFirst(a: RowKey, b: RowKey): number {
