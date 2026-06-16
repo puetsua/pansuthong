@@ -304,7 +304,7 @@ pub struct SafSyncInner {
 
 impl SafSync {
     pub fn status(&self, conflict_count: usize) -> SyncStatus {
-        let g = self.inner.lock().unwrap();
+        let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         SyncStatus {
             linked: g.folder_uri_json.is_some(),
             folder_label: g.folder_label.clone(),
