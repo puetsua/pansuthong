@@ -213,6 +213,22 @@ fn attachments_referenced(d: &crate::model::Document, path: &str) -> bool {
         .any(|a| a.path == path)
 }
 
+/// Delete the on-disk file for each path in `paths` that is no longer referenced
+/// by any task or template, so removing an entity (or whole task) doesn't orphan
+/// its attachment blobs in the data folder (which would otherwise be mirrored to
+/// the sync folder forever). Mirrors the per-attachment cleanup in
+/// `remove_task_attachment`; a failed unlink is non-fatal (the metadata is gone).
+fn gc_attachment_files(state: &AppState, paths: &[String]) {
+    for path in paths {
+        if state.read(|d| attachments_referenced(d, path)) {
+            continue;
+        }
+        if let Ok(abs) = attachment_abs_path(&state.path(), path) {
+            let _ = std::fs::remove_file(abs);
+        }
+    }
+}
+
 #[derive(Deserialize)]
 pub struct AttachFilesInput {
     pub id: String,
@@ -757,9 +773,13 @@ pub fn set_task_done(
 
 #[tauri::command]
 pub fn delete_task(id: String, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
+    let mut orphaned: Vec<String> = Vec::new();
     state.write(|d| {
         let ts = now_ms();
         let before = d.tasks.len();
+        if let Some(t) = d.tasks.iter().find(|t| t.id == id) {
+            orphaned = t.attachments.iter().map(|a| a.path.clone()).collect();
+        }
         d.tasks.retain(|t| t.id != id);
         if d.tasks.len() == before {
             return Err(AppError::NotFound(format!("task {id}")));
@@ -771,6 +791,7 @@ pub fn delete_task(id: String, state: State<'_, AppState>, app: AppHandle) -> Re
         });
         Ok(())
     })?;
+    gc_attachment_files(&state, &orphaned);
     emit_changed(&app);
     Ok(())
 }
@@ -1118,9 +1139,13 @@ pub fn update_template(
 
 #[tauri::command]
 pub fn delete_template(id: String, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
+    let mut orphaned: Vec<String> = Vec::new();
     state.write(|d| {
         let ts = now_ms();
         let before = d.template_tasks.len();
+        if let Some(t) = d.template_tasks.iter().find(|t| t.id == id) {
+            orphaned = t.attachments.iter().map(|a| a.path.clone()).collect();
+        }
         d.template_tasks.retain(|t| t.id != id);
         if d.template_tasks.len() == before {
             return Err(AppError::NotFound(format!("template {id}")));
@@ -1132,6 +1157,7 @@ pub fn delete_template(id: String, state: State<'_, AppState>, app: AppHandle) -
         });
         Ok(())
     })?;
+    gc_attachment_files(&state, &orphaned);
     emit_changed(&app);
     Ok(())
 }
@@ -2044,6 +2070,62 @@ pub fn saf_status() -> crate::safsync::SyncStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn task_with_attachment(id: &str, attach_path: &str) -> Task {
+        Task {
+            id: id.into(),
+            title: "t".into(),
+            due_date: None,
+            due_time: None,
+            start_date: None,
+            start_time: None,
+            notes: String::new(),
+            attachments: vec![Attachment {
+                id: "att_1".into(),
+                name: "f".into(),
+                path: attach_path.into(),
+                mime_type: None,
+                size: None,
+                created_at: 0,
+            }],
+            tag_ids: Vec::new(),
+            estimated_seconds: None,
+            created_at: 0,
+            completed_at: None,
+            updated_at: 0,
+            time_entries: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn gc_attachment_files_removes_only_unreferenced_files() {
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("tasks_dev.json");
+        let state = AppState::open(data).unwrap();
+
+        // Two attachment blobs on disk; the doc references only the first.
+        let kept = "attachment_keep.bin";
+        let orphan = "attachment_orphan.bin";
+        for name in [kept, orphan] {
+            let mut f = std::fs::File::create(dir.path().join(name)).unwrap();
+            f.write_all(b"x").unwrap();
+        }
+        state
+            .write(|d| {
+                d.tasks.push(task_with_attachment("k_1", kept));
+                Ok(())
+            })
+            .unwrap();
+
+        gc_attachment_files(&state, &[kept.to_string(), orphan.to_string()]);
+
+        assert!(dir.path().join(kept).exists(), "referenced file must be kept");
+        assert!(
+            !dir.path().join(orphan).exists(),
+            "unreferenced file must be deleted"
+        );
+    }
 
     #[test]
     fn read_conflict_doc_rejects_a_newer_schema_version() {
