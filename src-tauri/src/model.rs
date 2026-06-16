@@ -18,6 +18,9 @@ pub fn new_tag_id() -> String {
 pub fn new_time_entry_id() -> String {
     short_id("te")
 }
+pub fn new_attachment_id() -> String {
+    short_id("att")
+}
 
 /// Epoch milliseconds. Used in memory for created_at/updated_at/last_modified and
 /// for unique conflict-file names. UTC-based, so it's stable across devices and
@@ -254,6 +257,19 @@ impl From<RecurrenceCompat> for Recurrence {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Attachment {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+    #[serde(with = "iso_secs")]
+    pub created_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(from = "TaskCompat")]
 pub struct Task {
@@ -272,6 +288,8 @@ pub struct Task {
     pub start_time: Option<String>,
     #[serde(default)]
     pub notes: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<Attachment>,
     #[serde(default)]
     pub tag_ids: Vec<String>,
     /// Estimated effort in whole seconds. Missing means no estimate, so older
@@ -321,6 +339,8 @@ pub struct TemplateTask {
     pub title: String,
     #[serde(default)]
     pub notes: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<Attachment>,
     #[serde(default)]
     pub tag_ids: Vec<String>,
     #[serde(with = "iso_secs")]
@@ -363,6 +383,7 @@ impl TemplateTask {
             id: c.id,
             title: c.title,
             notes: c.notes,
+            attachments: c.attachments,
             tag_ids: c.tag_ids,
             created_at: c.created_at,
             updated_at: c.updated_at,
@@ -400,6 +421,8 @@ struct TaskCompat {
     start_time: Option<String>,
     #[serde(default)]
     notes: String,
+    #[serde(default)]
+    attachments: Vec<Attachment>,
     #[serde(default)]
     tag_ids: Vec<String>,
     #[serde(default)]
@@ -443,6 +466,7 @@ impl From<TaskCompat> for Task {
             start_date: c.start_date,
             start_time: c.start_time,
             notes: c.notes,
+            attachments: c.attachments,
             tag_ids: c.tag_ids,
             estimated_seconds: c
                 .estimated_seconds
@@ -474,7 +498,9 @@ impl From<TaskCompat> for Task {
 /// parse the new `days`/`dates` keys, so the higher version flags the mismatch.
 /// Bumped to 9 when per-device replica merging added tag `updated_at` and delete
 /// tombstones; older builds would silently drop tombstones and resurrect deletes.
-pub const CURRENT_VERSION: u32 = 9;
+/// Bumped to 10 when task/template notes gained managed file attachments; older
+/// builds would silently drop attachment metadata on their next write.
+pub const CURRENT_VERSION: u32 = 10;
 
 /// Files written before `version` existed are assumed compatible with the
 /// current schema (the model is additive/backward-compatible), so an absent
@@ -912,6 +938,7 @@ mod tests {
             start_date: None,
             start_time: None,
             notes: String::new(),
+            attachments: Vec::new(),
             tag_ids: Vec::new(),
             estimated_seconds: None,
             created_at: 0,
@@ -1076,6 +1103,29 @@ mod tests {
         // empty rather than failing the parse.
         let t: Task = serde_json::from_str(r##"{"id":"k_1","title":"t","created_at":0}"##).unwrap();
         assert!(t.time_entries.is_empty());
+    }
+
+    #[test]
+    fn task_attachments_default_and_round_trip() {
+        let bare: Task =
+            serde_json::from_str(r##"{"id":"k_1","title":"t","created_at":0}"##).unwrap();
+        assert!(bare.attachments.is_empty());
+        assert!(!serde_json::to_string(&bare)
+            .unwrap()
+            .contains("attachments"));
+
+        let with_attachment: Task = serde_json::from_str(
+            r##"{"id":"k_1","title":"t","created_at":0,"attachments":[{"id":"att_1","name":"photo.png","path":"attachment_att_1_photo.png","mime_type":"image/png","size":12,"created_at":0}]}"##,
+        )
+        .unwrap();
+        assert_eq!(with_attachment.attachments.len(), 1);
+        assert_eq!(
+            with_attachment.attachments[0].path,
+            "attachment_att_1_photo.png"
+        );
+        assert!(serde_json::to_string(&with_attachment)
+            .unwrap()
+            .contains("\"attachments\""));
     }
 
     #[test]
@@ -1271,6 +1321,7 @@ mod tests {
             id: id.into(),
             title: id.into(),
             notes: String::new(),
+            attachments: Vec::new(),
             tag_ids: Vec::new(),
             created_at: 0,
             updated_at: 0,

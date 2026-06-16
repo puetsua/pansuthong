@@ -22,6 +22,7 @@ const base: EditorForm = {
   due_date: "",
   due_time: "",
   notes: "",
+  attachments: [],
   tag_ids: [],
   estimated_seconds: "",
   is_template: false,

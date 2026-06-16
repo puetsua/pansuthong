@@ -6,11 +6,11 @@
   "type": "object",
   "properties": {
     "version": {
-      "description": "Document schema version. Missing versions load as the current app version. Version 4+ stores timestamps as ISO-8601 strings; version 5+ stores reusable templates in a separate template_tasks list instead of as is_template tasks; version 6+ records per-task time-tracking entries in time_entries; version 7+ records template recurrence; version 8+ records multi-day recurrence shapes; version 9+ records per-device merge tombstones and tag updated_at.",
+      "description": "Document schema version. Missing versions load as the current app version. Version 4+ stores timestamps as ISO-8601 strings; version 5+ stores reusable templates in a separate template_tasks list instead of as is_template tasks; version 6+ records per-task time-tracking entries in time_entries; version 7+ records template recurrence; version 8+ records multi-day recurrence shapes; version 9+ records per-device merge tombstones and tag updated_at; version 10+ records task and template attachment metadata.",
       "type": "integer",
       "minimum": 1,
-      "maximum": 9,
-      "default": 9
+      "maximum": 10,
+      "default": 10
     },
     "last_modified": {
       "$ref": "#/$defs/timestamp",
@@ -115,6 +115,40 @@
               "type": "null"
             }
           ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "attachment": {
+      "description": "Metadata for a managed file attachment stored beside the per-device tasks replica. The path is a relative managed filename, never an absolute path.",
+      "type": "object",
+      "required": ["id", "name", "path", "created_at"],
+      "properties": {
+        "id": {
+          "description": "Attachment identifier. New app-created attachments use att_ followed by 12 hex characters.",
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "description": "Original display filename.",
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "description": "Managed relative filename in the data folder.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^/\\\\]+$"
+        },
+        "mime_type": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
         }
       },
       "additionalProperties": false
@@ -234,6 +268,14 @@
           "description": "Free-form notes. Missing notes load as an empty string.",
           "type": "string",
           "default": ""
+        },
+        "attachments": {
+          "description": "Managed file attachments shown with the task notes. Attachment bytes live beside the per-device tasks replica.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attachment"
+          },
+          "default": []
         },
         "tag_ids": {
           "description": "Tag ids attached to this task. Untagged tasks are Inbox tasks.",
@@ -387,6 +429,14 @@
           "description": "Free-form notes copied to spawned tasks. Missing notes load as an empty string.",
           "type": "string",
           "default": ""
+        },
+        "attachments": {
+          "description": "Managed file attachments copied to spawned tasks with the template notes.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attachment"
+          },
+          "default": []
         },
         "tag_ids": {
           "description": "Tag ids copied to spawned tasks.",

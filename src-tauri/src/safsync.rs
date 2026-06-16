@@ -5,6 +5,7 @@
 //! folder. All SAF I/O is hidden behind `SafBackend` so the mirror logic is
 //! testable on desktop; the real Android backend lives in the `android` submodule.
 
+use crate::commands::is_attachment_filename;
 use crate::error::{AppError, Result};
 use crate::model::{merge_documents, Document};
 use crate::store::AppState;
@@ -28,7 +29,7 @@ pub trait SafBackend {
     fn list_file_names(&self) -> Result<Vec<String>>;
     /// Read a file in the folder by name.
     fn read_file(&self, name: &str) -> Result<Vec<u8>>;
-    /// Create-or-overwrite a JSON file in the folder by name.
+    /// Create-or-overwrite a file in the folder by name.
     fn write_file(&self, name: &str, bytes: &[u8]) -> Result<()>;
     /// Delete a file in the folder by name (no-op if absent).
     fn delete_file(&self, name: &str) -> Result<()>;
@@ -110,9 +111,11 @@ pub fn push_out(
     let bytes = state.read(serde_json::to_vec_pretty)?;
     let h = sha256(&bytes);
     if Some(h) == last_synced_hash {
+        mirror_local_attachment_files(backend, data_path)?;
         return Ok(None);
     }
     backend.write_file(&writable_replica_name(data_path), &bytes)?;
+    mirror_local_attachment_files(backend, data_path)?;
     Ok(Some(h))
 }
 
@@ -136,6 +139,7 @@ pub fn pull_in(
 
     // 1. Mirror conflict files first (independent of main-file validity).
     let conflict_count = mirror_conflict_files(backend, dir)?;
+    let attachments_imported = mirror_remote_attachment_files(backend, dir)?;
 
     // 2. Adopt a changed, VALID merged remote replica document, preserving any
     //    diverged local edits as a conflict file (#34).
@@ -160,7 +164,7 @@ pub fn pull_in(
     }
 
     Ok(PullOutcome {
-        imported,
+        imported: imported || attachments_imported,
         new_synced_hash: new_hash,
         conflict_count,
     })
@@ -182,6 +186,55 @@ fn mirror_conflict_files(backend: &dyn SafBackend, dir: &Path) -> Result<usize> 
     Ok(count)
 }
 
+fn mirror_local_attachment_files(backend: &dyn SafBackend, data_path: &Path) -> Result<()> {
+    let dir = data_path.parent().unwrap_or_else(|| Path::new("."));
+    if !dir.exists() {
+        return Ok(());
+    }
+    let remote_names = backend.list_file_names().unwrap_or_default();
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_file() {
+            continue;
+        }
+        let Some(name) = entry.file_name().to_str().map(|n| n.to_string()) else {
+            continue;
+        };
+        if !is_attachment_filename(&name) {
+            continue;
+        }
+        let bytes = std::fs::read(entry.path())?;
+        let should_write = match backend.read_file(&name) {
+            Ok(remote) => sha256(&remote) != sha256(&bytes),
+            Err(_) => !remote_names.iter().any(|n| n == &name),
+        };
+        if should_write {
+            backend.write_file(&name, &bytes)?;
+        }
+    }
+    Ok(())
+}
+
+fn mirror_remote_attachment_files(backend: &dyn SafBackend, dir: &Path) -> Result<bool> {
+    let mut imported = false;
+    for name in backend.list_file_names()? {
+        if !is_attachment_filename(&name) {
+            continue;
+        }
+        if let Ok(bytes) = backend.read_file(&name) {
+            let path = dir.join(&name);
+            let changed = std::fs::read(&path)
+                .map(|local| sha256(&local) != sha256(&bytes))
+                .unwrap_or(true);
+            if changed {
+                std::fs::write(path, bytes)?;
+                imported = true;
+            }
+        }
+    }
+    Ok(imported)
+}
+
 /// Switch the master to the folder's `tasks.json`, **discarding** the current
 /// local in-memory document (no conflict file). For the explicit "change data
 /// source" action, where the user wants the new folder's data loaded outright.
@@ -195,12 +248,13 @@ pub fn switch_to_remote(
 ) -> Result<PullOutcome> {
     let dir = data_path.parent().unwrap_or_else(|| Path::new("."));
     let conflict_count = mirror_conflict_files(backend, dir)?;
+    let attachments_imported = mirror_remote_attachment_files(backend, dir)?;
     let (imported, new_synced_hash) = match read_merged_remote(backend)? {
         Some(remote) => (true, Some(state.load_replacing_local(&remote)?)),
         None => (false, None),
     };
     Ok(PullOutcome {
-        imported,
+        imported: imported || attachments_imported,
         new_synced_hash,
         conflict_count,
     })
@@ -368,9 +422,15 @@ pub mod android {
             let fs = self.app.android_fs();
             let uri = match fs.resolve_file_uri(&self.folder, name) {
                 Ok(u) => u,
-                Err(_) => fs
-                    .create_new_file(&self.folder, name, Some("application/json"))
-                    .map_err(saferr)?,
+                Err(_) => {
+                    let mime = if name.ends_with(".json") {
+                        Some("application/json")
+                    } else {
+                        Some("application/octet-stream")
+                    };
+                    fs.create_new_file(&self.folder, name, mime)
+                        .map_err(saferr)?
+                }
             };
             fs.write(&uri, bytes).map_err(saferr)
         }

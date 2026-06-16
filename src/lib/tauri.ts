@@ -1,6 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { DateFormat, DateTimeFormat, TimeFormat } from "./dates";
+import { isAndroid } from "./platform";
 
 export type { DateFormat, DateTimeFormat, TimeFormat };
 
@@ -59,6 +60,15 @@ export type TimeEntry = {
   end?: string;
 };
 
+export type Attachment = {
+  id: string;
+  name: string;
+  path: string;
+  mime_type?: string;
+  size?: number;
+  created_at: string;
+};
+
 export type Task = {
   id: string;
   title: string;
@@ -67,6 +77,7 @@ export type Task = {
   start_date?: string; // YYYY-MM-DD
   start_time?: string; // "HH:MM" local; companion to start_date, absent = all-day (#93)
   notes: string;
+  attachments?: Attachment[];
   tag_ids: string[];
   estimated_seconds?: number; // whole seconds of expected effort; absent = no estimate
   created_at: string; // ISO-8601 local time w/ offset, e.g. 2026-06-01T20:34:56+08:00
@@ -102,6 +113,7 @@ export type TemplateTask = {
   id: string;
   title: string;
   notes: string;
+  attachments?: Attachment[];
   tag_ids: string[];
   created_at: string; // ISO-8601 local time w/ offset
   updated_at?: string; // ISO-8601 local time w/ offset of last edit; omitted if never edited
@@ -139,6 +151,7 @@ export type TaskUpdate = {
   start_date?: string | null;
   start_time?: string | null;
   notes?: string;
+  attachments?: Attachment[];
   tag_ids?: string[];
   estimated_seconds?: number | null;
 };
@@ -146,6 +159,7 @@ export type TaskUpdate = {
 export type NewTemplate = {
   title: string;
   notes?: string;
+  attachments?: Attachment[];
   tag_ids?: string[];
   due_offset_days?: number;
   start_offset_days?: number;
@@ -159,6 +173,7 @@ export type TemplateUpdate = {
   id: string;
   title?: string;
   notes?: string;
+  attachments?: Attachment[];
   tag_ids?: string[];
   due_offset_days?: number | null;
   start_offset_days?: number | null;
@@ -197,6 +212,26 @@ export const api = {
   syncNow:       ()                          => invoke<Document>("sync_now"),
   addTask:       (input: Partial<Task> & { title: string }) => invoke<Task>("add_task", { input }),
   updateTask:    (input: TaskUpdate)                         => invoke<Task>("update_task", { input }),
+  attachTaskFiles: async (id: string): Promise<Task | null> => {
+    if (await isAndroid()) return invoke<Task | null>("pick_task_attachments", { id });
+    const selected = await open({ multiple: true, directory: false, title: "Attach files" });
+    const paths = Array.isArray(selected) ? selected : typeof selected === "string" ? [selected] : [];
+    if (paths.length === 0) return null;
+    return invoke<Task>("attach_task_files", { input: { id, paths } });
+  },
+  attachTemplateFiles: async (id: string): Promise<TemplateTask | null> => {
+    if (await isAndroid()) return invoke<TemplateTask | null>("pick_template_attachments", { id });
+    const selected = await open({ multiple: true, directory: false, title: "Attach files" });
+    const paths = Array.isArray(selected) ? selected : typeof selected === "string" ? [selected] : [];
+    if (paths.length === 0) return null;
+    return invoke<TemplateTask>("attach_template_files", { input: { id, paths } });
+  },
+  removeTaskAttachment: (id: string, attachmentId: string) =>
+    invoke<Task>("remove_task_attachment", { input: { id, attachment_id: attachmentId } }),
+  removeTemplateAttachment: (id: string, attachmentId: string) =>
+    invoke<TemplateTask>("remove_template_attachment", { input: { id, attachment_id: attachmentId } }),
+  attachmentUrl: async (path: string): Promise<string> =>
+    convertFileSrc(await invoke<string>("resolve_attachment_path", { path })),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
   deleteTask:    (id: string)                => invoke<void>("delete_task", { id }),
   // Time tracking (#81). Each returns the updated task. start/stop are no-ops when

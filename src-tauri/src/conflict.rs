@@ -195,6 +195,7 @@ mod merge_tests {
             start_date: None,
             start_time: None,
             notes: String::new(),
+            attachments: Vec::new(),
             tag_ids: tag_ids.iter().map(|s| s.to_string()).collect(),
             estimated_seconds: None,
             created_at: 0,

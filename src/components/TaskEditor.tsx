@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
-import { api, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
+import { api, Attachment, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, estimatedSecondsFormError, estimatedSecondsOrUndefined, formatEstimatedSecondsInput, isEditorDirty, maxDayForMonth, offsetFormError, recurrenceFormError, recurrenceFromForm, startOffsetDisabled } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
@@ -54,6 +54,7 @@ export function TaskEditor(props: Props) {
     due_date: taskEntity?.due_date ?? "",
     due_time: taskEntity?.due_time ?? "",
     notes: entity.notes ?? "",
+    attachments: entity.attachments ?? [],
     tag_ids: entity.tag_ids,
     estimated_seconds: formatEstimatedSecondsInput(taskEntity?.estimated_seconds ?? tmplEntity?.estimated_seconds),
     new_tag_names: [],
@@ -199,6 +200,7 @@ export function TaskEditor(props: Props) {
           await api.addTemplate({
             title: form.title.trim(),
             notes: form.notes,
+            attachments: form.attachments,
             tag_ids: tagIds,
             start_offset_days: isStartOffsetDisabled ? undefined : offsetNum(form.start_offset_days),
             due_offset_days: offsetNum(form.due_offset_days),
@@ -218,6 +220,7 @@ export function TaskEditor(props: Props) {
           due_date: form.due_date || undefined,
           due_time: form.due_date && form.due_time ? form.due_time : undefined,
           notes: form.notes,
+          attachments: form.attachments,
           tag_ids: tagIds,
           estimated_seconds: estimatedSecondsOrUndefined(form.estimated_seconds),
         });
@@ -246,6 +249,7 @@ export function TaskEditor(props: Props) {
       await api.addTemplate({
         title: form.title.trim(),
         notes: form.notes,
+        attachments: form.attachments,
         tag_ids: tagIds,
         start_offset_days: offset(form.start_date),
         due_offset_days: offset(form.due_date),
@@ -290,6 +294,45 @@ export function TaskEditor(props: Props) {
       if (isTemplate) await api.deleteTemplate(entity.id);
       else            await api.deleteTask(entity.id);
       onClose();
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  const attachFiles = async () => {
+    if (creating) return;
+    setBusy(true);
+    try {
+      const updated = isTemplate
+        ? await api.attachTemplateFiles(entity.id)
+        : await api.attachTaskFiles(entity.id);
+      if (updated) {
+        setForm(f => ({ ...f, attachments: updated.attachments ?? [] }));
+        initialRef.current = { ...initialRef.current, attachments: updated.attachments ?? [] };
+      }
+      setError(null);
+      setBusy(false);
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  const removeAttachment = async (attachmentId: string) => {
+    if (creating) {
+      setForm(f => ({ ...f, attachments: f.attachments.filter(a => a.id !== attachmentId) }));
+      return;
+    }
+    setBusy(true);
+    try {
+      const updated = isTemplate
+        ? await api.removeTemplateAttachment(entity.id, attachmentId)
+        : await api.removeTaskAttachment(entity.id, attachmentId);
+      setForm(f => ({ ...f, attachments: updated.attachments ?? [] }));
+      initialRef.current = { ...initialRef.current, attachments: updated.attachments ?? [] };
+      setError(null);
+      setBusy(false);
     } catch (err) {
       setError(errorMessage(err));
       setBusy(false);
@@ -541,6 +584,24 @@ export function TaskEditor(props: Props) {
           </div>
         </div>
 
+        <div className="te-field te-attachments-field">
+          <div className="te-field-head">
+            <span>{t("taskEditor.attachments")}</span>
+            <button type="button" className="te-attach-btn" onClick={attachFiles}
+                    disabled={busy || creating}>
+              {t("taskEditor.attachFiles")}
+            </button>
+          </div>
+          {creating && <p className="te-attachment-hint">{t("taskEditor.attachSavedOnly")}</p>}
+          <AttachmentList
+            attachments={form.attachments}
+            onRemove={removeAttachment}
+            removeLabel={name => t("taskEditor.removeAttachment", { name })}
+            emptyLabel={t("taskEditor.attachmentsEmpty")}
+            disabled={busy}
+          />
+        </div>
+
         {canComplete && taskEntity && (
           <TimeTracking
             task={taskEntity}
@@ -591,4 +652,79 @@ export function TaskEditor(props: Props) {
     </div>,
     document.body,
   );
+}
+
+function AttachmentList({
+  attachments,
+  onRemove,
+  removeLabel,
+  emptyLabel,
+  disabled,
+}: {
+  attachments: Attachment[];
+  onRemove: (id: string) => void;
+  removeLabel: (name: string) => string;
+  emptyLabel: string;
+  disabled: boolean;
+}) {
+  if (attachments.length === 0) {
+    return <p className="te-attachments-empty">{emptyLabel}</p>;
+  }
+  return (
+    <div className="te-attachments">
+      {attachments.map(att => (
+        <AttachmentItem
+          key={att.id}
+          attachment={att}
+          onRemove={() => onRemove(att.id)}
+          removeLabel={removeLabel(att.name)}
+          disabled={disabled}
+        />
+      ))}
+    </div>
+  );
+}
+
+function AttachmentItem({
+  attachment,
+  onRemove,
+  removeLabel,
+  disabled,
+}: {
+  attachment: Attachment;
+  onRemove: () => void;
+  removeLabel: string;
+  disabled: boolean;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    api.attachmentUrl(attachment.path)
+      .then(u => { if (live) setUrl(u); })
+      .catch(() => { if (live) setUrl(null); });
+    return () => { live = false; };
+  }, [attachment.path]);
+  const isImage = attachment.mime_type?.startsWith("image/") ?? /\.(avif|gif|jpe?g|png|webp)$/i.test(attachment.name);
+  return (
+    <div className={isImage ? "te-attachment image" : "te-attachment"}>
+      {isImage && url && <img src={url} alt={attachment.name} />}
+      <div className="te-attachment-meta">
+        {url ? (
+          <a href={url} target="_blank" rel="noreferrer">{attachment.name}</a>
+        ) : (
+          <span>{attachment.name}</span>
+        )}
+        {attachment.size != null && <span className="te-attachment-size">{formatBytes(attachment.size)}</span>}
+      </div>
+      <button type="button" aria-label={removeLabel} onClick={onRemove} disabled={disabled}>×</button>
+    </div>
+  );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
 }
