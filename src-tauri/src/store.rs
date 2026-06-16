@@ -231,7 +231,7 @@ impl AppState {
 
 /// Parse a document and reject one written by a newer schema version, so an
 /// older binary never silently misinterprets a future file (#44).
-fn parse_checked(bytes: &[u8]) -> Result<Document> {
+pub(crate) fn parse_checked(bytes: &[u8]) -> Result<Document> {
     let doc: Document = serde_json::from_slice(bytes)?;
     if doc.version > CURRENT_VERSION {
         return Err(AppError::Invalid(format!(

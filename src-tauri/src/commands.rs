@@ -1228,10 +1228,18 @@ fn validate_conflict_path(candidate: &str, data_path: &Path) -> Result<PathBuf> 
 #[tauri::command]
 pub fn read_conflict(conflict_path: String, state: State<'_, AppState>) -> Result<Vec<TaskDiff>> {
     let path = validate_conflict_path(&conflict_path, &state.path())?;
-    let bytes = std::fs::read(&path)?;
-    let theirs: crate::model::Document = serde_json::from_slice(&bytes)?;
+    let theirs = read_conflict_doc(&path)?;
     let diffs = state.read(|d| diff_tasks(d, &theirs));
     Ok(diffs)
+}
+
+/// Read a conflict file and parse it with the same newer-version guard the master
+/// file gets (#44). Without this, a conflict copy written by a future app build
+/// would be silently merged into the master, defeating the version gate the rest
+/// of the store enforces.
+fn read_conflict_doc(path: &Path) -> Result<crate::model::Document> {
+    let bytes = std::fs::read(path)?;
+    crate::store::parse_checked(&bytes)
 }
 
 #[derive(Deserialize)]
@@ -1247,8 +1255,7 @@ pub fn resolve_conflict(
     app: AppHandle,
 ) -> Result<()> {
     let path = validate_conflict_path(&input.conflict_path, &state.path())?;
-    let bytes = std::fs::read(&path)?;
-    let theirs: crate::model::Document = serde_json::from_slice(&bytes)?;
+    let theirs = read_conflict_doc(&path)?;
     state.write(|d| {
         let new_tasks = apply_decisions(d, &theirs, &input.decisions);
         // Keep tags referenced by merged-in tasks so they don't dangle (#30).
@@ -1660,6 +1667,25 @@ pub fn saf_status() -> crate::safsync::SyncStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn read_conflict_doc_rejects_a_newer_schema_version() {
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+
+        // A conflict file written by a future app build (version > CURRENT_VERSION)
+        // must be refused, not silently merged into the master (#44).
+        let newer = dir.path().join("tasks.sync-conflict-newer.json");
+        let mut f = std::fs::File::create(&newer).unwrap();
+        write!(f, r#"{{"version":{},"tasks":[],"tags":[]}}"#, crate::model::CURRENT_VERSION + 1).unwrap();
+        assert!(read_conflict_doc(&newer).is_err(), "newer-version conflict file must be rejected");
+
+        // A current-version conflict file still parses fine.
+        let ok = dir.path().join("tasks.sync-conflict-ok.json");
+        let mut f = std::fs::File::create(&ok).unwrap();
+        write!(f, r#"{{"version":{},"tasks":[],"tags":[]}}"#, crate::model::CURRENT_VERSION).unwrap();
+        assert!(read_conflict_doc(&ok).is_ok(), "current-version conflict file must parse");
+    }
 
     #[test]
     fn update_task_input_absent_field_stays_none() {
