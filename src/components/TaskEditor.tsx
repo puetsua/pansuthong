@@ -697,17 +697,23 @@ function AttachmentItem({
   disabled: boolean;
 }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [imgFailed, setImgFailed] = useState(false);
   useEffect(() => {
     let live = true;
+    setImgFailed(false);
     api.attachmentUrl(attachment.path)
       .then(u => { if (live) setUrl(u); })
       .catch(() => { if (live) setUrl(null); });
     return () => { live = false; };
   }, [attachment.path]);
   const isImage = attachment.mime_type?.startsWith("image/") ?? /\.(avif|gif|jpe?g|png|webp)$/i.test(attachment.name);
+  // Only reserve the image column when we'll actually show a preview, so a
+  // failed or still-loading image collapses to the filename row instead of
+  // leaving a permanent blank gap.
+  const showImage = isImage && url != null && !imgFailed;
   return (
-    <div className={isImage ? "te-attachment image" : "te-attachment"}>
-      {isImage && url && <img src={url} alt={attachment.name} />}
+    <div className={showImage ? "te-attachment image" : "te-attachment"}>
+      {showImage && <img src={url!} alt={attachment.name} onError={() => setImgFailed(true)} />}
       <div className="te-attachment-meta">
         {url ? (
           <a href={url} target="_blank" rel="noreferrer">{attachment.name}</a>
