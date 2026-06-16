@@ -783,6 +783,12 @@ fn merge_time_entries(into: &mut Task, from: &Task) {
         .sort_by_key(|entry| (entry.start, entry.id.clone()));
 }
 
+/// Union attachments by id (like `merge_time_entries`). LIMITATION: this is a
+/// pure union with no per-attachment tombstone, so an attachment deleted on one
+/// replica is re-added from another replica that still has it — attachment
+/// deletes do not propagate across devices until the blob is gone from every
+/// replica. Matches the time-entry merge; propagating deletes would need
+/// attachment-level tombstones.
 fn merge_attachments(into: &mut Task, from: &Task) {
     let mut seen: HashSet<String> = into
         .attachments

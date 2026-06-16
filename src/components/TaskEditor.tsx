@@ -67,6 +67,12 @@ export function TaskEditor(props: Props) {
     repeat_dates: tmplEntity?.recurrence?.kind === "yearly" ? tmplEntity.recurrence.dates : [],
     recurrence_tag_id: tmplEntity?.recurrence_tag_id ?? "",
   });
+  // NOTE (known limitation): the form seeds from `task` once. If the same task is
+  // changed externally (folder sync, or an edit elsewhere) while this editor is
+  // open, Save sends the stale form and overwrites that change — only the editor's
+  // own attach/remove ops re-patch `initialRef`. A full fix would compare the
+  // task's updated_at on save (optimistic concurrency); attach/remove bumping
+  // updated_at makes a naive check false-positive, so it's left as a follow-up.
   const [form, setForm] = useState<EditorForm>(initialRef.current);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
