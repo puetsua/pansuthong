@@ -216,6 +216,30 @@ fn attachment_from_bytes(
     })
 }
 
+/// Copy each source attachment's blob to a fresh attachment (new id + new file),
+/// so a spawned occurrence owns its files independently of the template instead
+/// of sharing the template's ids and blob paths (which would confuse merge-by-id
+/// and per-attachment deletion). A source whose blob is missing/unreadable is
+/// skipped rather than carried as a dangling shared reference.
+fn clone_attachments(data_path: &Path, src: &[Attachment]) -> Result<Vec<Attachment>> {
+    let mut out = Vec::new();
+    for a in src {
+        let Ok(abs) = attachment_abs_path(data_path, &a.path) else {
+            continue;
+        };
+        match std::fs::read(&abs) {
+            Ok(bytes) => out.push(attachment_from_bytes(
+                data_path,
+                a.name.clone(),
+                a.mime_type.clone(),
+                &bytes,
+            )?),
+            Err(_) => continue,
+        }
+    }
+    Ok(out)
+}
+
 fn attachments_referenced(d: &crate::model::Document, path: &str) -> bool {
     d.tasks
         .iter()
@@ -1233,6 +1257,7 @@ pub fn spawn_recurring_task(
     app: AppHandle,
 ) -> Result<Task> {
     let ts = now_ms();
+    let data_path = state.path();
     let saved = state.write(|d| {
         let tmpl = d
             .template_tasks
@@ -1248,7 +1273,9 @@ pub fn spawn_recurring_task(
             start_date: Some(input.occurrence_date),
             start_time: None,
             notes: tmpl.notes,
-            attachments: tmpl.attachments,
+            // Each occurrence owns independent copies of the template's
+            // attachments (fresh ids + blobs), not shared references.
+            attachments: clone_attachments(&data_path, &tmpl.attachments)?,
             tag_ids: retain_known_tags(tmpl.tag_ids, &d.tags),
             estimated_seconds: tmpl.estimated_seconds,
             created_at: ts,
@@ -2200,6 +2227,52 @@ mod tests {
         let oversized = vec![0u8; (MAX_ATTACHMENT_BYTES + 1) as usize];
         let res = attachment_from_bytes(&data, "big.bin".into(), None, &oversized);
         assert!(res.is_err(), "a file over the cap must be rejected");
+    }
+
+    #[test]
+    fn clone_attachments_makes_independent_copies() {
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("tasks_dev.json");
+
+        // A source blob the "template" references.
+        let src_rel = "attachment_src_doc.bin";
+        let mut f = std::fs::File::create(dir.path().join(src_rel)).unwrap();
+        f.write_all(b"hello").unwrap();
+        let src = vec![Attachment {
+            id: "att_src".into(),
+            name: "doc".into(),
+            path: src_rel.into(),
+            mime_type: Some("text/plain".into()),
+            size: Some(5),
+            created_at: 0,
+        }];
+
+        let copies = clone_attachments(&data, &src).unwrap();
+        assert_eq!(copies.len(), 1);
+        let c = &copies[0];
+        assert_ne!(c.id, "att_src", "copy gets a fresh id");
+        assert_ne!(c.path, src_rel, "copy gets its own blob path");
+        assert_eq!(c.name, "doc");
+        // The new blob exists with the same content, and the source is untouched.
+        let copied = std::fs::read(dir.path().join(&c.path)).unwrap();
+        assert_eq!(copied, b"hello");
+        assert!(dir.path().join(src_rel).exists(), "source blob untouched");
+    }
+
+    #[test]
+    fn clone_attachments_skips_a_missing_source_blob() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("tasks_dev.json");
+        let src = vec![Attachment {
+            id: "att_gone".into(),
+            name: "gone".into(),
+            path: "attachment_gone.bin".into(), // no file on disk
+            mime_type: None,
+            size: None,
+            created_at: 0,
+        }];
+        assert!(clone_attachments(&data, &src).unwrap().is_empty());
     }
 
     #[test]
