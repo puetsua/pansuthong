@@ -783,6 +783,21 @@ fn merge_time_entries(into: &mut Task, from: &Task) {
         .sort_by_key(|entry| (entry.start, entry.id.clone()));
 }
 
+fn merge_attachments(into: &mut Task, from: &Task) {
+    let mut seen: HashSet<String> = into
+        .attachments
+        .iter()
+        .map(|att| att.id.clone())
+        .collect();
+    for att in &from.attachments {
+        if seen.insert(att.id.clone()) {
+            into.attachments.push(att.clone());
+        }
+    }
+    into.attachments
+        .sort_by_key(|att| (att.created_at, att.id.clone()));
+}
+
 /// Merge per-device replica documents into one computed document. Entity-level
 /// latest-write-wins keeps different devices from fighting over one physical
 /// cloud file; tombstones prevent deletes from being resurrected by stale replicas.
@@ -819,15 +834,19 @@ pub fn merge_documents(replicas: Vec<Document>) -> Document {
                 .and_modify(|(existing_stamp, existing)| {
                     if stamp > *existing_stamp {
                         // Newer replica wins the fields; fold the older copy's
-                        // time entries into the winner so none are lost.
+                        // time entries and attachments into the winner so a
+                        // concurrent add on the losing side isn't lost.
                         let mut winner = task.clone();
                         merge_time_entries(&mut winner, existing);
+                        merge_attachments(&mut winner, existing);
                         *existing_stamp = stamp;
                         *existing = winner;
                     } else {
                         // Older/equal replica loses the fields but still
-                        // contributes any time entries the winner lacks.
+                        // contributes any time entries and attachments the
+                        // winner lacks.
                         merge_time_entries(existing, &task);
+                        merge_attachments(existing, &task);
                     }
                 })
                 .or_insert((stamp, task));
@@ -1485,6 +1504,40 @@ mod tests {
         assert_eq!(merged.tasks[0].title, "right", "newer task wins the fields");
         let ids: Vec<_> = merged.tasks[0].time_entries.iter().map(|e| e.id.as_str()).collect();
         assert_eq!(ids, ["te_left", "te_right"], "entries unioned regardless of order");
+    }
+
+    fn attachment(id: &str, created_at: i64) -> Attachment {
+        Attachment {
+            id: id.into(),
+            name: "f".into(),
+            path: format!("attachment_{id}.bin"),
+            mime_type: None,
+            size: None,
+            created_at,
+        }
+    }
+
+    #[test]
+    fn merge_unions_attachments_by_id_so_a_concurrent_add_is_not_lost() {
+        // Each device added a different attachment to the same task offline. The
+        // newer edit wins the fields, but neither attachment should be dropped.
+        let mut left = Document::default();
+        let mut left_task = task();
+        left_task.id = "k_shared".into();
+        left_task.updated_at = 10;
+        left_task.attachments.push(attachment("a_left", 1));
+        left.tasks.push(left_task);
+
+        let mut right = Document::default();
+        let mut right_task = task();
+        right_task.id = "k_shared".into();
+        right_task.updated_at = 20;
+        right_task.attachments.push(attachment("a_right", 2));
+        right.tasks.push(right_task);
+
+        let merged = merge_documents(vec![right, left]);
+        let ids: Vec<_> = merged.tasks[0].attachments.iter().map(|a| a.id.as_str()).collect();
+        assert_eq!(ids, ["a_left", "a_right"], "attachments unioned by id, order-independent");
     }
 
     #[test]
