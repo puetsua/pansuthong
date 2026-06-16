@@ -94,6 +94,8 @@ impl AppState {
 
     pub fn reload_replicas_if_changed(&self) -> Result<bool> {
         let path = self.path();
+        // Cheap fast path: hash the replicas without holding the lock so the 2s
+        // poll doesn't block command handlers on every (usually no-op) tick.
         let hash = replicas_hash(&path)?;
         {
             let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -101,6 +103,12 @@ impl AppState {
                 return Ok(false);
             }
         }
+        // A replica changed. Hold the lock across the whole re-read-and-assign so a
+        // concurrent write() — which needs this same lock — can't have its just-
+        // persisted edit clobbered by a document computed from the pre-write disk
+        // state, and so the stored hash describes exactly the doc we load (recompute
+        // it here, under the lock, rather than reusing the pre-lock `hash`).
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let doc = match read_merged_document(&path)? {
             Some(doc) => doc,
             None if path.exists() => parse_checked(&fs::read(&path)?)?,
@@ -109,10 +117,9 @@ impl AppState {
         let own_hash = fs::read(&path)
             .map(|bytes| sha256(&bytes))
             .unwrap_or([0; 32]);
-        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         g.doc = doc;
         g.last_written_hash = own_hash;
-        g.last_seen_replicas_hash = hash;
+        g.last_seen_replicas_hash = replicas_hash(&path)?;
         Ok(true)
     }
 
@@ -609,5 +616,33 @@ mod repoint_tests {
                 .collect::<Vec<_>>()
         });
         assert_eq!(ids, ["k_desktop", "k_mobile"]);
+    }
+
+    #[test]
+    fn reload_picks_up_a_new_replica_then_settles() {
+        let dir = tempdir().unwrap();
+        let desktop_path = dir.path().join("tasks_desktop.json");
+        let mut desktop = Document::default();
+        desktop.tasks.push(sample_task("k_desktop"));
+        std::fs::write(&desktop_path, serde_json::to_vec_pretty(&desktop).unwrap()).unwrap();
+
+        let state = AppState::open(desktop_path.clone()).unwrap();
+        assert_eq!(state.read(|d| d.tasks.len()), 1);
+
+        // A sibling device's replica appears on disk (e.g. via cloud sync).
+        let mobile_path = dir.path().join("tasks_mobile.json");
+        let mut mobile = Document::default();
+        mobile.tasks.push(sample_task("k_mobile"));
+        std::fs::write(&mobile_path, serde_json::to_vec_pretty(&mobile).unwrap()).unwrap();
+
+        // First poll detects the change and merges it in.
+        assert!(state.reload_replicas_if_changed().unwrap(), "new replica is a change");
+        let mut ids = state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>());
+        ids.sort();
+        assert_eq!(ids, ["k_desktop", "k_mobile"]);
+
+        // Second poll with nothing changed must NOT reload — proving the stored
+        // hash describes exactly the state we just loaded (no spurious churn).
+        assert!(!state.reload_replicas_if_changed().unwrap(), "no change -> no reload");
     }
 }
