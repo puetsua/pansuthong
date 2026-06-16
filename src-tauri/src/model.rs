@@ -731,7 +731,15 @@ fn template_stamp(template: &TemplateTask) -> i64 {
 }
 
 fn tag_stamp(tag: &Tag, doc_last_modified: i64) -> i64 {
-    tag.updated_at.max(doc_last_modified)
+    // A real per-tag edit always decides the winner. Only legacy tags written
+    // before `updated_at` existed (the zero sentinel) fall back to the document's
+    // last_modified, so an unrelated edit elsewhere can't make an untouched tag
+    // win over another replica's genuinely newer tag edit.
+    if is_zero(&tag.updated_at) {
+        doc_last_modified
+    } else {
+        tag.updated_at
+    }
 }
 
 fn merge_time_entries(into: &mut Task, from: &Task) {
@@ -752,6 +760,16 @@ fn merge_time_entries(into: &mut Task, from: &Task) {
 /// Merge per-device replica documents into one computed document. Entity-level
 /// latest-write-wins keeps different devices from fighting over one physical
 /// cloud file; tombstones prevent deletes from being resurrected by stale replicas.
+///
+/// LIMITATION — silent loss on concurrent edits: when two replicas edit the *same*
+/// entity, the lower-stamped edit is discarded with no conflict file and no history
+/// entry (only time-entry *additions* survive both sides, since they union by id).
+/// This differs from the whole-document divergence path in `store::adopt_synced`,
+/// which preserves the loser as a `.sync-conflict` file. The narrowing here is
+/// intentional (replicas are per-device, so same-entity collisions are rare), but
+/// it is a real data-loss window, made worse by clock skew that can mis-rank which
+/// edit is actually newer. Surfacing discarded edits (e.g. a history marker) needs
+/// dedup state because this runs on every read/poll — see the merge-engine notes.
 pub fn merge_documents(replicas: Vec<Document>) -> Document {
     let mut merged = Document::default();
     let mut tasks: HashMap<String, (i64, Task)> = HashMap::new();
@@ -772,16 +790,21 @@ pub fn merge_documents(replicas: Vec<Document>) -> Document {
             let stamp = task_stamp(&task);
             tasks
                 .entry(task.id.clone())
-                .and_modify(|(_, existing)| merge_time_entries(existing, &task))
-                .or_insert_with(|| (stamp, task.clone()));
-            if let Some((existing_stamp, existing)) = tasks.get_mut(&task.id) {
-                if stamp > *existing_stamp {
-                    let mut winner = task;
-                    merge_time_entries(&mut winner, existing);
-                    *existing_stamp = stamp;
-                    *existing = winner;
-                }
-            }
+                .and_modify(|(existing_stamp, existing)| {
+                    if stamp > *existing_stamp {
+                        // Newer replica wins the fields; fold the older copy's
+                        // time entries into the winner so none are lost.
+                        let mut winner = task.clone();
+                        merge_time_entries(&mut winner, existing);
+                        *existing_stamp = stamp;
+                        *existing = winner;
+                    } else {
+                        // Older/equal replica loses the fields but still
+                        // contributes any time entries the winner lacks.
+                        merge_time_entries(existing, &task);
+                    }
+                })
+                .or_insert((stamp, task));
         }
 
         for tag in doc.tags {
@@ -1335,6 +1358,128 @@ mod tests {
             .map(|entry| entry.id.as_str())
             .collect();
         assert_eq!(ids, ["te_left", "te_right"]);
+    }
+
+    fn tag_named(id: &str, name: &str, updated_at: i64) -> Tag {
+        Tag {
+            id: id.into(),
+            name: name.into(),
+            color: "#000".into(),
+            priority: 0,
+            pinned: false,
+            updated_at,
+        }
+    }
+
+    #[test]
+    fn merge_tag_lww_uses_tag_updated_at_not_doc_last_modified() {
+        // Replica A edited an unrelated task, bumping its doc.last_modified high,
+        // but only touched tag t_1 long ago (updated_at = 5).
+        let mut a = Document::default();
+        a.last_modified = 100;
+        a.tags.push(tag_named("t_1", "old", 5));
+
+        // Replica B made the genuinely newer edit to t_1 (updated_at = 50) but its
+        // doc.last_modified is lower because it touched nothing else.
+        let mut b = Document::default();
+        b.last_modified = 60;
+        b.tags.push(tag_named("t_1", "new", 50));
+
+        let merged = merge_documents(vec![a, b]);
+        assert_eq!(merged.tags.len(), 1);
+        // The newer per-tag edit must win; doc.last_modified must not decide this.
+        assert_eq!(merged.tags[0].name, "new");
+    }
+
+    #[test]
+    fn merge_tag_lww_falls_back_to_doc_last_modified_only_for_legacy_tags() {
+        // Both tags are legacy (updated_at == 0), so the only signal is the
+        // containing document's last_modified — the newer document wins.
+        let mut older = Document::default();
+        older.last_modified = 10;
+        older.tags.push(tag_named("t_1", "older", 0));
+
+        let mut newer = Document::default();
+        newer.last_modified = 20;
+        newer.tags.push(tag_named("t_1", "newer", 0));
+
+        let merged = merge_documents(vec![older, newer]);
+        assert_eq!(merged.tags.len(), 1);
+        assert_eq!(merged.tags[0].name, "newer");
+    }
+
+    #[test]
+    fn merge_unions_time_entries_regardless_of_replica_order() {
+        // Same task on two replicas, each with its own time entry; the newer one
+        // (right, updated_at 20) wins the field values but the union of entries
+        // must hold no matter which replica is visited first.
+        let mut left = Document::default();
+        let mut left_task = task();
+        left_task.id = "k_shared".into();
+        left_task.title = "left".into();
+        left_task.updated_at = 10;
+        left_task.time_entries.push(TimeEntry { id: "te_left".into(), start: 1, end: Some(2) });
+        left.tasks.push(left_task);
+
+        let mut right = Document::default();
+        let mut right_task = task();
+        right_task.id = "k_shared".into();
+        right_task.title = "right".into();
+        right_task.updated_at = 20;
+        right_task.time_entries.push(TimeEntry { id: "te_right".into(), start: 3, end: Some(4) });
+        right.tasks.push(right_task);
+
+        // Winner-first ordering: the loser's entries must still merge in.
+        let merged = merge_documents(vec![right, left]);
+        assert_eq!(merged.tasks[0].title, "right", "newer task wins the fields");
+        let ids: Vec<_> = merged.tasks[0].time_entries.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(ids, ["te_left", "te_right"], "entries unioned regardless of order");
+    }
+
+    #[test]
+    fn merge_template_lww_keeps_the_latest_by_updated_at() {
+        let mut old = Document::default();
+        let mut old_tmpl = template("k_tmpl");
+        old_tmpl.title = "old".into();
+        old_tmpl.created_at = 1;
+        old_tmpl.updated_at = 10;
+        old.template_tasks.push(old_tmpl);
+
+        let mut new = Document::default();
+        let mut new_tmpl = template("k_tmpl");
+        new_tmpl.title = "new".into();
+        new_tmpl.created_at = 1;
+        new_tmpl.updated_at = 20;
+        new.template_tasks.push(new_tmpl);
+
+        let merged = merge_documents(vec![old, new]);
+        assert_eq!(merged.template_tasks.len(), 1);
+        assert_eq!(merged.template_tasks[0].title, "new");
+    }
+
+    #[test]
+    fn merge_recreate_after_delete_survives_a_stale_tombstone() {
+        // A task was deleted (tombstone at 20) and later legitimately recreated
+        // with the same id (stamp 30). A replica that still carries the tombstone
+        // must not suppress the newer recreate.
+        let mut recreating = Document::default();
+        let mut recreated = task();
+        recreated.id = "k_phoenix".into();
+        recreated.title = "reborn".into();
+        recreated.created_at = 30;
+        recreated.updated_at = 30;
+        recreating.tasks.push(recreated);
+
+        let mut stale = Document::default();
+        stale.deleted_tasks.push(Tombstone {
+            id: "k_phoenix".into(),
+            deleted_at: 20,
+            deleted_by: Some("desktop".into()),
+        });
+
+        let merged = merge_documents(vec![stale, recreating]);
+        assert_eq!(merged.tasks.len(), 1, "recreate newer than the delete survives");
+        assert_eq!(merged.tasks[0].title, "reborn");
     }
 
     #[test]

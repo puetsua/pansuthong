@@ -301,11 +301,11 @@ impl ConfigState {
     }
 
     pub fn settings(&self) -> Settings {
-        self.inner.lock().unwrap().settings.clone()
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).settings.clone()
     }
 
     pub fn folder(&self) -> Option<String> {
-        self.inner.lock().unwrap().folder.clone()
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).folder.clone()
     }
 
     /// Mutate the settings, persist, and return the updated copy. The in-memory
@@ -316,7 +316,7 @@ impl ConfigState {
     where
         F: FnOnce(&mut Settings) -> Result<()>,
     {
-        let mut g = self.inner.lock().unwrap();
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let mut next = g.settings.clone();
         f(&mut next)?;
         let candidate = Config {
@@ -332,7 +332,7 @@ impl ConfigState {
     /// Set (or clear) the chosen folder and persist. Commits to memory only
     /// after the write succeeds, keeping memory and disk consistent.
     pub fn set_folder(&self, folder: Option<String>) -> Result<()> {
-        let mut g = self.inner.lock().unwrap();
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let candidate = Config {
             folder,
             device_id: g.device_id.clone(),
@@ -344,7 +344,7 @@ impl ConfigState {
     }
 
     pub fn device_id(&self) -> String {
-        self.inner.lock().unwrap().device_id.clone()
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).device_id.clone()
     }
 }
 
@@ -467,6 +467,34 @@ mod tests {
 
         // No config.json was written (first successful persist creates it).
         assert!(!config_path(dir.path()).exists());
+    }
+
+    #[test]
+    fn config_state_recovers_after_a_panic_poisons_the_lock() {
+        use std::panic::{catch_unwind, AssertUnwindSafe};
+
+        let dir = tempdir().unwrap();
+        let state = ConfigState::new(dir.path(), Config::default());
+
+        // A panic inside the update closure unwinds while the lock is held, which
+        // poisons the std Mutex. (The panic backtrace printed during this test is
+        // expected, not a failure.)
+        let poisoned = catch_unwind(AssertUnwindSafe(|| {
+            let _ = state.update_settings(|_| -> Result<()> { panic!("boom") });
+        }));
+        assert!(poisoned.is_err(), "the closure should have panicked");
+
+        // Before the fix, every later lock().unwrap() would re-panic on the poison.
+        // With unwrap_or_else(|e| e.into_inner()) the guard is recovered, so reads
+        // and writes keep working.
+        let _ = state.settings();
+        state
+            .update_settings(|s| {
+                s.theme = "dark".into();
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(state.settings().theme, "dark");
     }
 
     #[test]

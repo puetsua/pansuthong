@@ -44,9 +44,14 @@ export type Tag = {
 };
 
 /**
- * One time-tracking session on a task (#81). `start`/`end` are ISO-8601 local-time
- * strings with an offset (legacy files may carry epoch ms). `end` absent = the
- * running timer (open interval); present = a finished session.
+ * One time-tracking session on a task (#81), as READ from the backend: `start`/`end`
+ * are ISO-8601 local-time strings with an offset (the Rust side normalizes any legacy
+ * on-disk epoch-ms to ISO before sending). `end` absent = the running timer (open
+ * interval); present = a finished session.
+ *
+ * Note the write-side asymmetry: `api.addTimeEntry`/`updateTimeEntry` take epoch
+ * MILLIS (numbers), which Rust converts on the way in. So this entity is strings,
+ * but manual-entry inputs are numbers — they are deliberately different shapes.
  */
 export type TimeEntry = {
   id: string;
@@ -214,16 +219,10 @@ export const api = {
   deleteTag:     (id: string)                => invoke<void>("delete_tag", { id }),
   updateTag:       (input: { id: string; name?: string; color?: string; priority?: number; pinned?: boolean }) =>
                                      invoke<Tag>("update_tag", { input }),
-  updateSettings: (input: { theme?: "auto" | "light" | "dark"; sort_order?: SortOrder; upcoming_days?: number;
-                            day_start_hour?: number;
-                            default_tag_color?: string; default_tag_priority?: number;
-                            language?: "auto" | "en" | "zh-TW";
-                            sound_on_complete?: boolean; reminder_interval_minutes?: number;
-                            date_time_format?: DateTimeFormat;
-                            date_format?: DateFormat; time_format?: TimeFormat;
-                            theme_preset?: string;
-                            custom_presets?: ThemePreset[] }) =>
-                                   invoke<void>("update_settings", { input }),
+  // Any subset of settings; the Rust side merges the provided keys. Typed as
+  // Partial<Settings> so a new setting added to Settings is accepted here
+  // automatically instead of silently dropping off this hand-maintained list.
+  updateSettings: (input: Partial<Settings>) => invoke<void>("update_settings", { input }),
   listConflicts:    ()             => invoke<string[]>("list_conflicts"),
   readConflict:     (path: string) => invoke<TaskDiff[]>("read_conflict", { conflictPath: path }),
   resolveConflict:  (path: string, decisions: Decision[]) =>
