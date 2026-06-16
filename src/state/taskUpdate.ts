@@ -1,4 +1,4 @@
-import { Recurrence, TaskUpdate, TemplateUpdate, YearlyDate } from "../lib/tauri";
+import { Attachment, Recurrence, TaskUpdate, TemplateUpdate, YearlyDate } from "../lib/tauri";
 import i18n from "../i18n";
 
 export type EditorForm = {
@@ -8,6 +8,7 @@ export type EditorForm = {
   due_date: string;         // "" = none
   due_time: string;         // "HH:MM"; "" = all-day (#93)
   notes: string;
+  attachments: Attachment[];
   tag_ids: string[];
   estimated_seconds: string; // duration text; "" = no estimate
   // Names typed into the tag input that don't exist yet. Held here (not created
@@ -122,6 +123,7 @@ export function buildTaskUpdate(id: string, form: EditorForm): TaskUpdate {
     id,
     title: form.title.trim(),
     notes: form.notes,
+    attachments: form.attachments,
     tag_ids: form.tag_ids,
     start_date: form.start_date || null,
     // A time is only meaningful with its date; no date => clear the time too (#93).
@@ -141,6 +143,7 @@ export function buildTemplateUpdate(id: string, form: EditorForm): TemplateUpdat
     id,
     title: form.title.trim(),
     notes: form.notes,
+    attachments: form.attachments,
     tag_ids: form.tag_ids,
     start_offset_days: startOffsetDisabled(form) ? null : offsetOrNull(form.start_offset_days),
     due_offset_days:       offsetOrNull(form.due_offset_days),
@@ -170,6 +173,7 @@ export function isEditorDirty(form: EditorForm, initial: EditorForm): boolean {
     || form.due_date !== initial.due_date
     || form.due_time !== initial.due_time
     || form.notes !== initial.notes
+    || attachmentsKey(form.attachments) !== attachmentsKey(initial.attachments)
     || form.estimated_seconds !== initial.estimated_seconds
     || !sameTagSet(form.tag_ids, initial.tag_ids)
     || form.is_template !== initial.is_template
@@ -253,6 +257,10 @@ export function maxDayForMonth(month: number): number {
 /** Stable key for a list of month+day pairs, for dirty-checking. */
 function datesKey(dates: YearlyDate[]): string {
   return dates.map(d => `${d.month}/${d.day}`).join(",");
+}
+
+function attachmentsKey(attachments: Attachment[]): string {
+  return attachments.map(a => `${a.id}:${a.path}`).join(",");
 }
 
 /** Parse the monthly "days" input into a sorted, de-duplicated day list. Returns

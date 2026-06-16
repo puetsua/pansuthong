@@ -313,6 +313,11 @@
     "notesMarkdown": "Markdown 備註",
     "notesPreview": "Markdown 預覽",
     "notesPreviewEmpty": "沒有可預覽的內容。",
+    "attachments": "附件",
+    "attachFiles": "加入附件",
+    "attachSavedOnly": "請先儲存任務，再加入附件。",
+    "attachmentsEmpty": "沒有附件。",
+    "removeAttachment": "移除 {{name}}",
     "notesMode": {
       "edit": "編輯",
       "split": "分割",

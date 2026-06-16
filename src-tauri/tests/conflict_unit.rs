@@ -10,6 +10,7 @@ fn mk(id: &str, title: &str, done: bool) -> Task {
         start_date: None,
         start_time: None,
         notes: String::new(),
+        attachments: Vec::new(),
         tag_ids: Vec::new(),
         estimated_seconds: None,
         created_at: 0,

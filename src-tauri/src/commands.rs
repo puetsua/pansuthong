@@ -3,8 +3,8 @@ use crate::conflict::{apply_decisions, diff_tasks, tags_to_merge, Decision, Task
 use crate::error::{AppError, Result};
 use crate::history::HistoryEntry;
 use crate::model::{
-    new_tag_id, new_task_id, new_time_entry_id, now_ms, Recurrence, Tag, Task, TemplateTask,
-    TimeEntry, Tombstone, YearlyDate,
+    new_attachment_id, new_tag_id, new_task_id, new_time_entry_id, now_ms, Attachment, Recurrence,
+    Tag, Task, TemplateTask, TimeEntry, Tombstone, YearlyDate,
 };
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
@@ -91,6 +91,8 @@ pub struct NewTaskInput {
     #[serde(default)]
     pub notes: String,
     #[serde(default)]
+    pub attachments: Vec<Attachment>,
+    #[serde(default)]
     pub tag_ids: Vec<String>,
     #[serde(default)]
     pub estimated_seconds: Option<i64>,
@@ -129,6 +131,366 @@ fn retain_known_tags(ids: Vec<String>, tags: &[Tag]) -> Vec<String> {
     ids.into_iter()
         .filter(|id| tags.iter().any(|t| &t.id == id))
         .collect()
+}
+
+const ATTACHMENT_PREFIX: &str = "attachment_";
+
+#[cfg(target_os = "android")]
+fn attachment_err(e: impl std::fmt::Display) -> AppError {
+    AppError::Invalid(format!("attachment: {e}"))
+}
+
+fn safe_attachment_name(name: &str) -> String {
+    let mut out = String::new();
+    for ch in name.chars() {
+        if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_') {
+            out.push(ch);
+        } else if ch.is_whitespace() {
+            out.push('_');
+        }
+    }
+    let trimmed = out.trim_matches(['.', '_', '-']).to_string();
+    if trimmed.is_empty() {
+        "file".into()
+    } else {
+        trimmed.chars().take(96).collect()
+    }
+}
+
+fn managed_attachment_name(id: &str, original_name: &str) -> String {
+    format!(
+        "{ATTACHMENT_PREFIX}{id}_{}",
+        safe_attachment_name(original_name)
+    )
+}
+
+pub(crate) fn is_attachment_filename(name: &str) -> bool {
+    name.starts_with(ATTACHMENT_PREFIX) && !name.contains('/') && !name.contains('\\')
+}
+
+fn attachment_abs_path(data_path: &Path, relative: &str) -> Result<PathBuf> {
+    if !is_attachment_filename(relative) {
+        return Err(AppError::Invalid("invalid attachment path".into()));
+    }
+    let dir = data_path.parent().unwrap_or_else(|| Path::new("."));
+    Ok(dir.join(relative))
+}
+
+fn file_display_name(path: &Path) -> Result<String> {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| n.to_string())
+        .ok_or_else(|| {
+            AppError::Invalid(format!("invalid attachment file path {}", path.display()))
+        })
+}
+
+fn attachment_from_bytes(
+    data_path: &Path,
+    name: String,
+    mime_type: Option<String>,
+    bytes: &[u8],
+) -> Result<Attachment> {
+    let id = new_attachment_id();
+    let relative = managed_attachment_name(&id, &name);
+    let dest = attachment_abs_path(data_path, &relative)?;
+    std::fs::write(dest, bytes)?;
+    Ok(Attachment {
+        id,
+        name,
+        path: relative,
+        mime_type,
+        size: Some(bytes.len() as u64),
+        created_at: now_ms(),
+    })
+}
+
+fn attachments_referenced(d: &crate::model::Document, path: &str) -> bool {
+    d.tasks
+        .iter()
+        .flat_map(|t| t.attachments.iter())
+        .chain(d.template_tasks.iter().flat_map(|t| t.attachments.iter()))
+        .any(|a| a.path == path)
+}
+
+#[derive(Deserialize)]
+pub struct AttachFilesInput {
+    pub id: String,
+    pub paths: Vec<String>,
+}
+
+fn attachments_from_paths(data_path: &Path, paths: Vec<String>) -> Result<Vec<Attachment>> {
+    let mut out = Vec::new();
+    for raw in paths {
+        let path = PathBuf::from(raw);
+        let name = file_display_name(&path)?;
+        let bytes = std::fs::read(&path)?;
+        out.push(attachment_from_bytes(data_path, name, None, &bytes)?);
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn attach_task_files(
+    input: AttachFilesInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Task> {
+    if input.paths.is_empty() {
+        return state.read(|d| {
+            d.tasks
+                .iter()
+                .find(|t| t.id == input.id)
+                .cloned()
+                .ok_or_else(|| AppError::NotFound(format!("task {}", input.id)))
+        });
+    }
+    state.read(|d| {
+        if d.tasks.iter().any(|t| t.id == input.id) {
+            Ok(())
+        } else {
+            Err(AppError::NotFound(format!("task {}", input.id)))
+        }
+    })?;
+    let attachments = attachments_from_paths(&state.path(), input.paths)?;
+    let updated = state.write(|d| {
+        let t = task_mut(d, &input.id)?;
+        t.attachments.extend(attachments);
+        t.updated_at = now_ms();
+        Ok(t.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
+}
+
+#[tauri::command]
+pub fn attach_template_files(
+    input: AttachFilesInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<TemplateTask> {
+    if input.paths.is_empty() {
+        return state.read(|d| {
+            d.template_tasks
+                .iter()
+                .find(|t| t.id == input.id)
+                .cloned()
+                .ok_or_else(|| AppError::NotFound(format!("template {}", input.id)))
+        });
+    }
+    state.read(|d| {
+        if d.template_tasks.iter().any(|t| t.id == input.id) {
+            Ok(())
+        } else {
+            Err(AppError::NotFound(format!("template {}", input.id)))
+        }
+    })?;
+    let attachments = attachments_from_paths(&state.path(), input.paths)?;
+    let updated = state.write(|d| {
+        let t = d
+            .template_tasks
+            .iter_mut()
+            .find(|t| t.id == input.id)
+            .ok_or_else(|| AppError::NotFound(format!("template {}", input.id)))?;
+        t.attachments.extend(attachments);
+        t.updated_at = now_ms();
+        Ok(t.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
+}
+
+#[derive(Deserialize)]
+pub struct RemoveAttachmentInput {
+    pub id: String,
+    pub attachment_id: String,
+}
+
+#[tauri::command]
+pub fn remove_task_attachment(
+    input: RemoveAttachmentInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Task> {
+    let mut removed_path: Option<String> = None;
+    let updated = state.write(|d| {
+        let t = task_mut(d, &input.id)?;
+        let before = t.attachments.len();
+        t.attachments.retain(|a| {
+            if a.id == input.attachment_id {
+                removed_path = Some(a.path.clone());
+                false
+            } else {
+                true
+            }
+        });
+        if t.attachments.len() == before {
+            return Err(AppError::NotFound(format!(
+                "attachment {}",
+                input.attachment_id
+            )));
+        }
+        t.updated_at = now_ms();
+        Ok(t.clone())
+    })?;
+    if let Some(path) = removed_path {
+        let still_used = state.read(|d| attachments_referenced(d, &path));
+        if !still_used {
+            if let Ok(abs) = attachment_abs_path(&state.path(), &path) {
+                let _ = std::fs::remove_file(abs);
+            }
+        }
+    }
+    emit_changed(&app);
+    Ok(updated)
+}
+
+#[tauri::command]
+pub fn remove_template_attachment(
+    input: RemoveAttachmentInput,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<TemplateTask> {
+    let mut removed_path: Option<String> = None;
+    let updated = state.write(|d| {
+        let t = d
+            .template_tasks
+            .iter_mut()
+            .find(|t| t.id == input.id)
+            .ok_or_else(|| AppError::NotFound(format!("template {}", input.id)))?;
+        let before = t.attachments.len();
+        t.attachments.retain(|a| {
+            if a.id == input.attachment_id {
+                removed_path = Some(a.path.clone());
+                false
+            } else {
+                true
+            }
+        });
+        if t.attachments.len() == before {
+            return Err(AppError::NotFound(format!(
+                "attachment {}",
+                input.attachment_id
+            )));
+        }
+        t.updated_at = now_ms();
+        Ok(t.clone())
+    })?;
+    if let Some(path) = removed_path {
+        let still_used = state.read(|d| attachments_referenced(d, &path));
+        if !still_used {
+            if let Ok(abs) = attachment_abs_path(&state.path(), &path) {
+                let _ = std::fs::remove_file(abs);
+            }
+        }
+    }
+    emit_changed(&app);
+    Ok(updated)
+}
+
+#[tauri::command]
+pub fn resolve_attachment_path(path: String, state: State<'_, AppState>) -> Result<String> {
+    Ok(attachment_abs_path(&state.path(), &path)?
+        .to_string_lossy()
+        .to_string())
+}
+
+#[cfg(target_os = "android")]
+async fn pick_android_attachments(app: &AppHandle, data_path: &Path) -> Result<Vec<Attachment>> {
+    use tauri_plugin_android_fs::{AndroidFsExt, Entry};
+    let fs = app.android_fs_async();
+    let picked = fs
+        .file_picker()
+        .pick_files(None, &[], false)
+        .await
+        .map_err(attachment_err)?;
+    let mut attachments = Vec::new();
+    for uri in picked {
+        let info = fs.get_info(&uri).await.map_err(attachment_err)?;
+        let (name, mime_type) = match info {
+            Entry::File {
+                name, mime_type, ..
+            } => (name, Some(mime_type)),
+            Entry::Dir { .. } => continue,
+        };
+        let bytes = fs.read(&uri).await.map_err(attachment_err)?;
+        attachments.push(attachment_from_bytes(data_path, name, mime_type, &bytes)?);
+    }
+    Ok(attachments)
+}
+
+#[tauri::command]
+pub async fn pick_task_attachments(
+    id: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Option<Task>> {
+    #[cfg(target_os = "android")]
+    {
+        state.read(|d| {
+            if d.tasks.iter().any(|t| t.id == id) {
+                Ok(())
+            } else {
+                Err(AppError::NotFound(format!("task {}", id)))
+            }
+        })?;
+        let attachments = pick_android_attachments(&app, &state.path()).await?;
+        if attachments.is_empty() {
+            return Ok(None);
+        }
+        let updated = state.write(|d| {
+            let t = task_mut(d, &id)?;
+            t.attachments.extend(attachments);
+            t.updated_at = now_ms();
+            Ok(t.clone())
+        })?;
+        emit_changed(&app);
+        Ok(Some(updated))
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (id, state, app);
+        Ok(None)
+    }
+}
+
+#[tauri::command]
+pub async fn pick_template_attachments(
+    id: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Option<TemplateTask>> {
+    #[cfg(target_os = "android")]
+    {
+        state.read(|d| {
+            if d.template_tasks.iter().any(|t| t.id == id) {
+                Ok(())
+            } else {
+                Err(AppError::NotFound(format!("template {}", id)))
+            }
+        })?;
+        let attachments = pick_android_attachments(&app, &state.path()).await?;
+        if attachments.is_empty() {
+            return Ok(None);
+        }
+        let updated = state.write(|d| {
+            let t = d
+                .template_tasks
+                .iter_mut()
+                .find(|t| t.id == id)
+                .ok_or_else(|| AppError::NotFound(format!("template {}", id)))?;
+            t.attachments.extend(attachments);
+            t.updated_at = now_ms();
+            Ok(t.clone())
+        })?;
+        emit_changed(&app);
+        Ok(Some(updated))
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (id, state, app);
+        Ok(None)
+    }
 }
 
 /// Upper bound for a template's relative date offset (#71). 0 = today; the editor
@@ -249,6 +611,7 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
             start_date: input.start_date,
             start_time: input.start_date.and(input.start_time),
             notes: input.notes,
+            attachments: input.attachments,
             tag_ids: retain_known_tags(input.tag_ids, &d.tags),
             estimated_seconds: input.estimated_seconds,
             created_at: ts,
@@ -292,6 +655,8 @@ pub struct UpdateTaskInput {
     pub start_time: Option<Option<String>>,
     #[serde(default)]
     pub notes: Option<String>,
+    #[serde(default)]
+    pub attachments: Option<Vec<Attachment>>,
     #[serde(default)]
     pub tag_ids: Option<Vec<String>>,
     #[serde(default, deserialize_with = "double_option")]
@@ -344,6 +709,9 @@ pub fn update_task(
         }
         if let Some(v) = input.notes {
             t.notes = v;
+        }
+        if let Some(v) = input.attachments {
+            t.attachments = v;
         }
         if let Some(v) = input.tag_ids {
             t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
@@ -594,6 +962,8 @@ pub struct NewTemplateInput {
     #[serde(default)]
     pub notes: String,
     #[serde(default)]
+    pub attachments: Vec<Attachment>,
+    #[serde(default)]
     pub tag_ids: Vec<String>,
     #[serde(default)]
     pub due_offset_days: Option<i64>,
@@ -639,6 +1009,7 @@ pub fn add_template(
             id: new_task_id(),
             title,
             notes: input.notes,
+            attachments: input.attachments,
             tag_ids,
             created_at: ts,
             updated_at: ts,
@@ -662,6 +1033,8 @@ pub struct UpdateTemplateInput {
     pub title: Option<String>,
     #[serde(default)]
     pub notes: Option<String>,
+    #[serde(default)]
+    pub attachments: Option<Vec<Attachment>>,
     #[serde(default)]
     pub tag_ids: Option<Vec<String>>,
     #[serde(default, deserialize_with = "double_option")]
@@ -699,6 +1072,9 @@ pub fn update_template(
         }
         if let Some(v) = input.notes {
             t.notes = v;
+        }
+        if let Some(v) = input.attachments {
+            t.attachments = v;
         }
         if let Some(v) = input.tag_ids {
             t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
@@ -795,6 +1171,7 @@ pub fn spawn_recurring_task(
             start_date: Some(input.occurrence_date),
             start_time: None,
             notes: tmpl.notes,
+            attachments: tmpl.attachments,
             tag_ids: retain_known_tags(tmpl.tag_ids, &d.tags),
             estimated_seconds: tmpl.estimated_seconds,
             created_at: ts,
