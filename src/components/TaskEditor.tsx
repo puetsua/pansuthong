@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import { api, Attachment, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, estimatedSecondsFormError, estimatedSecondsOrUndefined, formatEstimatedSecondsInput, isEditorDirty, maxDayForMonth, offsetFormError, recurrenceFormError, recurrenceFromForm, startOffsetDisabled } from "../state/taskUpdate";
@@ -30,8 +32,35 @@ type NotesMode = "edit" | "split" | "preview";
 
 const markdownElements = [
   "a", "blockquote", "br", "code", "em", "h1", "h2", "h3", "h4", "h5", "h6",
-  "hr", "li", "ol", "p", "pre", "strong", "ul",
+  "hr", "img", "li", "ol", "p", "pre", "strong", "ul",
 ];
+
+const IMAGE_EXT = /\.(avif|gif|jpe?g|png|webp)$/i;
+
+// A reference the markdown renderers treat as a managed attachment (and resolve
+// via the asset protocol): the stored relative path, optionally device-scoped.
+// Anything else (external URLs, traversal) is left to default rendering so a
+// note can't reach outside the data folder.
+function isManagedAttachmentPath(ref: string): boolean {
+  return /^(attachments_[A-Za-z0-9_-]+\/)?attachment_[^/\\]+$/.test(ref) && !ref.includes("..");
+}
+
+function isImageAttachment(att: Attachment): boolean {
+  return att.mime_type?.startsWith("image/") ?? IMAGE_EXT.test(att.name);
+}
+
+// Markdown to embed an attachment: an image renders inline, anything else links.
+function markdownRefFor(att: Attachment): string {
+  const link = `[${att.name}](${att.path})`;
+  return isImageAttachment(att) ? `!${link}` : link;
+}
+
+// A pasted clipboard image often has no usable filename; fall back to one keyed
+// off its mime subtype so the managed name and markdown ref stay sensible.
+function defaultPastedName(mime: string | null): string {
+  const ext = mime?.startsWith("image/") ? mime.slice("image/".length) : "bin";
+  return `pasted.${ext || "bin"}`;
+}
 
 export function TaskEditor(props: Props) {
   const { t } = useTranslation();
@@ -79,8 +108,22 @@ export function TaskEditor(props: Props) {
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [notesMode, setNotesMode] = useState<NotesMode>("split");
   const [busy, setBusy] = useState(false);
+  // True while a paste/drop/attach is persisting a file — drives a loading
+  // indicator so a large file doesn't look like nothing happened.
+  const [attaching, setAttaching] = useState(false);
+  // Whether the attachments list is expanded (collapsible to save space).
+  const [attachmentsOpen, setAttachmentsOpen] = useState(true);
+  // Enlarged-image overlay, shared by list thumbnails and inline markdown images.
+  const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
+  // The attachment awaiting a delete confirmation (custom modal — WebView2's
+  // window.confirm is unreliable, and a styled dialog matches the red button).
+  const [confirmDelete, setConfirmDelete] = useState<Attachment | null>(null);
 
   const dialogRef = useRef<HTMLDivElement>(null);
+  // The notes textarea (for caret-aware insertion) and its container (for
+  // hit-testing where a file was dropped).
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+  const notesBoxRef = useRef<HTMLDivElement>(null);
   // The element focused before the modal opened (the triggering row button),
   // captured on first render so focus can be restored on close.
   const restoreFocusRef = useRef<HTMLElement | null>(null);
@@ -306,22 +349,38 @@ export function TaskEditor(props: Props) {
     }
   };
 
+  // The current attachment ids, tracked in a ref so the drag-drop callback
+  // (whose closure is created once per entity) always diffs against the live set
+  // rather than a stale snapshot — otherwise an attachment added mid-session
+  // would look "new" again and its markdown would be re-inserted.
+  const attachmentIdsRef = useRef(new Set(initialRef.current.attachments.map(a => a.id)));
+
+  // Record the attachments returned by an attach/remove call, returning the ones
+  // that are new (so the caller can insert markdown for them). Keeps form,
+  // initialRef, and the id ref in sync.
+  const recordAttachments = (next: Attachment[]): Attachment[] => {
+    const added = next.filter(a => !attachmentIdsRef.current.has(a.id));
+    attachmentIdsRef.current = new Set(next.map(a => a.id));
+    setForm(f => ({ ...f, attachments: next }));
+    initialRef.current = { ...initialRef.current, attachments: next };
+    return added;
+  };
+
   const attachFiles = async () => {
     if (creating) return;
     setBusy(true);
+    setAttaching(true);
     try {
       const updated = isTemplate
         ? await api.attachTemplateFiles(entity.id)
         : await api.attachTaskFiles(entity.id);
-      if (updated) {
-        setForm(f => ({ ...f, attachments: updated.attachments ?? [] }));
-        initialRef.current = { ...initialRef.current, attachments: updated.attachments ?? [] };
-      }
+      if (updated) recordAttachments(updated.attachments ?? []);
       setError(null);
-      setBusy(false);
     } catch (err) {
       setError(errorMessage(err));
+    } finally {
       setBusy(false);
+      setAttaching(false);
     }
   };
 
@@ -335,8 +394,7 @@ export function TaskEditor(props: Props) {
       const updated = isTemplate
         ? await api.removeTemplateAttachment(entity.id, attachmentId)
         : await api.removeTaskAttachment(entity.id, attachmentId);
-      setForm(f => ({ ...f, attachments: updated.attachments ?? [] }));
-      initialRef.current = { ...initialRef.current, attachments: updated.attachments ?? [] };
+      recordAttachments(updated.attachments ?? []);
       setError(null);
       setBusy(false);
     } catch (err) {
@@ -344,6 +402,151 @@ export function TaskEditor(props: Props) {
       setBusy(false);
     }
   };
+
+  // Insert markdown into the notes at the textarea caret (replacing any
+  // selection); if the textarea isn't focused, append on a fresh line. The caret
+  // is moved past the inserted text after React commits the new value.
+  const insertNotes = (snippet: string) => {
+    const ta = notesRef.current;
+    setForm(f => {
+      if (ta && document.activeElement === ta) {
+        const s = ta.selectionStart ?? f.notes.length;
+        const e = ta.selectionEnd ?? s;
+        const next = f.notes.slice(0, s) + snippet + f.notes.slice(e);
+        const caret = s + snippet.length;
+        requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(caret, caret); });
+        return { ...f, notes: next };
+      }
+      const sep = f.notes && !f.notes.endsWith("\n") ? "\n\n" : "";
+      return { ...f, notes: f.notes + sep + snippet };
+    });
+  };
+
+  // Persist one pasted/dropped blob (clipboard image or a file with no path) and
+  // return the created attachment, or null on failure.
+  const attachBlob = async (file: File): Promise<Attachment | null> => {
+    const name = file.name && file.name.length > 0 ? file.name : defaultPastedName(file.type || null);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const mime = file.type && file.type.length > 0 ? file.type : null;
+    const updated = isTemplate
+      ? await api.attachTemplateBytes(entity.id, name, mime, bytes)
+      : await api.attachTaskBytes(entity.id, name, mime, bytes);
+    return recordAttachments(updated.attachments ?? [])[0] ?? null;
+  };
+
+  // Paste handler for the notes textarea: clipboard images/files become managed
+  // attachments and their markdown is inserted at the caret. Plain text falls
+  // through to the default paste.
+  const handleNotesPaste = async (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (creating) return;
+    const files = Array.from(e.clipboardData.files);
+    if (files.length === 0) return;
+    e.preventDefault();
+    setBusy(true);
+    setAttaching(true);
+    try {
+      for (const file of files) {
+        const att = await attachBlob(file);
+        if (att) insertNotes(markdownRefFor(att));
+      }
+      setError(null);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+      setAttaching(false);
+    }
+  };
+
+  // OS file drops are captured at the window level by Tauri (dragDropEnabled),
+  // so a normal DOM drop never fires — we subscribe to the webview drag-drop
+  // event while the editor is open. A drop anywhere in the editor attaches to
+  // this entity; if it lands over the notes area, the markdown is also inserted.
+  useEffect(() => {
+    if (creating) return;
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    let webview;
+    try {
+      webview = getCurrentWebview();
+    } catch {
+      return; // no Tauri webview (tests / non-Tauri host) — drag-drop disabled
+    }
+    webview
+      .onDragDropEvent(async event => {
+        if (event.payload.type !== "drop") return;
+        const paths = event.payload.paths ?? [];
+        if (paths.length === 0) return;
+        // Physical → CSS pixels, then locate the drop target.
+        const ratio = window.devicePixelRatio || 1;
+        const target = document.elementFromPoint(
+          event.payload.position.x / ratio,
+          event.payload.position.y / ratio,
+        );
+        if (!dialogRef.current?.contains(target)) return; // not our editor
+        const overNotes = !!notesBoxRef.current?.contains(target);
+        setBusy(true);
+        setAttaching(true);
+        try {
+          const updated = isTemplate
+            ? await api.attachTemplateFiles(entity.id, paths)
+            : await api.attachTaskFiles(entity.id, paths);
+          if (updated) {
+            const added = recordAttachments(updated.attachments ?? []);
+            if (overNotes) added.forEach(att => insertNotes(markdownRefFor(att)));
+          }
+          setError(null);
+        } catch (err) {
+          setError(errorMessage(err));
+        } finally {
+          setBusy(false);
+          setAttaching(false);
+        }
+      })
+      .then(fn => { if (cancelled) fn(); else unlisten = fn; })
+      .catch(() => { /* drag-drop unsupported (e.g. Android) — ignore */ });
+    return () => { cancelled = true; unlisten?.(); };
+  }, [creating, isTemplate, entity.id]);
+
+  const openImage = useCallback((url: string, alt: string) => setLightbox({ url, alt }), []);
+
+  // The set of attachment paths currently on this entity. A managed markdown ref
+  // is only "live" if its path is still here — when an attachment is deleted it
+  // leaves this set, so the renderer can mark the ref broken immediately instead
+  // of loading a (possibly webview-cached) asset URL whose file is already gone.
+  const attachmentPaths = useMemo(
+    () => new Set(form.attachments.map(a => a.path)),
+    [form.attachments],
+  );
+
+  // Markdown renderers: resolve live managed attachment paths to asset URLs.
+  // Inline images open the lightbox; managed links open in the default app. A
+  // managed ref whose attachment was deleted renders a broken marker; anything
+  // non-managed falls back to plain rendering so a note can't load arbitrary
+  // content.
+  const markdownComponents = useMemo<Components>(() => ({
+    img: ({ src, alt }) => {
+      const label = alt ?? "";
+      if (typeof src !== "string" || !isManagedAttachmentPath(src)) return <span>{label}</span>;
+      if (!attachmentPaths.has(src)) {
+        return (
+          <span className="te-md-image-broken" title={t("taskEditor.imageUnavailable")}>
+            🔗💔 {label || t("taskEditor.imageUnavailable")}
+          </span>
+        );
+      }
+      return <MarkdownImage path={src} alt={label} onOpen={openImage} />;
+    },
+    a: ({ href, children }) => {
+      if (typeof href !== "string" || !isManagedAttachmentPath(href)) {
+        return <a href={href} target="_blank" rel="noreferrer">{children}</a>;
+      }
+      if (!attachmentPaths.has(href)) {
+        return <span className="te-md-image-broken" title={t("taskEditor.imageUnavailable")}>🔗💔 {children}</span>;
+      }
+      return <a href="#" onClick={e => { e.preventDefault(); void api.openAttachment(href); }}>{children}</a>;
+    },
+  }), [openImage, attachmentPaths, t]);
 
   const heading = creating ? t("taskEditor.newTask") : isTemplate ? t("taskEditor.editTemplate") : t("taskEditor.editTask");
 
@@ -570,16 +773,18 @@ export function TaskEditor(props: Props) {
               ))}
             </div>
           </div>
-          <div className={`te-notes te-notes-mode-${notesMode}`}>
+          <div className={`te-notes te-notes-mode-${notesMode}`} ref={notesBoxRef}>
             {notesMode !== "preview" && (
               <textarea aria-label={t("taskEditor.notesMarkdown")}
+                        ref={notesRef}
                         value={form.notes} rows={10}
-                        onChange={e => set("notes", e.currentTarget.value)} />
+                        onChange={e => set("notes", e.currentTarget.value)}
+                        onPaste={handleNotesPaste} />
             )}
             {notesMode !== "edit" && (
               <div className="te-notes-preview" aria-label={t("taskEditor.notesPreview")}>
                 {form.notes.trim() ? (
-                  <ReactMarkdown allowedElements={markdownElements}>
+                  <ReactMarkdown allowedElements={markdownElements} components={markdownComponents}>
                     {form.notes}
                   </ReactMarkdown>
                 ) : (
@@ -592,20 +797,38 @@ export function TaskEditor(props: Props) {
 
         <div className="te-field te-attachments-field">
           <div className="te-field-head">
-            <span>{t("taskEditor.attachments")}</span>
+            <button type="button" className="te-collapse-toggle" aria-expanded={attachmentsOpen}
+                    onClick={() => setAttachmentsOpen(o => !o)}>
+              <span className="te-collapse-caret" aria-hidden="true">{attachmentsOpen ? "▾" : "▸"}</span>
+              {t("taskEditor.attachments")}
+              {form.attachments.length > 0 && (
+                <span className="te-collapse-count">{form.attachments.length}</span>
+              )}
+            </button>
             <button type="button" className="te-attach-btn" onClick={attachFiles}
                     disabled={busy || creating}>
               {t("taskEditor.attachFiles")}
             </button>
           </div>
-          {creating && <p className="te-attachment-hint">{t("taskEditor.attachSavedOnly")}</p>}
-          <AttachmentList
-            attachments={form.attachments}
-            onRemove={removeAttachment}
-            removeLabel={name => t("taskEditor.removeAttachment", { name })}
-            emptyLabel={t("taskEditor.attachmentsEmpty")}
-            disabled={busy}
-          />
+          {attachmentsOpen && (
+            <>
+              {creating && <p className="te-attachment-hint">{t("taskEditor.attachSavedOnly")}</p>}
+              {attaching && (
+                <p className="te-attaching" role="status">
+                  <span className="te-spinner" aria-hidden="true" />
+                  {t("taskEditor.savingAttachment")}
+                </p>
+              )}
+              <AttachmentList
+                attachments={form.attachments}
+                onRequestRemove={setConfirmDelete}
+                onInsert={att => insertNotes(markdownRefFor(att))}
+                onOpenImage={openImage}
+                emptyLabel={t("taskEditor.attachmentsEmpty")}
+                disabled={busy}
+              />
+            </>
+          )}
         </div>
 
         {canComplete && taskEntity && (
@@ -654,6 +877,18 @@ export function TaskEditor(props: Props) {
             {creating ? t("taskEditor.addTask") : t("taskEditor.save")}
           </button>
         </div>
+        {lightbox && (
+          <ImageLightbox url={lightbox.url} alt={lightbox.alt} onClose={() => setLightbox(null)} />
+        )}
+        {confirmDelete && (
+          <ConfirmDialog
+            message={t("taskEditor.deleteAttachmentConfirm", { name: confirmDelete.name })}
+            confirmLabel={t("taskEditor.delete")}
+            cancelLabel={t("taskEditor.cancel")}
+            onCancel={() => setConfirmDelete(null)}
+            onConfirm={() => { const id = confirmDelete.id; setConfirmDelete(null); void removeAttachment(id); }}
+          />
+        )}
       </div>
     </div>,
     document.body,
@@ -662,14 +897,16 @@ export function TaskEditor(props: Props) {
 
 function AttachmentList({
   attachments,
-  onRemove,
-  removeLabel,
+  onRequestRemove,
+  onInsert,
+  onOpenImage,
   emptyLabel,
   disabled,
 }: {
   attachments: Attachment[];
-  onRemove: (id: string) => void;
-  removeLabel: (name: string) => string;
+  onRequestRemove: (att: Attachment) => void;
+  onInsert: (att: Attachment) => void;
+  onOpenImage: (url: string, alt: string) => void;
   emptyLabel: string;
   disabled: boolean;
 }) {
@@ -682,8 +919,9 @@ function AttachmentList({
         <AttachmentItem
           key={att.id}
           attachment={att}
-          onRemove={() => onRemove(att.id)}
-          removeLabel={removeLabel(att.name)}
+          onRequestRemove={() => onRequestRemove(att)}
+          onInsert={() => onInsert(att)}
+          onOpenImage={onOpenImage}
           disabled={disabled}
         />
       ))}
@@ -693,15 +931,18 @@ function AttachmentList({
 
 function AttachmentItem({
   attachment,
-  onRemove,
-  removeLabel,
+  onRequestRemove,
+  onInsert,
+  onOpenImage,
   disabled,
 }: {
   attachment: Attachment;
-  onRemove: () => void;
-  removeLabel: string;
+  onRequestRemove: () => void;
+  onInsert: () => void;
+  onOpenImage: (url: string, alt: string) => void;
   disabled: boolean;
 }) {
+  const { t } = useTranslation();
   const [url, setUrl] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   useEffect(() => {
@@ -712,23 +953,126 @@ function AttachmentItem({
       .catch(() => { if (live) setUrl(null); });
     return () => { live = false; };
   }, [attachment.path]);
-  const isImage = attachment.mime_type?.startsWith("image/") ?? /\.(avif|gif|jpe?g|png|webp)$/i.test(attachment.name);
+  const isImage = isImageAttachment(attachment);
   // Only reserve the image column when we'll actually show a preview, so a
   // failed or still-loading image collapses to the filename row instead of
   // leaving a permanent blank gap.
   const showImage = isImage && url != null && !imgFailed;
+  // Clicking the filename reveals the file in the OS file manager (both images
+  // and files); clicking the image thumbnail enlarges it in the lightbox.
+  const reveal = () => { void api.revealAttachment(attachment.path); };
   return (
     <div className={showImage ? "te-attachment image" : "te-attachment"}>
-      {showImage && <img src={url!} alt={attachment.name} onError={() => setImgFailed(true)} />}
+      {showImage && (
+        <button type="button" className="te-attachment-thumb"
+                aria-label={t("taskEditor.enlargeImage", { name: attachment.name })}
+                onClick={() => onOpenImage(url!, attachment.name)}>
+          <img src={url!} alt={attachment.name} onError={() => setImgFailed(true)} />
+        </button>
+      )}
       <div className="te-attachment-meta">
-        {url ? (
-          <a href={url} target="_blank" rel="noreferrer">{attachment.name}</a>
-        ) : (
-          <span>{attachment.name}</span>
-        )}
+        <button type="button" className="te-attachment-name"
+                title={t("taskEditor.revealAttachment", { name: attachment.name })}
+                onClick={reveal}>
+          {attachment.name}
+        </button>
         {attachment.size != null && <span className="te-attachment-size">{formatBytes(attachment.size)}</span>}
       </div>
-      <button type="button" aria-label={removeLabel} onClick={onRemove} disabled={disabled}>×</button>
+      <div className="te-attachment-actions">
+        <button type="button" className="te-attachment-insert"
+                aria-label={t("taskEditor.insertAttachment", { name: attachment.name })}
+                title={t("taskEditor.insertAttachment", { name: attachment.name })}
+                onClick={onInsert} disabled={disabled}>↳</button>
+        <button type="button" className="te-attachment-delete"
+                aria-label={t("taskEditor.removeAttachment", { name: attachment.name })}
+                onClick={onRequestRemove} disabled={disabled}>×</button>
+      </div>
+    </div>
+  );
+}
+
+// Resolves a managed attachment path to an asset URL and renders it inline in
+// the notes preview. A failed/unresolved image collapses to its alt text rather
+// than leaving a bare broken-image icon; clicking opens the shared lightbox.
+function MarkdownImage({ path, alt, onOpen }: {
+  path: string;
+  alt: string;
+  onOpen: (url: string, alt: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setFailed(false);
+    api.attachmentUrl(path)
+      .then(u => { if (live) setUrl(u); })
+      .catch(() => { if (live) setFailed(true); });
+    return () => { live = false; };
+  }, [path]);
+  // A managed image whose file is gone (deleted attachment) resolves to a URL
+  // that 404s — surface it as a "broken link" marker, not a silent gap, so the
+  // user knows the reference points at a missing attachment.
+  if (failed) {
+    return (
+      <span className="te-md-image-broken" title={t("taskEditor.imageUnavailable")}>
+        🔗💔 {alt || t("taskEditor.imageUnavailable")}
+      </span>
+    );
+  }
+  if (url == null) return <span>{alt}</span>;
+  return (
+    <img className="te-md-image" src={url} alt={alt}
+         onClick={() => onOpen(url, alt)}
+         onError={() => setFailed(true)} />
+  );
+}
+
+// Full-size image overlay. Esc or a backdrop/close click dismisses it.
+function ImageLightbox({ url, alt, onClose }: { url: string; alt: string; onClose: () => void }) {
+  const { t } = useTranslation();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+  return (
+    <div className="te-lightbox" role="dialog" aria-modal="true" aria-label={alt} onClick={onClose}>
+      <button type="button" className="te-lightbox-close" aria-label={t("taskEditor.closeImage")}
+              onClick={onClose}>×</button>
+      <img src={url} alt={alt} onClick={e => e.stopPropagation()} />
+    </div>
+  );
+}
+
+// In-app confirmation modal with a red confirm button. Used for attachment
+// deletion (WebView2's native window.confirm is unreliable here). Esc cancels;
+// the destructive button is auto-focused so Enter confirms.
+function ConfirmDialog({ message, confirmLabel, cancelLabel, onConfirm, onCancel }: {
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    confirmRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onCancel(); } };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onCancel]);
+  return (
+    <div className="te-confirm" role="dialog" aria-modal="true" aria-label={message} onClick={onCancel}>
+      <div className="te-confirm-box" onClick={e => e.stopPropagation()}>
+        <p>{message}</p>
+        <div className="te-confirm-actions">
+          <button type="button" onClick={onCancel}>{cancelLabel}</button>
+          <button type="button" ref={confirmRef} className="te-confirm-delete" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

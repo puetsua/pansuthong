@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { Settings } from "./tauri";
 import {
   clampDayStartHour,
+  clampMaxAttachmentMb,
   clampReminderInterval,
   clampUpcomingDays,
   DATE_FORMAT_DEFAULT,
@@ -16,6 +17,10 @@ import {
   defaultTagPriority,
   DEFAULT_TAG_COLOR,
   DEFAULT_TAG_PRIORITY,
+  maxAttachmentMb,
+  MAX_ATTACHMENT_MB_DEFAULT,
+  MAX_ATTACHMENT_MB_MAX,
+  MAX_ATTACHMENT_MB_MIN,
   reminderIntervalMinutes,
   REMINDER_INTERVAL_DEFAULT,
   REMINDER_INTERVAL_MAX,
@@ -32,6 +37,23 @@ import { WEIGHT_MAX } from "./tags";
 
 const settings = (upcoming_days?: number): Settings =>
   ({ theme: "auto", sort_order: "priority", upcoming_days });
+
+describe("clampMaxAttachmentMb", () => {
+  it("keeps in-range integers and clamps out-of-range input", () => {
+    expect(clampMaxAttachmentMb("512")).toBe(512);
+    expect(clampMaxAttachmentMb(0)).toBe(MAX_ATTACHMENT_MB_MIN);
+    expect(clampMaxAttachmentMb("999999")).toBe(MAX_ATTACHMENT_MB_MAX);
+  });
+
+  it("falls back to the default on non-numeric input", () => {
+    expect(clampMaxAttachmentMb("abc")).toBe(MAX_ATTACHMENT_MB_DEFAULT);
+  });
+
+  it("uses the default when settings omit the cap", () => {
+    expect(maxAttachmentMb({ theme: "auto", sort_order: "priority" } as Settings))
+      .toBe(MAX_ATTACHMENT_MB_DEFAULT);
+  });
+});
 
 describe("clampUpcomingDays", () => {
   it("keeps in-range integers", () => {

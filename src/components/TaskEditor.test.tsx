@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, createEvent, waitFor, within } from "@testing-library/react";
 import { Tag, Task, TemplateTask } from "../lib/tauri";
 import { TaskEditor } from "./TaskEditor";
 
@@ -17,6 +17,14 @@ vi.mock("../lib/tauri", async (importOriginal) => {
       deleteTemplate: vi.fn().mockResolvedValue(undefined),
       addTag: vi.fn((name: string, color: string) =>
         Promise.resolve({ id: `t_new_${name}`, name, color, priority: 0 })),
+      attachmentUrl: vi.fn().mockResolvedValue("asset://localhost/att.png"),
+      revealAttachment: vi.fn().mockResolvedValue(undefined),
+      openAttachment: vi.fn().mockResolvedValue(undefined),
+      removeTaskAttachment: vi.fn().mockResolvedValue({
+        id: "k_1", title: "Write report", notes: "",
+        tag_ids: ["t_a"], created_at: "1970-01-01T00:00:00Z", attachments: [],
+      }),
+      attachTaskBytes: vi.fn(),
     },
   };
 });
@@ -33,6 +41,20 @@ const tags = new Map<string, Tag>([
 ]);
 
 const button = (name: RegExp | string) => screen.getByRole("button", { name }) as HTMLButtonElement;
+
+// Fire a paste carrying files. jsdom's synthetic paste event drops the
+// `clipboardData` init prop, so attach it explicitly before dispatching.
+const pasteFiles = (node: HTMLElement, files: File[]) => {
+  // jsdom's File lacks arrayBuffer(); the app reads it to get the bytes.
+  files.forEach(f => {
+    if (typeof f.arrayBuffer !== "function") {
+      Object.defineProperty(f, "arrayBuffer", { value: async () => new Uint8Array([0]).buffer });
+    }
+  });
+  const event = createEvent.paste(node);
+  Object.defineProperty(event, "clipboardData", { value: { files } });
+  fireEvent(node, event);
+};
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -207,6 +229,197 @@ describe("TaskEditor Markdown notes (#70)", () => {
 
     expect(document.querySelector(".te-notes-preview img")).toBeNull();
     expect(screen.getByText("safe").tagName).toBe("STRONG");
+  });
+});
+
+const imgAtt = {
+  id: "att_1", name: "shot.png", path: "attachments_dev/attachment_att_1_shot.png",
+  mime_type: "image/png", size: 1234, created_at: "1970-01-01T00:00:00Z",
+};
+const fileAtt = {
+  id: "att_2", name: "doc.pdf", path: "attachments_dev/attachment_att_2_doc.pdf",
+  mime_type: "application/pdf", size: 2048, created_at: "1970-01-01T00:00:00Z",
+};
+
+describe("TaskEditor attachments in notes (#113)", () => {
+  it("renders a managed image reference inline and opens it in the lightbox", async () => {
+    const task: Task = { ...baseTask, notes: `![shot](${imgAtt.path})`, attachments: [imgAtt] };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    const img = await waitFor(() => {
+      const el = document.querySelector(".te-md-image") as HTMLImageElement | null;
+      if (!el) throw new Error("inline image not rendered yet");
+      return el;
+    });
+    expect(img.getAttribute("src")).toBe("asset://localhost/att.png");
+
+    fireEvent.click(img);
+    expect(document.querySelector(".te-lightbox img")).not.toBeNull();
+  });
+
+  it("opens a managed file link in the default app instead of navigating", () => {
+    const task: Task = { ...baseTask, notes: `[doc](${fileAtt.path})`, attachments: [fileAtt] };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByText("doc"));
+    expect(api.openAttachment).toHaveBeenCalledWith(fileAtt.path);
+  });
+
+  it("falls back to alt text for a non-managed image reference", () => {
+    const task: Task = { ...baseTask, notes: "![ext](https://example.com/x.png)" };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    expect(document.querySelector(".te-md-image")).toBeNull();
+    expect(screen.getByText("ext")).toBeTruthy();
+  });
+
+  it("inserts an image attachment as image markdown into the notes", () => {
+    const task: Task = { ...baseTask, attachments: [imgAtt] };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    fireEvent.click(button("Insert shot.png into notes"));
+    const ta = screen.getByLabelText("Markdown notes") as HTMLTextAreaElement;
+    expect(ta.value).toContain(`![shot.png](${imgAtt.path})`);
+  });
+
+  it("inserts a file attachment as a link into the notes", () => {
+    const task: Task = { ...baseTask, attachments: [fileAtt] };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    fireEvent.click(button("Insert doc.pdf into notes"));
+    const ta = screen.getByLabelText("Markdown notes") as HTMLTextAreaElement;
+    expect(ta.value).toContain(`[doc.pdf](${fileAtt.path})`);
+    expect(ta.value).not.toContain(`![doc.pdf]`);
+  });
+
+  it("collapses and expands the attachments section", () => {
+    const task: Task = { ...baseTask, attachments: [fileAtt] };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    // Expanded by default — the attachment is visible.
+    expect(screen.queryByRole("button", { name: "doc.pdf" })).toBeTruthy();
+    const toggle = screen.getByRole("button", { name: /Attachments/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: "doc.pdf" })).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(screen.queryByRole("button", { name: "doc.pdf" })).toBeTruthy();
+  });
+
+  it("reveals an attachment in the file manager when its name is clicked", () => {
+    const task: Task = { ...baseTask, attachments: [fileAtt] };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    fireEvent.click(button("doc.pdf"));
+    expect(api.revealAttachment).toHaveBeenCalledWith(fileAtt.path);
+  });
+
+  it("confirms via a dialog before deleting an attachment", () => {
+    const task: Task = { ...baseTask, attachments: [fileAtt] };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    // Clicking × opens a confirmation dialog rather than deleting immediately.
+    fireEvent.click(button("Remove doc.pdf"));
+    expect(api.removeTaskAttachment).not.toHaveBeenCalled();
+    const dialog = () => screen.getByRole("dialog", { name: /Delete doc\.pdf\?/ });
+
+    // Cancelling dismisses without deleting.
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    expect(api.removeTaskAttachment).not.toHaveBeenCalled();
+
+    // Re-open and confirm → the delete goes through.
+    fireEvent.click(button("Remove doc.pdf"));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Delete" }));
+    expect(api.removeTaskAttachment).toHaveBeenCalledWith("k_1", "att_2");
+  });
+
+  it("opens the lightbox when an image thumbnail is clicked", async () => {
+    const task: Task = { ...baseTask, attachments: [imgAtt] };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    const thumb = await waitFor(() => button(/Enlarge shot.png/));
+    fireEvent.click(thumb);
+    expect(document.querySelector(".te-lightbox img")).not.toBeNull();
+  });
+
+  it("shows a broken-link marker for an image ref whose attachment was deleted", () => {
+    // The note references a managed image, but it is no longer in the
+    // attachment list (deleted) — so the preview must not try to load it.
+    const task: Task = { ...baseTask, notes: `![shot](${imgAtt.path})`, attachments: [] };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    expect(document.querySelector(".te-md-image-broken")).not.toBeNull();
+    expect(document.querySelector(".te-md-image")).toBeNull();
+  });
+
+  it("swaps an inline image for the broken marker when its attachment is deleted", async () => {
+    const task: Task = { ...baseTask, notes: `![shot](${imgAtt.path})`, attachments: [imgAtt] };
+    (api.removeTaskAttachment as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...task, attachments: [],
+    });
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    // Initially the image renders...
+    await waitFor(() => expect(document.querySelector(".te-md-image")).not.toBeNull());
+
+    // ...delete it via the list, confirm, and the preview shows broken instead.
+    fireEvent.click(button("Remove shot.png"));
+    fireEvent.click(within(screen.getByRole("dialog", { name: /Delete shot\.png\?/ })).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(document.querySelector(".te-md-image-broken")).not.toBeNull());
+    expect(document.querySelector(".te-md-image")).toBeNull();
+  });
+
+  it("shows a loading indicator while an attachment is saving", async () => {
+    let resolve!: (t: Task) => void;
+    (api.attachTaskBytes as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise<Task>(r => { resolve = r; }),
+    );
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+
+    const ta = screen.getByLabelText("Markdown notes") as HTMLTextAreaElement;
+    pasteFiles(ta, [new File([new Uint8Array([1])], "shot.png", { type: "image/png" })]);
+
+    await waitFor(() => expect(screen.getByText("Saving attachment…")).toBeTruthy());
+    resolve({ ...baseTask, attachments: [imgAtt] });
+    await waitFor(() => expect(screen.queryByText("Saving attachment…")).toBeNull());
+  });
+
+  it("pastes an image into the notes, saving it and inserting image markdown", async () => {
+    (api.attachTaskBytes as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...baseTask, attachments: [imgAtt],
+    });
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+
+    const ta = screen.getByLabelText("Markdown notes") as HTMLTextAreaElement;
+    const file = new File([new Uint8Array([1, 2, 3])], "shot.png", { type: "image/png" });
+    pasteFiles(ta, [file]);
+
+    await waitFor(() =>
+      expect(api.attachTaskBytes).toHaveBeenCalledWith(
+        "k_1", "shot.png", "image/png", expect.any(Uint8Array),
+      ),
+    );
+    await waitFor(() => expect(ta.value).toContain(`![shot.png](${imgAtt.path})`));
+  });
+
+  it("pastes a non-image file, saving it and inserting link markdown", async () => {
+    (api.attachTaskBytes as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...baseTask, attachments: [fileAtt],
+    });
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+
+    const ta = screen.getByLabelText("Markdown notes") as HTMLTextAreaElement;
+    const file = new File([new Uint8Array([1])], "doc.pdf", { type: "application/pdf" });
+    pasteFiles(ta, [file]);
+
+    await waitFor(() => expect(api.attachTaskBytes).toHaveBeenCalled());
+    await waitFor(() => expect(ta.value).toContain(`[doc.pdf](${fileAtt.path})`));
+    // A non-image must NOT get the image (!) prefix.
+    expect(ta.value).not.toContain(`![doc.pdf]`);
   });
 });
 

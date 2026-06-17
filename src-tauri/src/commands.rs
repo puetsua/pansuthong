@@ -135,7 +135,6 @@ fn retain_known_tags(ids: Vec<String>, tags: &[Tag]) -> Vec<String> {
 
 const ATTACHMENT_PREFIX: &str = "attachment_";
 
-#[cfg(target_os = "android")]
 fn attachment_err(e: impl std::fmt::Display) -> AppError {
     AppError::Invalid(format!("attachment: {e}"))
 }
@@ -164,8 +163,32 @@ fn managed_attachment_name(id: &str, original_name: &str) -> String {
     )
 }
 
-pub(crate) fn is_attachment_filename(name: &str) -> bool {
+/// A managed blob filename: `attachment_<id>_<safe-name>`, no path separators.
+fn is_managed_attachment_file(name: &str) -> bool {
     name.starts_with(ATTACHMENT_PREFIX) && !name.contains('/') && !name.contains('\\')
+}
+
+/// A per-device attachment subdirectory: `attachments_<seg>` where `<seg>` is the
+/// sanitized device-id charset (see `config::attachments_dir_name`).
+fn is_attachments_subdir(dir: &str) -> bool {
+    dir.len() > "attachments_".len()
+        && dir.starts_with("attachments_")
+        && dir.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// Accept a stored attachment path: either a legacy flat `attachment_*` (no
+/// separators) or the new `attachments_<device>/attachment_*` form (exactly one
+/// `/`). Rejects `..` and backslashes so a crafted IPC/markdown reference can
+/// never escape the data folder. This is the single guard used by
+/// `attachment_abs_path`, `validate_attachments`, and `resolve_attachment_path`.
+pub(crate) fn is_attachment_filename(name: &str) -> bool {
+    if name.contains('\\') || name.contains("..") {
+        return false;
+    }
+    match name.split_once('/') {
+        Some((dir, file)) => is_attachments_subdir(dir) && is_managed_attachment_file(file),
+        None => is_managed_attachment_file(name),
+    }
 }
 
 fn attachment_abs_path(data_path: &Path, relative: &str) -> Result<PathBuf> {
@@ -173,7 +196,13 @@ fn attachment_abs_path(data_path: &Path, relative: &str) -> Result<PathBuf> {
         return Err(AppError::Invalid("invalid attachment path".into()));
     }
     let dir = data_path.parent().unwrap_or_else(|| Path::new("."));
-    Ok(dir.join(relative))
+    // The stored path uses '/' as separator (including the optional device
+    // subdir); rebuild it segment-by-segment so it joins correctly on Windows.
+    let mut abs = dir.to_path_buf();
+    for seg in relative.split('/') {
+        abs.push(seg);
+    }
+    Ok(abs)
 }
 
 fn file_display_name(path: &Path) -> Result<String> {
@@ -185,26 +214,42 @@ fn file_display_name(path: &Path) -> Result<String> {
         })
 }
 
-/// Per-attachment size ceiling. Attachments are copied into the data folder and
-/// mirrored to the sync folder, so an unbounded file would OOM on import and
-/// bloat every device's synced copy. 50 MiB is generous for notes/images/PDFs.
-const MAX_ATTACHMENT_BYTES: u64 = 50 * 1024 * 1024;
+/// Inclusive bounds (in MiB) for the configurable per-attachment size ceiling.
+/// Attachments are copied into the data folder and mirrored to the sync folder,
+/// so a large file bloats every device's synced copy — hence a cap (default 1
+/// GiB, see `config::default_max_attachment_mb`). Mirrored by the UI.
+const MAX_ATTACHMENT_MB_MIN: u32 = 1;
+const MAX_ATTACHMENT_MB_MAX: u32 = 10240;
+
+/// The configured per-attachment ceiling in bytes.
+fn max_attachment_bytes(config: &ConfigState) -> u64 {
+    config.settings().max_attachment_mb as u64 * 1024 * 1024
+}
 
 fn attachment_from_bytes(
     data_path: &Path,
+    device_id: &str,
+    max_bytes: u64,
     name: String,
     mime_type: Option<String>,
     bytes: &[u8],
 ) -> Result<Attachment> {
-    if bytes.len() as u64 > MAX_ATTACHMENT_BYTES {
+    if bytes.len() as u64 > max_bytes {
         return Err(AppError::Invalid(format!(
-            "attachment {name} is too large ({} bytes); max {MAX_ATTACHMENT_BYTES}",
+            "attachment {name} is too large ({} bytes); max {max_bytes}",
             bytes.len()
         )));
     }
     let id = new_attachment_id();
-    let relative = managed_attachment_name(&id, &name);
+    let relative = format!(
+        "{}/{}",
+        crate::config::attachments_dir_name(device_id),
+        managed_attachment_name(&id, &name)
+    );
     let dest = attachment_abs_path(data_path, &relative)?;
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     std::fs::write(dest, bytes)?;
     Ok(Attachment {
         id,
@@ -221,15 +266,23 @@ fn attachment_from_bytes(
 /// of sharing the template's ids and blob paths (which would confuse merge-by-id
 /// and per-attachment deletion). A source whose blob is missing/unreadable is
 /// skipped rather than carried as a dangling shared reference.
-fn clone_attachments(data_path: &Path, src: &[Attachment]) -> Result<Vec<Attachment>> {
+fn clone_attachments(
+    data_path: &Path,
+    device_id: &str,
+    src: &[Attachment],
+) -> Result<Vec<Attachment>> {
     let mut out = Vec::new();
     for a in src {
         let Ok(abs) = attachment_abs_path(data_path, &a.path) else {
             continue;
         };
         match std::fs::read(&abs) {
+            // No size check on a clone: the source was already accepted, so a
+            // later-lowered limit must not orphan a recurring occurrence's copy.
             Ok(bytes) => out.push(attachment_from_bytes(
                 data_path,
+                device_id,
+                u64::MAX,
                 a.name.clone(),
                 a.mime_type.clone(),
                 &bytes,
@@ -264,26 +317,93 @@ fn gc_attachment_files(state: &AppState, paths: &[String]) {
     }
 }
 
+/// Relocate this device's legacy flat attachment blobs into the per-device
+/// subdir. Pre-subdir builds stored `attachment_*` flat beside the data file;
+/// this moves each blob referenced by THIS replica into `attachments_<device>/`
+/// and rewrites its stored path. It is a path-only relocation, so it must NOT
+/// bump `updated_at` — doing so would falsely mark every attachment-bearing task
+/// as freshly edited and skew the LWW merge against other devices. Per-file
+/// failures are non-fatal: a missing/unmovable blob keeps its old flat path and
+/// resolves (or gracefully fails) exactly as before. Each blob is owned by the
+/// replica that created it, so two devices never contend for the same flat file.
+pub(crate) fn migrate_attachments_to_subdir(state: &AppState, device_id: &str) {
+    let folder = match state.path().parent() {
+        Some(p) => p.to_path_buf(),
+        None => return,
+    };
+    let subdir = crate::config::attachments_dir_name(device_id);
+    // Legacy = a managed path with no '/' separator (flat, beside the data file).
+    let legacy: Vec<String> = state
+        .read(|d| {
+            Ok::<_, AppError>(d
+                .tasks
+                .iter()
+                .flat_map(|t| t.attachments.iter())
+                .chain(d.template_tasks.iter().flat_map(|t| t.attachments.iter()))
+                .map(|a| a.path.clone())
+                .filter(|p| !p.contains('/') && is_attachment_filename(p))
+                .collect())
+        })
+        .unwrap_or_default();
+    if legacy.is_empty() {
+        return;
+    }
+    let _ = std::fs::create_dir_all(folder.join(&subdir));
+    let mut moved: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for old_rel in legacy {
+        if moved.contains_key(&old_rel) {
+            continue;
+        }
+        let src = folder.join(&old_rel);
+        let dst = folder.join(&subdir).join(&old_rel);
+        if src.exists() && std::fs::rename(&src, &dst).is_ok() {
+            moved.insert(old_rel.clone(), format!("{subdir}/{old_rel}"));
+        }
+    }
+    if moved.is_empty() {
+        return;
+    }
+    let _ = state.write(|d| {
+        let rewrite = |atts: &mut Vec<Attachment>| {
+            for a in atts.iter_mut() {
+                if let Some(new) = moved.get(&a.path) {
+                    a.path = new.clone();
+                }
+            }
+        };
+        d.tasks.iter_mut().for_each(|t| rewrite(&mut t.attachments));
+        d.template_tasks
+            .iter_mut()
+            .for_each(|t| rewrite(&mut t.attachments));
+        Ok(())
+    });
+}
+
 #[derive(Deserialize)]
 pub struct AttachFilesInput {
     pub id: String,
     pub paths: Vec<String>,
 }
 
-fn attachments_from_paths(data_path: &Path, paths: Vec<String>) -> Result<Vec<Attachment>> {
+fn attachments_from_paths(
+    data_path: &Path,
+    device_id: &str,
+    max_bytes: u64,
+    paths: Vec<String>,
+) -> Result<Vec<Attachment>> {
     let mut out = Vec::new();
     for raw in paths {
         let path = PathBuf::from(raw);
         let name = file_display_name(&path)?;
         // Reject oversized files by metadata before reading, so a huge file is
         // never buffered into memory in the first place.
-        if std::fs::metadata(&path)?.len() > MAX_ATTACHMENT_BYTES {
+        if std::fs::metadata(&path)?.len() > max_bytes {
             return Err(AppError::Invalid(format!(
-                "attachment {name} is too large; max {MAX_ATTACHMENT_BYTES} bytes"
+                "attachment {name} is too large; max {max_bytes} bytes"
             )));
         }
         let bytes = std::fs::read(&path)?;
-        out.push(attachment_from_bytes(data_path, name, None, &bytes)?);
+        out.push(attachment_from_bytes(data_path, device_id, max_bytes, name, None, &bytes)?);
     }
     Ok(out)
 }
@@ -321,6 +441,7 @@ fn validate_new_tag(name: &str, color: &str) -> Result<()> {
 pub fn attach_task_files(
     input: AttachFilesInput,
     state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
     app: AppHandle,
 ) -> Result<Task> {
     if input.paths.is_empty() {
@@ -339,7 +460,8 @@ pub fn attach_task_files(
             Err(AppError::NotFound(format!("task {}", input.id)))
         }
     })?;
-    let attachments = attachments_from_paths(&state.path(), input.paths)?;
+    let attachments =
+        attachments_from_paths(&state.path(), &config.device_id(), max_attachment_bytes(&config), input.paths)?;
     let updated = state.write(|d| {
         let t = task_mut(d, &input.id)?;
         t.attachments.extend(attachments);
@@ -354,6 +476,7 @@ pub fn attach_task_files(
 pub fn attach_template_files(
     input: AttachFilesInput,
     state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
     app: AppHandle,
 ) -> Result<TemplateTask> {
     if input.paths.is_empty() {
@@ -372,7 +495,8 @@ pub fn attach_template_files(
             Err(AppError::NotFound(format!("template {}", input.id)))
         }
     })?;
-    let attachments = attachments_from_paths(&state.path(), input.paths)?;
+    let attachments =
+        attachments_from_paths(&state.path(), &config.device_id(), max_attachment_bytes(&config), input.paths)?;
     let updated = state.write(|d| {
         let t = d
             .template_tasks
@@ -385,6 +509,104 @@ pub fn attach_template_files(
     })?;
     emit_changed(&app);
     Ok(updated)
+}
+
+/// Pasted/dropped in-memory content (image from the clipboard, or a file with no
+/// filesystem path the webview can hand us). The bytes are persisted as a managed
+/// attachment exactly like a picked file.
+#[derive(Deserialize)]
+pub struct AttachBytesInput {
+    pub id: String,
+    pub name: String,
+    pub mime_type: Option<String>,
+    pub bytes: Vec<u8>,
+}
+
+#[tauri::command]
+pub fn attach_task_bytes(
+    input: AttachBytesInput,
+    state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
+    app: AppHandle,
+) -> Result<Task> {
+    let att = attachment_from_bytes(
+        &state.path(),
+        &config.device_id(),
+        max_attachment_bytes(&config),
+        input.name,
+        input.mime_type,
+        &input.bytes,
+    )?;
+    let updated = state.write(|d| {
+        let t = task_mut(d, &input.id)?;
+        t.attachments.push(att);
+        t.updated_at = now_ms();
+        Ok(t.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
+}
+
+#[tauri::command]
+pub fn attach_template_bytes(
+    input: AttachBytesInput,
+    state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
+    app: AppHandle,
+) -> Result<TemplateTask> {
+    let att = attachment_from_bytes(
+        &state.path(),
+        &config.device_id(),
+        max_attachment_bytes(&config),
+        input.name,
+        input.mime_type,
+        &input.bytes,
+    )?;
+    let updated = state.write(|d| {
+        let t = d
+            .template_tasks
+            .iter_mut()
+            .find(|t| t.id == input.id)
+            .ok_or_else(|| AppError::NotFound(format!("template {}", input.id)))?;
+        t.attachments.push(att);
+        t.updated_at = now_ms();
+        Ok(t.clone())
+    })?;
+    emit_changed(&app);
+    Ok(updated)
+}
+
+/// Reveal an attachment in the OS file manager (Explorer/Finder). Desktop only;
+/// on mobile (no file manager) it degrades to opening the file. Routed through
+/// Rust so no opener ACL permission lands in the shared Android capabilities.
+#[tauri::command]
+pub fn reveal_attachment(path: String, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let abs = attachment_abs_path(&state.path(), &path)?;
+    #[cfg(desktop)]
+    {
+        app.opener()
+            .reveal_item_in_dir(&abs)
+            .map_err(attachment_err)?;
+    }
+    #[cfg(not(desktop))]
+    {
+        app.opener()
+            .open_path(abs.to_string_lossy().to_string(), None::<&str>)
+            .map_err(attachment_err)?;
+    }
+    Ok(())
+}
+
+/// Open an attachment in its default application.
+#[tauri::command]
+pub fn open_attachment(path: String, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let abs = attachment_abs_path(&state.path(), &path)?;
+    app.opener()
+        .open_path(abs.to_string_lossy().to_string(), None::<&str>)
+        .map_err(attachment_err)?;
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -483,7 +705,12 @@ pub fn resolve_attachment_path(path: String, state: State<'_, AppState>) -> Resu
 }
 
 #[cfg(target_os = "android")]
-async fn pick_android_attachments(app: &AppHandle, data_path: &Path) -> Result<Vec<Attachment>> {
+async fn pick_android_attachments(
+    app: &AppHandle,
+    data_path: &Path,
+    device_id: &str,
+    max_bytes: u64,
+) -> Result<Vec<Attachment>> {
     use tauri_plugin_android_fs::{AndroidFsExt, Entry};
     let fs = app.android_fs_async();
     let picked = fs
@@ -501,7 +728,9 @@ async fn pick_android_attachments(app: &AppHandle, data_path: &Path) -> Result<V
             Entry::Dir { .. } => continue,
         };
         let bytes = fs.read(&uri).await.map_err(attachment_err)?;
-        attachments.push(attachment_from_bytes(data_path, name, mime_type, &bytes)?);
+        attachments.push(attachment_from_bytes(
+            data_path, device_id, max_bytes, name, mime_type, &bytes,
+        )?);
     }
     Ok(attachments)
 }
@@ -510,6 +739,7 @@ async fn pick_android_attachments(app: &AppHandle, data_path: &Path) -> Result<V
 pub async fn pick_task_attachments(
     id: String,
     state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
     app: AppHandle,
 ) -> Result<Option<Task>> {
     #[cfg(target_os = "android")]
@@ -521,7 +751,13 @@ pub async fn pick_task_attachments(
                 Err(AppError::NotFound(format!("task {}", id)))
             }
         })?;
-        let attachments = pick_android_attachments(&app, &state.path()).await?;
+        let attachments = pick_android_attachments(
+            &app,
+            &state.path(),
+            &config.device_id(),
+            max_attachment_bytes(&config),
+        )
+        .await?;
         if attachments.is_empty() {
             return Ok(None);
         }
@@ -536,7 +772,7 @@ pub async fn pick_task_attachments(
     }
     #[cfg(not(target_os = "android"))]
     {
-        let _ = (id, state, app);
+        let _ = (id, state, config, app);
         Ok(None)
     }
 }
@@ -545,6 +781,7 @@ pub async fn pick_task_attachments(
 pub async fn pick_template_attachments(
     id: String,
     state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
     app: AppHandle,
 ) -> Result<Option<TemplateTask>> {
     #[cfg(target_os = "android")]
@@ -556,7 +793,13 @@ pub async fn pick_template_attachments(
                 Err(AppError::NotFound(format!("template {}", id)))
             }
         })?;
-        let attachments = pick_android_attachments(&app, &state.path()).await?;
+        let attachments = pick_android_attachments(
+            &app,
+            &state.path(),
+            &config.device_id(),
+            max_attachment_bytes(&config),
+        )
+        .await?;
         if attachments.is_empty() {
             return Ok(None);
         }
@@ -575,7 +818,7 @@ pub async fn pick_template_attachments(
     }
     #[cfg(not(target_os = "android"))]
     {
-        let _ = (id, state, app);
+        let _ = (id, state, config, app);
         Ok(None)
     }
 }
@@ -1254,10 +1497,12 @@ pub struct SpawnRecurringTaskInput {
 pub fn spawn_recurring_task(
     input: SpawnRecurringTaskInput,
     state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
     app: AppHandle,
 ) -> Result<Task> {
     let ts = now_ms();
     let data_path = state.path();
+    let device_id = config.device_id();
     let saved = state.write(|d| {
         let tmpl = d
             .template_tasks
@@ -1275,7 +1520,7 @@ pub fn spawn_recurring_task(
             notes: tmpl.notes,
             // Each occurrence owns independent copies of the template's
             // attachments (fresh ids + blobs), not shared references.
-            attachments: clone_attachments(&data_path, &tmpl.attachments)?,
+            attachments: clone_attachments(&data_path, &device_id, &tmpl.attachments)?,
             tag_ids: retain_known_tags(tmpl.tag_ids, &d.tags),
             estimated_seconds: tmpl.estimated_seconds,
             created_at: ts,
@@ -1551,6 +1796,8 @@ pub struct UpdateSettingsInput {
     #[serde(default)]
     pub reminder_interval_minutes: Option<u32>,
     #[serde(default)]
+    pub max_attachment_mb: Option<u32>,
+    #[serde(default)]
     pub date_time_format: Option<String>,
     #[serde(default)]
     pub date_format: Option<String>,
@@ -1627,6 +1874,14 @@ pub fn update_settings(
                 )));
             }
             s.reminder_interval_minutes = m;
+        }
+        if let Some(mb) = input.max_attachment_mb {
+            if !(MAX_ATTACHMENT_MB_MIN..=MAX_ATTACHMENT_MB_MAX).contains(&mb) {
+                return Err(AppError::Invalid(format!(
+                    "max_attachment_mb must be {MAX_ATTACHMENT_MB_MIN}..={MAX_ATTACHMENT_MB_MAX}, got {mb}"
+                )));
+            }
+            s.max_attachment_mb = mb;
         }
         if let Some(fmt) = input.date_time_format {
             if !is_date_format(&fmt) {
@@ -2221,11 +2476,28 @@ mod tests {
     }
 
     #[test]
+    fn is_attachment_filename_accepts_legacy_and_device_subdir() {
+        // Legacy flat layout (pre-migration).
+        assert!(is_attachment_filename("attachment_a_x.bin"));
+        // New per-device subdir layout.
+        assert!(is_attachment_filename("attachments_dev/attachment_a_x.bin"));
+        assert!(is_attachment_filename("attachments_ab12-cd_/attachment_b_y.png"));
+        // Rejections: traversal, backslash, wrong subdir, nested dirs, bare dir.
+        assert!(!is_attachment_filename("attachments_dev/../attachment_a.bin"));
+        assert!(!is_attachment_filename("attachments_dev\\attachment_a.bin"));
+        assert!(!is_attachment_filename("evil/attachment_a.bin"));
+        assert!(!is_attachment_filename("attachments_dev/sub/attachment_a.bin"));
+        assert!(!is_attachment_filename("attachments_dev/notmanaged.bin"));
+        assert!(!is_attachment_filename("../../etc/passwd"));
+    }
+
+    #[test]
     fn attachment_from_bytes_rejects_oversized_files() {
         let dir = tempfile::tempdir().unwrap();
         let data = dir.path().join("tasks_dev.json");
-        let oversized = vec![0u8; (MAX_ATTACHMENT_BYTES + 1) as usize];
-        let res = attachment_from_bytes(&data, "big.bin".into(), None, &oversized);
+        let max = 4u64;
+        let oversized = vec![0u8; (max + 1) as usize];
+        let res = attachment_from_bytes(&data, "dev", max, "big.bin".into(), None, &oversized);
         assert!(res.is_err(), "a file over the cap must be rejected");
     }
 
@@ -2248,11 +2520,16 @@ mod tests {
             created_at: 0,
         }];
 
-        let copies = clone_attachments(&data, &src).unwrap();
+        let copies = clone_attachments(&data, "dev", &src).unwrap();
         assert_eq!(copies.len(), 1);
         let c = &copies[0];
         assert_ne!(c.id, "att_src", "copy gets a fresh id");
         assert_ne!(c.path, src_rel, "copy gets its own blob path");
+        assert!(
+            c.path.starts_with("attachments_dev/"),
+            "copy lands in the per-device subdir, got {}",
+            c.path
+        );
         assert_eq!(c.name, "doc");
         // The new blob exists with the same content, and the source is untouched.
         let copied = std::fs::read(dir.path().join(&c.path)).unwrap();
@@ -2272,7 +2549,38 @@ mod tests {
             size: None,
             created_at: 0,
         }];
-        assert!(clone_attachments(&data, &src).unwrap().is_empty());
+        assert!(clone_attachments(&data, "dev", &src).unwrap().is_empty());
+    }
+
+    #[test]
+    fn migrate_attachments_moves_legacy_blobs_into_device_subdir() {
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("tasks_dev.json");
+        let state = AppState::open(data).unwrap();
+
+        let rel = "attachment_x_doc.bin";
+        let mut f = std::fs::File::create(dir.path().join(rel)).unwrap();
+        f.write_all(b"hi").unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(task_with_attachment("t1", rel));
+                Ok(())
+            })
+            .unwrap();
+
+        migrate_attachments_to_subdir(&state, "dev");
+
+        assert!(!dir.path().join(rel).exists(), "flat blob is relocated");
+        assert_eq!(
+            std::fs::read(dir.path().join("attachments_dev").join(rel)).unwrap(),
+            b"hi",
+            "content preserved in the subdir"
+        );
+        let stored = state
+            .read(|d| Ok::<_, AppError>(d.tasks[0].attachments[0].path.clone()))
+            .unwrap();
+        assert_eq!(stored, "attachments_dev/attachment_x_doc.bin");
     }
 
     #[test]
@@ -2551,6 +2859,16 @@ mod tests {
         assert_eq!(v.reminder_interval_minutes, Some(30));
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.reminder_interval_minutes, None);
+    }
+
+    #[test]
+    fn update_settings_input_parses_max_attachment_mb() {
+        // Pins the snake_case `max_attachment_mb` key the JS api sends.
+        let v: UpdateSettingsInput =
+            serde_json::from_str(r#"{"max_attachment_mb":2048}"#).unwrap();
+        assert_eq!(v.max_attachment_mb, Some(2048));
+        let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(absent.max_attachment_mb, None);
     }
 
     #[test]

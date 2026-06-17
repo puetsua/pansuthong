@@ -11,6 +11,7 @@ import {
   dayStartHour, DAY_START_HOUR_MAX, DAY_START_HOUR_MIN,
   defaultTagPriority, soundOnComplete,
   clampReminderInterval, reminderIntervalMinutes, REMINDER_INTERVAL_MAX, REMINDER_INTERVAL_MIN,
+  clampMaxAttachmentMb, maxAttachmentMb, MAX_ATTACHMENT_MB_MAX, MAX_ATTACHMENT_MB_MIN, MAX_ATTACHMENT_MB_WARN,
   dateFormat, timeFormat,
 } from "../lib/settings";
 import { clampWeight, WEIGHT_MAX, WEIGHT_MIN } from "../lib/tags";
@@ -112,6 +113,18 @@ export function SettingsView({ doc }: Props) {
     const n = clampReminderInterval(draftReminder);
     setDraftReminder(String(n));
     if (n !== reminderMinutes) setReminder(n);
+  };
+
+  // Largest attachment the user may add (MiB): presets apply immediately; the
+  // free input commits on blur/Enter. A large cap is allowed but warned about.
+  const maxAttachMb = maxAttachmentMb(doc.settings);
+  const [draftMaxAttach, setDraftMaxAttach] = useState(String(maxAttachMb));
+  useEffect(() => { setDraftMaxAttach(String(maxAttachMb)); }, [maxAttachMb]);
+  const setMaxAttach = (n: number) => { void applySettings({ max_attachment_mb: n }); };
+  const commitDraftMaxAttach = () => {
+    const n = clampMaxAttachmentMb(draftMaxAttach);
+    setDraftMaxAttach(String(n));
+    if (n !== maxAttachMb) setMaxAttach(n);
   };
 
   // Upcoming horizon: presets apply immediately; the free input commits on blur/Enter.
@@ -361,6 +374,37 @@ export function SettingsView({ doc }: Props) {
             onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
           />
         </div>
+      </section>
+
+      <section className="settings-section">
+        <h2>{t("settings.maxAttachment")}</h2>
+        <p className="view-sub">{t("settings.maxAttachmentSub")}</p>
+        <div className="theme-options">
+          {[100, 512, 1024, 4096].map(n => (
+            <button
+              key={n}
+              className={`theme-option ${maxAttachMb === n ? "active" : ""}`}
+              aria-pressed={maxAttachMb === n}
+              onClick={() => setMaxAttach(n)}
+            >
+              {t("settings.megabytesPreset", { count: n })}
+            </button>
+          ))}
+          <input
+            type="number"
+            className="weight-input"
+            aria-label={t("settings.customMaxAttachmentAria")}
+            min={MAX_ATTACHMENT_MB_MIN}
+            max={MAX_ATTACHMENT_MB_MAX}
+            value={draftMaxAttach}
+            onChange={e => setDraftMaxAttach(e.currentTarget.value)}
+            onBlur={commitDraftMaxAttach}
+            onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+          />
+        </div>
+        {maxAttachMb > MAX_ATTACHMENT_MB_WARN && (
+          <p className="view-sub settings-warn" role="status">{t("settings.maxAttachmentWarning")}</p>
+        )}
       </section>
 
       <section className="settings-section">

@@ -110,13 +110,18 @@ pub fn run() {
                 let _ = std::fs::create_dir_all(parent);
             }
             let state = AppState::open(path.clone()).expect("open store");
+            // Relocate any pre-subdir flat attachment blobs into this device's
+            // attachments_<device>/ folder before the UI can reference them.
+            commands::migrate_attachments_to_subdir(&state, &config.device_id);
             app.manage(state);
-            // Attachments live beside the data file and are served to the webview
-            // via the asset protocol (convertFileSrc). The default app-data dir is
-            // covered by the config scope ($APPDATA), but a user-chosen folder is
-            // only known at runtime, so allow its directory here too.
+            // Attachments live in attachments_<device>/ beside the data file and
+            // are served to the webview via the asset protocol (convertFileSrc).
+            // The default app-data dir is covered by the config scope ($APPDATA),
+            // but a user-chosen folder is only known at runtime, so allow its
+            // directory here too. Recursive so the per-device subdirs (including
+            // other devices' synced ones) are reachable.
             if let Some(parent) = path.parent() {
-                let _ = app.asset_protocol_scope().allow_directory(parent, false);
+                let _ = app.asset_protocol_scope().allow_directory(parent, true);
             }
             app.manage(crate::config::ConfigState::new(&default_dir, config));
 
@@ -198,9 +203,13 @@ pub fn run() {
             commands::sync_now,
             commands::attach_task_files,
             commands::attach_template_files,
+            commands::attach_task_bytes,
+            commands::attach_template_bytes,
             commands::remove_task_attachment,
             commands::remove_template_attachment,
             commands::resolve_attachment_path,
+            commands::reveal_attachment,
+            commands::open_attachment,
             commands::pick_task_attachments,
             commands::pick_template_attachments,
             commands::add_task,

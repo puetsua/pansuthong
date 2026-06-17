@@ -105,3 +105,23 @@ export function clampReminderInterval(raw: string | number): number {
   if (Number.isNaN(n)) return REMINDER_INTERVAL_DEFAULT;
   return Math.max(REMINDER_INTERVAL_MIN, Math.min(REMINDER_INTERVAL_MAX, n));
 }
+
+/** Default largest attachment size (MiB) when a document doesn't specify one. */
+export const MAX_ATTACHMENT_MB_DEFAULT = 1024;
+/** Inclusive bounds for the configurable attachment cap (mirrors the Rust check). */
+export const MAX_ATTACHMENT_MB_MIN = 1;
+export const MAX_ATTACHMENT_MB_MAX = 10240;
+/** Above this, the UI warns that large attachments may slow the program. */
+export const MAX_ATTACHMENT_MB_WARN = 100;
+
+/** The effective attachment size cap (MiB) for a document's settings. */
+export function maxAttachmentMb(settings: Settings): number {
+  return clampMaxAttachmentMb(settings.max_attachment_mb ?? MAX_ATTACHMENT_MB_DEFAULT);
+}
+
+/** Parse a free-typed MiB count to an integer clamped to the allowed range. */
+export function clampMaxAttachmentMb(raw: string | number): number {
+  const n = typeof raw === "number" ? Math.trunc(raw) : parseInt(raw, 10);
+  if (Number.isNaN(n)) return MAX_ATTACHMENT_MB_DEFAULT;
+  return Math.max(MAX_ATTACHMENT_MB_MIN, Math.min(MAX_ATTACHMENT_MB_MAX, n));
+}

@@ -62,6 +62,13 @@ pub struct Settings {
     /// config.json files predating the setting still load (defaulting to 10).
     #[serde(default = "default_reminder_interval_minutes")]
     pub reminder_interval_minutes: u32,
+    /// Largest attachment (in MiB) the user may add. Device-local; attachments
+    /// are copied into the data folder and mirrored to the sync folder, so a big
+    /// file bloats every device's synced copy — hence a configurable cap, with a
+    /// UI warning. The UI bounds it to 1..=10240 (10 GiB). `#[serde(default …)]`
+    /// so older config.json files predating the setting still load (1 GiB).
+    #[serde(default = "default_max_attachment_mb")]
+    pub max_attachment_mb: u32,
     /// Legacy combined date-time display format preset (#date-time-format).
     /// New writes use `date_format` and `time_format`, but keeping this field
     /// lets older config.json files continue to influence the date fallback.
@@ -126,6 +133,10 @@ fn default_reminder_interval_minutes() -> u32 {
     10
 }
 
+fn default_max_attachment_mb() -> u32 {
+    1024
+}
+
 fn default_date_time_format() -> String {
     "locale".into()
 }
@@ -142,6 +153,7 @@ impl Default for Settings {
             language: default_language(),
             sound_on_complete: default_sound_on_complete(),
             reminder_interval_minutes: default_reminder_interval_minutes(),
+            max_attachment_mb: default_max_attachment_mb(),
             date_time_format: default_date_time_format(),
             date_format: None,
             time_format: None,
@@ -186,6 +198,23 @@ pub fn data_file_name(device_id: &str) -> String {
 
 pub fn legacy_data_file_name() -> &'static str {
     LEGACY_DATA_FILE
+}
+
+/// Per-device attachment subdirectory: `attachments_<device>`. Attachments live
+/// here (one folder per device) instead of flat beside the data file so two
+/// devices syncing into the same folder never collide on a blob. Sanitized with
+/// the same charset as `data_file_name` so the name is always path-safe.
+pub fn attachments_dir_name(device_id: &str) -> String {
+    let clean: String = device_id
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect();
+    let id = if clean.is_empty() {
+        "device"
+    } else {
+        clean.as_str()
+    };
+    format!("attachments_{id}")
 }
 
 /// Resolve this device's writable replica path: `<folder>/tasks_<device>.json`

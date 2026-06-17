@@ -17,6 +17,7 @@ export type Settings = {
   language?: "auto" | "en" | "zh-TW"; // UI language; "auto" follows the OS locale, default (#26)
   sound_on_complete?: boolean; // play a sound when a task is marked done; default true (#80)
   reminder_interval_minutes?: number; // re-notify cadence for tasks past their estimate; 1..1440, default 10
+  max_attachment_mb?: number; // largest attachment in MiB; 1..10240, default 1024 (1 GiB) (#113)
   date_time_format?: DateTimeFormat; // legacy date-time display preset; default "locale"
   date_format?: DateFormat; // date display preset; default "locale"
   time_format?: TimeFormat; // time display preset; default "locale"
@@ -212,19 +213,23 @@ export const api = {
   syncNow:       ()                          => invoke<Document>("sync_now"),
   addTask:       (input: Partial<Task> & { title: string }) => invoke<Task>("add_task", { input }),
   updateTask:    (input: TaskUpdate)                         => invoke<Task>("update_task", { input }),
-  attachTaskFiles: async (id: string): Promise<Task | null> => {
+  // `paths` lets a drag-drop hand the files straight in; without it, desktop
+  // opens a picker and Android uses the SAF picker command.
+  attachTaskFiles: async (id: string, paths?: string[]): Promise<Task | null> => {
+    if (paths) return paths.length ? invoke<Task>("attach_task_files", { input: { id, paths } }) : null;
     if (await isAndroid()) return invoke<Task | null>("pick_task_attachments", { id });
     const selected = await open({ multiple: true, directory: false, title: "Attach files" });
-    const paths = Array.isArray(selected) ? selected : typeof selected === "string" ? [selected] : [];
-    if (paths.length === 0) return null;
-    return invoke<Task>("attach_task_files", { input: { id, paths } });
+    const picked = Array.isArray(selected) ? selected : typeof selected === "string" ? [selected] : [];
+    if (picked.length === 0) return null;
+    return invoke<Task>("attach_task_files", { input: { id, paths: picked } });
   },
-  attachTemplateFiles: async (id: string): Promise<TemplateTask | null> => {
+  attachTemplateFiles: async (id: string, paths?: string[]): Promise<TemplateTask | null> => {
+    if (paths) return paths.length ? invoke<TemplateTask>("attach_template_files", { input: { id, paths } }) : null;
     if (await isAndroid()) return invoke<TemplateTask | null>("pick_template_attachments", { id });
     const selected = await open({ multiple: true, directory: false, title: "Attach files" });
-    const paths = Array.isArray(selected) ? selected : typeof selected === "string" ? [selected] : [];
-    if (paths.length === 0) return null;
-    return invoke<TemplateTask>("attach_template_files", { input: { id, paths } });
+    const picked = Array.isArray(selected) ? selected : typeof selected === "string" ? [selected] : [];
+    if (picked.length === 0) return null;
+    return invoke<TemplateTask>("attach_template_files", { input: { id, paths: picked } });
   },
   removeTaskAttachment: (id: string, attachmentId: string) =>
     invoke<Task>("remove_task_attachment", { input: { id, attachment_id: attachmentId } }),
@@ -232,6 +237,17 @@ export const api = {
     invoke<TemplateTask>("remove_template_attachment", { input: { id, attachment_id: attachmentId } }),
   attachmentUrl: async (path: string): Promise<string> =>
     convertFileSrc(await invoke<string>("resolve_attachment_path", { path })),
+  // Persist pasted/dropped in-memory content (clipboard image, or a file the
+  // webview only has as bytes) as a managed attachment. Returns the updated
+  // entity; the caller diffs its attachments to find the freshly-added one.
+  attachTaskBytes: (id: string, name: string, mimeType: string | null, bytes: Uint8Array) =>
+    invoke<Task>("attach_task_bytes", { input: { id, name, mime_type: mimeType, bytes: Array.from(bytes) } }),
+  attachTemplateBytes: (id: string, name: string, mimeType: string | null, bytes: Uint8Array) =>
+    invoke<TemplateTask>("attach_template_bytes", { input: { id, name, mime_type: mimeType, bytes: Array.from(bytes) } }),
+  /** Reveal an attachment in the OS file manager (desktop); opens it on mobile. */
+  revealAttachment: (path: string) => invoke<void>("reveal_attachment", { path }),
+  /** Open an attachment in its default application. */
+  openAttachment:   (path: string) => invoke<void>("open_attachment", { path }),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
   deleteTask:    (id: string)                => invoke<void>("delete_task", { id }),
   // Time tracking (#81). Each returns the updated task. start/stop are no-ops when

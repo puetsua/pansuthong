@@ -22,7 +22,12 @@
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["$APPDATA/attachment_*", "$APPLOCALDATA/attachment_*"]
+          "allow": [
+            "$APPDATA/attachment_*",
+            "$APPLOCALDATA/attachment_*",
+            "$APPDATA/attachments_*/attachment_*",
+            "$APPLOCALDATA/attachments_*/attachment_*"
+          ]
         }
       }
     }
