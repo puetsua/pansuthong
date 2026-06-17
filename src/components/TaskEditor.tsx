@@ -111,8 +111,9 @@ export function TaskEditor(props: Props) {
   // True while a paste/drop/attach is persisting a file — drives a loading
   // indicator so a large file doesn't look like nothing happened.
   const [attaching, setAttaching] = useState(false);
-  // Whether the attachments list is expanded (collapsible to save space).
-  const [attachmentsOpen, setAttachmentsOpen] = useState(true);
+  // Whether the attachments list is expanded. Collapsed by default to save
+  // space; auto-expands when an attachment is added (see recordAttachments).
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   // Enlarged-image overlay, shared by list thumbnails and inline markdown images.
   const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
   // The attachment awaiting a delete confirmation (custom modal — WebView2's
@@ -363,6 +364,8 @@ export function TaskEditor(props: Props) {
     attachmentIdsRef.current = new Set(next.map(a => a.id));
     setForm(f => ({ ...f, attachments: next }));
     initialRef.current = { ...initialRef.current, attachments: next };
+    // Reveal the (collapsed-by-default) list so a freshly added file is visible.
+    if (added.length > 0) setAttachmentsOpen(true);
     return added;
   };
 
@@ -810,15 +813,16 @@ export function TaskEditor(props: Props) {
               {t("taskEditor.attachFiles")}
             </button>
           </div>
+          {/* Outside the collapse so a pending save is always visible. */}
+          {attaching && (
+            <p className="te-attaching" role="status">
+              <span className="te-spinner" aria-hidden="true" />
+              {t("taskEditor.savingAttachment")}
+            </p>
+          )}
           {attachmentsOpen && (
             <>
               {creating && <p className="te-attachment-hint">{t("taskEditor.attachSavedOnly")}</p>}
-              {attaching && (
-                <p className="te-attaching" role="status">
-                  <span className="te-spinner" aria-hidden="true" />
-                  {t("taskEditor.savingAttachment")}
-                </p>
-              )}
               <AttachmentList
                 attachments={form.attachments}
                 onRequestRemove={setConfirmDelete}

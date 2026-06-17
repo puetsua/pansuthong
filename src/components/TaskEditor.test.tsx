@@ -42,6 +42,10 @@ const tags = new Map<string, Tag>([
 
 const button = (name: RegExp | string) => screen.getByRole("button", { name }) as HTMLButtonElement;
 
+// The attachments section is collapsed by default; expand it so its list
+// buttons (insert/reveal/delete/thumbnail) are in the DOM.
+const expandAttachments = () => fireEvent.click(screen.getByRole("button", { name: /Attachments/ }));
+
 // Fire a paste carrying files. jsdom's synthetic paste event drops the
 // `clipboardData` init prop, so attach it explicitly before dispatching.
 const pasteFiles = (node: HTMLElement, files: File[]) => {
@@ -277,6 +281,7 @@ describe("TaskEditor attachments in notes (#113)", () => {
     const task: Task = { ...baseTask, attachments: [imgAtt] };
     render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
 
+    expandAttachments();
     fireEvent.click(button("Insert shot.png into notes"));
     const ta = screen.getByLabelText("Markdown notes") as HTMLTextAreaElement;
     expect(ta.value).toContain(`![shot.png](${imgAtt.path})`);
@@ -286,33 +291,50 @@ describe("TaskEditor attachments in notes (#113)", () => {
     const task: Task = { ...baseTask, attachments: [fileAtt] };
     render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
 
+    expandAttachments();
     fireEvent.click(button("Insert doc.pdf into notes"));
     const ta = screen.getByLabelText("Markdown notes") as HTMLTextAreaElement;
     expect(ta.value).toContain(`[doc.pdf](${fileAtt.path})`);
     expect(ta.value).not.toContain(`![doc.pdf]`);
   });
 
-  it("collapses and expands the attachments section", () => {
+  it("is collapsed by default and toggles open/closed", () => {
     const task: Task = { ...baseTask, attachments: [fileAtt] };
     render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
 
-    // Expanded by default — the attachment is visible.
-    expect(screen.queryByRole("button", { name: "doc.pdf" })).toBeTruthy();
+    // Collapsed by default — the attachment is hidden.
     const toggle = screen.getByRole("button", { name: /Attachments/ });
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-
-    fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByRole("button", { name: "doc.pdf" })).toBeNull();
 
     fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
     expect(screen.queryByRole("button", { name: "doc.pdf" })).toBeTruthy();
+
+    fireEvent.click(toggle);
+    expect(screen.queryByRole("button", { name: "doc.pdf" })).toBeNull();
+  });
+
+  it("auto-expands the section when a new attachment is pasted", async () => {
+    (api.attachTaskBytes as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...baseTask, attachments: [imgAtt],
+    });
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: /Attachments/ }).getAttribute("aria-expanded")).toBe("false");
+    const ta = screen.getByLabelText("Markdown notes") as HTMLTextAreaElement;
+    pasteFiles(ta, [new File([new Uint8Array([1])], "shot.png", { type: "image/png" })]);
+
+    // The added attachment becomes visible without a manual toggle.
+    await waitFor(() => expect(screen.getByRole("button", { name: "shot.png" })).toBeTruthy());
+    expect(screen.getByRole("button", { name: /Attachments/ }).getAttribute("aria-expanded")).toBe("true");
   });
 
   it("reveals an attachment in the file manager when its name is clicked", () => {
     const task: Task = { ...baseTask, attachments: [fileAtt] };
     render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
 
+    expandAttachments();
     fireEvent.click(button("doc.pdf"));
     expect(api.revealAttachment).toHaveBeenCalledWith(fileAtt.path);
   });
@@ -321,6 +343,7 @@ describe("TaskEditor attachments in notes (#113)", () => {
     const task: Task = { ...baseTask, attachments: [fileAtt] };
     render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
 
+    expandAttachments();
     // Clicking × opens a confirmation dialog rather than deleting immediately.
     fireEvent.click(button("Remove doc.pdf"));
     expect(api.removeTaskAttachment).not.toHaveBeenCalled();
@@ -340,6 +363,7 @@ describe("TaskEditor attachments in notes (#113)", () => {
     const task: Task = { ...baseTask, attachments: [imgAtt] };
     render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
 
+    expandAttachments();
     const thumb = await waitFor(() => button(/Enlarge shot.png/));
     fireEvent.click(thumb);
     expect(document.querySelector(".te-lightbox img")).not.toBeNull();
@@ -366,6 +390,7 @@ describe("TaskEditor attachments in notes (#113)", () => {
     await waitFor(() => expect(document.querySelector(".te-md-image")).not.toBeNull());
 
     // ...delete it via the list, confirm, and the preview shows broken instead.
+    expandAttachments();
     fireEvent.click(button("Remove shot.png"));
     fireEvent.click(within(screen.getByRole("dialog", { name: /Delete shot\.png\?/ })).getByRole("button", { name: "Delete" }));
 

@@ -1149,6 +1149,9 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   display: grid;
   gap: var(--space-2);
   min-height: 15rem;
+  /* Don't stretch the editor/preview to a shared row height — that would
+     override the textarea's manual vertical resize and snap it back. */
+  align-items: start;
 }
 .te-notes-mode-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .te-notes-mode-edit,
@@ -1161,6 +1164,8 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 }
 .te-notes textarea {
   resize: vertical;
+  /* Free vertical resize — override the shared cap so it can be dragged taller. */
+  max-height: none;
   font-family: var(--font-mono);
   line-height: 1.45;
   /* Match the preview pane's recessed background so the split view reads as one
