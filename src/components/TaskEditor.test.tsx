@@ -197,16 +197,25 @@ describe("TaskEditor estimated time", () => {
 });
 
 describe("TaskEditor Markdown notes (#70)", () => {
-  it("renders Markdown in the split preview by default", () => {
+  it("opens a task with existing notes in the rendered preview by default", () => {
     const task: Task = {
       ...baseTask,
       notes: "Hello **bold**\n\n- first",
     };
     render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
 
-    const strong = screen.getByText("bold");
-    expect(strong.tagName).toBe("STRONG");
+    // Preview is shown (markdown rendered) and the raw editor is hidden.
+    expect(button("Preview").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByLabelText("Markdown notes")).toBeNull();
+    expect(screen.getByText("bold").tagName).toBe("STRONG");
     expect(screen.getByText("first").tagName).toBe("LI");
+  });
+
+  it("opens a task with empty notes in edit mode", () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+
+    expect(button("Edit").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByLabelText("Markdown notes")).toBeTruthy();
   });
 
   it("keeps saving the raw Markdown source in notes", async () => {

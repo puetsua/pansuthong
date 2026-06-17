@@ -106,7 +106,11 @@ export function TaskEditor(props: Props) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const [notesMode, setNotesMode] = useState<NotesMode>("split");
+  // Open straight into the rendered preview; fall back to edit when there's
+  // nothing to preview yet (new/empty notes) so the cursor lands in the editor.
+  const [notesMode, setNotesMode] = useState<NotesMode>(
+    initialRef.current.notes.trim() ? "preview" : "edit",
+  );
   const [busy, setBusy] = useState(false);
   // True while a paste/drop/attach is persisting a file — drives a loading
   // indicator so a large file doesn't look like nothing happened.
