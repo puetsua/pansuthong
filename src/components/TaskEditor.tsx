@@ -825,17 +825,14 @@ export function TaskEditor(props: Props) {
             </p>
           )}
           {attachmentsOpen && (
-            <>
-              {creating && <p className="te-attachment-hint">{t("taskEditor.attachSavedOnly")}</p>}
-              <AttachmentList
-                attachments={form.attachments}
-                onRequestRemove={setConfirmDelete}
-                onInsert={att => insertNotes(markdownRefFor(att))}
-                onOpenImage={openImage}
-                emptyLabel={t("taskEditor.attachmentsEmpty")}
-                disabled={busy}
-              />
-            </>
+            <AttachmentList
+              attachments={form.attachments}
+              onRequestRemove={setConfirmDelete}
+              onInsert={att => insertNotes(markdownRefFor(att))}
+              onOpenImage={openImage}
+              emptyLabel={creating ? t("taskEditor.attachmentsEmptyCreating") : t("taskEditor.attachmentsEmpty")}
+              disabled={busy}
+            />
           )}
         </div>
 
