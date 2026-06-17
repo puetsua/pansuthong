@@ -1147,11 +1147,14 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 }
 .te-notes {
   display: grid;
+  /* A single full-height row so both panes fill the container; resize the
+     container (not the textarea) so the editor AND preview grow together. */
+  grid-template-rows: 1fr;
   gap: var(--space-2);
-  min-height: 15rem;
-  /* Don't stretch the editor/preview to a shared row height — that would
-     override the textarea's manual vertical resize and snap it back. */
-  align-items: start;
+  height: 22rem;
+  min-height: 12rem;
+  resize: vertical;
+  overflow: hidden;
 }
 .te-notes-mode-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .te-notes-mode-edit,
@@ -1159,13 +1162,11 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .te-notes textarea,
 .te-notes-preview {
   width: 100%;
-  min-height: 15rem;
-  max-height: 48vh;
+  /* Fill the resizable container's row; min-height:0 lets them shrink with it. */
+  min-height: 0;
 }
 .te-notes textarea {
-  resize: vertical;
-  /* Free vertical resize — override the shared cap so it can be dragged taller. */
-  max-height: none;
+  resize: none;
   font-family: var(--font-mono);
   line-height: 1.45;
   /* Match the preview pane's recessed background so the split view reads as one
@@ -1685,5 +1686,9 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
     flex: 1;
     min-width: 0;
   }
-  .te-notes-mode-split { grid-template-columns: minmax(0, 1fr); }
+  .te-notes-mode-split {
+    grid-template-columns: minmax(0, 1fr);
+    /* Stacked (single column): two rows so editor and preview both show. */
+    grid-template-rows: 1fr 1fr;
+  }
 }
