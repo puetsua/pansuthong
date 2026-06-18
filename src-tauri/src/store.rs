@@ -304,7 +304,7 @@ fn replica_paths(path: &Path) -> Result<Vec<PathBuf>> {
 }
 
 fn has_replicas(path: &Path) -> bool {
-    replica_paths(path).map_or(false, |paths| !paths.is_empty())
+    replica_paths(path).is_ok_and(|paths| !paths.is_empty())
 }
 
 fn read_merged_document(path: &Path) -> Result<Option<Document>> {

@@ -893,7 +893,7 @@ pub fn merge_documents(replicas: Vec<Document>) -> Document {
         .filter(|(stamp, tag)| {
             tag_tombs
                 .get(&tag.id)
-                .map_or(true, |t| t.deleted_at < *stamp)
+                .is_none_or(|t| t.deleted_at < *stamp)
         })
         .map(|(_, tag)| tag)
         .collect();
@@ -910,7 +910,7 @@ pub fn merge_documents(replicas: Vec<Document>) -> Document {
         .filter(|(stamp, task)| {
             task_tombs
                 .get(&task.id)
-                .map_or(true, |t| t.deleted_at < *stamp)
+                .is_none_or(|t| t.deleted_at < *stamp)
         })
         .map(|(_, mut task)| {
             task.tag_ids.retain(|id| live_tag_ids.contains(id));
@@ -926,14 +926,14 @@ pub fn merge_documents(replicas: Vec<Document>) -> Document {
         .filter(|(stamp, template)| {
             template_tombs
                 .get(&template.id)
-                .map_or(true, |t| t.deleted_at < *stamp)
+                .is_none_or(|t| t.deleted_at < *stamp)
         })
         .map(|(_, mut template)| {
             template.tag_ids.retain(|id| live_tag_ids.contains(id));
             if !template
                 .recurrence_tag_id
                 .as_ref()
-                .map_or(false, |id| live_tag_ids.contains(id))
+                .is_some_and(|id| live_tag_ids.contains(id))
             {
                 template.recurrence_tag_id = None;
             }
