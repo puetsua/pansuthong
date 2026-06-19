@@ -266,12 +266,26 @@ fn attachment_from_bytes(
 /// of sharing the template's ids and blob paths (which would confuse merge-by-id
 /// and per-attachment deletion). A source whose blob is missing/unreadable is
 /// skipped rather than carried as a dangling shared reference.
+struct ClonedAttachments {
+    attachments: Vec<Attachment>,
+    path_map: Vec<(String, String)>,
+}
+
+fn rewrite_cloned_attachment_refs(notes: &str, path_map: &[(String, String)]) -> String {
+    let mut rewritten = notes.to_string();
+    for (old, new) in path_map {
+        rewritten = rewritten.replace(old, new);
+    }
+    rewritten
+}
+
 fn clone_attachments(
     data_path: &Path,
     device_id: &str,
     src: &[Attachment],
-) -> Result<Vec<Attachment>> {
-    let mut out = Vec::new();
+) -> Result<ClonedAttachments> {
+    let mut attachments = Vec::new();
+    let mut path_map = Vec::new();
     for a in src {
         let Ok(abs) = attachment_abs_path(data_path, &a.path) else {
             continue;
@@ -279,18 +293,25 @@ fn clone_attachments(
         match std::fs::read(&abs) {
             // No size check on a clone: the source was already accepted, so a
             // later-lowered limit must not orphan a recurring occurrence's copy.
-            Ok(bytes) => out.push(attachment_from_bytes(
-                data_path,
-                device_id,
-                u64::MAX,
-                a.name.clone(),
-                a.mime_type.clone(),
-                &bytes,
-            )?),
+            Ok(bytes) => {
+                let copied = attachment_from_bytes(
+                    data_path,
+                    device_id,
+                    u64::MAX,
+                    a.name.clone(),
+                    a.mime_type.clone(),
+                    &bytes,
+                )?;
+                path_map.push((a.path.clone(), copied.path.clone()));
+                attachments.push(copied);
+            }
             Err(_) => continue,
         }
     }
-    Ok(out)
+    Ok(ClonedAttachments {
+        attachments,
+        path_map,
+    })
 }
 
 fn attachments_referenced(d: &crate::model::Document, path: &str) -> bool {
@@ -957,16 +978,21 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
     Ok(saved)
 }
 
-fn duplicate_task_record(src: Task, attachments: Vec<Attachment>, tags: &[Tag], ts: i64) -> Task {
+fn duplicate_task_record(
+    src: Task,
+    cloned_attachments: ClonedAttachments,
+    tags: &[Tag],
+    ts: i64,
+) -> Task {
     Task {
         id: new_task_id(),
-        title: src.title,
+        title: format!("{} (copy)", src.title),
         due_date: src.due_date,
         due_time: src.due_time,
         start_date: src.start_date,
         start_time: src.start_time,
-        notes: src.notes,
-        attachments,
+        notes: rewrite_cloned_attachment_refs(&src.notes, &cloned_attachments.path_map),
+        attachments: cloned_attachments.attachments,
         tag_ids: retain_known_tags(src.tag_ids, tags),
         estimated_seconds: src.estimated_seconds,
         created_at: ts,
@@ -993,8 +1019,8 @@ pub fn duplicate_task(
             .find(|t| t.id == id)
             .ok_or_else(|| AppError::NotFound(format!("task {id}")))?
             .clone();
-        let attachments = clone_attachments(&data_path, &device_id, &src.attachments)?;
-        let task = duplicate_task_record(src, attachments, &d.tags, ts);
+        let cloned_attachments = clone_attachments(&data_path, &device_id, &src.attachments)?;
+        let task = duplicate_task_record(src, cloned_attachments, &d.tags, ts);
         d.tasks.push(task.clone());
         Ok(task)
     })?;
@@ -1411,7 +1437,7 @@ pub fn add_template(
 
 fn duplicate_template_record(
     src: TemplateTask,
-    attachments: Vec<Attachment>,
+    cloned_attachments: ClonedAttachments,
     tags: &[Tag],
     ts: i64,
 ) -> TemplateTask {
@@ -1421,9 +1447,9 @@ fn duplicate_template_record(
         .filter(|id| src.recurrence.is_some() && tag_ids.contains(id));
     TemplateTask {
         id: new_task_id(),
-        title: src.title,
-        notes: src.notes,
-        attachments,
+        title: format!("{} (copy)", src.title),
+        notes: rewrite_cloned_attachment_refs(&src.notes, &cloned_attachments.path_map),
+        attachments: cloned_attachments.attachments,
         tag_ids,
         created_at: ts,
         updated_at: ts,
@@ -1452,8 +1478,8 @@ pub fn duplicate_template(
             .find(|t| t.id == id)
             .ok_or_else(|| AppError::NotFound(format!("template {id}")))?
             .clone();
-        let attachments = clone_attachments(&data_path, &device_id, &src.attachments)?;
-        let tmpl = duplicate_template_record(src, attachments, &d.tags, ts);
+        let cloned_attachments = clone_attachments(&data_path, &device_id, &src.attachments)?;
+        let tmpl = duplicate_template_record(src, cloned_attachments, &d.tags, ts);
         d.template_tasks.push(tmpl.clone());
         Ok(tmpl)
     })?;
@@ -1607,6 +1633,7 @@ pub fn spawn_recurring_task(
             .find(|t| t.id == input.template_id)
             .ok_or_else(|| AppError::NotFound(format!("template {}", input.template_id)))?
             .clone();
+        let cloned_attachments = clone_attachments(&data_path, &device_id, &tmpl.attachments)?;
         let task = Task {
             id: new_task_id(),
             title: tmpl.title,
@@ -1614,10 +1641,10 @@ pub fn spawn_recurring_task(
             due_time: None,
             start_date: Some(input.occurrence_date),
             start_time: None,
-            notes: tmpl.notes,
+            notes: rewrite_cloned_attachment_refs(&tmpl.notes, &cloned_attachments.path_map),
             // Each occurrence owns independent copies of the template's
             // attachments (fresh ids + blobs), not shared references.
-            attachments: clone_attachments(&data_path, &device_id, &tmpl.attachments)?,
+            attachments: cloned_attachments.attachments,
             tag_ids: retain_known_tags(tmpl.tag_ids, &d.tags),
             estimated_seconds: tmpl.estimated_seconds,
             created_at: ts,
@@ -2562,7 +2589,7 @@ mod tests {
             due_time: Some("09:30".into()),
             start_date: NaiveDate::from_ymd_opt(2026, 6, 19),
             start_time: Some("08:00".into()),
-            notes: "notes".into(),
+            notes: "![old](attachment_old.bin)".into(),
             attachments: vec![Attachment {
                 id: "att_old".into(),
                 name: "old".into(),
@@ -2591,11 +2618,19 @@ mod tests {
             created_at: 20,
         };
 
-        let dup =
-            duplicate_task_record(src, vec![copied_attachment.clone()], &[tag("tag_keep")], 99);
+        let dup = duplicate_task_record(
+            src,
+            ClonedAttachments {
+                attachments: vec![copied_attachment.clone()],
+                path_map: vec![("attachment_old.bin".into(), "attachment_new.bin".into())],
+            },
+            &[tag("tag_keep")],
+            99,
+        );
 
         assert_ne!(dup.id, "k_old");
-        assert_eq!(dup.title, "task");
+        assert_eq!(dup.title, "task (copy)");
+        assert_eq!(dup.notes, "![old](attachment_new.bin)");
         assert_eq!(dup.due_time.as_deref(), Some("09:30"));
         assert_eq!(dup.start_time.as_deref(), Some("08:00"));
         assert_eq!(dup.attachments, vec![copied_attachment]);
@@ -2612,8 +2647,15 @@ mod tests {
         let src = TemplateTask {
             id: "k_tmpl".into(),
             title: "template".into(),
-            notes: "notes".into(),
-            attachments: Vec::new(),
+            notes: "[doc](attachment_old.bin)".into(),
+            attachments: vec![Attachment {
+                id: "att_old".into(),
+                name: "old".into(),
+                path: "attachment_old.bin".into(),
+                mime_type: None,
+                size: None,
+                created_at: 1,
+            }],
             tag_ids: vec!["tag_keep".into(), "tag_drop".into()],
             created_at: 10,
             updated_at: 11,
@@ -2624,10 +2666,29 @@ mod tests {
             recurrence_tag_id: Some("tag_keep".into()),
         };
 
-        let dup = duplicate_template_record(src, Vec::new(), &[tag("tag_keep")], 99);
+        let copied_attachment = Attachment {
+            id: "att_new".into(),
+            name: "new".into(),
+            path: "attachment_new.bin".into(),
+            mime_type: None,
+            size: None,
+            created_at: 20,
+        };
+
+        let dup = duplicate_template_record(
+            src,
+            ClonedAttachments {
+                attachments: vec![copied_attachment.clone()],
+                path_map: vec![("attachment_old.bin".into(), "attachment_new.bin".into())],
+            },
+            &[tag("tag_keep")],
+            99,
+        );
 
         assert_ne!(dup.id, "k_tmpl");
-        assert_eq!(dup.title, "template");
+        assert_eq!(dup.title, "template (copy)");
+        assert_eq!(dup.notes, "[doc](attachment_new.bin)");
+        assert_eq!(dup.attachments, vec![copied_attachment]);
         assert_eq!(dup.tag_ids, vec!["tag_keep".to_string()]);
         assert_eq!(dup.due_offset_days, Some(3));
         assert_eq!(dup.start_offset_days, Some(1));
@@ -2713,11 +2774,17 @@ mod tests {
             created_at: 0,
         }];
 
-        let copies = clone_attachments(&data, "dev", &src).unwrap();
+        let cloned = clone_attachments(&data, "dev", &src).unwrap();
+        let copies = cloned.attachments;
         assert_eq!(copies.len(), 1);
         let c = &copies[0];
         assert_ne!(c.id, "att_src", "copy gets a fresh id");
         assert_ne!(c.path, src_rel, "copy gets its own blob path");
+        assert_eq!(
+            cloned.path_map,
+            vec![(src_rel.to_string(), c.path.clone())],
+            "old attachment paths are mapped to copied paths for markdown rewrite"
+        );
         assert!(
             c.path.starts_with("attachments_dev/"),
             "copy lands in the per-device subdir, got {}",
@@ -2742,7 +2809,9 @@ mod tests {
             size: None,
             created_at: 0,
         }];
-        assert!(clone_attachments(&data, "dev", &src).unwrap().is_empty());
+        let cloned = clone_attachments(&data, "dev", &src).unwrap();
+        assert!(cloned.attachments.is_empty());
+        assert!(cloned.path_map.is_empty());
     }
 
     #[test]
