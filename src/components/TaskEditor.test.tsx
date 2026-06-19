@@ -576,7 +576,10 @@ describe("TaskEditor template editing (#71)", () => {
     render(<TaskEditor kind="template"
                        template={{ ...templateTask, estimated_seconds: 3_600 }}
                        allTags={tags} onClose={vi.fn()} />);
-    expect((screen.getByLabelText("Estimated time") as HTMLInputElement).value).toBe("1h");
+    const attachments = screen.getByRole("button", { name: /Attachments/ });
+    const estimate = screen.getByLabelText("Estimated time") as HTMLInputElement;
+    expect(attachments.compareDocumentPosition(estimate) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(estimate.value).toBe("1h");
   });
 });
 

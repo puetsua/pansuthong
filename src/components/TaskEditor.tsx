@@ -604,13 +604,6 @@ export function TaskEditor(props: Props) {
               </label>
             </div>
             {offsetError && <p className="te-warn" role="alert">{offsetError}</p>}
-            <label className="te-field">
-              <span>{t("taskEditor.estimatedSeconds")}</span>
-              <input type="text" inputMode="text" placeholder={t("taskEditor.estimatedSecondsPlaceholder")}
-                     value={form.estimated_seconds}
-                     onChange={e => set("estimated_seconds", e.currentTarget.value)} />
-            </label>
-            {estimateError && <p className="te-warn" role="alert">{estimateError}</p>}
             <div className="te-field">
               <span>{t("taskEditor.repeat")}</span>
               <select value={form.repeat}
@@ -848,6 +841,18 @@ export function TaskEditor(props: Props) {
             />
           )}
         </div>
+
+        {isTemplate && (
+          <>
+            <label className="te-field">
+              <span>{t("taskEditor.estimatedSeconds")}</span>
+              <input type="text" inputMode="text" placeholder={t("taskEditor.estimatedSecondsPlaceholder")}
+                     value={form.estimated_seconds}
+                     onChange={e => set("estimated_seconds", e.currentTarget.value)} />
+            </label>
+            {estimateError && <p className="te-warn" role="alert">{estimateError}</p>}
+          </>
+        )}
 
         {canComplete && taskEntity && (
           <TimeTracking
