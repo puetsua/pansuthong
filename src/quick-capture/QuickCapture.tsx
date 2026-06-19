@@ -71,6 +71,7 @@ export function QuickCapture() {
         // No today-default here (unlike the Today composer): undated tasks land in Inbox.
         start_date: parsed.start_date,
         tag_ids: tagIds,
+        estimated_seconds: parsed.estimated_seconds,
       });
       setInput("");
       setError(null);

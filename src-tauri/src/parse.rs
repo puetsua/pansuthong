@@ -7,7 +7,12 @@ pub struct ParsedInput {
     pub tag_names: Vec<String>,
     pub due_date: Option<NaiveDate>,
     pub start_date: Option<NaiveDate>,
+    pub estimated_seconds: Option<i64>,
 }
+
+/// Upper bound for an estimate: 100,000 minutes. Mirrors the TS `ESTIMATED_SECONDS_MAX`
+/// and the backend's `validate_estimated_seconds` range.
+const ESTIMATED_SECONDS_MAX: i64 = 100_000 * 60;
 
 /// Pure: takes the composer's raw string and "today" reference; returns structured tokens.
 /// Unknown text becomes part of the title.
@@ -21,6 +26,13 @@ pub fn parse(input: &str, today: NaiveDate) -> ParsedInput {
         let tok = tokens[i];
         if let Some(name) = tag_from_token(tok) {
             out.tag_names.push(name);
+            i += 1;
+            continue;
+        }
+        // `~1h30m` / `~45m` / `~30` (bare = minutes) sets the estimate; last one wins.
+        // An unparseable or out-of-range `~token` falls through to the title.
+        if let Some(seconds) = estimate_from_token(tok) {
+            out.estimated_seconds = Some(seconds);
             i += 1;
             continue;
         }
@@ -93,6 +105,150 @@ fn tag_from_token(tok: &str) -> Option<String> {
         None
     } else {
         Some(name.to_string())
+    }
+}
+
+/// Seconds from a `~duration` token, or None if it isn't a valid estimate (no `~`,
+/// empty, unparseable, or outside 1..=ESTIMATED_SECONDS_MAX). Mirrors the TS
+/// `estimateFromToken`/`parseEstimatedSeconds` so `~1h30m` agrees with the editor.
+fn estimate_from_token(tok: &str) -> Option<i64> {
+    let rest = tok.strip_prefix('~')?;
+    let seconds = parse_estimate_duration(rest)?;
+    if (1..=ESTIMATED_SECONDS_MAX).contains(&seconds) {
+        Some(seconds)
+    } else {
+        None
+    }
+}
+
+/// Duration text -> whole seconds, mirroring TS `parseEstimatedSeconds`: a bare
+/// number is minutes, a leading `P`/`p` is an ISO-8601 duration, otherwise a run
+/// of `d`/`h`/`m`/`s` unit segments. None on any malformed input.
+fn parse_estimate_duration(raw: &str) -> Option<i64> {
+    let t = raw.trim();
+    if t.is_empty() {
+        return None;
+    }
+    if t.bytes().all(|b| b.is_ascii_digit()) {
+        return t.parse::<i64>().ok()?.checked_mul(60);
+    }
+    if t.starts_with('P') || t.starts_with('p') {
+        return parse_iso_duration(t);
+    }
+    parse_unit_duration(t)
+}
+
+/// `1h30m`, `45m`, `1 h 30 m` -> seconds. Each segment is digits, optional
+/// whitespace, then one of `d`/`h`/`m`/`s`; segments are separated only by
+/// whitespace. Anything else (a stray unit, trailing text, a number with no unit)
+/// is None.
+fn parse_unit_duration(raw: &str) -> Option<i64> {
+    let bytes = raw.as_bytes();
+    let n = bytes.len();
+    let mut i = 0;
+    let mut total: i64 = 0;
+    let mut found = false;
+    while i < n {
+        if bytes[i].is_ascii_whitespace() {
+            i += 1;
+            continue;
+        }
+        if !bytes[i].is_ascii_digit() {
+            return None;
+        }
+        let start = i;
+        while i < n && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+        let num: i64 = raw[start..i].parse().ok()?;
+        while i < n && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        if i >= n {
+            return None; // a number with no unit
+        }
+        let mult: i64 = match bytes[i].to_ascii_lowercase() {
+            b'd' => 86_400,
+            b'h' => 3_600,
+            b'm' => 60,
+            b's' => 1,
+            _ => return None,
+        };
+        i += 1;
+        total = total.checked_add(num.checked_mul(mult)?)?;
+        found = true;
+    }
+    if found {
+        Some(total)
+    } else {
+        None
+    }
+}
+
+/// ISO-8601 duration `P[nD][T[nH][nM][nS]]` -> seconds, requiring at least one
+/// field. Mirrors the TS regex; the H/M/S fields must appear in that order.
+fn parse_iso_duration(raw: &str) -> Option<i64> {
+    let rest = raw.strip_prefix(['P', 'p'])?;
+    let bytes = rest.as_bytes();
+    let n = bytes.len();
+    let mut i = 0;
+    let mut total: i64 = 0;
+    let mut any = false;
+
+    // [ (\d+) D ]
+    if i < n && bytes[i].is_ascii_digit() {
+        let start = i;
+        while i < n && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i >= n || !bytes[i].eq_ignore_ascii_case(&b'D') {
+            return None;
+        }
+        let num: i64 = rest[start..i].parse().ok()?;
+        total = total.checked_add(num.checked_mul(86_400)?)?;
+        i += 1;
+        any = true;
+    }
+
+    // [ T (\d+H)? (\d+M)? (\d+S)? ]
+    if i < n {
+        if !bytes[i].eq_ignore_ascii_case(&b'T') {
+            return None;
+        }
+        i += 1;
+        let mut last_rank = 0u8;
+        while i < n {
+            if !bytes[i].is_ascii_digit() {
+                return None;
+            }
+            let start = i;
+            while i < n && bytes[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i >= n {
+                return None;
+            }
+            let (mult, rank): (i64, u8) = match bytes[i].to_ascii_uppercase() {
+                b'H' => (3_600, 1),
+                b'M' => (60, 2),
+                b'S' => (1, 3),
+                _ => return None,
+            };
+            if rank <= last_rank {
+                return None; // H/M/S must appear in order, at most once each
+            }
+            last_rank = rank;
+            let num: i64 = rest[start..i].parse().ok()?;
+            total = total.checked_add(num.checked_mul(mult)?)?;
+            i += 1;
+            any = true;
+        }
+    }
+
+    if any {
+        Some(total)
+    } else {
+        None
     }
 }
 

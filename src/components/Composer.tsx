@@ -65,6 +65,7 @@ export function Composer({ startDate, todayIso: today = todayIso(), tagsByName, 
         start_date: parsed.start_date ?? startDate,
         due_date: parsed.due_date,
         tag_ids: tagIds,
+        estimated_seconds: parsed.estimated_seconds,
       });
       setInput("");
       setError(null);

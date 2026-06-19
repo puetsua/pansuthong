@@ -144,7 +144,7 @@
     "due": "due {{date}}"
   },
   "composer": {
-    "placeholder": "What needs doing?  (try: #work due fri Reply to Anna)",
+    "placeholder": "What needs doing?  (try: #work due fri ~1h Reply to Anna)",
     "aria": "New task",
     "add": "Add",
     "expand": "Add task with more options…",
@@ -153,6 +153,7 @@
   "composerPreview": {
     "start": "start {{date}}",
     "due": "due {{date}}",
+    "estimate": "est {{duration}}",
     "new": "new"
   },
   "conflictBanner": {
@@ -364,7 +365,7 @@
     "estimatedSecondsRange": "Estimated time must be a positive duration up to {{max}}. Use values like 1h, 20m, 50s, 1d, or P1DT1H."
   },
   "quickCapture": {
-    "placeholder": "Quick add…  (#tag  due fri)",
+    "placeholder": "Quick add…  (#tag  due fri  ~1h)",
     "aria": "Quick capture",
     "hint": "Enter to save · Shift+Enter to keep open · Esc to cancel",
     "needTitle": "Add a title — that's only tags/dates.",

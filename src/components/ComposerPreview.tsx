@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Tag } from "../lib/tauri";
 import { ParsedInput } from "../state/parse";
+import { formatEstimatedSecondsInput } from "../state/taskUpdate";
 
 type Props = {
   parsed: ParsedInput;
@@ -12,7 +13,8 @@ export function ComposerPreview({ parsed, tagsByName }: Props) {
   const anything =
     parsed.tag_names.length > 0 ||
     parsed.due_date ||
-    parsed.start_date;
+    parsed.start_date ||
+    parsed.estimated_seconds != null;
   if (!anything) return null;
 
   return (
@@ -30,6 +32,7 @@ export function ComposerPreview({ parsed, tagsByName }: Props) {
       })}
       {parsed.start_date && <span className="composer-chip">{t("composerPreview.start", { date: parsed.start_date.slice(5) })}</span>}
       {parsed.due_date       && <span className="composer-chip">{t("composerPreview.due", { date: parsed.due_date.slice(5) })}</span>}
+      {parsed.estimated_seconds != null && <span className="composer-chip">{t("composerPreview.estimate", { duration: formatEstimatedSecondsInput(parsed.estimated_seconds) })}</span>}
     </div>
   );
 }

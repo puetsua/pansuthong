@@ -117,4 +117,54 @@ describe("parseComposer", () => {
     expect(parseComposer("Task due 2026-13-05", TODAY).title).toBe("Task due 2026-13-05");
     expect(parseComposer("Task due 2026-02-30", TODAY).due_date).toBeUndefined();
   });
+
+  it("~duration sets the estimate and is dropped from the title", () => {
+    const p = parseComposer("Write report ~1h30m", TODAY);
+    expect(p.title).toBe("Write report");
+    expect(p.estimated_seconds).toBe(5400);
+  });
+
+  it("~ accepts single-unit durations", () => {
+    expect(parseComposer("Call ~45m", TODAY).estimated_seconds).toBe(2700);
+    expect(parseComposer("Nap ~2h", TODAY).estimated_seconds).toBe(7200);
+  });
+
+  it("~ bare number means minutes (matches the editor's estimate field)", () => {
+    expect(parseComposer("Task ~30", TODAY).estimated_seconds).toBe(1800);
+  });
+
+  it("~estimate coexists with tags and dates", () => {
+    const p = parseComposer("Write report ~1h30m #work due fri", TODAY);
+    expect(p.title).toBe("Write report");
+    expect(p.estimated_seconds).toBe(5400);
+    expect(p.tag_names).toEqual(["work"]);
+    expect(p.due_date).toBe("2026-05-29");
+  });
+
+  it("last ~estimate wins", () => {
+    expect(parseComposer("Plan ~30m ~1h", TODAY).estimated_seconds).toBe(3600);
+  });
+
+  it("~ accepts ISO-8601 durations (same grammar as the editor field)", () => {
+    expect(parseComposer("Sprint ~PT1H30M", TODAY).estimated_seconds).toBe(5400);
+  });
+
+  it("unparseable ~token stays in the title", () => {
+    const p = parseComposer("Task ~abc", TODAY);
+    expect(p.estimated_seconds).toBeUndefined();
+    expect(p.title).toBe("Task ~abc");
+  });
+
+  it("zero / out-of-range ~estimate stays in the title", () => {
+    const zero = parseComposer("Task ~0m", TODAY);
+    expect(zero.estimated_seconds).toBeUndefined();
+    expect(zero.title).toBe("Task ~0m");
+    const huge = parseComposer("Task ~999999h", TODAY);
+    expect(huge.estimated_seconds).toBeUndefined();
+    expect(huge.title).toBe("Task ~999999h");
+  });
+
+  it("a bare ~ is literal title text", () => {
+    expect(parseComposer("Buy ~ milk", TODAY).title).toBe("Buy ~ milk");
+  });
 });

@@ -171,6 +171,68 @@ fn quoted_tag_trims_surrounding_whitespace() {
 }
 
 #[test]
+fn tilde_duration_sets_estimate_and_drops_from_title() {
+    let p = parse("Write report ~1h30m", today());
+    assert_eq!(p.title, "Write report");
+    assert_eq!(p.estimated_seconds, Some(5400));
+}
+
+#[test]
+fn tilde_accepts_single_unit_durations() {
+    assert_eq!(parse("Call ~45m", today()).estimated_seconds, Some(2700));
+    assert_eq!(parse("Nap ~2h", today()).estimated_seconds, Some(7200));
+}
+
+#[test]
+fn tilde_bare_number_means_minutes() {
+    assert_eq!(parse("Task ~30", today()).estimated_seconds, Some(1800));
+}
+
+#[test]
+fn tilde_estimate_coexists_with_tags_and_dates() {
+    let p = parse("Write report ~1h30m #work due fri", today());
+    assert_eq!(p.title, "Write report");
+    assert_eq!(p.estimated_seconds, Some(5400));
+    assert_eq!(p.tag_names, vec!["work"]);
+    assert_eq!(
+        p.due_date,
+        Some(NaiveDate::from_ymd_opt(2026, 5, 29).unwrap())
+    );
+}
+
+#[test]
+fn last_tilde_estimate_wins() {
+    assert_eq!(parse("Plan ~30m ~1h", today()).estimated_seconds, Some(3600));
+}
+
+#[test]
+fn tilde_accepts_iso_8601_durations() {
+    assert_eq!(parse("Sprint ~PT1H30M", today()).estimated_seconds, Some(5400));
+}
+
+#[test]
+fn unparseable_tilde_token_stays_in_title() {
+    let p = parse("Task ~abc", today());
+    assert_eq!(p.estimated_seconds, None);
+    assert_eq!(p.title, "Task ~abc");
+}
+
+#[test]
+fn zero_or_out_of_range_tilde_estimate_stays_in_title() {
+    let zero = parse("Task ~0m", today());
+    assert_eq!(zero.estimated_seconds, None);
+    assert_eq!(zero.title, "Task ~0m");
+    let huge = parse("Task ~999999h", today());
+    assert_eq!(huge.estimated_seconds, None);
+    assert_eq!(huge.title, "Task ~999999h");
+}
+
+#[test]
+fn bare_tilde_is_literal_title_text() {
+    assert_eq!(parse("Buy ~ milk", today()).title, "Buy ~ milk");
+}
+
+#[test]
 fn empty_input_returns_default() {
     let p = parse("", today());
     assert_eq!(p, ParsedInput::default());

@@ -141,7 +141,7 @@
     "due": "到期 {{date}}"
   },
   "composer": {
-    "placeholder": "需要做什麼？（試試：#work due fri 回覆 Anna）",
+    "placeholder": "需要做什麼？（試試：#work due fri ~1h 回覆 Anna）",
     "aria": "新任務",
     "add": "新增",
     "expand": "以更多選項新增任務…",
@@ -150,6 +150,7 @@
   "composerPreview": {
     "start": "開始 {{date}}",
     "due": "到期 {{date}}",
+    "estimate": "預估 {{duration}}",
     "new": "新"
   },
   "conflictBanner": {
@@ -360,7 +361,7 @@
     "estimatedSecondsRange": "預估時間必須是最長 {{max}} 的正數時間，例如 1h、20m、50s、1d 或 P1DT1H。"
   },
   "quickCapture": {
-    "placeholder": "快速新增…（#tag  due fri）",
+    "placeholder": "快速新增…（#tag  due fri  ~1h）",
     "aria": "快速擷取",
     "hint": "Enter 儲存 · Shift+Enter 保持開啟 · Esc 取消",
     "needTitle": "加入標題 — 這只有標籤／日期。",

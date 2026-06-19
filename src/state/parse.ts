@@ -1,10 +1,12 @@
 import dayjs from "dayjs";
+import { ESTIMATED_SECONDS_MAX, parseEstimatedSeconds } from "./taskUpdate";
 
 export type ParsedInput = {
   title: string;
   tag_names: string[];
   due_date?: string;   // YYYY-MM-DD
   start_date?: string; // YYYY-MM-DD
+  estimated_seconds?: number; // whole seconds; absent = no estimate
 };
 
 const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -27,6 +29,14 @@ export function parseComposer(input: string, todayIso: string): ParsedInput {
     const tagName = tagFromToken(tok);
     if (tagName !== null) {
       out.tag_names.push(tagName);
+      continue;
+    }
+    // `~1h30m` / `~45m` / `~30` (bare = minutes) sets the estimate; last one wins.
+    // The same duration grammar as the editor's estimate field. An unparseable or
+    // out-of-range `~token` falls through to the title (like a bad `due` word).
+    const est = estimateFromToken(tok);
+    if (est !== null) {
+      out.estimated_seconds = est;
       continue;
     }
     // "start" is the current keyword; "sched"/"scheduled" stay as aliases (#renamed).
@@ -59,6 +69,20 @@ function tagFromToken(tok: string): string | null {
   }
   const name = rest.trim();
   return name.length > 0 ? name : null;
+}
+
+/**
+ * Seconds from a `~duration` token, or null if the token isn't a valid estimate
+ * (no `~`, empty, unparseable, or outside 1..=ESTIMATED_SECONDS_MAX). Reuses the
+ * editor's duration grammar so `~1h30m` and the estimate field agree.
+ */
+function estimateFromToken(tok: string): number | null {
+  if (!tok.startsWith("~")) return null;
+  const seconds = parseEstimatedSeconds(tok.slice(1));
+  if (seconds == null || !Number.isInteger(seconds) || seconds < 1 || seconds > ESTIMATED_SECONDS_MAX) {
+    return null;
+  }
+  return seconds;
 }
 
 function parseDateWord(word: string, todayIso: string): string | undefined {
