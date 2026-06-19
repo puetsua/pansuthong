@@ -318,6 +318,19 @@ export function TaskEditor(props: Props) {
     }
   };
 
+  const duplicate = async () => {
+    setOptionsOpen(false);
+    setBusy(true);
+    try {
+      if (isTemplate) await api.duplicateTemplate(entity.id);
+      else            await api.duplicateTask(entity.id);
+      onClose();
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  };
+
   // Mark the task complete (or reopen it if already done) and close. Any pending
   // edits are saved first so completing from the modal never silently drops them;
   // an invalid form blocks the action and surfaces the error, like Save.
@@ -862,6 +875,9 @@ export function TaskEditor(props: Props) {
                       {t("taskEditor.saveAsTemplate")}
                     </button>
                   )}
+                  <button type="button" role="menuitem" onClick={duplicate} disabled={busy}>
+                    {t("taskEditor.duplicate")}
+                  </button>
                   <button type="button" role="menuitem" className="te-menu-danger"
                           onClick={() => { setOptionsOpen(false); void remove(); }} disabled={busy}>
                     {t("taskEditor.delete")}

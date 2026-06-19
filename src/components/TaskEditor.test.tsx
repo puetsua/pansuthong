@@ -11,9 +11,11 @@ vi.mock("../lib/tauri", async (importOriginal) => {
       updateTask: vi.fn().mockResolvedValue({}),
       addTask: vi.fn().mockResolvedValue({}),
       setTaskDone: vi.fn().mockResolvedValue({}),
+      duplicateTask: vi.fn().mockResolvedValue({}),
       deleteTask: vi.fn().mockResolvedValue(undefined),
       addTemplate: vi.fn().mockResolvedValue({}),
       updateTemplate: vi.fn().mockResolvedValue({}),
+      duplicateTemplate: vi.fn().mockResolvedValue({}),
       deleteTemplate: vi.fn().mockResolvedValue(undefined),
       addTag: vi.fn((name: string, color: string) =>
         Promise.resolve({ id: `t_new_${name}`, name, color, priority: 0 })),
@@ -594,6 +596,30 @@ describe("TaskEditor 'Save as template' option (#71)", () => {
     );
     // The original task is untouched — saving-as-template does not convert it.
     expect(api.updateTask).not.toHaveBeenCalled();
+  });
+});
+
+describe("TaskEditor duplicate option", () => {
+  it("duplicates a task via the Options menu", async () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.click(button(/options/i));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^duplicate$/i }));
+
+    await waitFor(() => expect(api.duplicateTask).toHaveBeenCalledWith("k_1"));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("duplicates a template via the Options menu", async () => {
+    const onClose = vi.fn();
+    render(<TaskEditor kind="template" template={templateTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.click(button(/options/i));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^duplicate$/i }));
+
+    await waitFor(() => expect(api.duplicateTemplate).toHaveBeenCalledWith("k_1"));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 });
 
