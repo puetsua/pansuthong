@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { Tag, Task, TemplateTask } from "../lib/tauri";
+import { api, Tag, Task, TemplateTask } from "../lib/tauri";
 import { addDaysIso } from "../lib/dates";
+import { errorMessage } from "../lib/errors";
 import { readableTextColor } from "../lib/tags";
 import { TaskEditor } from "./TaskEditor";
 
@@ -23,6 +24,7 @@ function offsetLabel(tmpl: TemplateTask, t: TFunction): string {
 export function TemplateRow({ template, tags, todayIso }: Props) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // A draft task pre-filled from this template, shown in the editor so the user can
   // finish it before it's actually created (#71). null = not creating.
   const [creatingDraft, setCreatingDraft] = useState<Task | null>(null);
@@ -49,6 +51,11 @@ export function TemplateRow({ template, tags, todayIso }: Props) {
     });
   };
 
+  const duplicate = () => {
+    setError(null);
+    api.duplicateTemplate(template.id).catch(err => setError(errorMessage(err)));
+  };
+
   const label = offsetLabel(template, t);
 
   return (
@@ -68,7 +75,12 @@ export function TemplateRow({ template, tags, todayIso }: Props) {
                 aria-label={t("templateRow.newTaskAria", { title: template.title })}>
           {t("templateRow.newTask")}
         </button>
+        <button type="button" className="task-restore" onClick={duplicate}
+                aria-label={t("templateRow.duplicateAria", { title: template.title })}>
+          {t("templateRow.duplicate")}
+        </button>
       </div>
+      {error && <p className="composer-error" role="alert">{t("templateRow.updateError", { error })}</p>}
       {editing && (
         <TaskEditor kind="template" template={template} allTags={tags} onClose={() => setEditing(false)} />
       )}

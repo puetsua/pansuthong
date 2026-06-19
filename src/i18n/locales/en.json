@@ -183,6 +183,8 @@
     "scheduled": "{{date}}{{time}}",
     "restore": "Restore",
     "restoreAria": "Restore {{title}}",
+    "duplicate": "Duplicate",
+    "duplicateAria": "Duplicate {{title}}",
     "timeTrackedTitle": "Time tracked",
     "progressTitle": "{{pct}}% of estimate",
     "stopTimer": "Stop timer for {{title}}",
@@ -206,6 +208,9 @@
     "edit": "Edit {{title}}",
     "newTaskAria": "New task from {{title}}",
     "newTask": "New task",
+    "duplicateAria": "Duplicate template {{title}}",
+    "duplicate": "Duplicate",
+    "updateError": "Couldn’t update: {{error}}",
     "startOffset": "start +{{days}}d",
     "dueOffset": "due +{{days}}d"
   },

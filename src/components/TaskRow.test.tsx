@@ -10,6 +10,7 @@ vi.mock("../lib/tauri", async (importOriginal) => {
     ...actual,
     api: {
       setTaskDone: vi.fn().mockResolvedValue({}),
+      duplicateTask: vi.fn().mockResolvedValue({}),
       addTask: vi.fn().mockResolvedValue({}),
       startTimer: vi.fn().mockResolvedValue({}),
       stopTimer: vi.fn().mockResolvedValue({}),
@@ -49,6 +50,12 @@ describe("TaskRow active mode", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /toggle/i }));
     await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", false));
     expect(playCompletionSound).not.toHaveBeenCalled();
+  });
+
+  it("duplicates a task from the row action", async () => {
+    render(<TaskRow task={baseTask} tags={tags} todayIso="2026-05-31" />);
+    fireEvent.click(screen.getByRole("button", { name: /duplicate write report/i }));
+    await waitFor(() => expect(api.duplicateTask).toHaveBeenCalledWith("k_1"));
   });
 });
 

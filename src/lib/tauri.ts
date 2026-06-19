@@ -249,6 +249,7 @@ export const api = {
   /** Open an attachment in its default application. */
   openAttachment:   (path: string) => invoke<void>("open_attachment", { path }),
   setTaskDone:   (id: string, done: boolean) => invoke<Task>("set_task_done", { id, done }),
+  duplicateTask: (id: string)                => invoke<Task>("duplicate_task", { id }),
   deleteTask:    (id: string)                => invoke<void>("delete_task", { id }),
   // Time tracking (#81). Each returns the updated task. start/stop are no-ops when
   // already in that state; manual entry times are epoch millis.
@@ -262,6 +263,7 @@ export const api = {
                                    invoke<Task>("delete_time_entry", { input: { task_id: taskId, entry_id: entryId } }),
   addTemplate:    (input: NewTemplate)    => invoke<TemplateTask>("add_template", { input }),
   updateTemplate: (input: TemplateUpdate) => invoke<TemplateTask>("update_template", { input }),
+  duplicateTemplate: (id: string)         => invoke<TemplateTask>("duplicate_template", { id }),
   deleteTemplate: (id: string)            => invoke<void>("delete_template", { id }),
   spawnRecurringTask: (templateId: string, occurrenceDate: string) =>
                                    invoke<Task>("spawn_recurring_task", { input: { templateId, occurrenceDate } }),

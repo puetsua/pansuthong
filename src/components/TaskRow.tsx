@@ -77,6 +77,11 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
 
   const open = () => setEditing(true);
 
+  const duplicate = () => {
+    setError(null);
+    api.duplicateTask(task.id).catch(err => setError(errorMessage(err)));
+  };
+
   // Time tracking (#81): tick once a second only while this task's timer runs.
   const running = isTiming(task);
   const now = useNow(running);
@@ -109,6 +114,10 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
         {archived ? (
           <>
             {total > 0 && <span className="task-timer-total" title={t("taskRow.timeTrackedTitle")}>{formatDurationShort(total)}</span>}
+            <button type="button" className="task-restore" onClick={duplicate}
+                    aria-label={t("taskRow.duplicateAria", { title: task.title })}>
+              {t("taskRow.duplicate")}
+            </button>
             <button type="button" className="task-restore" onClick={restore}
                     aria-label={t("taskRow.restoreAria", { title: task.title })}>
               {t("taskRow.restore")}
@@ -116,6 +125,10 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
           </>
         ) : (
           <>
+            <button type="button" className="task-restore" onClick={duplicate}
+                    aria-label={t("taskRow.duplicateAria", { title: task.title })}>
+              {t("taskRow.duplicate")}
+            </button>
             <button type="button" className="task-timer" data-running={running} onClick={toggleTimer}
                     aria-label={running ? t("taskRow.stopTimer", { title: task.title }) : t("taskRow.startTimer", { title: task.title })}
                     title={running ? t("taskRow.stopTimerTitle") : t("taskRow.startTimerTitle")}>

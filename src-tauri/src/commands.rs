@@ -957,6 +957,51 @@ pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle)
     Ok(saved)
 }
 
+fn duplicate_task_record(src: Task, attachments: Vec<Attachment>, tags: &[Tag], ts: i64) -> Task {
+    Task {
+        id: new_task_id(),
+        title: src.title,
+        due_date: src.due_date,
+        due_time: src.due_time,
+        start_date: src.start_date,
+        start_time: src.start_time,
+        notes: src.notes,
+        attachments,
+        tag_ids: retain_known_tags(src.tag_ids, tags),
+        estimated_seconds: src.estimated_seconds,
+        created_at: ts,
+        completed_at: None,
+        updated_at: ts,
+        time_entries: Vec::new(),
+    }
+}
+
+#[tauri::command]
+pub fn duplicate_task(
+    id: String,
+    state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
+    app: AppHandle,
+) -> Result<Task> {
+    let ts = now_ms();
+    let data_path = state.path();
+    let device_id = config.device_id();
+    let saved = state.write(|d| {
+        let src = d
+            .tasks
+            .iter()
+            .find(|t| t.id == id)
+            .ok_or_else(|| AppError::NotFound(format!("task {id}")))?
+            .clone();
+        let attachments = clone_attachments(&data_path, &device_id, &src.attachments)?;
+        let task = duplicate_task_record(src, attachments, &d.tags, ts);
+        d.tasks.push(task.clone());
+        Ok(task)
+    })?;
+    emit_changed(&app);
+    Ok(saved)
+}
+
 /// Lets an optional field distinguish "absent" from an explicit JSON `null`.
 /// With `#[serde(default, deserialize_with = "double_option")]`:
 ///   absent -> None (leave unchanged); null -> Some(None) (clear); value -> Some(Some(v)) (set).
@@ -1357,6 +1402,58 @@ pub fn add_template(
             recurrence: input.recurrence,
             recurrence_tag_id,
         };
+        d.template_tasks.push(tmpl.clone());
+        Ok(tmpl)
+    })?;
+    emit_changed(&app);
+    Ok(saved)
+}
+
+fn duplicate_template_record(
+    src: TemplateTask,
+    attachments: Vec<Attachment>,
+    tags: &[Tag],
+    ts: i64,
+) -> TemplateTask {
+    let tag_ids = retain_known_tags(src.tag_ids, tags);
+    let recurrence_tag_id = src
+        .recurrence_tag_id
+        .filter(|id| src.recurrence.is_some() && tag_ids.contains(id));
+    TemplateTask {
+        id: new_task_id(),
+        title: src.title,
+        notes: src.notes,
+        attachments,
+        tag_ids,
+        created_at: ts,
+        updated_at: ts,
+        due_offset_days: src.due_offset_days,
+        start_offset_days: src.start_offset_days,
+        estimated_seconds: src.estimated_seconds,
+        recurrence: src.recurrence,
+        recurrence_tag_id,
+    }
+}
+
+#[tauri::command]
+pub fn duplicate_template(
+    id: String,
+    state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
+    app: AppHandle,
+) -> Result<TemplateTask> {
+    let ts = now_ms();
+    let data_path = state.path();
+    let device_id = config.device_id();
+    let saved = state.write(|d| {
+        let src = d
+            .template_tasks
+            .iter()
+            .find(|t| t.id == id)
+            .ok_or_else(|| AppError::NotFound(format!("template {id}")))?
+            .clone();
+        let attachments = clone_attachments(&data_path, &device_id, &src.attachments)?;
+        let tmpl = duplicate_template_record(src, attachments, &d.tags, ts);
         d.template_tasks.push(tmpl.clone());
         Ok(tmpl)
     })?;
@@ -2443,6 +2540,102 @@ mod tests {
             updated_at: 0,
             time_entries: Vec::new(),
         }
+    }
+
+    fn tag(id: &str) -> Tag {
+        Tag {
+            id: id.into(),
+            name: id.into(),
+            color: "#000000".into(),
+            priority: 0,
+            pinned: false,
+            updated_at: 0,
+        }
+    }
+
+    #[test]
+    fn duplicate_task_record_resets_identity_completion_and_timer() {
+        let src = Task {
+            id: "k_old".into(),
+            title: "task".into(),
+            due_date: NaiveDate::from_ymd_opt(2026, 6, 20),
+            due_time: Some("09:30".into()),
+            start_date: NaiveDate::from_ymd_opt(2026, 6, 19),
+            start_time: Some("08:00".into()),
+            notes: "notes".into(),
+            attachments: vec![Attachment {
+                id: "att_old".into(),
+                name: "old".into(),
+                path: "attachment_old.bin".into(),
+                mime_type: None,
+                size: None,
+                created_at: 1,
+            }],
+            tag_ids: vec!["tag_keep".into(), "tag_drop".into()],
+            estimated_seconds: Some(60),
+            created_at: 10,
+            completed_at: Some(11),
+            updated_at: 12,
+            time_entries: vec![TimeEntry {
+                id: "te_1".into(),
+                start: 13,
+                end: None,
+            }],
+        };
+        let copied_attachment = Attachment {
+            id: "att_new".into(),
+            name: "new".into(),
+            path: "attachment_new.bin".into(),
+            mime_type: None,
+            size: None,
+            created_at: 20,
+        };
+
+        let dup =
+            duplicate_task_record(src, vec![copied_attachment.clone()], &[tag("tag_keep")], 99);
+
+        assert_ne!(dup.id, "k_old");
+        assert_eq!(dup.title, "task");
+        assert_eq!(dup.due_time.as_deref(), Some("09:30"));
+        assert_eq!(dup.start_time.as_deref(), Some("08:00"));
+        assert_eq!(dup.attachments, vec![copied_attachment]);
+        assert_eq!(dup.tag_ids, vec!["tag_keep".to_string()]);
+        assert_eq!(dup.estimated_seconds, Some(60));
+        assert_eq!(dup.created_at, 99);
+        assert_eq!(dup.updated_at, 99);
+        assert_eq!(dup.completed_at, None);
+        assert!(dup.time_entries.is_empty());
+    }
+
+    #[test]
+    fn duplicate_template_record_keeps_template_fields() {
+        let src = TemplateTask {
+            id: "k_tmpl".into(),
+            title: "template".into(),
+            notes: "notes".into(),
+            attachments: Vec::new(),
+            tag_ids: vec!["tag_keep".into(), "tag_drop".into()],
+            created_at: 10,
+            updated_at: 11,
+            due_offset_days: Some(3),
+            start_offset_days: Some(1),
+            estimated_seconds: Some(120),
+            recurrence: Some(Recurrence::Daily),
+            recurrence_tag_id: Some("tag_keep".into()),
+        };
+
+        let dup = duplicate_template_record(src, Vec::new(), &[tag("tag_keep")], 99);
+
+        assert_ne!(dup.id, "k_tmpl");
+        assert_eq!(dup.title, "template");
+        assert_eq!(dup.tag_ids, vec!["tag_keep".to_string()]);
+        assert_eq!(dup.due_offset_days, Some(3));
+        assert_eq!(dup.start_offset_days, Some(1));
+        assert_eq!(dup.estimated_seconds, Some(120));
+        assert!(matches!(dup.recurrence, Some(Recurrence::Daily)));
+        assert_eq!(dup.recurrence_tag_id.as_deref(), Some("tag_keep"));
+        assert_eq!(dup.created_at, 99);
+        assert_eq!(dup.updated_at, 99);
     }
 
     #[test]

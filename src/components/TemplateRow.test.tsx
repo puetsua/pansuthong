@@ -10,6 +10,7 @@ vi.mock("../lib/tauri", async (importOriginal) => {
     api: {
       addTask: vi.fn().mockResolvedValue({}),
       updateTemplate: vi.fn().mockResolvedValue({}),
+      duplicateTemplate: vi.fn().mockResolvedValue({}),
       deleteTemplate: vi.fn().mockResolvedValue({}),
     },
   };
@@ -67,5 +68,11 @@ describe("TemplateRow (#71)", () => {
     render(<TemplateRow template={baseTemplate} tags={tags} todayIso="2026-05-31" />);
     fireEvent.click(screen.getByRole("button", { name: /edit weekly report/i }));
     expect(screen.getByRole("dialog", { name: /edit template/i })).toBeTruthy();
+  });
+
+  it("duplicates the template itself from the row action", async () => {
+    render(<TemplateRow template={baseTemplate} tags={tags} todayIso="2026-05-31" />);
+    fireEvent.click(screen.getByRole("button", { name: /duplicate template weekly report/i }));
+    await waitFor(() => expect(api.duplicateTemplate).toHaveBeenCalledWith("k_1"));
   });
 });
