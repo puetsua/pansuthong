@@ -19,6 +19,12 @@ export function ThemePreview({ tokens, onHover }: Props) {
   for (const tok of TOKEN_ORDER) {
     if (tokens[tok]) (style as Record<string, string>)[tok] = tokens[tok];
   }
+  const heatmapStyle = {
+    "--heat-cell": "1.05rem",
+    display: "flex",
+    gap: "2px",
+    marginTop: "var(--space-3)",
+  } as CSSProperties;
 
   const handleOver = onHover
     ? (e: MouseEvent<HTMLDivElement>) => {
@@ -64,9 +70,7 @@ export function ThemePreview({ tokens, onHover }: Props) {
             <div className="task-row-progress"><div className="task-row-progress-fill" style={{ width: "60%" }} /></div>
           </div>
           {/* Simple heatmap preview — bare cells, no text (#15). */}
-          <div data-token="--c-heat-border" style={{
-            display: "flex", gap: "2px", marginTop: "var(--space-3)",
-          }}>
+          <div className="theme-preview-heatmap" data-token="--c-heat-border" style={heatmapStyle}>
             <span className="heatmap-cell heatmap-done" data-token="--c-heat-done" />
             <span className="heatmap-cell heatmap-skip" data-token="--c-heat-skip" />
             <span className="heatmap-cell heatmap-none" data-token="--c-heat-empty" />

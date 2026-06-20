@@ -126,7 +126,11 @@ export type TemplateTask = {
   recurrence?: Recurrence; // #9; absent = manual-only template
   recurrence_tag_id?: string; // #9 which tag the recurrence is keyed to (one of tag_ids)
   recurrence_start_date?: string; // YYYY-MM-DD; earliest occurrence date
+  dashboard_view?: DashboardView; // absent = not pinned to the Dashboard
 };
+
+/** How a pinned recurring template renders on the Dashboard (#dashboard). */
+export type DashboardView = "heatmap" | "streak";
 
 export type Document = {
   version: number;
@@ -171,6 +175,7 @@ export type NewTemplate = {
   recurrence?: Recurrence | null;
   recurrence_tag_id?: string | null;
   recurrence_start_date?: string | null; // YYYY-MM-DD; earliest occurrence date
+  dashboard_view?: DashboardView | null;
 };
 
 // `null` clears an optional offset; an omitted key leaves the field unchanged.
@@ -186,6 +191,7 @@ export type TemplateUpdate = {
   recurrence?: Recurrence | null; // null clears the schedule; omitted leaves it
   recurrence_tag_id?: string | null;
   recurrence_start_date?: string | null; // null clears the start clip; omitted leaves it
+  dashboard_view?: DashboardView | null; // null unpins; omitted leaves it
 };
 
 export type DataLocation = { folder: string | null; effective_path: string };

@@ -35,6 +35,13 @@ describe("ThemePreview", () => {
     expect(container.querySelector('.task-row[data-timing="true"]')).toBeTruthy();
   });
 
+  it("gives the mini heatmap its own cell size token", () => {
+    const { container } = render(<ThemePreview tokens={{}} />);
+    const heatmap = container.querySelector(".theme-preview-heatmap") as HTMLElement;
+    expect(heatmap.style.getPropertyValue("--heat-cell")).toBe("1.05rem");
+    expect(heatmap.querySelectorAll(".heatmap-cell").length).toBe(4);
+  });
+
   it("reports the hovered element's token via onHover", () => {
     const onHover = vi.fn();
     const { container } = render(<ThemePreview tokens={{}} onHover={onHover} />);

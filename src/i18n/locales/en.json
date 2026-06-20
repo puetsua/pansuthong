@@ -205,8 +205,16 @@
     "newTemplateTitle": "New template"
   },
   "recurrence": {
-    "subtitle": "Heatmap of a recurring template's occurrences you did vs skipped.",
+    "subtitle": "Add recurring tags to track them as a heatmap or streak.",
     "empty": "No recurring templates yet. Open a template's editor and give it a recurrence schedule.",
+    "noPins": "Nothing added yet. Use “Add tag” above to track a recurring tag here.",
+    "addTag": "＋ Add tag",
+    "remove": "Remove",
+    "viewLabel": "View",
+    "view_heatmap": "Heatmap",
+    "view_streak": "Streak",
+    "last7": "Last 7 days",
+    "streakLabel": "day streak",
     "pickTemplate": "Recurring template",
     "done": "Done",
     "skipped": "Skipped",

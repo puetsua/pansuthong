@@ -1702,6 +1702,46 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .recurrence-stat-num { font-size: 1.4rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--c-text); }
 .recurrence-stat-label { font-size: 0.75rem; color: var(--c-text-muted); }
 
+/* Dashboard: added recurring-tag cards (#dashboard). */
+.dashboard-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.dashboard-header-text { min-width: 0; }
+.dashboard-add select {
+  border: 1px solid var(--c-border); border-radius: var(--radius-md);
+  background: var(--c-surface-2); color: var(--c-text); cursor: pointer;
+  padding: var(--space-2) var(--space-3); font-size: 0.85rem; font-weight: 600;
+}
+.dashboard-add select:hover { border-color: var(--c-accent); }
+
+.dashboard-cards { display: flex; flex-direction: column; gap: var(--space-4); }
+.dashboard-card {
+  border: 1px solid var(--c-border); border-radius: var(--radius-lg);
+  background: var(--c-surface); padding: var(--space-4);
+}
+.dashboard-card-head {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--space-3); margin-bottom: var(--space-4);
+}
+.dashboard-card-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.dashboard-card-name { font-weight: 600; color: var(--c-text); word-break: break-word; }
+.dashboard-card-tag { font-size: 0.8rem; color: var(--c-text-muted); }
+.dashboard-card-controls { display: flex; align-items: center; gap: var(--space-2); }
+.dashboard-remove {
+  border: 1px solid var(--c-border); border-radius: var(--radius-md);
+  background: var(--c-surface-2); color: var(--c-text-muted); cursor: pointer;
+  padding: var(--space-1) var(--space-2); font-size: 0.9rem; line-height: 1;
+}
+.dashboard-remove:hover { border-color: var(--c-danger); color: var(--c-danger); }
+
+/* Streak view body. Larger cells than the dense heatmap so a 7-day glance reads
+   clearly. */
+.dashboard-streak { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5); }
+.dashboard-streak-strip { display: flex; gap: var(--space-1); }
+.dashboard-streak-strip .heatmap-cell { width: 1.9rem; height: 1.9rem; border-radius: var(--radius-md); }
+.dashboard-streak-count { display: flex; align-items: baseline; gap: var(--space-1); }
+.dashboard-streak-num { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--c-text); }
+.dashboard-streak-flame { font-size: 1.2rem; }
+.dashboard-streak-label { font-size: 0.85rem; color: var(--c-text-muted); }
+
 /* One source of truth for the cell box. Weekday labels and cells both derive their
    row height from this rem value, so the two columns can never drift apart (an
    earlier `em`-based label height shrank with the small glyph font and pushed the

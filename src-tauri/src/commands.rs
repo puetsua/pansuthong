@@ -1385,6 +1385,19 @@ pub struct NewTemplateInput {
     pub recurrence_tag_id: Option<String>,
     #[serde(default)]
     pub recurrence_start_date: Option<String>,
+    #[serde(default)]
+    pub dashboard_view: Option<String>,
+}
+
+/// A dashboard view must be one of the known kinds when present. `None` (unpinned)
+/// is always valid.
+fn validate_dashboard_view(view: Option<&String>) -> Result<()> {
+    match view {
+        Some(v) if v != "heatmap" && v != "streak" => Err(AppError::Invalid(format!(
+            "dashboard_view must be \"heatmap\" or \"streak\", got {v:?}"
+        ))),
+        _ => Ok(()),
+    }
 }
 
 #[tauri::command]
@@ -1402,6 +1415,7 @@ pub fn add_template(
     validate_estimated_seconds(input.estimated_seconds)?;
     validate_recurrence(input.recurrence.as_ref())?;
     validate_attachments(&input.attachments)?;
+    validate_dashboard_view(input.dashboard_view.as_ref())?;
     let ts = now_ms();
     let saved = state.write(|d| {
         let tag_ids = retain_known_tags(input.tag_ids, &d.tags);
@@ -1430,6 +1444,7 @@ pub fn add_template(
             recurrence: input.recurrence,
             recurrence_tag_id,
             recurrence_start_date: input.recurrence_start_date,
+            dashboard_view: input.dashboard_view,
         };
         d.template_tasks.push(tmpl.clone());
         Ok(tmpl)
@@ -1462,6 +1477,7 @@ fn duplicate_template_record(
         recurrence: src.recurrence,
         recurrence_tag_id,
         recurrence_start_date: src.recurrence_start_date.clone(),
+        dashboard_view: src.dashboard_view.clone(),
     }
 }
 
@@ -1514,6 +1530,8 @@ pub struct UpdateTemplateInput {
     pub recurrence_tag_id: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub recurrence_start_date: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub dashboard_view: Option<Option<String>>,
 }
 
 #[tauri::command]
@@ -1579,6 +1597,10 @@ pub fn update_template(
         };
         if let Some(v) = input.recurrence_start_date {
             t.recurrence_start_date = v;
+        }
+        if let Some(v) = input.dashboard_view {
+            validate_dashboard_view(v.as_ref())?;
+            t.dashboard_view = v;
         }
         t.updated_at = now_ms();
         Ok(t.clone())
@@ -2698,6 +2720,7 @@ mod tests {
             recurrence: Some(Recurrence::Daily),
             recurrence_tag_id: Some("tag_keep".into()),
             recurrence_start_date: None,
+            dashboard_view: None,
         };
 
         let copied_attachment = Attachment {
@@ -3369,6 +3392,27 @@ mod tests {
             serde_json::from_str(r#"{"id":"k_1","title":"x","due_offset_days":5}"#).unwrap();
         assert_eq!(set.title.as_deref(), Some("x"));
         assert_eq!(set.due_offset_days, Some(Some(5)));
+    }
+
+    #[test]
+    fn update_template_input_parses_dashboard_view_absent_null_value() {
+        // null unpins (Some(None)); absent leaves it (None); a value pins.
+        let absent: UpdateTemplateInput = serde_json::from_str(r#"{"id":"k_1"}"#).unwrap();
+        assert_eq!(absent.dashboard_view, None);
+        let cleared: UpdateTemplateInput =
+            serde_json::from_str(r#"{"id":"k_1","dashboard_view":null}"#).unwrap();
+        assert_eq!(cleared.dashboard_view, Some(None));
+        let set: UpdateTemplateInput =
+            serde_json::from_str(r#"{"id":"k_1","dashboard_view":"streak"}"#).unwrap();
+        assert_eq!(set.dashboard_view, Some(Some("streak".into())));
+    }
+
+    #[test]
+    fn validate_dashboard_view_rejects_unknown_kinds() {
+        assert!(validate_dashboard_view(None).is_ok());
+        assert!(validate_dashboard_view(Some(&"heatmap".to_string())).is_ok());
+        assert!(validate_dashboard_view(Some(&"streak".to_string())).is_ok());
+        assert!(validate_dashboard_view(Some(&"bogus".to_string())).is_err());
     }
 
     #[test]

@@ -90,3 +90,19 @@ export function computeHeatmap(args: {
 
   return { cells, scheduled, done, skipped: scheduled - done };
 }
+
+/**
+ * Current "done streak": the count of consecutive most-recent occurrences that
+ * were done, walking back from today. Days with no occurrence don't count and
+ * don't break the run; the first skipped occurrence ends it. Built from a
+ * `computeHeatmap` cell array (oldest..today).
+ */
+export function recurrenceStreak(cells: HeatCell[]): number {
+  let streak = 0;
+  for (let i = cells.length - 1; i >= 0; i--) {
+    if (cells[i].status === "none") continue;
+    if (cells[i].status === "done") streak++;
+    else break; // a skipped occurrence ends the streak
+  }
+  return streak;
+}

@@ -377,6 +377,11 @@ pub struct TemplateTask {
     /// recurrence rule would otherwise fire. `None` = no bound (backward compat).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recurrence_start_date: Option<String>,
+    /// Dashboard pin + view (#dashboard). `None` = not pinned to the Dashboard;
+    /// `Some("heatmap")` / `Some("streak")` = pinned, rendered in that view. Only
+    /// meaningful for recurring templates. `#[serde(default)]` so older files load.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dashboard_view: Option<String>,
 }
 
 impl TemplateTask {
@@ -400,6 +405,7 @@ impl TemplateTask {
             recurrence: None,
             recurrence_tag_id: None,
             recurrence_start_date: None,
+            dashboard_view: None,
         }
     }
 }
@@ -1362,6 +1368,7 @@ mod tests {
             recurrence: None,
             recurrence_tag_id: None,
             recurrence_start_date: None,
+            dashboard_view: None,
         }
     }
 
@@ -1811,5 +1818,19 @@ mod tests {
         s.recurrence_tag_id = Some("t_ex".into());
         let back: TemplateTask = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert_eq!(back.recurrence_tag_id.as_deref(), Some("t_ex"));
+    }
+
+    #[test]
+    fn template_dashboard_view_round_trips_and_omits_when_absent() {
+        // Absent -> None, omitted on write (backward compatible).
+        let t: TemplateTask =
+            serde_json::from_str(r#"{"id":"k_1","title":"t","created_at":0}"#).unwrap();
+        assert!(t.dashboard_view.is_none());
+        assert!(!serde_json::to_string(&t).unwrap().contains("dashboard_view"));
+        // Present value round-trips.
+        let mut s = template("k_2");
+        s.dashboard_view = Some("streak".into());
+        let back: TemplateTask = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+        assert_eq!(back.dashboard_view.as_deref(), Some("streak"));
     }
 }

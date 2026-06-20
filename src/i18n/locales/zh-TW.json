@@ -201,8 +201,16 @@
     "newTemplateTitle": "新範本"
   },
   "recurrence": {
-    "subtitle": "週期模板每天「已完成」與「未做」次數的熱圖。",
+    "subtitle": "加入週期標籤，以熱圖或連續記錄追蹤。",
     "empty": "目前沒有週期模板。請開啟一個模板的編輯器，為它設定週期排程。",
+    "noPins": "尚未加入任何項目。請使用上方的「加入標籤」來追蹤週期標籤。",
+    "addTag": "＋ 加入標籤",
+    "remove": "移除",
+    "viewLabel": "檢視",
+    "view_heatmap": "熱圖",
+    "view_streak": "連續記錄",
+    "last7": "最近 7 天",
+    "streakLabel": "天連續",
     "pickTemplate": "週期模板",
     "done": "已完成",
     "skipped": "未做",

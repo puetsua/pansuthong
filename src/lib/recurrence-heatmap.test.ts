@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Document, Task, TemplateTask } from "./tauri";
-import { computeHeatmap } from "./recurrence-heatmap";
+import { computeHeatmap, recurrenceStreak, HeatCell } from "./recurrence-heatmap";
 
 const TODAY = "2026-06-08"; // Monday
 
@@ -172,5 +172,30 @@ describe("computeHeatmap", () => {
     });
     expect(out.cells.every(c => c.status === "none")).toBe(true);
     expect(out.scheduled).toBe(0);
+  });
+});
+
+describe("recurrenceStreak", () => {
+  const cells = (...statuses: HeatCell["status"][]): HeatCell[] =>
+    statuses.map((status, i) => ({ iso: `2026-06-${String(i + 1).padStart(2, "0")}`, status }));
+
+  it("counts consecutive done occurrences from the most recent backward", () => {
+    expect(recurrenceStreak(cells("done", "done", "done"))).toBe(3);
+  });
+
+  it("ignores no-occurrence days without breaking the run", () => {
+    expect(recurrenceStreak(cells("done", "none", "done", "none"))).toBe(2);
+  });
+
+  it("stops at the first skipped occurrence", () => {
+    expect(recurrenceStreak(cells("done", "skip", "done", "done"))).toBe(2);
+  });
+
+  it("is zero when the latest occurrence was skipped", () => {
+    expect(recurrenceStreak(cells("done", "done", "skip"))).toBe(0);
+  });
+
+  it("is zero with no occurrences", () => {
+    expect(recurrenceStreak(cells("none", "none"))).toBe(0);
   });
 });
