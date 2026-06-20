@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { api, DashboardView, Document, TemplateTask } from "../lib/tauri";
@@ -7,6 +7,7 @@ import { recurrenceHeatmapDays, firstDayOfWeek } from "../lib/settings";
 import { computeHeatmap, Heatmap, HeatCell, HeatStatus, recurrenceStreak } from "../lib/recurrence-heatmap";
 import { formatDate } from "../lib/dates";
 import { currentLocale } from "../i18n";
+import { HeatmapGrid } from "../components/HeatmapGrid";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -16,22 +17,6 @@ function isDashable(t: TemplateTask): boolean {
 }
 
 const DASHBOARD_VIEWS: DashboardView[] = ["heatmap", "streak"];
-
-// Indexed by JS `getDay` (0 = Sunday .. 6 = Saturday) so the heatmap can order
-// rows from any configured first day of the week.
-const WEEKDAY_KEYS = [
-  "taskEditor.weekdaySun", "taskEditor.weekdayMon", "taskEditor.weekdayTue",
-  "taskEditor.weekdayWed", "taskEditor.weekdayThu", "taskEditor.weekdayFri",
-  "taskEditor.weekdaySat",
-];
-
-/** Position of a date within its week (0..6) given the configured first weekday
- *  (`fdow`, 0=Sun..6=Sat). Used both to front-pad the grid and to label rows. */
-function weekPosition(iso: string, fdow: number): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  const js = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
-  return (js - fdow + 7) % 7;
-}
 
 /** A dashboard unit: one recurrence tag plus the templates filed under it. The
  *  heatmap/streak aggregate every template sharing the tag (done/skip detection is
@@ -183,7 +168,13 @@ function HeatmapBody({ heat, days, todayIso, firstDayOfWeek }: {
         <Stat num={`${completion}%`} label={t("recurrence.completion")} />
         <Stat num={days} label={t("recurrence.rangeLabel")} />
       </div>
-      <HeatmapGrid cells={heat.cells} todayIso={todayIso} firstDayOfWeek={firstDayOfWeek} />
+      <HeatmapGrid
+        cells={heat.cells}
+        todayIso={todayIso}
+        firstDayOfWeek={firstDayOfWeek}
+        ariaLabel={t("recurrence.heatmapAria")}
+        labelForCell={cell => cellTip(t, cell)}
+      />
     </>
   );
 }
@@ -238,89 +229,6 @@ function cellTip(t: TFunction, cell: HeatCell): string {
   return t(`recurrence.tip${cap(cell.status)}`, { date });
 }
 
-/** A GitHub-style rolling heatmap: one column per ISO week (Mon..Sun) showing
- *  the most recent `cells.length` days ending today. Month labels sit above the
- *  week columns and weekday labels sit to the left of each row. Built from the
- *  flat `cells` array so it stays in lock-step with `computeHeatmap`. */
-function HeatmapGrid({ cells, todayIso, firstDayOfWeek }: { cells: HeatCell[]; todayIso: string; firstDayOfWeek: number }) {
-  const { t } = useTranslation();
-  // Year-month ("YYYY-MM") whose cells are highlighted while its month label is
-  // hovered; null when nothing is hovered.
-  const [hoverYm, setHoverYm] = useState<string | null>(null);
-  if (cells.length === 0) return null;
-
-  // Pad the front with blank cells so the grid starts on the configured first
-  // weekday and the columns line up as full weeks in oldest..today order.
-  const pad: HeatCell[] = Array.from({ length: weekPosition(cells[0].iso, firstDayOfWeek) }, () => ({
-    iso: "", status: "none" as const,
-  }));
-
-  // Group into weeks of 7, oldest first.
-  const weeks: HeatCell[][] = [];
-  const all = [...pad, ...cells];
-  for (let i = 0; i < all.length; i += 7) {
-    weeks.push(all.slice(i, i + 7));
-  }
-
-  // Per-week month header: `ym` is the week's year-month (for hover highlighting),
-  // `label` is its display name — blank when it repeats the previous week's month
-  // so the name only changes when the month does (GitHub-style).
-  const monthHeaders = weeks.map((w, wi) => {
-    const first = w.find(c => c.iso);
-    if (!first) return { ym: "", label: "" };
-    const ym = first.iso.slice(0, 7);
-    const m = Number(first.iso.slice(5, 7));
-    const prev = wi > 0 ? weeks[wi - 1].find(c => c.iso) : undefined;
-    const prevM = prev ? Number(prev.iso.slice(5, 7)) : 0;
-    return { ym, label: m === prevM ? "" : monthName(m) };
-  });
-
-  return (
-    <div className="heatmap" role="table" aria-label={t("recurrence.heatmapAria")}>
-      <div className="heatmap-months" role="row">
-        {monthHeaders.map((mh, i) => (
-          <span key={i} className="heatmap-month"
-                onMouseEnter={() => mh.ym && setHoverYm(mh.ym)}
-                onMouseLeave={() => setHoverYm(prev => (prev === mh.ym ? null : prev))}>
-            {mh.label}
-          </span>
-        ))}
-      </div>
-      <div className="heatmap-body">
-        <div className="heatmap-weekdays">
-          {Array.from({ length: 7 }, (_, i) => WEEKDAY_KEYS[(firstDayOfWeek + i) % 7]).map((k, i) => (
-            <span key={i} className="heatmap-weekday">{t(k).slice(0, 1)}</span>
-          ))}
-        </div>
-        <div className="heatmap-weeks" role="rowgroup">
-          {weeks.map((week, wi) => (
-            <div className="heatmap-week" role="row" key={wi}>
-              {week.map((cell, ci) => {
-                if (!cell.iso) {
-                  return <span key={ci} className="heatmap-cell heatmap-pad" aria-hidden="true" />;
-                }
-                const isToday = cell.iso === todayIso;
-                const hl = hoverYm != null && cell.iso.slice(0, 7) === hoverYm;
-                const cls = `heatmap-cell heatmap-${cell.status}${isToday ? " heatmap-today" : ""}${hl ? " heatmap-hl" : ""}`;
-                const label = cellTip(t, cell);
-                return (
-                  <span
-                    key={ci}
-                    role="cell"
-                    className={cls}
-                    title={label}
-                    aria-label={label}
-                  />
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /** Combine per-template heatmaps under one tag into a single series. The maps are
  *  day-aligned, so a day is "done" if any template did it, "skip" if any scheduled
  *  it without a completion, else "none". Done/skip never conflict for a day since
@@ -344,12 +252,4 @@ function mergeHeatmaps(maps: Heatmap[]): Heatmap {
 
 function cap(s: string): string {
   return s[0].toUpperCase() + s.slice(1);
-}
-
-const MONTH_NAMES_EN = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-function monthName(m: number): string {
-  return MONTH_NAMES_EN[m - 1] ?? "";
 }

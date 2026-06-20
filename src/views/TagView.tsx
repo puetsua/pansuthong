@@ -1,22 +1,49 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, Navigate, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Composer } from "../components/Composer";
+import { HeatmapGrid } from "../components/HeatmapGrid";
 import { RowList } from "../components/RowList";
 import { TagEditor } from "../components/TagEditor";
 import { Indexes } from "../state/indexes";
 import { useHeldCompletions, withHeld } from "../state/heldCompletions";
-import { Document, isDone } from "../lib/tauri";
+import { Document, Task, isDone } from "../lib/tauri";
+import { addDaysIso, formatDate } from "../lib/dates";
+import { currentLocale } from "../i18n";
+import { firstDayOfWeek, recurrenceHeatmapDays } from "../lib/settings";
+import { elapsedMs, formatDurationShort } from "../lib/time";
+import { recurrenceStreak, type HeatCell, type Heatmap } from "../lib/recurrence-heatmap";
 
 type Props = { doc: Document; indexes: Indexes };
+type Tab = "tasks" | "analytics";
 
 export function TagView({ doc, indexes }: Props) {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
+  const [tab, setTab] = useState<Tab>("tasks");
   // Hold just-completed tasks visible until this view is left/refreshed (#recover).
   const { held, onCompleted, onReopened } = useHeldCompletions(doc.tasks);
+  const tagId = id ?? "";
+  const taggedTasks = useMemo(
+    () => doc.tasks.filter(task => task.tag_ids.includes(tagId)),
+    [doc.tasks, tagId],
+  );
+  const analytics = useMemo(
+    () => {
+      const days = recurrenceHeatmapDays(doc.settings);
+      return computeTagAnalytics(
+        taggedTasks,
+        indexes.todayIso,
+        days,
+        recurringScheduledDates(indexes, tagId, days),
+      );
+    },
+    [taggedTasks, indexes, indexes.todayIso, doc.settings, tagId],
+  );
+  const fdow = firstDayOfWeek(doc.settings);
 
   if (!id) return <Navigate to="/today" replace />;
 
@@ -39,10 +66,36 @@ export function TagView({ doc, indexes }: Props) {
         </div>
         <p className="view-sub">{t("tagView.subtitle", { open, total: tasks.length })}</p>
       </header>
-      <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} contextTagId={id} />
-      <RowList rows={rows} tags={indexes.tagsById} todayIso={indexes.todayIso}
-               emptyText={t("tagView.empty")}
-               onCompleted={onCompleted} onReopened={onReopened} />
+      <div className="tag-view-tabs te-segmented" role="tablist" aria-label={t("tagView.tabsAria")}>
+        <button type="button" role="tab" aria-selected={tab === "tasks"}
+                className={tab === "tasks" ? "active" : ""}
+                onClick={() => setTab("tasks")}>
+          {t("tagView.tabTasks")}
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "analytics"}
+                className={tab === "analytics" ? "active" : ""}
+                onClick={() => setTab("analytics")}>
+          {t("tagView.tabAnalytics")}
+        </button>
+      </div>
+      {tab === "tasks" ? (
+        <>
+          <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} contextTagId={id} />
+          <RowList rows={rows} tags={indexes.tagsById} todayIso={indexes.todayIso}
+                   emptyText={t("tagView.empty")}
+                   onCompleted={onCompleted} onReopened={onReopened} />
+        </>
+      ) : (
+        <TagAnalytics
+          heat={analytics.heat}
+          totalSpentMs={analytics.totalSpentMs}
+          scheduledDays={analytics.scheduledDays}
+          completedTasks={analytics.completedTasks}
+          openTasks={analytics.openTasks}
+          todayIso={indexes.todayIso}
+          firstDayOfWeek={fdow}
+        />
+      )}
       {editing && (
         <TagEditor
           tag={tag}
@@ -52,4 +105,131 @@ export function TagView({ doc, indexes }: Props) {
       )}
     </section>
   );
+}
+
+function TagAnalytics({ heat, totalSpentMs, scheduledDays, completedTasks, openTasks, todayIso, firstDayOfWeek }: {
+  heat: Heatmap;
+  totalSpentMs: number;
+  scheduledDays: number;
+  completedTasks: number;
+  openTasks: number;
+  todayIso: string;
+  firstDayOfWeek: number;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="tag-analytics">
+      <div className="recurrence-stats" role="status">
+        <Stat num={formatDurationShort(totalSpentMs)} label={t("tagView.totalSpent")} />
+        <Stat num={scheduledDays} label={t("tagView.scheduledDays")} />
+        <Stat num={recurrenceStreak(heat.cells)} label={t("tagView.streakLabel")} />
+        <Stat num={completedTasks} label={t("tagView.completedTasks")} />
+        <Stat num={openTasks} label={t("tagView.openTasks")} />
+      </div>
+      <HeatmapGrid
+        cells={heat.cells}
+        todayIso={todayIso}
+        firstDayOfWeek={firstDayOfWeek}
+        ariaLabel={t("tagView.heatmapAria")}
+        labelForCell={cell => tagCellTip(t, cell)}
+      />
+      <ul className="heatmap-legend" aria-label={t("tagView.legendAria")}>
+        <li><span className="heatmap-cell heatmap-done" /> {t("tagView.legendActivity")}</li>
+        <li><span className="heatmap-cell heatmap-skip" /> {t("tagView.legendScheduled")}</li>
+        <li><span className="heatmap-cell heatmap-none" /> {t("tagView.legendNone")}</li>
+      </ul>
+    </div>
+  );
+}
+
+function Stat({ num, label }: { num: number | string; label: string }) {
+  return (
+    <span className="recurrence-stat">
+      <span className="recurrence-stat-num">{num}</span>
+      <span className="recurrence-stat-label">{label}</span>
+    </span>
+  );
+}
+
+function computeTagAnalytics(tasks: Task[], todayIso: string, days: number, recurringScheduled: Set<string>): {
+  heat: Heatmap;
+  totalSpentMs: number;
+  scheduledDays: number;
+  completedTasks: number;
+  openTasks: number;
+} {
+  const now = Date.now();
+  const start = addDaysIso(todayIso, -(days - 1));
+  const completed = new Set<string>();
+  const scheduled = new Set(recurringScheduled);
+  let totalSpentMs = 0;
+  let completedTasks = 0;
+  let openTasks = 0;
+
+  for (const task of tasks) {
+    if (isDone(task)) completedTasks++;
+    else openTasks++;
+
+    const spent = elapsedMs(task, now);
+    totalSpentMs += spent;
+
+    for (const entry of task.time_entries ?? []) {
+      const iso = entry.start.slice(0, 10);
+      if (iso >= start && iso <= todayIso) scheduled.add(iso);
+    }
+    if (task.completed_at) {
+      const iso = task.completed_at.slice(0, 10);
+      if (iso >= start && iso <= todayIso) completed.add(iso);
+    }
+    for (const iso of [task.start_date, task.due_date]) {
+      if (iso && iso >= start && iso <= todayIso) scheduled.add(iso);
+    }
+  }
+
+  const cells: HeatCell[] = [];
+  let done = 0;
+  let count = 0;
+  for (let i = 0; i < days; i++) {
+    const iso = addDaysIso(start, i);
+    let status: HeatCell["status"] = "none";
+    if (completed.has(iso)) {
+      status = "done";
+      done++;
+      count++;
+    } else if (scheduled.has(iso)) {
+      status = "skip";
+      count++;
+    }
+    cells.push({ iso, status });
+  }
+
+  return {
+    heat: { cells, scheduled: count, done, skipped: count - done },
+    totalSpentMs,
+    scheduledDays: count,
+    completedTasks,
+    openTasks,
+  };
+}
+
+function recurringScheduledDates(indexes: Indexes, tagId: string, days: number): Set<string> {
+  const scheduled = new Set<string>();
+  const start = addDaysIso(indexes.todayIso, -(days - 1));
+  for (let i = 0; i < days; i++) {
+    const iso = addDaysIso(start, i);
+    if (indexes.ghostsForDate(iso).some(ghost => ghost.tag_ids.includes(tagId))) {
+      scheduled.add(iso);
+    }
+  }
+  return scheduled;
+}
+
+function tagCellTip(t: TFunction, cell: HeatCell): string {
+  const d = new Date(`${cell.iso}T00:00:00Z`);
+  const date = formatDate(d, "slash_ymd", currentLocale());
+  return t(`tagView.tip${cap(cell.status)}`, { date });
+}
+
+function cap(s: string): string {
+  return s[0].toUpperCase() + s.slice(1);
 }

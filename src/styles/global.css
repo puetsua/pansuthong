@@ -1588,6 +1588,16 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .view-title-row { display: flex; align-items: center; gap: var(--space-3); }
 .view-title-row h1 { margin-bottom: 0; }
 .tag-edit-link { margin-left: auto; flex-shrink: 0; }
+.tag-view-tabs {
+  display: inline-flex;
+  margin: 0 0 var(--space-3);
+}
+.tag-analytics {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
 
 /* Tags manager page: per-row task count next to the weight. */
 .tag-count { color: var(--c-text-muted); font-size: 0.8rem; }
