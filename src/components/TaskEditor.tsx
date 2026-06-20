@@ -95,6 +95,9 @@ export function TaskEditor(props: Props) {
     repeat_days: tmplEntity?.recurrence?.kind === "monthly" ? tmplEntity.recurrence.days.join(", ") : "",
     repeat_dates: tmplEntity?.recurrence?.kind === "yearly" ? tmplEntity.recurrence.dates : [],
     recurrence_tag_id: tmplEntity?.recurrence_tag_id ?? "",
+    // Default an unconfigured start date to today so a new recurrence doesn't
+    // back-fill ghost rows before it was set up.
+    recurrence_start_date: tmplEntity?.recurrence_start_date ?? todayIso(),
   });
   // NOTE (known limitation): the form seeds from `task` once. If the same task is
   // changed externally (folder sync, or an edit elsewhere) while this editor is
@@ -261,6 +264,7 @@ export function TaskEditor(props: Props) {
             estimated_seconds: estimatedSecondsOrUndefined(form.estimated_seconds),
             recurrence: recurrenceFromForm(form),
             recurrence_tag_id: form.repeat !== "none" ? (form.recurrence_tag_id || null) : null,
+            recurrence_start_date: form.repeat !== "none" ? (form.recurrence_start_date || null) : null,
           });
         } else {
           await api.updateTemplate(buildTemplateUpdate(entity.id, { ...form, tag_ids: tagIds }));
@@ -704,6 +708,11 @@ export function TaskEditor(props: Props) {
                     </p>
                   ) : null;
                 })()}
+                <label className="te-field">
+                  <span>{t("taskEditor.recurrenceStartDate")}</span>
+                  <input type="date" value={form.recurrence_start_date}
+                         onChange={e => set("recurrence_start_date", e.currentTarget.value)} />
+                </label>
               </>
             )}
             {recurError && <p className="te-warn" role="alert">{recurError}</p>}

@@ -213,18 +213,23 @@ export function buildIndexes(doc: Document): Indexes {
   // just after midnight with a later day-start still belongs to the same logical day.
   const dsh = dayStartHour(doc.settings);
 
+  // True when today falls on or within a task's time range, ignoring done-ness. A
+  // task with a start_date opens a span beginning that day: with a due_date it ends
+  // at the due date, without one it runs open-endedly into the future, so it shows
+  // every day from its start onward until completed. A due-only task shows on its
+  // due day and after (overdue).
+  const coversToday = (t: Task, todayIso: string): boolean => {
+    if (t.start_date) return !isoLt(todayIso, t.start_date);    // start <= today (open-ended or within span)
+    return t.due_date != null && t.due_date <= todayIso;        // due today or overdue
+  };
+
   const inToday = (t: Task, todayIso: string): boolean => {
     if (isDone(t)) {
       if (logicalDayOf(t.completed_at ?? "", dsh) !== todayIso) return false;
-      // Only keep it if it belonged to Today: scheduled today, or due on/before today.
-      return t.start_date === todayIso || (t.due_date != null && t.due_date <= todayIso);
+      // Only keep it if it belonged to Today's list while it was open.
+      return coversToday(t, todayIso);
     }
-    if (t.start_date === todayIso) return true;
-    if (t.due_date) {
-      if (t.due_date === todayIso) return true;
-      if (isoLt(t.due_date, todayIso)) return true; // overdue, still open
-    }
-    return false;
+    return coversToday(t, todayIso);
   };
 
   const today = (todayIso: string): Task[] =>
@@ -253,6 +258,7 @@ export function buildIndexes(doc: Document): Indexes {
     const out: GhostTask[] = [];
     for (const tmpl of recurringTemplates) {
       if (!occursOn(tmpl.recurrence!, iso)) continue;
+      if (tmpl.recurrence_start_date && iso < tmpl.recurrence_start_date) continue;
       if (covered && covered.has(tmpl.recurrence_tag_id!)) continue; // already done that day
       out.push({
         id: `ghost_${tmpl.id}_${iso}`,

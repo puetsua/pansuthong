@@ -3,6 +3,7 @@ import { Settings } from "./tauri";
 import {
   clampDayStartHour,
   clampMaxAttachmentMb,
+  clampRecurrenceHeatmapDays,
   clampReminderInterval,
   clampUpcomingDays,
   DATE_FORMAT_DEFAULT,
@@ -17,10 +18,19 @@ import {
   defaultTagPriority,
   DEFAULT_TAG_COLOR,
   DEFAULT_TAG_PRIORITY,
+  clampFirstDayOfWeek,
+  firstDayOfWeek,
+  FIRST_DAY_OF_WEEK_DEFAULT,
+  FIRST_DAY_OF_WEEK_MAX,
+  FIRST_DAY_OF_WEEK_MIN,
   maxAttachmentMb,
   MAX_ATTACHMENT_MB_DEFAULT,
   MAX_ATTACHMENT_MB_MAX,
   MAX_ATTACHMENT_MB_MIN,
+  RECURRENCE_HEATMAP_DAYS_DEFAULT,
+  RECURRENCE_HEATMAP_DAYS_MAX,
+  RECURRENCE_HEATMAP_DAYS_MIN,
+  recurrenceHeatmapDays,
   reminderIntervalMinutes,
   REMINDER_INTERVAL_DEFAULT,
   REMINDER_INTERVAL_MAX,
@@ -249,5 +259,73 @@ describe("timeFormat", () => {
 
   it("normalizes an unsupported stored value to the default", () => {
     expect(timeFormat({ ...settings(), time_format: "metric" as "locale" })).toBe("locale");
+  });
+});
+
+describe("clampRecurrenceHeatmapDays", () => {
+  it("keeps in-range integers", () => {
+    expect(clampRecurrenceHeatmapDays("90")).toBe(90);
+    expect(clampRecurrenceHeatmapDays(180)).toBe(180);
+  });
+
+  it("clamps below/above the allowed range", () => {
+    expect(clampRecurrenceHeatmapDays("0")).toBe(RECURRENCE_HEATMAP_DAYS_MIN);
+    expect(clampRecurrenceHeatmapDays(-5)).toBe(RECURRENCE_HEATMAP_DAYS_MIN);
+    expect(clampRecurrenceHeatmapDays("99999")).toBe(RECURRENCE_HEATMAP_DAYS_MAX);
+  });
+
+  it("falls back to the default on non-numeric input", () => {
+    expect(clampRecurrenceHeatmapDays("abc")).toBe(RECURRENCE_HEATMAP_DAYS_DEFAULT);
+    expect(clampRecurrenceHeatmapDays("")).toBe(RECURRENCE_HEATMAP_DAYS_DEFAULT);
+  });
+
+  it("truncates fractional input", () => {
+    expect(clampRecurrenceHeatmapDays(90.9)).toBe(90);
+  });
+});
+
+describe("recurrenceHeatmapDays", () => {
+  it("defaults to 90 when unset (older documents)", () => {
+    expect(recurrenceHeatmapDays(settings())).toBe(RECURRENCE_HEATMAP_DAYS_DEFAULT);
+    expect(RECURRENCE_HEATMAP_DAYS_DEFAULT).toBe(90);
+  });
+
+  it("uses the configured value when present", () => {
+    expect(recurrenceHeatmapDays({ ...settings(), recurrence_heatmap_days: 120 })).toBe(120);
+  });
+
+  it("clamps an out-of-range stored value defensively", () => {
+    expect(recurrenceHeatmapDays({ ...settings(), recurrence_heatmap_days: 99999 })).toBe(RECURRENCE_HEATMAP_DAYS_MAX);
+  });
+});
+
+describe("clampFirstDayOfWeek", () => {
+  it("keeps in-range weekday indices", () => {
+    expect(clampFirstDayOfWeek("0")).toBe(0);
+    expect(clampFirstDayOfWeek(6)).toBe(6);
+  });
+
+  it("clamps below/above 0..6", () => {
+    expect(clampFirstDayOfWeek(-1)).toBe(FIRST_DAY_OF_WEEK_MIN);
+    expect(clampFirstDayOfWeek("9")).toBe(FIRST_DAY_OF_WEEK_MAX);
+  });
+
+  it("falls back to the default on non-numeric input", () => {
+    expect(clampFirstDayOfWeek("abc")).toBe(FIRST_DAY_OF_WEEK_DEFAULT);
+  });
+});
+
+describe("firstDayOfWeek", () => {
+  it("defaults to Monday (1) when unset (older documents)", () => {
+    expect(firstDayOfWeek(settings())).toBe(FIRST_DAY_OF_WEEK_DEFAULT);
+    expect(FIRST_DAY_OF_WEEK_DEFAULT).toBe(1);
+  });
+
+  it("uses the configured value when present", () => {
+    expect(firstDayOfWeek({ ...settings(), first_day_of_week: 0 })).toBe(0);
+  });
+
+  it("clamps an out-of-range stored value defensively", () => {
+    expect(firstDayOfWeek({ ...settings(), first_day_of_week: 99 })).toBe(FIRST_DAY_OF_WEEK_MAX);
   });
 });

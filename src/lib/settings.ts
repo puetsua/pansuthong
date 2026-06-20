@@ -125,3 +125,39 @@ export function clampMaxAttachmentMb(raw: string | number): number {
   if (Number.isNaN(n)) return MAX_ATTACHMENT_MB_DEFAULT;
   return Math.max(MAX_ATTACHMENT_MB_MIN, Math.min(MAX_ATTACHMENT_MB_MAX, n));
 }
+
+/** Default Recurrence dashboard heatmap range (days back from today). */
+export const RECURRENCE_HEATMAP_DAYS_DEFAULT = 90;
+/** Inclusive bounds for the heatmap range (mirrors the Rust check). */
+export const RECURRENCE_HEATMAP_DAYS_MIN = 7;
+export const RECURRENCE_HEATMAP_DAYS_MAX = 365;
+
+/** The effective heatmap range (days back from today) for a document's settings. */
+export function recurrenceHeatmapDays(settings: Settings): number {
+  return clampRecurrenceHeatmapDays(settings.recurrence_heatmap_days ?? RECURRENCE_HEATMAP_DAYS_DEFAULT);
+}
+
+/** Parse a free-typed day count to an integer clamped to the allowed range. */
+export function clampRecurrenceHeatmapDays(raw: string | number): number {
+  const n = typeof raw === "number" ? Math.trunc(raw) : parseInt(raw, 10);
+  if (Number.isNaN(n)) return RECURRENCE_HEATMAP_DAYS_DEFAULT;
+  return Math.max(RECURRENCE_HEATMAP_DAYS_MIN, Math.min(RECURRENCE_HEATMAP_DAYS_MAX, n));
+}
+
+/** Default first day of the week for the heatmap (1 = Monday, the prior behavior). */
+export const FIRST_DAY_OF_WEEK_DEFAULT = 1;
+/** Inclusive bounds: 0 = Sunday .. 6 = Saturday (JS `getDay`; mirrors the Rust check). */
+export const FIRST_DAY_OF_WEEK_MIN = 0;
+export const FIRST_DAY_OF_WEEK_MAX = 6;
+
+/** The heatmap's first-day-of-week weekday (0=Sun..6=Sat) for these settings. */
+export function firstDayOfWeek(settings: Settings): number {
+  return clampFirstDayOfWeek(settings.first_day_of_week ?? FIRST_DAY_OF_WEEK_DEFAULT);
+}
+
+/** Parse a free-typed weekday index to an integer clamped to 0..6. */
+export function clampFirstDayOfWeek(raw: string | number): number {
+  const n = typeof raw === "number" ? Math.trunc(raw) : parseInt(raw, 10);
+  if (Number.isNaN(n)) return FIRST_DAY_OF_WEEK_DEFAULT;
+  return Math.max(FIRST_DAY_OF_WEEK_MIN, Math.min(FIRST_DAY_OF_WEEK_MAX, n));
+}

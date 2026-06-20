@@ -67,7 +67,7 @@ export function GhostRow({ ghost, tags }: Props) {
       <div className="task-row ghost-row" data-ghost="true">
         <button type="button" className="task-main" onClick={open} disabled={busy}
                 aria-label={t("ghostRow.open", { title: ghost.title })}>
-          <span className="ghost-mark" aria-hidden>🔁</span>
+          <span className="task-recurring" aria-hidden>↻</span>
           <span className="task-title">{ghost.title}</span>
           {ghostTags.map(t => (
             <span key={t.id} className="task-tag" style={{ background: t.color, color: readableTextColor(t.color) }}>

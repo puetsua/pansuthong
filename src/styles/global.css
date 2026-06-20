@@ -94,6 +94,7 @@ button {
 .task-row[data-done="true"] .task-title { color: var(--c-text-subtle); text-decoration: line-through; }
 .task-title { flex: 1; word-break: break-word; }
 .task-tag   { font-size: 0.7rem; padding: 1px 6px; border-radius: 3px; font-weight: 600; white-space: nowrap; }
+.task-recurring { color: var(--c-text-muted); flex: none; line-height: 1; }
 .task-when  { color: var(--c-text-muted); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
 .task-when.late { color: var(--c-danger); font-weight: 600; }
 
@@ -1621,7 +1622,6 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 /* Recurring-task ghost rows (#9): de-emphasised so they read as "not yet real". */
 .ghost-row { opacity: 0.62; }
 .ghost-row .task-title { font-style: italic; }
-.ghost-row .ghost-mark { margin-right: 0.4em; opacity: 0.8; }
 
 /* Template editor weekday toggles (#9). */
 .te-weekdays { display: flex; flex-wrap: wrap; gap: var(--space-1); }
@@ -1692,3 +1692,43 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
     grid-template-rows: 1fr 1fr;
   }
 }
+
+/* Recurrence dashboard heatmap (#recurrence-dashboard). */
+.recurrence-picker { margin-bottom: var(--space-4); max-width: 24rem; }
+.recurrence-stats {
+  display: flex; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-4);
+}
+.recurrence-stat { display: flex; flex-direction: column; gap: var(--space-1); }
+.recurrence-stat-num { font-size: 1.4rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--c-text); }
+.recurrence-stat-label { font-size: 0.75rem; color: var(--c-text-muted); }
+
+/* One source of truth for the cell box. Weekday labels and cells both derive their
+   row height from this rem value, so the two columns can never drift apart (an
+   earlier `em`-based label height shrank with the small glyph font and pushed the
+   labels out of alignment with the cell rows). */
+.heatmap { --heat-cell: 1.2rem; display: inline-block; max-width: 100%; overflow-x: auto; padding: var(--space-1); }
+.heatmap-months { display: flex; gap: 2px; margin-left: calc(1.4em + var(--space-1)); margin-bottom: var(--space-1); }
+.heatmap-month { flex: 0 0 var(--heat-cell); width: var(--heat-cell); font-size: 0.65rem; color: var(--c-text-muted); overflow: visible; white-space: nowrap; }
+.heatmap-body { display: flex; gap: var(--space-1); }
+.heatmap-weekdays { display: flex; flex-direction: column; gap: 2px; }
+.heatmap-weekday { height: var(--heat-cell); line-height: var(--heat-cell); font-size: 0.65rem; color: var(--c-text-muted); width: 1.4em; text-align: right; }
+.heatmap-weeks { display: flex; flex-direction: row; gap: 2px; }
+.heatmap-week { display: flex; flex-direction: column; gap: 2px; }
+.heatmap-cell {
+  width: var(--heat-cell); height: var(--heat-cell); border-radius: var(--radius-sm);
+  border: 1px solid var(--c-heat-border); display: block;
+}
+.heatmap-cell.heatmap-done { background: var(--c-heat-done); }
+.heatmap-cell.heatmap-skip { background: var(--c-heat-skip); }
+.heatmap-cell.heatmap-none { background: var(--c-heat-empty); }
+.heatmap-cell.heatmap-pad { background: transparent; border-color: transparent; }
+.heatmap-cell.heatmap-today { outline: 1.5px solid var(--c-heat-today); outline-offset: -1px; }
+/* Highlight every cell of a month while its label is hovered. box-shadow (not
+   border/outline) so it layers cleanly over the today outline and never shifts
+   the grid. Pad cells have no month and are skipped in the markup. */
+.heatmap-cell.heatmap-hl { box-shadow: 0 0 0 2px var(--c-accent); }
+.heatmap-month:hover { color: var(--c-text); }
+
+.heatmap-legend { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); padding: 0; font-size: 0.8rem; color: var(--c-text-muted); }
+.heatmap-legend li { display: flex; align-items: center; gap: var(--space-1); }
+.heatmap-legend .heatmap-cell { width: 0.9em; height: 0.9em; }

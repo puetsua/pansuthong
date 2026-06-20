@@ -63,6 +63,15 @@ export function ThemePreview({ tokens, onHover }: Props) {
             <span className="tp-check" data-token="--c-border" />
             <div className="task-row-progress"><div className="task-row-progress-fill" style={{ width: "60%" }} /></div>
           </div>
+          {/* Simple heatmap preview — bare cells, no text (#15). */}
+          <div data-token="--c-heat-border" style={{
+            display: "flex", gap: "2px", marginTop: "var(--space-3)",
+          }}>
+            <span className="heatmap-cell heatmap-done" data-token="--c-heat-done" />
+            <span className="heatmap-cell heatmap-skip" data-token="--c-heat-skip" />
+            <span className="heatmap-cell heatmap-none" data-token="--c-heat-empty" />
+            <span className="heatmap-cell heatmap-done heatmap-today" data-token="--c-heat-today" />
+          </div>
         </div>
       </div>
     </div>

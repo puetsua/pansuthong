@@ -372,6 +372,11 @@ pub struct TemplateTask {
     /// templates and older files.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recurrence_tag_id: Option<String>,
+    /// Earliest date (YYYY-MM-DD) the recurrence schedule takes effect. Days before
+    /// this date do not spawn ghost rows or show in the heatmap, even if the
+    /// recurrence rule would otherwise fire. `None` = no bound (backward compat).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recurrence_start_date: Option<String>,
 }
 
 impl TemplateTask {
@@ -394,6 +399,7 @@ impl TemplateTask {
                 .or_else(|| c.estimated_minutes.map(|m| m * 60)),
             recurrence: None,
             recurrence_tag_id: None,
+            recurrence_start_date: None,
         }
     }
 }
@@ -1355,6 +1361,7 @@ mod tests {
             estimated_seconds: None,
             recurrence: None,
             recurrence_tag_id: None,
+            recurrence_start_date: None,
         }
     }
 

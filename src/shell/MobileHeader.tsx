@@ -10,6 +10,7 @@ const ROUTE_TITLE_KEYS: Record<string, string> = {
   "/inbox":    "nav.inbox",
   "/upcoming": "nav.upcoming",
   "/templates": "nav.templates",
+  "/recurrence": "nav.recurrence",
   "/history": "nav.history",
   "/tags":     "nav.tags",
   "/archived": "nav.archived",
@@ -26,6 +27,7 @@ export function MobileHeader({ indexes }: Props) {
       <h1 className="mobile-title">{title}</h1>
       <div className="mobile-header-actions">
         <Link to="/templates" className="mobile-header-icon" aria-label={t("nav.templates")}>▤</Link>
+        <Link to="/recurrence" className="mobile-header-icon" aria-label={t("nav.recurrence")}>▦</Link>
         <Link to="/history" className="mobile-header-icon" aria-label={t("nav.history")}>H</Link>
         <Link to="/tags" className="mobile-header-icon" aria-label={t("nav.tags")}>#</Link>
         <Link to="/settings" className="mobile-header-icon" aria-label={t("nav.settings")}>⚙</Link>

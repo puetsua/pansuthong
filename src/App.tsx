@@ -14,6 +14,7 @@ import { SettingsView } from "./views/SettingsView";
 import { TagsView } from "./views/TagsView";
 import { ArchivedView } from "./views/ArchivedView";
 import { TemplatesView } from "./views/TemplatesView";
+import { RecurrenceView } from "./views/RecurrenceView";
 import { ConflictsView } from "./views/ConflictsView";
 import { HistoryView } from "./views/HistoryView";
 import { useDocument } from "./state/store";
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="/tags" element={<TagsView doc={doc} indexes={indexes} />} />
           <Route path="/archived" element={<ArchivedView doc={doc} indexes={indexes} />} />
           <Route path="/templates" element={<TemplatesView doc={doc} indexes={indexes} />} />
+          <Route path="/recurrence" element={<RecurrenceView doc={doc} indexes={indexes} />} />
           <Route path="/history" element={<HistoryView todayIso={indexes.todayIso} />} />
           <Route path="/conflicts/:filename" element={<ConflictsView />} />
           <Route path="*"      element={<p>{t("app.notBuilt")}</p>} />

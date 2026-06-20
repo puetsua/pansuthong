@@ -1383,6 +1383,8 @@ pub struct NewTemplateInput {
     pub recurrence: Option<Recurrence>,
     #[serde(default)]
     pub recurrence_tag_id: Option<String>,
+    #[serde(default)]
+    pub recurrence_start_date: Option<String>,
 }
 
 #[tauri::command]
@@ -1427,6 +1429,7 @@ pub fn add_template(
             estimated_seconds: input.estimated_seconds,
             recurrence: input.recurrence,
             recurrence_tag_id,
+            recurrence_start_date: input.recurrence_start_date,
         };
         d.template_tasks.push(tmpl.clone());
         Ok(tmpl)
@@ -1458,6 +1461,7 @@ fn duplicate_template_record(
         estimated_seconds: src.estimated_seconds,
         recurrence: src.recurrence,
         recurrence_tag_id,
+        recurrence_start_date: src.recurrence_start_date.clone(),
     }
 }
 
@@ -1508,6 +1512,8 @@ pub struct UpdateTemplateInput {
     pub recurrence: Option<Option<Recurrence>>,
     #[serde(default, deserialize_with = "double_option")]
     pub recurrence_tag_id: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub recurrence_start_date: Option<Option<String>>,
 }
 
 #[tauri::command]
@@ -1571,6 +1577,9 @@ pub fn update_template(
         } else {
             None
         };
+        if let Some(v) = input.recurrence_start_date {
+            t.recurrence_start_date = v;
+        }
         t.updated_at = now_ms();
         Ok(t.clone())
     })?;
@@ -1777,6 +1786,10 @@ const REMINDER_INTERVAL_MAX: u32 = 1440;
 const TAG_WEIGHT_MIN: i64 = -9999;
 const TAG_WEIGHT_MAX: i64 = 9999;
 
+/// Bounds for the Recurrence dashboard heatmap range, in days (1 week .. 1 year).
+const RECURRENCE_HEATMAP_DAYS_MIN: u32 = 7;
+const RECURRENCE_HEATMAP_DAYS_MAX: u32 = 365;
+
 /// True for a `#rgb` or `#rrggbb` hex color string. Guards the configurable
 /// default tag color (#79) so a malformed value can't be stored and then
 /// pre-filled into every new tag's swatch.
@@ -1922,6 +1935,10 @@ pub struct UpdateSettingsInput {
     #[serde(default)]
     pub max_attachment_mb: Option<u32>,
     #[serde(default)]
+    pub recurrence_heatmap_days: Option<u32>,
+    #[serde(default)]
+    pub first_day_of_week: Option<u32>,
+    #[serde(default)]
     pub date_time_format: Option<String>,
     #[serde(default)]
     pub date_format: Option<String>,
@@ -2006,6 +2023,22 @@ pub fn update_settings(
                 )));
             }
             s.max_attachment_mb = mb;
+        }
+        if let Some(d) = input.recurrence_heatmap_days {
+            if !(RECURRENCE_HEATMAP_DAYS_MIN..=RECURRENCE_HEATMAP_DAYS_MAX).contains(&d) {
+                return Err(AppError::Invalid(format!(
+                    "recurrence_heatmap_days must be {RECURRENCE_HEATMAP_DAYS_MIN}..={RECURRENCE_HEATMAP_DAYS_MAX}, got {d}"
+                )));
+            }
+            s.recurrence_heatmap_days = d;
+        }
+        if let Some(fdow) = input.first_day_of_week {
+            if fdow > 6 {
+                return Err(AppError::Invalid(format!(
+                    "first_day_of_week must be 0..=6, got {fdow}"
+                )));
+            }
+            s.first_day_of_week = fdow;
         }
         if let Some(fmt) = input.date_time_format {
             if !is_date_format(&fmt) {
@@ -2664,6 +2697,7 @@ mod tests {
             estimated_seconds: Some(120),
             recurrence: Some(Recurrence::Daily),
             recurrence_tag_id: Some("tag_keep".into()),
+            recurrence_start_date: None,
         };
 
         let copied_attachment = Attachment {
@@ -3131,6 +3165,25 @@ mod tests {
         assert_eq!(v.max_attachment_mb, Some(2048));
         let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(absent.max_attachment_mb, None);
+    }
+
+    #[test]
+    fn update_settings_input_parses_recurrence_heatmap_days() {
+        // Pins the snake_case `recurrence_heatmap_days` key the JS api sends.
+        let v: UpdateSettingsInput =
+            serde_json::from_str(r#"{"recurrence_heatmap_days":120}"#).unwrap();
+        assert_eq!(v.recurrence_heatmap_days, Some(120));
+        let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(absent.recurrence_heatmap_days, None);
+    }
+
+    #[test]
+    fn update_settings_input_parses_first_day_of_week() {
+        // Pins the snake_case `first_day_of_week` key the JS api sends.
+        let v: UpdateSettingsInput = serde_json::from_str(r#"{"first_day_of_week":0}"#).unwrap();
+        assert_eq!(v.first_day_of_week, Some(0));
+        let absent: UpdateSettingsInput = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(absent.first_day_of_week, None);
     }
 
     #[test]

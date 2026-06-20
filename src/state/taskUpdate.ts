@@ -30,6 +30,7 @@ export type EditorForm = {
   repeat_days: string;        // monthly: comma/space-separated days-of-month, e.g. "1, 15"
   repeat_dates: YearlyDate[]; // yearly: month+day pairs (UI rows)
   recurrence_tag_id: string; // "" = none; the chosen recurrence tag id (#9)
+  recurrence_start_date: string; // "" = none; YYYY-MM-DD earliest occurrence date
 };
 
 /** "" => null (no offset); otherwise the parsed integer, NaN guarded to null. */
@@ -150,6 +151,7 @@ export function buildTemplateUpdate(id: string, form: EditorForm): TemplateUpdat
     estimated_seconds: estimatedSecondsOrNull(form.estimated_seconds),
     recurrence: recurrenceFromForm(form),
     recurrence_tag_id: form.repeat !== "none" ? (form.recurrence_tag_id || null) : null,
+    recurrence_start_date: form.repeat !== "none" ? (form.recurrence_start_date || null) : null,
   };
 }
 
@@ -184,6 +186,7 @@ export function isEditorDirty(form: EditorForm, initial: EditorForm): boolean {
     || datesKey(form.repeat_dates) !== datesKey(initial.repeat_dates)
     || form.repeat_weekdays.join(",") !== initial.repeat_weekdays.join(",")
     || form.recurrence_tag_id !== initial.recurrence_tag_id
+    || form.recurrence_start_date !== initial.recurrence_start_date
     || (form.new_tag_names?.length ?? 0) > 0;
 }
 

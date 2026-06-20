@@ -36,7 +36,7 @@ describe("built-in presets", () => {
 
 describe("TOKEN_ORDER", () => {
   it("covers the editable tokens and each has a label key", () => {
-    expect(TOKEN_ORDER).toHaveLength(10);
+    expect(TOKEN_ORDER).toHaveLength(15);
     for (const tok of TOKEN_ORDER) expect(typeof TOKEN_LABEL_KEY[tok]).toBe("string");
   });
 });

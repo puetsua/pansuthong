@@ -17,6 +17,23 @@ describe("buildIndexes", () => {
     expect(ids).toEqual(["k_overdue1", "k_today1", "k_today2", "k_reno1"]);
   });
 
+  it("today includes any task whose start_date is on or before today (open-ended or within span)", () => {
+    const spanning = doc({
+      tags: [],
+      tasks: [
+        { id: "k_span", title: "k_span", notes: "", tag_ids: [], created_at: "1970-01-01T00:00:00Z",
+          start_date: "2026-05-20", due_date: "2026-06-05" }, // 05-28 is within the span
+        { id: "k_open_ended", title: "k_open_ended", notes: "", tag_ids: [], created_at: "1970-01-01T00:00:00Z",
+          start_date: "2026-05-20" }, // start-only, before today: runs open-endedly forward, included
+        { id: "k_future_span", title: "k_future_span", notes: "", tag_ids: [], created_at: "1970-01-01T00:00:00Z",
+          start_date: "2026-05-29", due_date: "2026-06-05" }, // starts tomorrow: excluded
+        { id: "k_future_start", title: "k_future_start", notes: "", tag_ids: [], created_at: "1970-01-01T00:00:00Z",
+          start_date: "2026-05-29" }, // start-only in the future: excluded until it begins
+      ],
+    });
+    expect(buildIndexes(spanning).today(TODAY).map(t => t.id)).toEqual(["k_span", "k_open_ended"]);
+  });
+
   it("inbox contains tasks with no pinned tag (untagged or unpinned-only)", () => {
     // t_work and t_errand are pinned, so their tasks are surfaced in the sidebar
     // and excluded. k_reno1 (only the unpinned t_reno) and k_future1 (untagged)
@@ -226,7 +243,9 @@ describe("completed-today tasks linger in Today, at the bottom (#recover)", () =
     const ix = buildIndexes(doc);
     // It lingers in the logical day it belongs to (06-10), not the wall date (06-11).
     expect(ix.today("2026-06-10").map(t => t.id)).toEqual(["k_open", "k_after_midnight"]);
-    expect(ix.today("2026-06-11").map(t => t.id)).toEqual([]);
+    // On 06-11 the done task is gone (it belongs to 06-10), but the still-open
+    // k_open carries forward — its open-ended start span covers every later day.
+    expect(ix.today("2026-06-11").map(t => t.id)).toEqual(["k_open"]);
     // And it is reachable in the archive (completion = archival here).
     expect(ix.archived.map(t => t.id)).toEqual(["k_after_midnight"]);
   });

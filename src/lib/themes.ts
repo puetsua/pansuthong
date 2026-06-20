@@ -26,6 +26,10 @@ export const TOKEN_ORDER = [
   "--c-accent", "--c-bg", "--c-surface", "--c-text",
   "--c-surface-2", "--c-border", "--c-text-muted", "--c-text-subtle",
   "--c-accent-bg", "--c-danger",
+  // Recurrence dashboard heatmap (#recurrence-dashboard): done / skipped /
+  // no-occurrence cell fills, the cell border, and today's highlight outline.
+  // Customize these in a theme to recolor the heatmap.
+  "--c-heat-done", "--c-heat-skip", "--c-heat-empty", "--c-heat-border", "--c-heat-today",
 ] as const;
 
 /** Token -> i18n label key for the editor and previews. */
@@ -40,6 +44,11 @@ export const TOKEN_LABEL_KEY: Record<string, string> = {
   "--c-text-subtle": "settings.themeColorTextSubtle",
   "--c-accent-bg": "settings.themeColorAccentBg",
   "--c-danger": "settings.themeColorDanger",
+  "--c-heat-done": "settings.themeColorHeatDone",
+  "--c-heat-skip": "settings.themeColorHeatSkip",
+  "--c-heat-empty": "settings.themeColorHeatEmpty",
+  "--c-heat-border": "settings.themeColorHeatBorder",
+  "--c-heat-today": "settings.themeColorHeatToday",
 };
 
 const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -56,12 +65,14 @@ export const THEME_PRESETS: Preset[] = [
       "--c-border": "#e5e7eb", "--c-text": "#1f2937", "--c-text-muted": "#6b7280",
       "--c-text-subtle": "#9ca3af", "--c-accent": "#4338ca", "--c-accent-bg": "#eef2ff",
       "--c-danger": "#dc2626",
+      "--c-heat-done": "#16a34a", "--c-heat-skip": "#fecaca", "--c-heat-empty": "#f9fafb", "--c-heat-border": "#e5e7eb", "--c-heat-today": "#4338ca",
     },
     dark: {
       "--c-bg": "#0f172a", "--c-surface": "#1e293b", "--c-surface-2": "#243044",
       "--c-border": "#334155", "--c-text": "#e2e8f0", "--c-text-muted": "#94a3b8",
       "--c-text-subtle": "#64748b", "--c-accent": "#818cf8", "--c-accent-bg": "#312e81",
       "--c-danger": "#fca5a5",
+      "--c-heat-done": "#22c55e", "--c-heat-skip": "#7f1d1d", "--c-heat-empty": "#0f172a", "--c-heat-border": "#334155", "--c-heat-today": "#818cf8",
     },
   },
   {
@@ -72,12 +83,14 @@ export const THEME_PRESETS: Preset[] = [
       "--c-border": "#cbd5e1", "--c-text": "#0f172a", "--c-text-muted": "#475569",
       "--c-text-subtle": "#64748b", "--c-accent": "#0369a1", "--c-accent-bg": "#e0f2fe",
       "--c-danger": "#dc2626",
+      "--c-heat-done": "#16a34a", "--c-heat-skip": "#fecaca", "--c-heat-empty": "#f1f5f9", "--c-heat-border": "#cbd5e1", "--c-heat-today": "#0369a1",
     },
     dark: {
       "--c-bg": "#0b1220", "--c-surface": "#131c2e", "--c-surface-2": "#1c2840",
       "--c-border": "#2b3a55", "--c-text": "#e5edf7", "--c-text-muted": "#9fb1c9",
       "--c-text-subtle": "#6b7e99", "--c-accent": "#38bdf8", "--c-accent-bg": "#0c2a40",
       "--c-danger": "#fca5a5",
+      "--c-heat-done": "#34d399", "--c-heat-skip": "#7f1d1d", "--c-heat-empty": "#0b1220", "--c-heat-border": "#2b3a55", "--c-heat-today": "#38bdf8",
     },
   },
   {
@@ -88,12 +101,14 @@ export const THEME_PRESETS: Preset[] = [
       "--c-border": "#ddcfb6", "--c-text": "#43381f", "--c-text-muted": "#6f6242",
       "--c-text-subtle": "#93855f", "--c-accent": "#9a6a2f", "--c-accent-bg": "#f3e6cf",
       "--c-danger": "#b4452b",
+      "--c-heat-done": "#5f7d3a", "--c-heat-skip": "#e3c8b8", "--c-heat-empty": "#f5efe3", "--c-heat-border": "#ddcfb6", "--c-heat-today": "#9a6a2f",
     },
     dark: {
       "--c-bg": "#211b12", "--c-surface": "#2c2419", "--c-surface-2": "#382e20",
       "--c-border": "#4d3f2c", "--c-text": "#ece2cf", "--c-text-muted": "#b8a888",
       "--c-text-subtle": "#8a7c5e", "--c-accent": "#d9a657", "--c-accent-bg": "#463318",
       "--c-danger": "#e08b6a",
+      "--c-heat-done": "#a3c474", "--c-heat-skip": "#5c2418", "--c-heat-empty": "#211b12", "--c-heat-border": "#4d3f2c", "--c-heat-today": "#d9a657",
     },
   },
   {
@@ -104,12 +119,14 @@ export const THEME_PRESETS: Preset[] = [
       "--c-border": "#000000", "--c-text": "#000000", "--c-text-muted": "#1a1a1a",
       "--c-text-subtle": "#333333", "--c-accent": "#0000cc", "--c-accent-bg": "#e0e0ff",
       "--c-danger": "#b00000",
+      "--c-heat-done": "#000000", "--c-heat-skip": "#b00000", "--c-heat-empty": "#ffffff", "--c-heat-border": "#000000", "--c-heat-today": "#0000cc",
     },
     dark: {
       "--c-bg": "#000000", "--c-surface": "#0a0a0a", "--c-surface-2": "#1a1a1a",
       "--c-border": "#ffffff", "--c-text": "#ffffff", "--c-text-muted": "#e6e6e6",
       "--c-text-subtle": "#cccccc", "--c-accent": "#66b3ff", "--c-accent-bg": "#002b66",
       "--c-danger": "#ff6666",
+      "--c-heat-done": "#ffffff", "--c-heat-skip": "#ff6666", "--c-heat-empty": "#000000", "--c-heat-border": "#ffffff", "--c-heat-today": "#66b3ff",
     },
   },
   {
@@ -120,12 +137,14 @@ export const THEME_PRESETS: Preset[] = [
       "--c-border": "#d3e3d8", "--c-text": "#11261a", "--c-text-muted": "#4b6357",
       "--c-text-subtle": "#6e857a", "--c-accent": "#047857", "--c-accent-bg": "#d1fae5",
       "--c-danger": "#dc2626",
+      "--c-heat-done": "#047857", "--c-heat-skip": "#fecdd3", "--c-heat-empty": "#f6faf7", "--c-heat-border": "#d3e3d8", "--c-heat-today": "#047857",
     },
     dark: {
       "--c-bg": "#07120d", "--c-surface": "#0f1f17", "--c-surface-2": "#16291f",
       "--c-border": "#244536", "--c-text": "#d8f0e2", "--c-text-muted": "#93b8a4",
       "--c-text-subtle": "#6b8c7a", "--c-accent": "#34d399", "--c-accent-bg": "#064233",
       "--c-danger": "#fca5a5",
+      "--c-heat-done": "#34d399", "--c-heat-skip": "#7f1d1d", "--c-heat-empty": "#07120d", "--c-heat-border": "#244536", "--c-heat-today": "#34d399",
     },
   },
   {
@@ -136,12 +155,14 @@ export const THEME_PRESETS: Preset[] = [
       "--c-border": "#efd2dc", "--c-text": "#2a1620", "--c-text-muted": "#6b4a57",
       "--c-text-subtle": "#8f6e7b", "--c-accent": "#be185d", "--c-accent-bg": "#fce7f0",
       "--c-danger": "#dc2626",
+      "--c-heat-done": "#0f766e", "--c-heat-skip": "#fecdd3", "--c-heat-empty": "#fdf6f8", "--c-heat-border": "#efd2dc", "--c-heat-today": "#be185d",
     },
     dark: {
       "--c-bg": "#140a0f", "--c-surface": "#20131a", "--c-surface-2": "#2c1b24",
       "--c-border": "#4a2a39", "--c-text": "#f1dde7", "--c-text-muted": "#c39bac",
       "--c-text-subtle": "#977182", "--c-accent": "#f472b6", "--c-accent-bg": "#4a1130",
       "--c-danger": "#fca5a5",
+      "--c-heat-done": "#2dd4bf", "--c-heat-skip": "#7f1d1d", "--c-heat-empty": "#140a0f", "--c-heat-border": "#4a2a39", "--c-heat-today": "#f472b6",
     },
   },
 ];

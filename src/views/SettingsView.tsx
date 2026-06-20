@@ -12,6 +12,8 @@ import {
   defaultTagPriority, soundOnComplete,
   clampReminderInterval, reminderIntervalMinutes, REMINDER_INTERVAL_MAX, REMINDER_INTERVAL_MIN,
   clampMaxAttachmentMb, maxAttachmentMb, MAX_ATTACHMENT_MB_MAX, MAX_ATTACHMENT_MB_MIN, MAX_ATTACHMENT_MB_WARN,
+  clampRecurrenceHeatmapDays, recurrenceHeatmapDays, RECURRENCE_HEATMAP_DAYS_MAX, RECURRENCE_HEATMAP_DAYS_MIN,
+  firstDayOfWeek,
   dateFormat, timeFormat,
 } from "../lib/settings";
 import { clampWeight, WEIGHT_MAX, WEIGHT_MIN } from "../lib/tags";
@@ -142,6 +144,22 @@ export function SettingsView({ doc }: Props) {
   // for people who treat the late-night hours as still "yesterday".
   const startHour = dayStartHour(doc.settings);
   const setStartHour = (h: number) => { void applySettings({ day_start_hour: h }); };
+
+  // Recurrence dashboard heatmap range (#recurrence-dashboard): presets apply
+  // immediately; the free input commits on blur/Enter. Controls how far back the
+  // dashboard's heatmap reaches (ending today).
+  const weekStart = firstDayOfWeek(doc.settings);
+  const setWeekStart = (d: number) => { void applySettings({ first_day_of_week: d }); };
+
+  const heatDays = recurrenceHeatmapDays(doc.settings);
+  const [draftHeat, setDraftHeat] = useState(String(heatDays));
+  useEffect(() => { setDraftHeat(String(heatDays)); }, [heatDays]);
+  const setHeatDays = (n: number) => { void applySettings({ recurrence_heatmap_days: n }); };
+  const commitDraftHeat = () => {
+    const n = clampRecurrenceHeatmapDays(draftHeat);
+    setDraftHeat(String(n));
+    if (n !== heatDays) setHeatDays(n);
+  };
 
   // New-tag default weight (#79): commits on blur/Enter. (The default color is
   // fixed, not user-configurable — new tags start from a neutral gray.)
@@ -329,6 +347,51 @@ export function SettingsView({ doc }: Props) {
             ))}
           </select>
         </label>
+      </section>
+
+      <section className="settings-section">
+        <h2>{t("settings.recurrenceHeatmapRange")}</h2>
+        <p className="view-sub">{t("settings.recurrenceHeatmapSub")}</p>
+        <div className="theme-options">
+          {[30, 60, 90, 180].map(n => (
+            <button
+              key={n}
+              className={`theme-option ${heatDays === n ? "active" : ""}`}
+              aria-pressed={heatDays === n}
+              onClick={() => setHeatDays(n)}
+            >
+              {t("settings.daysPreset", { count: n })}
+            </button>
+          ))}
+          <input
+            type="number"
+            className="weight-input"
+            aria-label={t("settings.customHeatmapAria")}
+            min={RECURRENCE_HEATMAP_DAYS_MIN}
+            max={RECURRENCE_HEATMAP_DAYS_MAX}
+            value={draftHeat}
+            onChange={e => setDraftHeat(e.currentTarget.value)}
+            onBlur={commitDraftHeat}
+            onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+          />
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h2>{t("settings.firstDayOfWeek")}</h2>
+        <p className="view-sub">{t("settings.firstDayOfWeekSub")}</p>
+        <div className="theme-options">
+          {([[0, t("taskEditor.weekdaySun")], [1, t("taskEditor.weekdayMon")], [6, t("taskEditor.weekdaySat")]] as const).map(([d, label]) => (
+            <button
+              key={d}
+              className={`theme-option ${weekStart === d ? "active" : ""}`}
+              aria-pressed={weekStart === d}
+              onClick={() => setWeekStart(d)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </section>
 
       <section className="settings-section">

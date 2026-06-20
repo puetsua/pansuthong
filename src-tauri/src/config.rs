@@ -69,6 +69,17 @@ pub struct Settings {
     /// so older config.json files predating the setting still load (1 GiB).
     #[serde(default = "default_max_attachment_mb")]
     pub max_attachment_mb: u32,
+    /// How many days back the Recurrence dashboard's heatmap reaches by default
+    /// (ending today). Device-local; the UI bounds it to 7..=365 and defaults to
+    /// 90. `#[serde(default …)]` so older config.json files predating the setting
+    /// still load (90 days).
+    #[serde(default = "default_recurrence_heatmap_days")]
+    pub recurrence_heatmap_days: u32,
+    /// First day of the week for the Recurrence heatmap columns. 0 = Sunday ..
+    /// 6 = Saturday (JS `getDay` convention). Defaults to 1 (Monday, the prior
+    /// behavior). `#[serde(default …)]` so older config.json files still load.
+    #[serde(default = "default_first_day_of_week")]
+    pub first_day_of_week: u32,
     /// Legacy combined date-time display format preset (#date-time-format).
     /// New writes use `date_format` and `time_format`, but keeping this field
     /// lets older config.json files continue to influence the date fallback.
@@ -137,6 +148,14 @@ fn default_max_attachment_mb() -> u32 {
     1024
 }
 
+fn default_recurrence_heatmap_days() -> u32 {
+    90
+}
+
+fn default_first_day_of_week() -> u32 {
+    1
+}
+
 fn default_date_time_format() -> String {
     "locale".into()
 }
@@ -154,6 +173,8 @@ impl Default for Settings {
             sound_on_complete: default_sound_on_complete(),
             reminder_interval_minutes: default_reminder_interval_minutes(),
             max_attachment_mb: default_max_attachment_mb(),
+            recurrence_heatmap_days: default_recurrence_heatmap_days(),
+            first_day_of_week: default_first_day_of_week(),
             date_time_format: default_date_time_format(),
             date_format: None,
             time_format: None,
@@ -603,6 +624,44 @@ mod tests {
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.reminder_interval_minutes, 30);
+    }
+
+    #[test]
+    fn settings_missing_recurrence_heatmap_days_defaults_to_90() {
+        // A config.json predating the heatmap range setting lacks the key; it
+        // must default to 90 rather than fail the whole parse.
+        let s: Settings =
+            serde_json::from_str(r#"{"theme":"dark","sort_order":"date","upcoming_days":30}"#)
+                .unwrap();
+        assert_eq!(s.recurrence_heatmap_days, 90);
+    }
+
+    #[test]
+    fn settings_round_trip_preserves_recurrence_heatmap_days() {
+        let mut s = Settings::default();
+        s.recurrence_heatmap_days = 180;
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.recurrence_heatmap_days, 180);
+    }
+
+    #[test]
+    fn settings_missing_first_day_of_week_defaults_to_monday() {
+        // A config.json predating the setting lacks the key; it must default to 1
+        // (Monday, the prior heatmap behavior) rather than fail the parse.
+        let s: Settings =
+            serde_json::from_str(r#"{"theme":"dark","sort_order":"date","upcoming_days":30}"#)
+                .unwrap();
+        assert_eq!(s.first_day_of_week, 1);
+    }
+
+    #[test]
+    fn settings_round_trip_preserves_first_day_of_week() {
+        let mut s = Settings::default();
+        s.first_day_of_week = 0; // Sunday
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.first_day_of_week, 0);
     }
 
     #[test]

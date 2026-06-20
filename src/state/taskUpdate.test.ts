@@ -33,6 +33,7 @@ const base: EditorForm = {
   repeat_days: "",
   repeat_dates: [],
   recurrence_tag_id: "",
+  recurrence_start_date: "",
 };
 
 describe("buildTaskUpdate", () => {

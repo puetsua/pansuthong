@@ -19,6 +19,8 @@ export type Settings = {
   reminder_interval_minutes?: number; // re-notify cadence for tasks past their estimate; 1..1440, default 10
   max_attachment_mb?: number; // largest attachment in MiB; 1..10240, default 1024 (1 GiB) (#113)
   date_time_format?: DateTimeFormat; // legacy date-time display preset; default "locale"
+  recurrence_heatmap_days?: number; // heatmap range (days back from today); 7..365, default 90
+  first_day_of_week?: number; // heatmap week-start weekday; 0=Sun..6=Sat, default 1 (Monday)
   date_format?: DateFormat; // date display preset; default "locale"
   time_format?: TimeFormat; // time display preset; default "locale"
   // Theme customization (#15). The frontend owns preset/token semantics; Rust stores
@@ -123,6 +125,7 @@ export type TemplateTask = {
   estimated_seconds?: number; // spawned task's expected effort; absent = no estimate
   recurrence?: Recurrence; // #9; absent = manual-only template
   recurrence_tag_id?: string; // #9 which tag the recurrence is keyed to (one of tag_ids)
+  recurrence_start_date?: string; // YYYY-MM-DD; earliest occurrence date
 };
 
 export type Document = {
@@ -167,6 +170,7 @@ export type NewTemplate = {
   estimated_seconds?: number;
   recurrence?: Recurrence | null;
   recurrence_tag_id?: string | null;
+  recurrence_start_date?: string | null; // YYYY-MM-DD; earliest occurrence date
 };
 
 // `null` clears an optional offset; an omitted key leaves the field unchanged.
@@ -181,6 +185,7 @@ export type TemplateUpdate = {
   estimated_seconds?: number | null;
   recurrence?: Recurrence | null; // null clears the schedule; omitted leaves it
   recurrence_tag_id?: string | null;
+  recurrence_start_date?: string | null; // null clears the start clip; omitted leaves it
 };
 
 export type DataLocation = { folder: string | null; effective_path: string };
