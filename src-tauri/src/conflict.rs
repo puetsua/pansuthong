@@ -183,6 +183,7 @@ mod merge_tests {
             priority: 5,
             pinned: false,
             updated_at: 1,
+            dashboard_view: None,
         }
     }
 

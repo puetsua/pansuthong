@@ -176,6 +176,7 @@ mod poll_tests {
             priority: 0,
             pinned: false,
             updated_at: 1,
+            dashboard_view: None,
         });
         std::fs::write(&path, serde_json::to_vec_pretty(&doc).unwrap()).unwrap();
 

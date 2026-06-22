@@ -8,12 +8,13 @@ import { RowList } from "../components/RowList";
 import { TagEditor } from "../components/TagEditor";
 import { Indexes } from "../state/indexes";
 import { useHeldCompletions, withHeld } from "../state/heldCompletions";
-import { Document, Task, isDone } from "../lib/tauri";
-import { addDaysIso, formatDate } from "../lib/dates";
+import { Document, isDone } from "../lib/tauri";
+import { formatDate } from "../lib/dates";
 import { currentLocale } from "../i18n";
 import { firstDayOfWeek, recurrenceHeatmapDays } from "../lib/settings";
-import { elapsedMs, formatDurationShort } from "../lib/time";
+import { formatDurationShort } from "../lib/time";
 import { recurrenceStreak, type HeatCell, type Heatmap } from "../lib/recurrence-heatmap";
+import { computeTagAnalytics, recurringScheduledDates } from "../lib/tag-analytics";
 
 type Props = { doc: Document; indexes: Indexes };
 type Tab = "tasks" | "analytics";
@@ -149,79 +150,6 @@ function Stat({ num, label }: { num: number | string; label: string }) {
       <span className="recurrence-stat-label">{label}</span>
     </span>
   );
-}
-
-function computeTagAnalytics(tasks: Task[], todayIso: string, days: number, recurringScheduled: Set<string>): {
-  heat: Heatmap;
-  totalSpentMs: number;
-  scheduledDays: number;
-  completedTasks: number;
-  openTasks: number;
-} {
-  const now = Date.now();
-  const start = addDaysIso(todayIso, -(days - 1));
-  const completed = new Set<string>();
-  const scheduled = new Set(recurringScheduled);
-  let totalSpentMs = 0;
-  let completedTasks = 0;
-  let openTasks = 0;
-
-  for (const task of tasks) {
-    if (isDone(task)) completedTasks++;
-    else openTasks++;
-
-    const spent = elapsedMs(task, now);
-    totalSpentMs += spent;
-
-    for (const entry of task.time_entries ?? []) {
-      const iso = entry.start.slice(0, 10);
-      if (iso >= start && iso <= todayIso) scheduled.add(iso);
-    }
-    if (task.completed_at) {
-      const iso = task.completed_at.slice(0, 10);
-      if (iso >= start && iso <= todayIso) completed.add(iso);
-    }
-    for (const iso of [task.start_date, task.due_date]) {
-      if (iso && iso >= start && iso <= todayIso) scheduled.add(iso);
-    }
-  }
-
-  const cells: HeatCell[] = [];
-  let done = 0;
-  let count = 0;
-  for (let i = 0; i < days; i++) {
-    const iso = addDaysIso(start, i);
-    let status: HeatCell["status"] = "none";
-    if (completed.has(iso)) {
-      status = "done";
-      done++;
-      count++;
-    } else if (scheduled.has(iso)) {
-      status = "skip";
-      count++;
-    }
-    cells.push({ iso, status });
-  }
-
-  return {
-    heat: { cells, scheduled: count, done, skipped: count - done },
-    totalSpentMs,
-    scheduledDays: count,
-    completedTasks,
-    openTasks,
-  };
-}
-
-function recurringScheduledDates(indexes: Indexes, tagId: string, days: number): Set<string> {
-  const scheduled = new Set<string>();
-  const start = addDaysIso(indexes.todayIso, -(days - 1));
-  for (let i = 0; i < days; i++) {
-    const iso = addDaysIso(start, i);
-    if (indexes.ghostsForDate(iso).some(ghost => ghost.tag_ids.includes(tagId))) {
-      scheduled.add(iso);
-    }
-  }
-  return scheduled;
 }
 
 function tagCellTip(t: TFunction, cell: HeatCell): string {

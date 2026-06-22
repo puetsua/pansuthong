@@ -1710,6 +1710,7 @@ pub fn add_tag(input: NewTagInput, state: State<'_, AppState>, app: AppHandle) -
         priority: input.priority,
         pinned: input.pinned,
         updated_at: now_ms(),
+        dashboard_view: None,
     };
     let saved = state.write(|d| {
         d.tags.push(t.clone());
@@ -1758,6 +1759,11 @@ pub struct UpdateTagInput {
     pub priority: Option<i64>,
     #[serde(default)]
     pub pinned: Option<bool>,
+    /// Pin/unpin this tag on the Dashboard. Outer `Option` = field present;
+    /// inner `Option` = the view (`Some("heatmap")`/`Some("streak")`) or `null`
+    /// to unpin. Absent leaves the current state unchanged.
+    #[serde(default, deserialize_with = "double_option")]
+    pub dashboard_view: Option<Option<String>>,
 }
 
 #[tauri::command]
@@ -1787,6 +1793,10 @@ pub fn update_tag(
         }
         if let Some(v) = input.pinned {
             t.pinned = v;
+        }
+        if let Some(v) = input.dashboard_view {
+            validate_dashboard_view(v.as_ref())?;
+            t.dashboard_view = v;
         }
         t.updated_at = now_ms();
         Ok(t.clone())
@@ -2632,6 +2642,7 @@ mod tests {
             priority: 0,
             pinned: false,
             updated_at: 0,
+            dashboard_view: None,
         }
     }
 
@@ -3073,6 +3084,20 @@ mod tests {
     }
 
     #[test]
+    fn update_tag_input_dashboard_view_parses_absent_null_value() {
+        // Absent leaves the pin untouched; explicit null unpins; a string pins to
+        // that view (#dashboard). Mirrors the template dashboard_view tri-state.
+        let absent: UpdateTagInput = serde_json::from_str(r#"{"id":"t_1"}"#).unwrap();
+        assert_eq!(absent.dashboard_view, None);
+        let cleared: UpdateTagInput =
+            serde_json::from_str(r#"{"id":"t_1","dashboard_view":null}"#).unwrap();
+        assert_eq!(cleared.dashboard_view, Some(None));
+        let set: UpdateTagInput =
+            serde_json::from_str(r#"{"id":"t_1","dashboard_view":"streak"}"#).unwrap();
+        assert_eq!(set.dashboard_view, Some(Some("streak".into())));
+    }
+
+    #[test]
     fn new_tag_input_priority_defaults_zero() {
         let v: NewTagInput = serde_json::from_str(r##"{"name":"x","color":"#fff"}"##).unwrap();
         assert_eq!(v.priority, 0);
@@ -3096,6 +3121,7 @@ mod tests {
             priority: 0,
             pinned: false,
             updated_at: 1,
+            dashboard_view: None,
         }];
         let out = retain_known_tags(
             vec!["t_known".into(), "t_unknown".into(), "t_known".into()],

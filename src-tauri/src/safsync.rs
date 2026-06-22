@@ -674,6 +674,7 @@ mod tests {
                     priority: 0,
                     pinned: false,
                     updated_at: 1,
+                    dashboard_view: None,
                 });
                 Ok(())
             })
@@ -688,6 +689,7 @@ mod tests {
             priority: 0,
             pinned: false,
             updated_at: 1,
+            dashboard_view: None,
         });
         let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
         let backend = FakeBackend::with(&[("tasks.json", &remote)]);
@@ -771,6 +773,7 @@ mod tests {
             priority: 0,
             pinned: false,
             updated_at: 1,
+            dashboard_view: None,
         });
         let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
         let backend = FakeBackend::with(&[("tasks.json", &remote)]);
@@ -801,6 +804,7 @@ mod tests {
                     priority: 0,
                     pinned: false,
                     updated_at: 1,
+                    dashboard_view: None,
                 });
                 Ok(())
             })
@@ -851,6 +855,7 @@ mod tests {
                     priority: 0,
                     pinned: false,
                     updated_at: 1,
+                    dashboard_view: None,
                 });
                 Ok(())
             })
@@ -866,6 +871,7 @@ mod tests {
             priority: 0,
             pinned: false,
             updated_at: 1,
+            dashboard_view: None,
         });
         let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
         let backend = FakeBackend::with(&[("tasks.json", &remote)]);
@@ -923,6 +929,7 @@ mod tests {
             priority: 0,
             pinned: false,
             updated_at: 1,
+            dashboard_view: None,
         });
         let good_bytes = serde_json::to_vec_pretty(&good).unwrap();
         let backend = FakeBackend::with(&[

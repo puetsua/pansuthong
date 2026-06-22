@@ -1,27 +1,18 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { api, DashboardView, Document, TemplateTask } from "../lib/tauri";
+import { api, DashboardView, Document, Tag } from "../lib/tauri";
 import { Indexes } from "../state/indexes";
 import { recurrenceHeatmapDays, firstDayOfWeek } from "../lib/settings";
-import { computeHeatmap, Heatmap, HeatCell, HeatStatus, recurrenceStreak } from "../lib/recurrence-heatmap";
+import { Heatmap, HeatCell, recurrenceStreak } from "../lib/recurrence-heatmap";
+import { computeTagAnalytics, recurringScheduledDates } from "../lib/tag-analytics";
 import { formatDate } from "../lib/dates";
 import { currentLocale } from "../i18n";
 import { HeatmapGrid } from "../components/HeatmapGrid";
 
 type Props = { doc: Document; indexes: Indexes };
 
-/** Only templates with a recurrence schedule and a recurrence tag are dashable. */
-function isDashable(t: TemplateTask): boolean {
-  return !!t.recurrence && !!t.recurrence_tag_id;
-}
-
 const DASHBOARD_VIEWS: DashboardView[] = ["heatmap", "streak"];
-
-/** A dashboard unit: one recurrence tag plus the templates filed under it. The
- *  heatmap/streak aggregate every template sharing the tag (done/skip detection is
- *  tag-based), and `view` is `undefined` until the tag is added to the dashboard. */
-type TagGroup = { tagId: string; name: string; templates: TemplateTask[]; view?: DashboardView };
 
 export function RecurrenceView({ doc, indexes }: Props) {
   const { t } = useTranslation();
@@ -29,37 +20,18 @@ export function RecurrenceView({ doc, indexes }: Props) {
   const fdow = firstDayOfWeek(doc.settings);
   const todayIso = indexes.todayIso;
 
-  const recurring = useMemo(
-    () => doc.template_tasks.filter(isDashable),
-    [doc.template_tasks],
+  // Any tag can be pinned to the Dashboard (#dashboard) — it need not be a
+  // recurrence tag. The pin lives on the tag (`dashboard_view`), and the card
+  // shows the tag's activity heatmap aggregated across every task carrying it.
+  const tags = useMemo(
+    () => [...doc.tags].sort((a, b) => a.name.localeCompare(b.name)),
+    [doc.tags],
   );
+  const added = tags.filter(tag => tag.dashboard_view);
+  const available = tags.filter(tag => !tag.dashboard_view);
 
-  // The dashboard is organized by recurrence tag, not by individual template:
-  // several templates can share a tag and the heatmap keys off the tag alone.
-  const groups = useMemo<TagGroup[]>(() => {
-    const byTag = new Map<string, TagGroup>();
-    for (const tmpl of recurring) {
-      const tagId = tmpl.recurrence_tag_id!; // isDashable guarantees a tag
-      let g = byTag.get(tagId);
-      if (!g) {
-        g = { tagId, name: indexes.tagsById.get(tagId)?.name ?? "?", templates: [] };
-        byTag.set(tagId, g);
-      }
-      g.templates.push(tmpl);
-      // A tag is "added" if any of its templates carries a view; first one wins.
-      if (g.view === undefined && tmpl.dashboard_view) g.view = tmpl.dashboard_view;
-    }
-    return [...byTag.values()];
-  }, [recurring, indexes.tagsById]);
-
-  const added = groups.filter(g => g.view !== undefined);
-  const available = groups.filter(g => g.view === undefined);
-
-  // View/add/remove persist on every template under the tag (so the whole tag
-  // group stays in sync); the store refresh re-renders from the new doc.
-  const setTagView = (group: TagGroup, view: DashboardView | null) => {
-    for (const tmpl of group.templates) void api.updateTemplate({ id: tmpl.id, dashboard_view: view });
-  };
+  const setTagView = (tag: Tag, view: DashboardView | null) =>
+    void api.updateTag({ id: tag.id, dashboard_view: view });
 
   return (
     <section>
@@ -72,33 +44,34 @@ export function RecurrenceView({ doc, indexes }: Props) {
           <label className="dashboard-add">
             <select aria-label={t("recurrence.addTag")} value=""
                     onChange={e => {
-                      const g = available.find(x => x.tagId === e.currentTarget.value);
-                      if (g) setTagView(g, "heatmap");
+                      const tag = available.find(x => x.id === e.currentTarget.value);
+                      if (tag) setTagView(tag, "heatmap");
                     }}>
               <option value="" disabled>{t("recurrence.addTag")}</option>
-              {available.map(g => <option key={g.tagId} value={g.tagId}>#{g.name}</option>)}
+              {available.map(tag => <option key={tag.id} value={tag.id}>#{tag.name}</option>)}
             </select>
           </label>
         )}
       </header>
 
-      {recurring.length === 0 ? (
+      {tags.length === 0 ? (
         <p className="view-empty">{t("recurrence.empty")}</p>
       ) : added.length === 0 ? (
         <p className="view-empty">{t("recurrence.noPins")}</p>
       ) : (
         <>
           <div className="dashboard-cards">
-            {added.map(group => (
+            {added.map(tag => (
               <DashboardCard
-                key={group.tagId}
-                group={group}
+                key={tag.id}
+                tag={tag}
+                indexes={indexes}
                 tasks={doc.tasks}
                 todayIso={todayIso}
                 days={days}
                 firstDayOfWeek={fdow}
-                onSetView={view => setTagView(group, view)}
-                onRemove={() => setTagView(group, null)}
+                onSetView={view => setTagView(tag, view)}
+                onRemove={() => setTagView(tag, null)}
               />
             ))}
           </div>
@@ -109,9 +82,10 @@ export function RecurrenceView({ doc, indexes }: Props) {
   );
 }
 
-/** One added tag, rendered in its chosen view with view + remove controls. */
-function DashboardCard({ group, tasks, todayIso, days, firstDayOfWeek, onSetView, onRemove }: {
-  group: TagGroup;
+/** One pinned tag, rendered in its chosen view with view + remove controls. */
+function DashboardCard({ tag, indexes, tasks, todayIso, days, firstDayOfWeek, onSetView, onRemove }: {
+  tag: Tag;
+  indexes: Indexes;
   tasks: Document["tasks"];
   todayIso: string;
   days: number;
@@ -120,17 +94,19 @@ function DashboardCard({ group, tasks, todayIso, days, firstDayOfWeek, onSetView
   onRemove: () => void;
 }) {
   const { t } = useTranslation();
-  const view = group.view ?? "heatmap";
-  const heat = useMemo(
-    () => mergeHeatmaps(group.templates.map(template => computeHeatmap({ template, tasks, todayIso, days }))),
-    [group.templates, tasks, todayIso, days],
-  );
+  const view = tag.dashboard_view ?? "heatmap";
+  const heat = useMemo(() => {
+    const taggedTasks = tasks.filter(task => task.tag_ids.includes(tag.id));
+    return computeTagAnalytics(taggedTasks, todayIso, days, recurringScheduledDates(indexes, tag.id, days)).heat;
+  }, [tag.id, tasks, todayIso, days, indexes]);
 
   return (
     <div className="dashboard-card">
       <div className="dashboard-card-head">
         <span className="dashboard-card-title">
-          <span className="dashboard-card-name">#{group.name}</span>
+          <span className="dashboard-card-name">
+            <span style={{ color: tag.color }}>#</span>{tag.name}
+          </span>
         </span>
         <div className="dashboard-card-controls">
           <div className="te-segmented" role="group" aria-label={t("recurrence.viewLabel")}>
@@ -227,27 +203,6 @@ function cellTip(t: TFunction, cell: HeatCell): string {
   const d = new Date(`${cell.iso}T00:00:00Z`);
   const date = formatDate(d, "slash_ymd", currentLocale());
   return t(`recurrence.tip${cap(cell.status)}`, { date });
-}
-
-/** Combine per-template heatmaps under one tag into a single series. The maps are
- *  day-aligned, so a day is "done" if any template did it, "skip" if any scheduled
- *  it without a completion, else "none". Done/skip never conflict for a day since
- *  detection is tag-based (identical across the group). */
-function mergeHeatmaps(maps: Heatmap[]): Heatmap {
-  if (maps.length === 1) return maps[0];
-  const base = maps[0];
-  const cells = base.cells.map((c, i) => {
-    let status: HeatStatus = "none";
-    for (const m of maps) {
-      const s = m.cells[i].status;
-      if (s === "done") { status = "done"; break; }
-      if (s === "skip") status = "skip";
-    }
-    return { iso: c.iso, status };
-  });
-  const scheduled = cells.filter(c => c.status !== "none").length;
-  const done = cells.filter(c => c.status === "done").length;
-  return { cells, scheduled, done, skipped: scheduled - done };
 }
 
 function cap(s: string): string {

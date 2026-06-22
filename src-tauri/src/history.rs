@@ -360,6 +360,7 @@ mod tests {
             priority: 0,
             pinned: false,
             updated_at: 1,
+            dashboard_view: None,
         });
         before.tasks.push(task("k_1", "Ship"));
 

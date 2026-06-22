@@ -217,9 +217,9 @@
     "newTemplateTitle": "新範本"
   },
   "recurrence": {
-    "subtitle": "加入週期標籤，以熱圖或連續記錄追蹤。",
-    "empty": "目前沒有週期模板。請開啟一個模板的編輯器，為它設定週期排程。",
-    "noPins": "尚未加入任何項目。請使用上方的「加入標籤」來追蹤週期標籤。",
+    "subtitle": "加入任何標籤，以熱圖或連續記錄追蹤其活動。",
+    "empty": "目前沒有標籤。請先建立一個標籤，再於此追蹤。",
+    "noPins": "尚未加入任何項目。請使用上方的「加入標籤」來追蹤標籤。",
     "addTag": "＋ 加入標籤",
     "remove": "移除",
     "viewLabel": "檢視",
@@ -234,12 +234,12 @@
     "rangeLabel": "顯示天數",
     "legendAria": "熱圖圖例",
     "legendDone": "當天已完成",
-    "legendSkip": "當天到期但未處理",
-    "legendNone": "當天無排程",
-    "heatmapAria": "週期熱圖",
+    "legendSkip": "有活動但未完成",
+    "legendNone": "當天無活動",
+    "heatmapAria": "標籤活動熱圖",
     "tipDone": "{{date}}：已完成",
-    "tipSkip": "{{date}}：到期但未處理",
-    "tipNone": "{{date}}：無排程"
+    "tipSkip": "{{date}}：有活動但未完成",
+    "tipNone": "{{date}}：無活動"
   },
   "templateRow": {
     "edit": "編輯 {{title}}",

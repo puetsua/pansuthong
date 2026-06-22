@@ -160,6 +160,13 @@ pub struct Tag {
     /// to the containing document's `last_modified` during replica merges.
     #[serde(default, skip_serializing_if = "is_zero", with = "iso_secs")]
     pub updated_at: i64,
+    /// Which Dashboard view this tag is pinned to (#dashboard): "heatmap" or
+    /// "streak"; `None` = not on the Dashboard. Stored on the tag (not a
+    /// template) so any tag — recurring or not — can be pinned, with its
+    /// activity heatmap aggregated across every task carrying it. Synced like the
+    /// rest of the tag, so the Dashboard layout follows across devices.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dashboard_view: Option<String>,
 }
 
 /// A delete marker used by per-device replica files. Without this, an older
@@ -1001,6 +1008,24 @@ mod tests {
     }
 
     #[test]
+    fn tag_dashboard_view_round_trips_and_omits_when_absent() {
+        // A tag with no Dashboard pin loads `None` and serializes without the key
+        // (#dashboard); a present value round-trips.
+        let legacy: Tag =
+            serde_json::from_str(r##"{"id":"t_1","name":"work","color":"#000"}"##).unwrap();
+        assert!(legacy.dashboard_view.is_none());
+        assert!(!serde_json::to_string(&legacy).unwrap().contains("dashboard_view"));
+        let pinned: Tag = serde_json::from_str(
+            r##"{"id":"t_2","name":"home","color":"#111","dashboard_view":"heatmap"}"##,
+        )
+        .unwrap();
+        assert_eq!(pinned.dashboard_view.as_deref(), Some("heatmap"));
+        let back: Tag =
+            serde_json::from_str(&serde_json::to_string(&pinned).unwrap()).unwrap();
+        assert_eq!(back.dashboard_view.as_deref(), Some("heatmap"));
+    }
+
+    #[test]
     fn completing_a_task_archives_it() {
         let mut t = task();
         t.set_done(true, 100);
@@ -1458,6 +1483,7 @@ mod tests {
             priority: 0,
             pinned: false,
             updated_at,
+            dashboard_view: None,
         }
     }
 
@@ -1619,6 +1645,7 @@ mod tests {
             priority: 0,
             pinned: true,
             updated_at: 1,
+            dashboard_view: None,
         });
         // Templates carry tags/offsets but live in `template_tasks`, so they can't
         // land in Today/Inbox/tag views no matter what they reference.

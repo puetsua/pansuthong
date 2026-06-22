@@ -221,9 +221,9 @@
     "newTemplateTitle": "New template"
   },
   "recurrence": {
-    "subtitle": "Add recurring tags to track them as a heatmap or streak.",
-    "empty": "No recurring templates yet. Open a template's editor and give it a recurrence schedule.",
-    "noPins": "Nothing added yet. Use “Add tag” above to track a recurring tag here.",
+    "subtitle": "Add any tag to track its activity as a heatmap or streak.",
+    "empty": "No tags yet. Create a tag to track it here.",
+    "noPins": "Nothing added yet. Use “Add tag” above to track a tag here.",
     "addTag": "＋ Add tag",
     "remove": "Remove",
     "viewLabel": "View",
@@ -237,13 +237,13 @@
     "completion": "Completion",
     "rangeLabel": "days shown",
     "legendAria": "Heatmap legend",
-    "legendDone": "Done that day",
-    "legendSkip": "Due that day, not done",
-    "legendNone": "No occurrence",
-    "heatmapAria": "Recurrence heatmap",
-    "tipDone": "{{date}}: done",
-    "tipSkip": "{{date}}: due, not done",
-    "tipNone": "{{date}}: no occurrence"
+    "legendDone": "Completed that day",
+    "legendSkip": "Active, not completed",
+    "legendNone": "No activity",
+    "heatmapAria": "Tag activity heatmap",
+    "tipDone": "{{date}}: completed",
+    "tipSkip": "{{date}}: active, not completed",
+    "tipNone": "{{date}}: no activity"
   },
   "templateRow": {
     "edit": "Edit {{title}}",
