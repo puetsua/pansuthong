@@ -227,6 +227,90 @@ button {
 .view-header h1 { margin: 0 0 var(--space-1); font-size: 1.5rem; letter-spacing: -0.02em; }
 .view-sub { color: var(--c-text-muted); margin: 0; font-size: 0.85rem; }
 
+/* Idle / tracking indicator in the header sub-line (#idle-timer). */
+.view-idle { font-variant-numeric: tabular-nums; }
+.view-idle[data-running="true"] { color: var(--c-accent); }
+/* The idle indicator is a button when it can open the assign form: keep it
+   looking like inline text, just clickable. */
+.view-idle-btn {
+  font: inherit; color: inherit; background: transparent; border: none;
+  padding: 0; cursor: pointer; border-radius: var(--radius-sm, 4px);
+}
+.view-idle-btn:hover { color: var(--c-text); text-decoration: underline; }
+.view-idle-btn[aria-pressed="true"] { color: var(--c-accent); text-decoration: underline; }
+
+/* Inline idle-assign form shown in place of the add-task composer (#idle-timer). */
+.assign-idle {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+/* Custom slider: a value-driven visual (fill + thumb both placed by --p, so the
+   minimum reads 0% / empty and the maximum reads 100% / full with the thumb on the
+   fill edge) under a transparent native range that handles all interaction and
+   keeps accessibility (#idle-timer). */
+.assign-idle-slider {
+  position: relative; flex: 1 1 8rem; min-width: 6rem; max-width: 16rem;
+  height: 1rem; display: flex; align-items: center;
+  /* Room for the thumb, which overhangs half its width at each end. */
+  margin: 0 0.5rem;
+}
+.assign-idle-track {
+  position: absolute; left: 0; right: 0; height: 0.45rem;
+  background: var(--c-border); border-radius: 999px;
+}
+.assign-idle-fill {
+  position: absolute; left: 0; height: 0.45rem; border-radius: 999px;
+  width: calc(clamp(0, var(--p, 1), 1) * 100%); background: var(--c-accent);
+}
+.assign-idle-thumb {
+  position: absolute; top: 50%; left: calc(clamp(0, var(--p, 1), 1) * 100%);
+  transform: translate(-50%, -50%); width: 0.9rem; height: 0.9rem; border-radius: 50%;
+  background: var(--c-accent); border: 2px solid var(--c-surface);
+  box-shadow: 0 0 0 1px var(--c-border); pointer-events: none;
+}
+.assign-idle-range-input {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+  opacity: 0; cursor: pointer;
+}
+.assign-idle-slider:focus-within .assign-idle-thumb { box-shadow: 0 0 0 3px var(--c-accent-bg); }
+.assign-idle-dur-input { width: 6rem; font-variant-numeric: tabular-nums; }
+.assign-idle-range { color: var(--c-text-muted); font-variant-numeric: tabular-nums; }
+.assign-idle .composer-error { width: 100%; margin: 0; }
+
+/* Custom task dropdown for the assign form: a native <select> can't marquee its
+   selected label, so this mimics one with a scrolling button label (#idle-timer). */
+.task-select { position: relative; }
+.task-select-btn {
+  display: inline-flex; align-items: center; gap: var(--space-1); width: 9rem;
+  padding: 0.25rem 0.5rem; background: var(--c-surface); color: var(--c-text);
+  border: 1px solid var(--c-border); border-radius: var(--radius-sm); cursor: pointer;
+}
+.task-select-label { flex: 1 1 auto; min-width: 0; text-align: left; }
+.task-select-caret { flex: 0 0 auto; color: var(--c-text-muted); font-size: 0.7rem; }
+.task-select-list {
+  position: absolute; top: calc(100% + 2px); left: 0; z-index: 20; margin: 0; padding: var(--space-1);
+  list-style: none; min-width: 100%; max-width: 18rem; max-height: 14rem; overflow-y: auto;
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-sm);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+}
+.task-select-opt { padding: 0.25rem 0.5rem; border-radius: var(--radius-sm); cursor: pointer; }
+.task-select-opt:hover { background: var(--c-accent-bg); }
+.task-select-opt.sel { color: var(--c-accent); font-weight: 600; }
+
+/* Hover-to-scroll long labels (#idle-timer). */
+.marquee { display: inline-block; max-width: 100%; overflow: hidden; white-space: nowrap; vertical-align: bottom; }
+.marquee-inner { display: inline-block; }
+.marquee[data-overflow="true"]:hover .marquee-inner {
+  animation: marquee-scroll var(--marquee-dur, 4s) linear infinite alternate;
+}
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(calc(-1 * var(--marquee-shift, 0px))); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee[data-overflow="true"]:hover .marquee-inner { animation: none; }
+}
+
 .app-loading, .app-error {
   display: flex;
   align-items: center;

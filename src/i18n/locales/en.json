@@ -56,7 +56,21 @@
   },
   "today": {
     "empty": "No tasks starting or due today.",
-    "overdue": "Overdue"
+    "overdue": "Overdue",
+    "idle": "Idle {{time}}",
+    "tracking_one": "Tracking {{count}} task · {{time}}",
+    "tracking_other": "Tracking {{count}} tasks · {{time}}"
+  },
+  "idle": {
+    "assignAria": "Assign idle time to a task",
+    "taskLabel": "Task",
+    "durationLabel": "Duration to assign",
+    "durationInputLabel": "Duration",
+    "range": "{{from}} – {{to}}",
+    "confirm": "Assign",
+    "cancel": "Cancel",
+    "errPickTask": "Pick a task to assign the time to.",
+    "errOverlap": "That range overlaps an existing entry on the chosen task."
   },
   "upcoming": {
     "next_one": "Next {{count}} day",

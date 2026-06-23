@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Document, Task } from "../lib/tauri";
+import { IdleStatus } from "../components/IdleStatus";
 import { TaskList } from "../components/TaskList";
 import { Indexes } from "../state/indexes";
 import { addDaysIso, logicalDayOf } from "../lib/dates";
@@ -88,6 +89,7 @@ export function ArchivedView({ doc, indexes }: Props) {
           {filtering
             ? t("archived.subtitleFiltered", { shown: filtered.length, total: archived.length })
             : t("archived.subtitleAll", { total: archived.length })}
+          <IdleStatus tasks={doc.tasks} />
         </p>
       </header>
 

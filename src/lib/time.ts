@@ -10,6 +10,53 @@ export function isTiming(task: Task): boolean {
   return runningEntry(task) !== undefined;
 }
 
+/** Tasks across the document that currently have a running timer (#idle-timer).
+ *  The app allows concurrent timers, so this can hold more than one. */
+export function timingTasks(tasks: Task[]): Task[] {
+  return tasks.filter(isTiming);
+}
+
+/** Epoch-ms of the most recent *finished* interval end across all tasks, or null
+ *  when no time has ever been tracked. Open and unparseable entries are skipped —
+ *  a running timer is "now", not a past activity boundary (#idle-timer). */
+export function lastActivityMs(tasks: Task[]): number | null {
+  let last: number | null = null;
+  for (const t of tasks) {
+    for (const e of t.time_entries ?? []) {
+      if (e.end == null) continue;
+      const end = Date.parse(e.end);
+      if (Number.isNaN(end)) continue;
+      if (last == null || end > last) last = end;
+    }
+  }
+  return last;
+}
+
+/**
+ * What the Today-style idle indicator should show right now (#idle-timer):
+ *   - "running": at least one timer is going; report how many and the longest
+ *     running task's live elapsed (the running entry that started earliest).
+ *   - "idle": nothing is running; count up from `sinceMs` ago, where the anchor
+ *     is the later of the last finished activity and this app session's start.
+ *     Anchoring to `sessionStartMs` makes the idle clock reset on app close/reopen
+ *     (the frontend reloads, capturing a fresh start) while still growing without
+ *     bound within a single session, which is the intended behavior.
+ */
+export type TrackingStatus =
+  | { kind: "running"; count: number; longestMs: number }
+  | { kind: "idle"; sinceMs: number };
+
+export function trackingStatus(tasks: Task[], nowMs: number, sessionStartMs: number): TrackingStatus {
+  const running = timingTasks(tasks);
+  if (running.length > 0) {
+    const longestMs = running.reduce((max, t) => Math.max(max, elapsedMs(t, nowMs)), 0);
+    return { kind: "running", count: running.length, longestMs };
+  }
+  const last = lastActivityMs(tasks);
+  const anchor = last != null ? Math.max(last, sessionStartMs) : sessionStartMs;
+  return { kind: "idle", sinceMs: Math.max(0, nowMs - anchor) };
+}
+
 /** Milliseconds covered by one entry, measuring an open one up to `nowMs`. Clamped
  *  to ≥ 0 so a backwards clock (or a bad manual edit) never records negative time. */
 function entryMs(entry: TimeEntry, nowMs: number): number {
@@ -43,6 +90,37 @@ export function formatDurationShort(ms: number): string {
   const m = Math.floor(total / 60) % 60;
   const h = Math.floor(total / 3600);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+/** Idle spans falling within this gap of an existing entry on the target task are
+ *  concatenated into it rather than added as a separate session (#idle-timer). The
+ *  common case: the idle span starts exactly where the last entry ended, so
+ *  assigning it back extends that entry instead of leaving a one-second seam. */
+export const IDLE_MERGE_GAP_MS = 60_000;
+
+/**
+ * The closed entry on the task nearest to (and within `gapMs` of, or overlapping)
+ * the candidate `[startMs, endMs]`, suitable for concatenation — or undefined when
+ * none is close enough. Open entries are never merge targets (#idle-timer).
+ */
+export function mergeableEntry(
+  entries: TimeEntry[] | undefined,
+  startMs: number,
+  endMs: number,
+  gapMs: number,
+): TimeEntry | undefined {
+  let best: TimeEntry | undefined;
+  let bestGap = Number.POSITIVE_INFINITY;
+  for (const e of entries ?? []) {
+    if (e.end == null) continue;
+    const s = Date.parse(e.start), en = Date.parse(e.end);
+    if (Number.isNaN(s) || Number.isNaN(en)) continue;
+    // A non-positive gap means the ranges overlap or touch; clamp it to 0 so any
+    // overlap is treated as the closest possible match.
+    const dist = Math.max(0, startMs - en, s - endMs);
+    if (dist <= gapMs && dist < bestGap) { best = e; bestGap = dist; }
+  }
+  return best;
 }
 
 /**

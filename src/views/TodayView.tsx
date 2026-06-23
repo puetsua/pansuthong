@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AssignIdle } from "../components/AssignIdle";
 import { Composer } from "../components/Composer";
+import { IdleStatus } from "../components/IdleStatus";
 import { RowList } from "../components/RowList";
 import { TaskList } from "../components/TaskList";
 import { Document, Task, isDone } from "../lib/tauri";
@@ -17,6 +20,7 @@ function isOverdue(task: Task, todayIso: string): boolean {
 
 export function TodayView({ doc, indexes }: Props) {
   const { t } = useTranslation();
+  const [assigning, setAssigning] = useState(false);
   const today = indexes.todayIso;
   const todayLabel = formatIsoDate(today, dateFormat(doc.settings), currentLocale());
   // `indexes.today` already sorts the combined list; partitioning preserves that order
@@ -29,13 +33,22 @@ export function TodayView({ doc, indexes }: Props) {
   // longer jumps it out of a separate block at the top.
   const todayRows = indexes.mergeRows(todays, indexes.ghostsForDate(today));
   const remaining = openCount(all);
+  const candidates = all.filter(task => !isDone(task));
   return (
     <section>
       <header className="view-header">
         <h1>{t("nav.today")}</h1>
-        <p className="view-sub">{todayLabel} · {t("common.taskCount", { count: remaining })}</p>
+        <p className="view-sub">
+          {todayLabel} · {t("common.taskCount", { count: remaining })}
+          <IdleStatus tasks={doc.tasks} active={assigning}
+                      onAssign={candidates.length > 0 ? () => setAssigning(a => !a) : undefined} />
+        </p>
       </header>
-      <Composer startDate={today} todayIso={today} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} />
+      {assigning ? (
+        <AssignIdle tasks={doc.tasks} candidates={candidates} onClose={() => setAssigning(false)} />
+      ) : (
+        <Composer startDate={today} todayIso={today} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} />
+      )}
       <RowList rows={todayRows} tags={indexes.tagsById} todayIso={today}
                emptyText={t("today.empty")} />
       {overdue.length > 0 && (

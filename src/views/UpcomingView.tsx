@@ -1,10 +1,13 @@
 import dayjs from "dayjs";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { AssignIdle } from "../components/AssignIdle";
+import { IdleStatus } from "../components/IdleStatus";
 import { RowList } from "../components/RowList";
 import { Indexes, Row } from "../state/indexes";
 import { useHeldCompletions } from "../state/heldCompletions";
-import { Document, Task } from "../lib/tauri";
+import { Document, Task, isDone } from "../lib/tauri";
 import { dateFormat, upcomingDays } from "../lib/settings";
 import { currentLocale } from "../i18n";
 import { formatIsoDate } from "../lib/dates";
@@ -14,6 +17,7 @@ type Props = { doc: Document; indexes: Indexes };
 
 export function UpcomingView({ doc, indexes }: Props) {
   const { t } = useTranslation();
+  const [assigning, setAssigning] = useState(false);
   const today = indexes.todayIso;
   const horizon = upcomingDays(doc.settings);
   const dateFmt = dateFormat(doc.settings);
@@ -24,8 +28,12 @@ export function UpcomingView({ doc, indexes }: Props) {
   const groups = buildGroups(indexes, today, horizon, held, t, dateFmt, locale);
   const seen = new Set<string>();
   let ghostCount = 0;
+  const candidates: Task[] = [];
   for (const g of groups) for (const r of g.rows) {
-    if (r.kind === "task") seen.add(r.task.id); else ghostCount++;
+    if (r.kind === "task") {
+      if (!seen.has(r.task.id) && !isDone(r.task)) candidates.push(r.task);
+      seen.add(r.task.id);
+    } else ghostCount++;
   }
   const totalCount = seen.size + ghostCount;
 
@@ -33,8 +41,15 @@ export function UpcomingView({ doc, indexes }: Props) {
     <section>
       <header className="view-header">
         <h1>{t("nav.upcoming")}</h1>
-        <p className="view-sub">{t("upcoming.next", { count: horizon })} · {t("common.taskCount", { count: totalCount })}</p>
+        <p className="view-sub">
+          {t("upcoming.next", { count: horizon })} · {t("common.taskCount", { count: totalCount })}
+          <IdleStatus tasks={doc.tasks} active={assigning}
+                      onAssign={candidates.length > 0 ? () => setAssigning(a => !a) : undefined} />
+        </p>
       </header>
+      {assigning && (
+        <AssignIdle tasks={doc.tasks} candidates={candidates} onClose={() => setAssigning(false)} />
+      )}
       {groups.map(g => (
         <div key={g.date} className="upcoming-group">
           <h3 className="upcoming-day">{g.label}</h3>

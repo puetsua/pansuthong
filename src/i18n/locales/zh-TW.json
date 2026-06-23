@@ -55,7 +55,20 @@
   },
   "today": {
     "empty": "今天沒有開始或到期的任務。",
-    "overdue": "逾期"
+    "overdue": "逾期",
+    "idle": "閒置 {{time}}",
+    "tracking_other": "追蹤 {{count}} 個任務 · {{time}}"
+  },
+  "idle": {
+    "assignAria": "將閒置時間指派給任務",
+    "taskLabel": "任務",
+    "durationLabel": "要指派的時長",
+    "durationInputLabel": "時長",
+    "range": "{{from}} – {{to}}",
+    "confirm": "指派",
+    "cancel": "取消",
+    "errPickTask": "請選擇要指派時間的任務。",
+    "errOverlap": "此範圍與所選任務的現有記錄重疊。"
   },
   "upcoming": {
     "next_other": "接下來 {{count}} 天",

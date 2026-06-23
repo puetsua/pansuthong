@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import { useParams, Navigate, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { AssignIdle } from "../components/AssignIdle";
 import { Composer } from "../components/Composer";
 import { HeatmapGrid } from "../components/HeatmapGrid";
+import { IdleStatus } from "../components/IdleStatus";
 import { RowList } from "../components/RowList";
 import { TagEditor } from "../components/TagEditor";
 import { Indexes } from "../state/indexes";
@@ -25,6 +27,7 @@ export function TagView({ doc, indexes }: Props) {
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState<Tab>("tasks");
+  const [assigning, setAssigning] = useState(false);
   // Hold just-completed tasks visible until this view is left/refreshed (#recover).
   const { held, onCompleted, onReopened } = useHeldCompletions(doc.tasks);
   const tagId = id ?? "";
@@ -53,6 +56,7 @@ export function TagView({ doc, indexes }: Props) {
 
   const active = indexes.byTag.get(id) ?? [];
   const tasks = withHeld(active, held);
+  const candidates = active.filter(task => !isDone(task));
   const ghosts = indexes.ghostsForDate(indexes.todayIso).filter(g => g.tag_ids.includes(id));
   const rows = indexes.mergeRows(tasks, ghosts);
   const open  = active.filter(t => !isDone(t)).length;
@@ -65,7 +69,11 @@ export function TagView({ doc, indexes }: Props) {
           <button type="button" className="link-button tag-edit-link"
                   onClick={() => setEditing(true)}>{t("tagView.editTag")}</button>
         </div>
-        <p className="view-sub">{t("tagView.subtitle", { open, total: tasks.length })}</p>
+        <p className="view-sub">
+          {t("tagView.subtitle", { open, total: tasks.length })}
+          <IdleStatus tasks={doc.tasks} active={assigning}
+                      onAssign={tab === "tasks" && candidates.length > 0 ? () => setAssigning(a => !a) : undefined} />
+        </p>
       </header>
       <div className="tag-view-tabs te-segmented" role="tablist" aria-label={t("tagView.tabsAria")}>
         <button type="button" role="tab" aria-selected={tab === "tasks"}
@@ -81,7 +89,11 @@ export function TagView({ doc, indexes }: Props) {
       </div>
       {tab === "tasks" ? (
         <>
-          <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} contextTagId={id} />
+          {assigning ? (
+            <AssignIdle tasks={doc.tasks} candidates={candidates} onClose={() => setAssigning(false)} />
+          ) : (
+            <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} contextTagId={id} />
+          )}
           <RowList rows={rows} tags={indexes.tagsById} todayIso={indexes.todayIso}
                    emptyText={t("tagView.empty")}
                    onCompleted={onCompleted} onReopened={onReopened} />
