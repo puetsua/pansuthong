@@ -191,8 +191,14 @@ describe("recurrenceStreak", () => {
     expect(recurrenceStreak(cells("done", "skip", "done", "done"))).toBe(2);
   });
 
-  it("is zero when the latest occurrence was skipped", () => {
-    expect(recurrenceStreak(cells("done", "done", "skip"))).toBe(0);
+  it("ignores today's not-yet-done occurrence rather than breaking the run", () => {
+    // The last cell is today; a due-but-unfinished occurrence shouldn't zero
+    // out a run of earlier completed days.
+    expect(recurrenceStreak(cells("done", "done", "skip"))).toBe(2);
+  });
+
+  it("breaks on a skipped occurrence before today even if today is pending", () => {
+    expect(recurrenceStreak(cells("done", "skip", "done", "skip"))).toBe(1);
   });
 
   it("is zero with no occurrences", () => {

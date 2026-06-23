@@ -96,13 +96,21 @@ export function computeHeatmap(args: {
  * were done, walking back from today. Days with no occurrence don't count and
  * don't break the run; the first skipped occurrence ends it. Built from a
  * `computeHeatmap` cell array (oldest..today).
+ *
+ * Today's occurrence is still in progress: if the rule fires today but the task
+ * isn't done yet (the last cell reads "skip"), that pending occurrence is
+ * ignored rather than counted as a break — the day hasn't finished, so a run of
+ * earlier completed occurrences should still show. Only a *past* skipped
+ * occurrence ends the streak.
  */
 export function recurrenceStreak(cells: HeatCell[]): number {
   let streak = 0;
   for (let i = cells.length - 1; i >= 0; i--) {
     if (cells[i].status === "none") continue;
     if (cells[i].status === "done") streak++;
-    else break; // a skipped occurrence ends the streak
+    // Today's not-yet-done occurrence (last cell) doesn't break the run.
+    else if (i === cells.length - 1) continue;
+    else break; // a past skipped occurrence ends the streak
   }
   return streak;
 }
