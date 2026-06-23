@@ -28,6 +28,9 @@ export function HeatmapGrid({ cells, todayIso, firstDayOfWeek, ariaLabel, labelF
   const [hoverYm, setHoverYm] = useState<string | null>(null);
   if (cells.length === 0) return null;
 
+  const monthsShort = t("taskEditor.monthsShort", { returnObjects: true }) as string[];
+  const monthName = (m: number): string => monthsShort[m - 1] ?? "";
+
   const pad: HeatCell[] = Array.from({ length: weekPosition(cells[0].iso, firstDayOfWeek) }, () => ({
     iso: "", status: "none" as const,
   }));
@@ -92,12 +95,4 @@ export function HeatmapGrid({ cells, todayIso, firstDayOfWeek, ariaLabel, labelF
       </div>
     </div>
   );
-}
-
-const MONTH_NAMES_EN = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-function monthName(m: number): string {
-  return MONTH_NAMES_EN[m - 1] ?? "";
 }

@@ -393,7 +393,8 @@
     "discardConfirm": "Discard unsaved changes?",
     "deleteConfirm": "Delete \"{{title}}\"? This can't be undone.",
     "savedAsTemplate": "Saved as a template — this task is unchanged.",
-    "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    "monthsShort": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
   },
   "taskUpdate": {
     "offsetRange": "{{label}} offset must be a whole number of days between 0 and {{max}}.",
