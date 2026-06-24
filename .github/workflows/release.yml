@@ -26,7 +26,7 @@ jobs:
   release-notes:
     name: Release notes (git-cliff)
     needs: tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     outputs:
       # Exposed so the desktop job can embed the same notes in latest.json, which
       # the in-app updater shows in its "update available" prompt.
@@ -54,7 +54,7 @@ jobs:
   windows-desktop:
     name: Windows desktop (NSIS .exe)
     needs: release-notes
-    runs-on: windows-latest
+    runs-on: [self-hosted, windows]
     steps:
       - uses: actions/checkout@v4
 
@@ -108,7 +108,7 @@ jobs:
   android:
     name: Android (unsigned APK)
     needs: release-notes
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     env:
       # Pin the NDK that the local toolchain is known good with.
       NDK_VERSION: "28.2.13676358"
