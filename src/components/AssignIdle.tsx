@@ -6,22 +6,23 @@ import { IDLE_MERGE_GAP_MS, lastActivityMs, mergeableEntry, overlapsExisting } f
 import { formatEstimatedSecondsInput, parseEstimatedSeconds } from "../state/taskUpdate";
 import { currentLocale } from "../i18n";
 import { MarqueeText } from "./MarqueeText";
-import { SESSION_START_MS } from "../lib/session";
 
 type Props = {
-  // All tasks: the idle anchor (last finished activity vs. app launch) is global.
+  // All tasks: the idle anchor (last finished activity vs. current-session reset)
+  // is global.
   tasks: Task[];
   // The host view's open tasks, offered as assignment targets.
   candidates: Task[];
+  idleAnchorMs: number;
   onClose: () => void;
 };
 
 // The idle window, snapshotted once when the form mounts (it does NOT track live
-// time): from the last finished activity — or this session's start, whichever is
+// time): from the last finished activity — or the idle anchor, whichever is
 // later — up to now.
-function initialSpan(tasks: Task[]): { anchorMs: number; endMs: number } {
+function initialSpan(tasks: Task[], idleAnchorMs: number): { anchorMs: number; endMs: number } {
   const last = lastActivityMs(tasks);
-  const anchorMs = last != null ? Math.max(last, SESSION_START_MS) : SESSION_START_MS;
+  const anchorMs = last != null ? Math.max(last, idleAnchorMs) : idleAnchorMs;
   return { anchorMs, endMs: Date.now() };
 }
 
@@ -82,9 +83,9 @@ function TaskSelect({ tasks, value, onChange, ariaLabel }: {
  * entry: at full duration it concatenates into the adjacent entry (within
  * `IDLE_MERGE_GAP_MS`) rather than leaving a one-second seam.
  */
-export function AssignIdle({ tasks, candidates, onClose }: Props) {
+export function AssignIdle({ tasks, candidates, idleAnchorMs, onClose }: Props) {
   const { t } = useTranslation();
-  const [{ anchorMs, endMs }] = useState(() => initialSpan(tasks));
+  const [{ anchorMs, endMs }] = useState(() => initialSpan(tasks, idleAnchorMs));
   const maxSec = Math.max(1, Math.round((endMs - anchorMs) / 1_000));
   const [durationSec, setDurationSec] = useState(maxSec); // defaults to the full window
   const [editing, setEditing] = useState(false);
@@ -144,8 +145,8 @@ export function AssignIdle({ tasks, candidates, onClose }: Props) {
              onChange={ev => onText(ev.currentTarget.value)}
              onBlur={() => setEditing(false)} />
       <span className="assign-idle-range">{t("idle.range", { from: fmtTime(startMs), to: fmtTime(endMs) })}</span>
-      <button type="button" className="assign-idle-save" onClick={submit}>{t("idle.confirm")}</button>
-      <button type="button" onClick={onClose}>{t("idle.cancel")}</button>
+      <button type="button" className="assign-idle-action assign-idle-save" onClick={submit}>{t("idle.confirm")}</button>
+      <button type="button" className="assign-idle-action" onClick={onClose}>{t("idle.cancel")}</button>
       {err && <p className="composer-error" role="alert">{err}</p>}
     </div>
   );

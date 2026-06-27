@@ -2,7 +2,6 @@ import { useTranslation } from "react-i18next";
 import { Task } from "../lib/tauri";
 import { formatClock, trackingStatus } from "../lib/time";
 import { useNow } from "../lib/useNow";
-import { SESSION_START_MS } from "../lib/session";
 
 type Props = {
   // All tasks (active + archived/done): a running timer or the last finished
@@ -13,6 +12,8 @@ type Props = {
   onAssign?: () => void;
   // True while the assign form is open, so the button reads as pressed.
   active?: boolean;
+  idleAnchorMs: number;
+  onResetIdle?: () => void;
 };
 
 // Idle counts up; a running timer is active. Inline glyphs, matching the
@@ -26,10 +27,10 @@ const RUNNING_ICON = "▶";
  * that idle span onto a task you forgot to track. Running: how many timers are
  * going and the longest elapsed.
  */
-export function IdleStatus({ tasks, onAssign, active }: Props) {
+export function IdleStatus({ tasks, onAssign, active, idleAnchorMs, onResetIdle }: Props) {
   const { t } = useTranslation();
   const now = useNow(true); // tick every second so the counter advances live
-  const status = trackingStatus(tasks, now, SESSION_START_MS);
+  const status = trackingStatus(tasks, now, idleAnchorMs);
 
   if (status.kind === "running") {
     return (
@@ -41,21 +42,27 @@ export function IdleStatus({ tasks, onAssign, active }: Props) {
   }
 
   const label = t("today.idle", { time: formatClock(status.sinceMs) });
-  if (!onAssign) {
-    return (
-      <span className="view-idle" data-running="false">
-        {" · "}<span aria-hidden="true">{IDLE_ICON}</span>{" "}{label}
-      </span>
-    );
-  }
-
   return (
     <>
       {" · "}
-      <button type="button" className="view-idle view-idle-btn" data-running="false"
-              aria-pressed={active} title={t("idle.assignAria")} onClick={onAssign}>
-        <span aria-hidden="true">{IDLE_ICON}</span>{" "}{label}
-      </button>
+      {onAssign ? (
+        <span className="view-idle-actions">
+          <button type="button" className="view-idle view-idle-btn" data-running="false"
+                  aria-pressed={active} title={t("idle.assignAria")} onClick={onAssign}>
+            <span aria-hidden="true">{IDLE_ICON}</span>{" "}{label}
+          </button>
+          {active && onResetIdle && (
+            <button type="button" className="view-idle-reset"
+                    title={t("idle.resetAria")} onClick={onResetIdle}>
+              {t("idle.reset")}
+            </button>
+          )}
+        </span>
+      ) : (
+        <span className="view-idle" data-running="false">
+          <span aria-hidden="true">{IDLE_ICON}</span>{" "}{label}
+        </span>
+      )}
     </>
   );
 }

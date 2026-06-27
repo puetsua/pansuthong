@@ -230,6 +230,7 @@ button {
 /* Idle / tracking indicator in the header sub-line (#idle-timer). */
 .view-idle { font-variant-numeric: tabular-nums; }
 .view-idle[data-running="true"] { color: var(--c-accent); }
+.view-idle-actions { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
 /* The idle indicator is a button when it can open the assign form: keep it
    looking like inline text, just clickable. */
 .view-idle-btn {
@@ -238,6 +239,11 @@ button {
 }
 .view-idle-btn:hover { color: var(--c-text); text-decoration: underline; }
 .view-idle-btn[aria-pressed="true"] { color: var(--c-accent); text-decoration: underline; }
+.view-idle-reset {
+  padding: 0.05rem 0.4rem; border: 1px solid var(--c-border); border-radius: var(--radius-sm, 4px);
+  background: var(--c-surface); color: var(--c-text-muted); font: inherit; cursor: pointer;
+}
+.view-idle-reset:hover { color: var(--c-text); border-color: var(--c-accent); }
 
 /* Inline idle-assign form shown in place of the add-task composer (#idle-timer). */
 .assign-idle {
@@ -249,7 +255,7 @@ button {
    fill edge) under a transparent native range that handles all interaction and
    keeps accessibility (#idle-timer). */
 .assign-idle-slider {
-  position: relative; flex: 1 1 8rem; min-width: 6rem; max-width: 16rem;
+  position: relative; flex: 999 1 16rem; min-width: 10rem;
   height: 1rem; display: flex; align-items: center;
   /* Room for the thumb, which overhangs half its width at each end. */
   margin: 0 0.5rem;
@@ -275,13 +281,19 @@ button {
 .assign-idle-slider:focus-within .assign-idle-thumb { box-shadow: 0 0 0 3px var(--c-accent-bg); }
 .assign-idle-dur-input { width: 6rem; font-variant-numeric: tabular-nums; }
 .assign-idle-range { color: var(--c-text-muted); font-variant-numeric: tabular-nums; }
+.assign-idle-action {
+  flex-shrink: 0; padding: 0.25rem 0.65rem; border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm); background: var(--c-surface); color: var(--c-text);
+}
+.assign-idle-action:hover { border-color: var(--c-accent); color: var(--c-accent); }
+.assign-idle-save { background: var(--c-accent-bg); border-color: var(--c-accent); color: var(--c-accent); font-weight: 600; }
 .assign-idle .composer-error { width: 100%; margin: 0; }
 
 /* Custom task dropdown for the assign form: a native <select> can't marquee its
    selected label, so this mimics one with a scrolling button label (#idle-timer). */
 .task-select { position: relative; }
 .task-select-btn {
-  display: inline-flex; align-items: center; gap: var(--space-1); width: 9rem;
+  display: inline-flex; align-items: center; gap: var(--space-1); width: clamp(12rem, 24vw, 20rem);
   padding: 0.25rem 0.5rem; background: var(--c-surface); color: var(--c-text);
   border: 1px solid var(--c-border); border-radius: var(--radius-sm); cursor: pointer;
 }

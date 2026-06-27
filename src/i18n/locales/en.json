@@ -63,6 +63,8 @@
   },
   "idle": {
     "assignAria": "Assign idle time to a task",
+    "resetAria": "Reset idle timer",
+    "reset": "Reset",
     "taskLabel": "Task",
     "durationLabel": "Duration to assign",
     "durationInputLabel": "Duration",

@@ -64,12 +64,28 @@ describe("TaskRow time tracking (#81)", () => {
     await waitFor(() => expect(api.startTimer).toHaveBeenCalledWith("k_1"));
   });
 
+  it("notifies the parent after a timer starts", async () => {
+    const onTimerStarted = vi.fn();
+    render(<TaskRow task={baseTask} tags={tags} todayIso="2026-05-31" onTimerStarted={onTimerStarted} />);
+    fireEvent.click(screen.getByRole("button", { name: /start timer/i }));
+    await waitFor(() => expect(onTimerStarted).toHaveBeenCalledTimes(1));
+  });
+
   it("stops the running timer and shows the live elapsed clock", async () => {
     const running: Task = { ...baseTask, time_entries: [{ id: "te_1", start: "2026-05-31T10:00:00+08:00" }] };
     render(<TaskRow task={running} tags={tags} todayIso="2026-05-31" />);
     // The button is labelled "Stop timer" while running.
     fireEvent.click(screen.getByRole("button", { name: /stop timer/i }));
     await waitFor(() => expect(api.stopTimer).toHaveBeenCalledWith("k_1"));
+  });
+
+  it("does not notify the parent when stopping a timer", async () => {
+    const onTimerStarted = vi.fn();
+    const running: Task = { ...baseTask, time_entries: [{ id: "te_1", start: "2026-05-31T10:00:00+08:00" }] };
+    render(<TaskRow task={running} tags={tags} todayIso="2026-05-31" onTimerStarted={onTimerStarted} />);
+    fireEvent.click(screen.getByRole("button", { name: /stop timer/i }));
+    await waitFor(() => expect(api.stopTimer).toHaveBeenCalledWith("k_1"));
+    expect(onTimerStarted).not.toHaveBeenCalled();
   });
 
   it("shows a tracked total (not the start icon's clock) when stopped with recorded time", () => {

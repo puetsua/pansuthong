@@ -61,6 +61,8 @@
   },
   "idle": {
     "assignAria": "將閒置時間指派給任務",
+    "resetAria": "重設閒置計時器",
+    "reset": "重設",
     "taskLabel": "任務",
     "durationLabel": "要指派的時長",
     "durationInputLabel": "時長",

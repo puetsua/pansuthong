@@ -12,20 +12,22 @@ type Props = {
   // Forwarded to task rows so a view can hold a just-completed task for recovery (#recover).
   onCompleted?: (id: string) => void;
   onReopened?: (id: string) => void;
+  onTimerStarted?: () => void;
 };
 
 /** Renders a merged task/ghost sequence (#9): real tasks and computed recurring
  *  ghosts interleaved in one sorted list, so a ghost shows where its promoted task
  *  would sit. */
-export function RowList({ rows, tags, todayIso, emptyText, onCompleted, onReopened }: Props) {
+export function RowList({ rows, tags, todayIso, emptyText, onCompleted, onReopened, onTimerStarted }: Props) {
   const { t } = useTranslation();
   if (rows.length === 0) return <p className="task-empty">{emptyText ?? t("taskList.empty")}</p>;
   return (
     <div>
       {rows.map(row => row.kind === "ghost"
-        ? <GhostRow key={row.ghost.id} ghost={row.ghost} tags={tags} />
+        ? <GhostRow key={row.ghost.id} ghost={row.ghost} tags={tags} onTimerStarted={onTimerStarted} />
         : <TaskRow key={row.task.id} task={row.task} tags={tags} todayIso={todayIso}
-                   onCompleted={onCompleted} onReopened={onReopened} />)}
+                   onCompleted={onCompleted} onReopened={onReopened}
+                   onTimerStarted={onTimerStarted} />)}
     </div>
   );
 }

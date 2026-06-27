@@ -9,6 +9,7 @@ import { Document, Task, isDone } from "../lib/tauri";
 import { formatIsoDate, isoLt } from "../lib/dates";
 import { currentLocale } from "../i18n";
 import { dateFormat } from "../lib/settings";
+import { useIdleAnchor } from "../lib/useIdleAnchor";
 import { Indexes, openCount } from "../state/indexes";
 
 type Props = { doc: Document; indexes: Indexes };
@@ -21,6 +22,7 @@ function isOverdue(task: Task, todayIso: string): boolean {
 export function TodayView({ doc, indexes }: Props) {
   const { t } = useTranslation();
   const [assigning, setAssigning] = useState(false);
+  const { idleAnchorMs, resetIdleAnchor } = useIdleAnchor();
   const today = indexes.todayIso;
   const todayLabel = formatIsoDate(today, dateFormat(doc.settings), currentLocale());
   // `indexes.today` already sorts the combined list; partitioning preserves that order
@@ -40,21 +42,24 @@ export function TodayView({ doc, indexes }: Props) {
         <h1>{t("nav.today")}</h1>
         <p className="view-sub">
           {todayLabel} · {t("common.taskCount", { count: remaining })}
-          <IdleStatus tasks={doc.tasks} active={assigning}
+          <IdleStatus tasks={doc.tasks} active={assigning} idleAnchorMs={idleAnchorMs}
+                      onResetIdle={resetIdleAnchor}
                       onAssign={candidates.length > 0 ? () => setAssigning(a => !a) : undefined} />
         </p>
       </header>
       {assigning ? (
-        <AssignIdle tasks={doc.tasks} candidates={candidates} onClose={() => setAssigning(false)} />
+        <AssignIdle tasks={doc.tasks} candidates={candidates} idleAnchorMs={idleAnchorMs}
+                    onClose={() => setAssigning(false)} />
       ) : (
         <Composer startDate={today} todayIso={today} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} />
       )}
       <RowList rows={todayRows} tags={indexes.tagsById} todayIso={today}
-               emptyText={t("today.empty")} />
+               emptyText={t("today.empty")} onTimerStarted={() => setAssigning(false)} />
       {overdue.length > 0 && (
         <div className="overdue-group">
           <h3 className="overdue-heading">{t("today.overdue")} · {t("common.taskCount", { count: overdue.length })}</h3>
-          <TaskList tasks={overdue} tags={indexes.tagsById} todayIso={today} />
+          <TaskList tasks={overdue} tags={indexes.tagsById} todayIso={today}
+                    onTimerStarted={() => setAssigning(false)} />
         </div>
       )}
     </section>

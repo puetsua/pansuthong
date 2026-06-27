@@ -15,6 +15,7 @@ import { formatDate } from "../lib/dates";
 import { currentLocale } from "../i18n";
 import { firstDayOfWeek, recurrenceHeatmapDays } from "../lib/settings";
 import { formatDurationShort } from "../lib/time";
+import { useIdleAnchor } from "../lib/useIdleAnchor";
 import { recurrenceStreak, type HeatCell, type Heatmap } from "../lib/recurrence-heatmap";
 import { computeTagAnalytics, recurringScheduledDates } from "../lib/tag-analytics";
 
@@ -28,6 +29,7 @@ export function TagView({ doc, indexes }: Props) {
   const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState<Tab>("tasks");
   const [assigning, setAssigning] = useState(false);
+  const { idleAnchorMs, resetIdleAnchor } = useIdleAnchor();
   // Hold just-completed tasks visible until this view is left/refreshed (#recover).
   const { held, onCompleted, onReopened } = useHeldCompletions(doc.tasks);
   const tagId = id ?? "";
@@ -71,7 +73,8 @@ export function TagView({ doc, indexes }: Props) {
         </div>
         <p className="view-sub">
           {t("tagView.subtitle", { open, total: tasks.length })}
-          <IdleStatus tasks={doc.tasks} active={assigning}
+          <IdleStatus tasks={doc.tasks} active={assigning} idleAnchorMs={idleAnchorMs}
+                      onResetIdle={resetIdleAnchor}
                       onAssign={tab === "tasks" && candidates.length > 0 ? () => setAssigning(a => !a) : undefined} />
         </p>
       </header>
@@ -90,13 +93,15 @@ export function TagView({ doc, indexes }: Props) {
       {tab === "tasks" ? (
         <>
           {assigning ? (
-            <AssignIdle tasks={doc.tasks} candidates={candidates} onClose={() => setAssigning(false)} />
+            <AssignIdle tasks={doc.tasks} candidates={candidates} idleAnchorMs={idleAnchorMs}
+                        onClose={() => setAssigning(false)} />
           ) : (
             <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} contextTagId={id} />
           )}
           <RowList rows={rows} tags={indexes.tagsById} todayIso={indexes.todayIso}
                    emptyText={t("tagView.empty")}
-                   onCompleted={onCompleted} onReopened={onReopened} />
+                   onCompleted={onCompleted} onReopened={onReopened}
+                   onTimerStarted={() => setAssigning(false)} />
         </>
       ) : (
         <TagAnalytics

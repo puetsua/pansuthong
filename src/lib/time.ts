@@ -37,23 +37,22 @@ export function lastActivityMs(tasks: Task[]): number | null {
  *   - "running": at least one timer is going; report how many and the longest
  *     running task's live elapsed (the running entry that started earliest).
  *   - "idle": nothing is running; count up from `sinceMs` ago, where the anchor
- *     is the later of the last finished activity and this app session's start.
- *     Anchoring to `sessionStartMs` makes the idle clock reset on app close/reopen
- *     (the frontend reloads, capturing a fresh start) while still growing without
- *     bound within a single session, which is the intended behavior.
+ *     is the later of the last finished activity and the current idle anchor.
+ *     The anchor starts at app launch and can be advanced without changing task
+ *     history, so the user can discard idle time they do not want to assign.
  */
 export type TrackingStatus =
   | { kind: "running"; count: number; longestMs: number }
   | { kind: "idle"; sinceMs: number };
 
-export function trackingStatus(tasks: Task[], nowMs: number, sessionStartMs: number): TrackingStatus {
+export function trackingStatus(tasks: Task[], nowMs: number, idleAnchorMs: number): TrackingStatus {
   const running = timingTasks(tasks);
   if (running.length > 0) {
     const longestMs = running.reduce((max, t) => Math.max(max, elapsedMs(t, nowMs)), 0);
     return { kind: "running", count: running.length, longestMs };
   }
   const last = lastActivityMs(tasks);
-  const anchor = last != null ? Math.max(last, sessionStartMs) : sessionStartMs;
+  const anchor = last != null ? Math.max(last, idleAnchorMs) : idleAnchorMs;
   return { kind: "idle", sinceMs: Math.max(0, nowMs - anchor) };
 }
 

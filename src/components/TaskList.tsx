@@ -12,16 +12,18 @@ type Props = {
   // Forwarded to each row so a view can hold a just-completed task for recovery (#recover).
   onCompleted?: (id: string) => void;
   onReopened?: (id: string) => void;
+  onTimerStarted?: () => void;
 };
 
 export function TaskList({ tasks, tags, todayIso, emptyText, archived = false,
-                           onCompleted, onReopened }: Props) {
+                           onCompleted, onReopened, onTimerStarted }: Props) {
   const { t } = useTranslation();
   if (tasks.length === 0) return <p className="task-empty">{emptyText ?? t("taskList.empty")}</p>;
   return (
     <div>
       {tasks.map(t => <TaskRow key={t.id} task={t} tags={tags} todayIso={todayIso} archived={archived}
-                               onCompleted={onCompleted} onReopened={onReopened} />)}
+                               onCompleted={onCompleted} onReopened={onReopened}
+                               onTimerStarted={onTimerStarted} />)}
     </div>
   );
 }

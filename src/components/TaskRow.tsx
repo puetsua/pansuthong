@@ -22,6 +22,7 @@ type Props = {
   // visible (for recovery) and drop it again on reopen (#recover).
   onCompleted?: (id: string) => void;
   onReopened?: (id: string) => void;
+  onTimerStarted?: () => void;
 };
 
 function whenLabel(task: Task, today: string, t: TFunction): { text: string; late: boolean } {
@@ -41,7 +42,7 @@ function whenLabel(task: Task, today: string, t: TFunction): { text: string; lat
   return { text: "", late: false };
 }
 
-export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, onReopened }: Props) {
+export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, onReopened, onTimerStarted }: Props) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +91,7 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
   const toggleTimer = () => {
     setError(null);
     (running ? api.stopTimer(task.id) : api.startTimer(task.id))
+      .then(() => { if (!running) onTimerStarted?.(); })
       .catch(err => setError(errorMessage(err)));
   };
 

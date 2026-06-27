@@ -9,6 +9,7 @@ import { TaskEditor } from "./TaskEditor";
 type Props = {
   ghost: GhostTask;
   tags: Map<string, Tag>;
+  onTimerStarted?: () => void;
 };
 
 /**
@@ -17,7 +18,7 @@ type Props = {
  * applies the action to the returned task. The de-emphasised styling + the
  * recurrence marker distinguish it from real rows.
  */
-export function GhostRow({ ghost, tags }: Props) {
+export function GhostRow({ ghost, tags, onTimerStarted }: Props) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +61,10 @@ export function GhostRow({ ghost, tags }: Props) {
     });
   };
 
-  const startTimer = () => run(t => api.startTimer(t.id));
+  const startTimer = () => run(async t => {
+    await api.startTimer(t.id);
+    onTimerStarted?.();
+  });
 
   return (
     <>
