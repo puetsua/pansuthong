@@ -58,6 +58,7 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<Draft>({ start: "", end: "", duration: "" });
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
 
   // Keep the duration field in sync with start/end (and vice-versa).
   const setStart = (v: string) => setDraft(d => ({ ...d, start: v, duration: durationOfRange(v, d.end) }));
@@ -91,6 +92,7 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
 
   const openAdd = () => {
     setEditingId(null);
+    setOpen(true);
     // Sample the clock now: `now` only ticks while a timer runs, so it can be stale.
     // Default to a one-minute slot starting now, which the user then adjusts.
     const t = Date.now();
@@ -108,6 +110,7 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
 
   const openEdit = (e: TimeEntry) => {
     setAdding(false);
+    setOpen(true);
     setEditingId(e.id);
     const start = toLocalInput(Date.parse(e.start));
     const end = e.end != null ? toLocalInput(Date.parse(e.end)) : "";
@@ -136,7 +139,12 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
   return (
     <section className="te-time">
       <div className="te-time-head">
-        <span className="te-field-label">{t("timeTracking.timeTracked")}</span>
+        <button type="button" className="te-collapse-toggle te-time-collapse"
+                aria-expanded={open}
+                onClick={() => setOpen(o => !o)}>
+          <span className="te-collapse-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>
+          {t("timeTracking.timeTracked")}
+        </button>
         <span className="te-time-total" data-running={running}>
           {running ? formatClock(total) : formatDurationShort(total)}
         </span>
@@ -153,71 +161,76 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
         </button>
       </div>
       {estimateError && <p className="te-warn" role="alert">{estimateError}</p>}
-      {estimateMs > 0 && (
-        <div className="te-time-progress">
-          <div className="te-time-bar" data-over={over}>
-            <div className="te-time-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
-          </div>
-          <span className="te-time-bar-pct" data-over={over}>{pct}%</span>
-        </div>
-      )}
 
-      {entries.length > 0 && (
-        <ul className="te-time-list">
-          {entries.map(e => (
-            <li key={e.id} className="te-time-entry">
-              {editingId === e.id ? (
-                <div className="te-time-edit">
-                  <input type="datetime-local" step="1" aria-label={t("timeTracking.entryStart")} value={draft.start}
-                         onChange={ev => setStart(ev.currentTarget.value)} />
-                  {e.end != null ? (
-                    <>
-                      <input type="datetime-local" step="1" aria-label={t("timeTracking.entryEnd")} value={draft.end}
-                             onChange={ev => setEnd(ev.currentTarget.value)} />
-                      <input type="text" inputMode="text" className="te-time-dur-input" aria-label={t("timeTracking.entryDuration")}
-                             placeholder={t("timeTracking.durationPlaceholder")} value={draft.duration}
-                             onChange={ev => setDuration(ev.currentTarget.value)} />
-                    </>
+      {open && (
+        <>
+          {estimateMs > 0 && (
+            <div className="te-time-progress">
+              <div className="te-time-bar" data-over={over}>
+                <div className="te-time-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
+              </div>
+              <span className="te-time-bar-pct" data-over={over}>{pct}%</span>
+            </div>
+          )}
+
+          {entries.length > 0 && (
+            <ul className="te-time-list">
+              {entries.map(e => (
+                <li key={e.id} className="te-time-entry">
+                  {editingId === e.id ? (
+                    <div className="te-time-edit">
+                      <input type="datetime-local" step="1" aria-label={t("timeTracking.entryStart")} value={draft.start}
+                             onChange={ev => setStart(ev.currentTarget.value)} />
+                      {e.end != null ? (
+                        <>
+                          <input type="datetime-local" step="1" aria-label={t("timeTracking.entryEnd")} value={draft.end}
+                                 onChange={ev => setEnd(ev.currentTarget.value)} />
+                          <input type="text" inputMode="text" className="te-time-dur-input" aria-label={t("timeTracking.entryDuration")}
+                                 placeholder={t("timeTracking.durationPlaceholder")} value={draft.duration}
+                                 onChange={ev => setDuration(ev.currentTarget.value)} />
+                        </>
+                      ) : (
+                        <span className="te-time-running">{t("timeTracking.running")}</span>
+                      )}
+                      <button type="button" className="te-time-save" onClick={() => submitEdit(e)}>{t("timeTracking.save")}</button>
+                      <button type="button" onClick={() => setEditingId(null)}>{t("timeTracking.cancel")}</button>
+                    </div>
                   ) : (
-                    <span className="te-time-running">{t("timeTracking.running")}</span>
+                    <>
+                      <span className="te-time-range">
+                        {fmtMoment(Date.parse(e.start))} – {e.end != null ? fmtMoment(Date.parse(e.end)) : <em>{t("timeTracking.running")}</em>}
+                      </span>
+                      {e.end != null && <span className="te-time-dur">{formatDurationShort(durationMs(e))}</span>}
+                      <button type="button" className="te-time-edit-btn" onClick={() => openEdit(e)}
+                              aria-label={t("timeTracking.editEntry")}>{t("timeTracking.edit")}</button>
+                      <button type="button" className="te-time-del" onClick={() => del(e.id)}
+                              aria-label={t("timeTracking.deleteEntry")}>{t("timeTracking.delete")}</button>
+                    </>
                   )}
-                  <button type="button" className="te-time-save" onClick={() => submitEdit(e)}>{t("timeTracking.save")}</button>
-                  <button type="button" onClick={() => setEditingId(null)}>{t("timeTracking.cancel")}</button>
-                </div>
-              ) : (
-                <>
-                  <span className="te-time-range">
-                    {fmtMoment(Date.parse(e.start))} – {e.end != null ? fmtMoment(Date.parse(e.end)) : <em>{t("timeTracking.running")}</em>}
-                  </span>
-                  {e.end != null && <span className="te-time-dur">{formatDurationShort(durationMs(e))}</span>}
-                  <button type="button" className="te-time-edit-btn" onClick={() => openEdit(e)}
-                          aria-label={t("timeTracking.editEntry")}>{t("timeTracking.edit")}</button>
-                  <button type="button" className="te-time-del" onClick={() => del(e.id)}
-                          aria-label={t("timeTracking.deleteEntry")}>{t("timeTracking.delete")}</button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+                </li>
+              ))}
+            </ul>
+          )}
 
-      {adding ? (
-        <div className="te-time-edit">
-          <input type="datetime-local" step="1" aria-label={t("timeTracking.newEntryStart")} value={draft.start}
-                 onChange={ev => setStart(ev.currentTarget.value)} />
-          <input type="datetime-local" step="1" aria-label={t("timeTracking.newEntryEnd")} value={draft.end}
-                 onChange={ev => setEnd(ev.currentTarget.value)} />
-          <input type="text" inputMode="text" className="te-time-dur-input" aria-label={t("timeTracking.newEntryDuration")}
-                 placeholder={t("timeTracking.durationPlaceholder")} value={draft.duration}
-                 onChange={ev => setDuration(ev.currentTarget.value)} />
-          <button type="button" className="te-time-save" onClick={submitAdd}>{t("timeTracking.add")}</button>
-          <button type="button" onClick={() => setAdding(false)}>{t("timeTracking.cancel")}</button>
-        </div>
-      ) : (
-        <button type="button" className="te-time-add" onClick={openAdd}>{t("timeTracking.addEntry")}</button>
-      )}
+          {adding ? (
+            <div className="te-time-edit">
+              <input type="datetime-local" step="1" aria-label={t("timeTracking.newEntryStart")} value={draft.start}
+                     onChange={ev => setStart(ev.currentTarget.value)} />
+              <input type="datetime-local" step="1" aria-label={t("timeTracking.newEntryEnd")} value={draft.end}
+                     onChange={ev => setEnd(ev.currentTarget.value)} />
+              <input type="text" inputMode="text" className="te-time-dur-input" aria-label={t("timeTracking.newEntryDuration")}
+                     placeholder={t("timeTracking.durationPlaceholder")} value={draft.duration}
+                     onChange={ev => setDuration(ev.currentTarget.value)} />
+              <button type="button" className="te-time-save" onClick={submitAdd}>{t("timeTracking.add")}</button>
+              <button type="button" onClick={() => setAdding(false)}>{t("timeTracking.cancel")}</button>
+            </div>
+          ) : (
+            <button type="button" className="te-time-add" onClick={openAdd}>{t("timeTracking.addEntry")}</button>
+          )}
 
-      {err && <p className="composer-error" role="alert">{err}</p>}
+          {err && <p className="composer-error" role="alert">{err}</p>}
+        </>
+      )}
     </section>
   );
 }

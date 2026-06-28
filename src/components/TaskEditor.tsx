@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -542,6 +542,8 @@ export function TaskEditor(props: Props) {
     () => new Set(form.attachments.map(a => a.path)),
     [form.attachments],
   );
+  const noteRows = Math.min(16, Math.max(4, form.notes.split(/\r\n|\r|\n/).length + 1));
+  const noteHeightRem = Math.min(18, Math.max(7, noteRows * 1.45 + 1.5));
 
   // Markdown renderers: resolve live managed attachment paths to asset URLs.
   // Inline images open the lightbox; managed links open in the default app. A
@@ -580,7 +582,14 @@ export function TaskEditor(props: Props) {
            aria-label={heading}
            onClick={e => e.stopPropagation()}>
         <div className="te-header">
-          <h2>{heading}</h2>
+          <div className="te-title-actions">
+            <h2>{heading}</h2>
+            {canComplete && (
+              <button type="button" className="te-complete" onClick={toggleComplete} disabled={busy}>
+                {isDoneTask ? t("taskEditor.reopen") : t("taskEditor.complete")}
+              </button>
+            )}
+          </div>
           <button type="button" className="te-close" aria-label={t("taskEditor.close")}
                   onClick={requestClose} disabled={busy}>✕</button>
         </div>
@@ -781,6 +790,15 @@ export function TaskEditor(props: Props) {
           />
         </div>
 
+        {canComplete && taskEntity && (
+          <TimeTracking
+            task={taskEntity}
+            estimateInput={form.estimated_seconds}
+            onEstimateChange={v => set("estimated_seconds", v)}
+            estimateError={estimateError}
+          />
+        )}
+
         <div className="te-field te-notes-field">
           <div className="te-field-head">
             <span>{t("taskEditor.notes")}</span>
@@ -795,11 +813,13 @@ export function TaskEditor(props: Props) {
               ))}
             </div>
           </div>
-          <div className={`te-notes te-notes-mode-${notesMode}`} ref={notesBoxRef}>
+          <div className={`te-notes te-notes-mode-${notesMode}`}
+               ref={notesBoxRef}
+               style={{ "--te-notes-height": `${noteHeightRem}rem` } as CSSProperties}>
             {notesMode !== "preview" && (
               <textarea aria-label={t("taskEditor.notesMarkdown")}
                         ref={notesRef}
-                        value={form.notes} rows={10}
+                        value={form.notes} rows={noteRows}
                         onChange={e => set("notes", e.currentTarget.value)}
                         onPaste={handleNotesPaste} />
             )}
@@ -863,15 +883,6 @@ export function TaskEditor(props: Props) {
           </>
         )}
 
-        {canComplete && taskEntity && (
-          <TimeTracking
-            task={taskEntity}
-            estimateInput={form.estimated_seconds}
-            onEstimateChange={v => set("estimated_seconds", v)}
-            estimateError={estimateError}
-          />
-        )}
-
         {error && <p className="composer-error">{error}</p>}
         {notice && <p className="te-notice" role="status">{notice}</p>}
 
@@ -899,11 +910,6 @@ export function TaskEditor(props: Props) {
                 </div>
               )}
             </div>
-          )}
-          {canComplete && (
-            <button type="button" className="te-complete" onClick={toggleComplete} disabled={busy}>
-              {isDoneTask ? t("taskEditor.reopen") : t("taskEditor.complete")}
-            </button>
           )}
           <span className="te-spacer" />
           <button type="button" onClick={requestClose} disabled={busy}>{t("taskEditor.cancel")}</button>

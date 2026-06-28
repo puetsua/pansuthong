@@ -25,6 +25,8 @@ const closed = { id: "te_1", start: "2026-06-02T09:00:00+08:00", end: "2026-06-0
 beforeEach(() => vi.clearAllMocks());
 
 describe("TimeTracking (#81)", () => {
+  const expand = () => fireEvent.click(screen.getByRole("button", { name: "Time tracked" }));
+
   it("starts the timer when none is running", async () => {
     render(<TimeTracking task={base} />);
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
@@ -40,6 +42,9 @@ describe("TimeTracking (#81)", () => {
 
   it("lists an entry with its duration and deletes it", async () => {
     render(<TimeTracking task={{ ...base, time_entries: [closed] }} />);
+    expect(screen.queryByRole("button", { name: /delete entry/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add entry" })).toBeNull();
+    expand();
     // "1h 0m" shows twice: the running total and this entry's duration.
     expect(screen.getAllByText("1h 0m").length).toBe(2);
     fireEvent.click(screen.getByRole("button", { name: /delete entry/i }));
@@ -73,6 +78,7 @@ describe("TimeTracking (#81)", () => {
 
   it("edits an entry's times", async () => {
     render(<TimeTracking task={{ ...base, time_entries: [closed] }} />);
+    expand();
     fireEvent.click(screen.getByRole("button", { name: /edit entry/i }));
     fireEvent.change(screen.getByLabelText("Entry end"), { target: { value: "2026-06-02T11:00" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -83,6 +89,7 @@ describe("TimeTracking (#81)", () => {
 
   it("rejects an entry whose end is not after its start", async () => {
     render(<TimeTracking task={base} />);
+    expand();
     fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
     fireEvent.change(screen.getByLabelText("New entry start"), { target: { value: "2026-06-02T10:00" } });
     fireEvent.change(screen.getByLabelText("New entry end"), { target: { value: "2026-06-02T09:00" } });
@@ -98,6 +105,7 @@ describe("TimeTracking (#81)", () => {
     // inputs are always interpreted as local time).
     const localClosed = { id: "te_1", start: "2026-06-02T09:00:00", end: "2026-06-02T10:00:00" };
     render(<TimeTracking task={{ ...base, time_entries: [localClosed] }} />);
+    expand();
     fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
     fireEvent.change(screen.getByLabelText("New entry start"), { target: { value: "2026-06-02T09:30" } });
     fireEvent.change(screen.getByLabelText("New entry end"), { target: { value: "2026-06-02T10:30" } });
@@ -109,6 +117,7 @@ describe("TimeTracking (#81)", () => {
   it("defaults a new entry to now .. now + 1 minute", () => {
     const before = Date.now();
     render(<TimeTracking task={base} />);
+    expand();
     fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
     const startMs = new Date((screen.getByLabelText("New entry start") as HTMLInputElement).value).getTime();
     const endMs = new Date((screen.getByLabelText("New entry end") as HTMLInputElement).value).getTime();
@@ -120,6 +129,7 @@ describe("TimeTracking (#81)", () => {
 
   it("syncs duration when the end time changes, and end when the duration changes", () => {
     render(<TimeTracking task={base} />);
+    expand();
     fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
     fireEvent.change(screen.getByLabelText("New entry start"), { target: { value: "2026-06-02T09:00:00" } });
     fireEvent.change(screen.getByLabelText("New entry end"), { target: { value: "2026-06-02T10:30:00" } });
@@ -133,6 +143,7 @@ describe("TimeTracking (#81)", () => {
 
   it("submits the start/end implied by a duration edit", async () => {
     render(<TimeTracking task={base} />);
+    expand();
     fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
     fireEvent.change(screen.getByLabelText("New entry start"), { target: { value: "2026-06-02T09:00:00" } });
     fireEvent.change(screen.getByLabelText("New entry duration"), { target: { value: "45m" } });
@@ -144,6 +155,7 @@ describe("TimeTracking (#81)", () => {
 
   it("adds a valid manual entry", async () => {
     render(<TimeTracking task={base} />);
+    expand();
     fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
     fireEvent.change(screen.getByLabelText("New entry start"), { target: { value: "2026-06-02T09:00" } });
     fireEvent.change(screen.getByLabelText("New entry end"), { target: { value: "2026-06-02T10:00" } });
@@ -155,6 +167,7 @@ describe("TimeTracking (#81)", () => {
 
   it("keeps second precision in a manual entry (step=1 inputs)", async () => {
     render(<TimeTracking task={base} />);
+    expand();
     fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
     const start = screen.getByLabelText("New entry start") as HTMLInputElement;
     expect(start.step).toBe("1"); // browser exposes a seconds field

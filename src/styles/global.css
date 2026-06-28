@@ -1228,6 +1228,13 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   border-bottom: 1px solid var(--c-border);
 }
 .te-header h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+.te-title-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: var(--space-2);
+}
 .te-close {
   display: inline-flex;
   align-items: center;
@@ -1285,7 +1292,11 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .te-datetime input.te-time:disabled { opacity: 0.5; }
 /* Time-tracking section in the task editor (#81). */
 .te-time { display: flex; flex-direction: column; gap: var(--space-2); border-top: 1px solid var(--c-border); padding-top: var(--space-3); }
-.te-time-head { display: flex; align-items: center; gap: var(--space-2); }
+.te-time-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.te-time-collapse {
+  min-height: 1.75rem;
+  flex-shrink: 0;
+}
 .te-field-label { font-size: 0.72rem; color: var(--c-text-muted); font-weight: 600; }
 .te-time-total { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
 .te-time-total[data-running="true"] { color: var(--c-accent); }
@@ -1349,8 +1360,9 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
      container (not the textarea) so the editor AND preview grow together. */
   grid-template-rows: 1fr;
   gap: var(--space-2);
-  height: 22rem;
-  min-height: 12rem;
+  height: var(--te-notes-height, 7rem);
+  min-height: 7rem;
+  max-height: 18rem;
   resize: vertical;
   overflow: hidden;
 }
@@ -1722,16 +1734,62 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .te-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin-top: var(--space-2);
   padding-top: var(--space-3);
   border-top: 1px solid var(--c-border);
 }
 .te-spacer { flex: 1; }
-.te-delete { color: var(--c-danger); }
-.te-save { font-weight: 600; }
+.te-actions > button,
+.te-options > .te-options-btn {
+  min-height: 2.15rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-weight: 600;
+}
+.te-actions > button:hover:not(:disabled),
+.te-options > .te-options-btn:hover:not(:disabled) {
+  border-color: var(--c-accent);
+  background: var(--c-surface-2);
+}
+.te-actions > button:disabled,
+.te-options > .te-options-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.te-delete {
+  color: var(--c-danger);
+  border-color: var(--c-danger);
+}
+.te-delete:hover:not(:disabled) {
+  color: #fff;
+  background: var(--c-danger);
+  border-color: var(--c-danger);
+}
+.te-save {
+  color: #fff;
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  font-weight: 700;
+}
+.te-save:hover:not(:disabled) {
+  color: #fff;
+  filter: brightness(1.06);
+}
 /* Mark-complete / reopen action in the task modal. */
-.te-complete { color: var(--c-accent); border-color: var(--c-accent); font-weight: 600; }
+.te-complete {
+  min-height: 1.9rem;
+  padding: 3px 12px;
+  border: 1px solid var(--c-accent);
+  border-radius: var(--radius-sm);
+  color: var(--c-accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
 .te-complete:hover:not(:disabled) { background: var(--c-accent-bg); }
 /* Keep the weight field compact inside the tag editor (the .settings-row width
    rule is scoped to settings, so the modal needs its own). */
