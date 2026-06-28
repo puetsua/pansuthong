@@ -54,7 +54,7 @@ jobs:
   windows-desktop:
     name: Windows desktop (NSIS .exe)
     needs: release-notes
-    runs-on: [self-hosted, windows]
+    runs-on: [self-hosted, linux]
     steps:
       - uses: actions/checkout@v4
 
@@ -64,10 +64,16 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+
+      # makensis (for NSIS packaging) and mingw-w64 (Windows cross-compiler).
+      - name: Install NSIS and mingw-w64
+        run: sudo apt-get install -y nsis mingw-w64
 
       - run: npm ci
 
@@ -76,7 +82,7 @@ jobs:
       - name: Sync version from tag
         env:
           VERSION: ${{ github.ref_name }}
-        run: node .github/scripts/set-version.mjs "$env:VERSION"
+        run: node .github/scripts/set-version.mjs "$VERSION"
 
       # NSIS .exe only (skip the WiX .msi). Sign the updater artifacts so the
       # in-app updater accepts them (createUpdaterArtifacts is on in tauri.conf.json).
@@ -84,7 +90,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run tauri build -- --bundles nsis
+        run: npm run tauri build -- --bundles nsis --target x86_64-pc-windows-gnu
 
       # Assemble the updater manifest (latest.json) from the signed installer +
       # its .sig, pointing at the stable per-tag download URL. The in-app updater
@@ -93,7 +99,7 @@ jobs:
         env:
           VERSION: ${{ github.ref_name }}
           NOTES: ${{ needs.release-notes.outputs.notes }}
-        run: node .github/scripts/make-latest-json.mjs "$env:VERSION"
+        run: node .github/scripts/make-latest-json.mjs "$VERSION"
 
       - name: Publish installer + latest.json to the release
         uses: softprops/action-gh-release@v2
@@ -102,7 +108,7 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           fail_on_unmatched_files: true
           files: |
-            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/x86_64-pc-windows-gnu/release/bundle/nsis/*-setup.exe
             latest.json
 
   android:
