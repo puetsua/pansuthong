@@ -480,7 +480,10 @@ export function SettingsView({ doc }: Props) {
       <section className="settings-section settings-section-flow">
         <h2>{t("settings.dataFile")}</h2>
         <p className="view-sub">
-          {t("settings.tasksPersist")}<code>{loc?.effective_path ?? "…"}</code>
+          {t("settings.deviceId")}<code>{loc?.device_id ?? "…"}</code>
+        </p>
+        <p className="view-sub">
+          {t("settings.dataFolder")}<code>{loc?.folder_path ?? "…"}</code>
         </p>
         {android ? (
           sync?.linked ? (

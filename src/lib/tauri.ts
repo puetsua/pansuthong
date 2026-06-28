@@ -195,7 +195,12 @@ export type TemplateUpdate = {
   dashboard_view?: DashboardView | null; // null unpins; omitted leaves it
 };
 
-export type DataLocation = { folder: string | null; effective_path: string };
+export type DataLocation = {
+  folder: string | null;
+  device_id: string;
+  folder_path: string;
+  effective_path: string;
+};
 
 export type TaskDiff =
   | { kind: "differs";     id: string; mine: Task;   theirs: Task }

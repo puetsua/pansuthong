@@ -2222,7 +2222,12 @@ pub fn dismiss_conflict(
 pub struct DataLocation {
     /// User-chosen folder, or null when using the default app-data dir.
     pub folder: Option<String>,
-    /// The effective absolute tasks.json path in use right now.
+    /// Stable per-install id used to name this device's sync replica.
+    pub device_id: String,
+    /// The effective folder containing this device's data replica.
+    pub folder_path: String,
+    /// The effective absolute tasks.json path in use right now. Kept for
+    /// compatibility; Settings shows folder_path instead.
     pub effective_path: String,
 }
 
@@ -2233,9 +2238,16 @@ fn default_data_dir(app: &AppHandle) -> Result<PathBuf> {
 }
 
 fn data_location(state: &AppState, config: &ConfigState) -> DataLocation {
+    let effective_path = state.path();
+    let folder_path = effective_path
+        .parent()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
     DataLocation {
         folder: config.folder(),
-        effective_path: state.path().to_string_lossy().to_string(),
+        device_id: config.device_id(),
+        folder_path,
+        effective_path: effective_path.to_string_lossy().to_string(),
     }
 }
 
