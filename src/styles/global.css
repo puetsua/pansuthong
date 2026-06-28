@@ -240,8 +240,8 @@ button {
 .view-idle-btn:hover { color: var(--c-text); text-decoration: underline; }
 .view-idle-btn[aria-pressed="true"] { color: var(--c-accent); text-decoration: underline; }
 .view-idle-reset {
-  padding: 0.05rem 0.4rem; border: 1px solid var(--c-border); border-radius: var(--radius-sm, 4px);
-  background: var(--c-surface); color: var(--c-text-muted); font: inherit; cursor: pointer;
+  padding: 1px 8px; border: 1px solid var(--c-border); border-radius: var(--radius-sm, 4px);
+  background: var(--c-surface); color: var(--c-text-muted); font: inherit; line-height: 1.2; cursor: pointer;
 }
 .view-idle-reset:hover { color: var(--c-text); border-color: var(--c-accent); }
 
@@ -282,11 +282,17 @@ button {
 .assign-idle-dur-input { width: 6rem; font-variant-numeric: tabular-nums; }
 .assign-idle-range { color: var(--c-text-muted); font-variant-numeric: tabular-nums; }
 .assign-idle-action {
-  flex-shrink: 0; padding: 0.25rem 0.65rem; border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm); background: var(--c-surface); color: var(--c-text);
+  flex-shrink: 0; padding: var(--space-2) var(--space-4); border: 1px solid var(--c-border);
+  border-radius: var(--radius-md); background: var(--c-surface); color: var(--c-text);
 }
 .assign-idle-action:hover { border-color: var(--c-accent); color: var(--c-accent); }
-.assign-idle-save { background: var(--c-accent-bg); border-color: var(--c-accent); color: var(--c-accent); font-weight: 600; }
+.assign-idle-save {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  color: white;
+  font-weight: 600;
+}
+.assign-idle-save:hover { color: white; }
 .assign-idle .composer-error { width: 100%; margin: 0; }
 
 /* Custom task dropdown for the assign form: a native <select> can't marquee its
@@ -294,8 +300,8 @@ button {
 .task-select { position: relative; }
 .task-select-btn {
   display: inline-flex; align-items: center; gap: var(--space-1); width: clamp(12rem, 24vw, 20rem);
-  padding: 0.25rem 0.5rem; background: var(--c-surface); color: var(--c-text);
-  border: 1px solid var(--c-border); border-radius: var(--radius-sm); cursor: pointer;
+  padding: var(--space-2) var(--space-4); background: var(--c-surface); color: var(--c-text);
+  border: 1px solid var(--c-border); border-radius: var(--radius-md); cursor: pointer;
 }
 .task-select-label { flex: 1 1 auto; min-width: 0; text-align: left; }
 .task-select-caret { flex: 0 0 auto; color: var(--c-text-muted); font-size: 0.7rem; }
