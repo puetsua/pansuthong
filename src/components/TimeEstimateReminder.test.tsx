@@ -55,12 +55,12 @@ describe("TimeEstimateReminder", () => {
     }));
   });
 
-  it("repeats every ten minutes while the timer keeps running", async () => {
+  it("repeats every minute while the timer keeps running", async () => {
     render(<TimeEstimateReminder tasks={[running("2026-06-08T10:00:00+08:00")]} />);
     await flush();
     expect(notification.sendNotification).toHaveBeenCalledTimes(1);
 
-    vi.advanceTimersByTime(9 * 60_000 + 59_000);
+    vi.advanceTimersByTime(59_000);
     await flush();
     expect(notification.sendNotification).toHaveBeenCalledTimes(1);
 

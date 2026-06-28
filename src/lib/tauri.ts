@@ -16,7 +16,7 @@ export type Settings = {
   default_tag_priority?: number; // weight pre-filled for a new tag; -9999..9999, default 0 (#79)
   language?: "auto" | "en" | "zh-TW"; // UI language; "auto" follows the OS locale, default (#26)
   sound_on_complete?: boolean; // play a sound when a task is marked done; default true (#80)
-  reminder_interval_minutes?: number; // re-notify cadence for tasks past their estimate; 1..1440, default 10
+  reminder_interval_minutes?: number; // re-notify cadence for tasks past their estimate; 1..1440, default 1
   max_attachment_mb?: number; // largest attachment in MiB; 1..10240, default 1024 (1 GiB) (#113)
   date_time_format?: DateTimeFormat; // legacy date-time display preset; default "locale"
   recurrence_heatmap_days?: number; // heatmap range (days back from today); 7..365, default 90

@@ -518,7 +518,6 @@
     "soundOff": "off",
     "reminderInterval": "Estimate reminder interval",
     "reminderIntervalSub": "How often to re-notify while a running task keeps exceeding its time estimate.",
-    "minutesPreset": "{{count}} min",
     "customReminderAria": "Custom reminder interval in minutes",
     "maxAttachment": "Maximum attachment size",
     "maxAttachmentSub": "The largest file you can attach to a task. Attachments are copied into the data folder and synced to your other devices.",

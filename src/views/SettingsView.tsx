@@ -104,9 +104,8 @@ export function SettingsView({ doc }: Props) {
   const soundOn = soundOnComplete(doc.settings);
   const setSound = (on: boolean) => { void applySettings({ sound_on_complete: on }); };
 
-  // Time-estimate reminder cadence: presets apply immediately; the free input
-  // commits on blur/Enter. This is how often a still-running task re-notifies
-  // once it passes its estimate.
+  // Time-estimate reminder cadence: commits on blur/Enter. This is how often a
+  // still-running task re-notifies once it passes its estimate.
   const reminderMinutes = reminderIntervalMinutes(doc.settings);
   const [draftReminder, setDraftReminder] = useState(String(reminderMinutes));
   useEffect(() => { setDraftReminder(String(reminderMinutes)); }, [reminderMinutes]);
@@ -218,7 +217,7 @@ export function SettingsView({ doc }: Props) {
   };
 
   return (
-    <section>
+    <section className="settings-view">
       <header className="view-header">
         <h1>{t("settings.title")}</h1>
       </header>
@@ -415,16 +414,6 @@ export function SettingsView({ doc }: Props) {
         <h2>{t("settings.reminderInterval")}</h2>
         <p className="view-sub">{t("settings.reminderIntervalSub")}</p>
         <div className="theme-options">
-          {[5, 10, 15, 30].map(n => (
-            <button
-              key={n}
-              className={`theme-option ${reminderMinutes === n ? "active" : ""}`}
-              aria-pressed={reminderMinutes === n}
-              onClick={() => setReminder(n)}
-            >
-              {t("settings.minutesPreset", { count: n })}
-            </button>
-          ))}
           <input
             type="number"
             className="weight-input"
@@ -488,7 +477,7 @@ export function SettingsView({ doc }: Props) {
         </label>
       </section>
 
-      <section className="settings-section">
+      <section className="settings-section settings-section-flow">
         <h2>{t("settings.dataFile")}</h2>
         <p className="view-sub">
           {t("settings.tasksPersist")}<code>{loc?.effective_path ?? "…"}</code>

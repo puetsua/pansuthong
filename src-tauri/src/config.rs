@@ -141,7 +141,7 @@ fn default_sound_on_complete() -> bool {
 }
 
 fn default_reminder_interval_minutes() -> u32 {
-    10
+    1
 }
 
 fn default_max_attachment_mb() -> u32 {
@@ -604,8 +604,8 @@ mod tests {
         assert_eq!(s.default_tag_priority, 0);
         // A config.json predating the day-start-hour setting defaults to midnight (0).
         assert_eq!(s.day_start_hour, 0);
-        // A config.json predating the reminder-interval setting defaults to 10 minutes.
-        assert_eq!(s.reminder_interval_minutes, 10);
+        // A config.json predating the reminder-interval setting defaults to 1 minute.
+        assert_eq!(s.reminder_interval_minutes, 1);
     }
 
     #[test]

@@ -89,7 +89,7 @@ export { DEFAULT_DATE_TIME_FORMAT as DATE_TIME_FORMAT_DEFAULT };
 export { DEFAULT_DATE_FORMAT as DATE_FORMAT_DEFAULT, DEFAULT_TIME_FORMAT as TIME_FORMAT_DEFAULT };
 
 /** Default minutes between repeat notifications once a task exceeds its estimate. */
-export const REMINDER_INTERVAL_DEFAULT = 10;
+export const REMINDER_INTERVAL_DEFAULT = 1;
 /** Inclusive bounds for the configurable reminder interval (mirrors the Rust check). */
 export const REMINDER_INTERVAL_MIN = 1;
 export const REMINDER_INTERVAL_MAX = 1440;

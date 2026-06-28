@@ -622,6 +622,101 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 }
 .theme-option.active { background: var(--c-accent); color: white; }
 
+.settings-view .settings-section {
+  display: grid;
+  grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr);
+  column-gap: var(--space-4);
+  row-gap: 4px;
+  align-items: start;
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--c-border);
+}
+.settings-view .settings-section:last-child {
+  border-bottom: 0;
+  margin-bottom: 0;
+}
+.settings-view .settings-section h2 {
+  margin: 0;
+  line-height: 1.25;
+}
+.settings-view .settings-section > .view-sub {
+  grid-column: 1;
+  max-width: 22rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.settings-view .settings-section > :not(h2):not(.view-sub) {
+  grid-column: 2;
+}
+.settings-view .settings-section > label.te-field {
+  gap: 3px;
+}
+.settings-view .settings-section > label.te-field + label.te-field {
+  margin-top: var(--space-1);
+}
+.settings-view .theme-options {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.settings-view .theme-option {
+  min-height: 30px;
+  padding: 4px 10px;
+  line-height: 1.2;
+}
+.settings-view .weight-input,
+.settings-view .select-input {
+  min-height: 30px;
+  padding: 4px 8px;
+}
+.settings-view .weight-input {
+  width: 5rem;
+}
+.settings-view .select-input {
+  max-width: 100%;
+}
+.settings-view .theme-current {
+  margin-top: 0;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.settings-view .settings-section > .settings-warn {
+  grid-column: 2;
+  max-width: 34rem;
+}
+.settings-view .settings-section-flow {
+  display: block;
+}
+.settings-view .settings-section-flow > .view-sub {
+  max-width: none;
+  margin-top: var(--space-1);
+}
+.settings-view .settings-section-flow > .theme-options {
+  margin-top: var(--space-2);
+}
+@media (max-width: 720px) {
+  .settings-view .settings-section {
+    display: block;
+    margin-bottom: var(--space-4);
+  }
+  .settings-view .settings-section h2 {
+    margin-bottom: var(--space-1);
+  }
+  .settings-view .settings-section > .view-sub {
+    max-width: none;
+    margin-bottom: var(--space-2);
+  }
+  .settings-view .settings-section > label.te-field + label.te-field,
+  .settings-view .settings-section > .theme-options + .view-sub,
+  .settings-view .theme-current {
+    margin-top: var(--space-2);
+  }
+  .settings-view .theme-option {
+    min-height: 34px;
+  }
+}
+
 /* Theme customization (#15) */
 /* Current-theme summary in Settings */
 .theme-current {

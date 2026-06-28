@@ -199,9 +199,9 @@ describe("clampReminderInterval", () => {
 });
 
 describe("reminderIntervalMinutes", () => {
-  it("defaults to 10 when unset (older documents)", () => {
+  it("defaults to 1 when unset (older documents)", () => {
     expect(reminderIntervalMinutes(settings())).toBe(REMINDER_INTERVAL_DEFAULT);
-    expect(REMINDER_INTERVAL_DEFAULT).toBe(10);
+    expect(REMINDER_INTERVAL_DEFAULT).toBe(1);
   });
 
   it("uses the configured value when present", () => {

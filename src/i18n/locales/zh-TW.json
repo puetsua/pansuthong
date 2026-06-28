@@ -508,7 +508,6 @@
     "soundOff": "關",
     "reminderInterval": "預估時間提醒間隔",
     "reminderIntervalSub": "當執行中的任務持續超過預估時間時，每隔多久再次通知。",
-    "minutesPreset": "{{count}} 分鐘",
     "customReminderAria": "自訂提醒間隔（分鐘）",
     "maxAttachment": "附件大小上限",
     "maxAttachmentSub": "可附加到任務的最大檔案。附件會複製到資料夾並同步到你的其他裝置。",
