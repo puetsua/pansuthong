@@ -10,7 +10,7 @@ on:
 jobs:
   frontend:
     name: Frontend (lint · types · tests)
-    runs-on: [self-hosted, linux, docker]
+    runs-on: [self-hosted, linux]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,7 +24,7 @@ jobs:
 
   rust:
     name: Rust (clippy · tests)
-    runs-on: [self-hosted, linux, docker]
+    runs-on: [self-hosted, linux]
     steps:
       - uses: actions/checkout@v4
       - name: Install Tauri system dependencies
@@ -48,7 +48,7 @@ jobs:
 
   android:
     name: Android (compile check)
-    runs-on: [self-hosted, linux, docker]
+    runs-on: [self-hosted, linux]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -66,7 +66,7 @@ jobs:
 
   build:
     name: Build (desktop smoke)
-    runs-on: [self-hosted, linux, docker]
+    runs-on: [self-hosted, linux]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

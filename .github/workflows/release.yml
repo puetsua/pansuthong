@@ -134,6 +134,12 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
+      # Build scripts (proc-macro2, serde, …) compile for the host and need a C
+      # linker. Install it explicitly so the job doesn't rely on the runner image
+      # having `cc` preinstalled (the desktop job gets it for free via mingw-w64).
+      - name: Install host C toolchain
+        run: sudo apt-get install -y build-essential
+
       - name: Install Android SDK packages + NDK
         run: |
           sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;${NDK_VERSION}"
