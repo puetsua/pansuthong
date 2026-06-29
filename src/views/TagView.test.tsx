@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TagView } from "./TagView";
@@ -61,6 +61,14 @@ function renderView() {
 }
 
 describe("TagView tabs", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-24T12:00:00+08:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   it("defaults to the task list tab", () => {
     renderView();
 
