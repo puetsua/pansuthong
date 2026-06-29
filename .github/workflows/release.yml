@@ -99,6 +99,7 @@ jobs:
         env:
           VERSION: ${{ github.ref_name }}
           NOTES: ${{ needs.release-notes.outputs.notes }}
+          TAURI_TARGET: x86_64-pc-windows-gnu
         run: node .github/scripts/make-latest-json.mjs "$VERSION"
 
       - name: Publish installer + latest.json to the release

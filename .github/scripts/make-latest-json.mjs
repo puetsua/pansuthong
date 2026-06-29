@@ -18,7 +18,13 @@ if (!version) {
   process.exit(1);
 }
 
-const nsisDir = "src-tauri/target/release/bundle/nsis";
+// The installer is built with `--target <triple>` (see release.yml), so its
+// bundle lands under `target/<triple>/release`, NOT the default `target/release`.
+// Reading the wrong dir would fail the release — or, worse, pick a stale installer
+// from an earlier non-targeted build whose signature wouldn't match. Honor the
+// same triple the build/publish steps use, defaulting to the Windows cross target.
+const target = process.env.TAURI_TARGET ?? "x86_64-pc-windows-gnu";
+const nsisDir = `src-tauri/target/${target}/release/bundle/nsis`;
 const files = readdirSync(nsisDir);
 
 // The updater package for NSIS is the -setup.exe; its signature sits beside it.

@@ -2275,8 +2275,10 @@ pub fn set_data_folder(
     state.repoint(new_path.clone())?;
     config.set_folder(Some(folder))?;
     // Allow serving attachments from the newly-chosen folder via the asset
-    // protocol (the default app-data dir is covered by the config scope).
-    let _ = app.asset_protocol_scope().allow_directory(&folder_path, false);
+    // protocol (the default app-data dir is covered by the config scope). Scoped
+    // to the managed-attachment globs only — not the whole folder — so unrelated
+    // files beside the blobs stay unreachable.
+    crate::allow_attachment_scope(&app.asset_protocol_scope(), &folder_path);
     crate::sync::restart(&watcher, &app, new_path);
     emit_changed(&app);
     let _ = app.emit(
