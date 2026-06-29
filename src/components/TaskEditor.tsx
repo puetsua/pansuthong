@@ -126,6 +126,8 @@ export function TaskEditor(props: Props) {
   // The attachment awaiting a delete confirmation (custom modal — WebView2's
   // window.confirm is unreliable, and a styled dialog matches the red button).
   const [confirmDelete, setConfirmDelete] = useState<Attachment | null>(null);
+  // True while the "save before closing?" prompt is up (closing a dirty editor).
+  const [confirmClose, setConfirmClose] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   // The notes textarea (for caret-aware insertion) and its container (for
@@ -140,8 +142,11 @@ export function TaskEditor(props: Props) {
   }
 
   const isDirty = () => isEditorDirty(form, initialRef.current);
+  // Closing a dirty editor asks whether to save first (Save / Discard / Cancel)
+  // via an in-app dialog — WebView2's native window.confirm is unreliable, and a
+  // two-way confirm can't offer "save". A pristine editor closes immediately.
   const requestClose = () => {
-    if (isDirty() && !window.confirm(t("taskEditor.discardConfirm"))) return;
+    if (isDirty()) { setConfirmClose(true); return; }
     onClose();
   };
   // Keep a stable ref to the latest requestClose so the mount-only key handler
@@ -930,6 +935,17 @@ export function TaskEditor(props: Props) {
             onConfirm={() => { const id = confirmDelete.id; setConfirmDelete(null); void removeAttachment(id); }}
           />
         )}
+        {confirmClose && (
+          <SaveChangesDialog
+            message={t("taskEditor.saveChangesConfirm")}
+            saveLabel={t("taskEditor.save")}
+            discardLabel={t("taskEditor.discard")}
+            cancelLabel={t("taskEditor.cancel")}
+            onSave={() => { setConfirmClose(false); void save(); }}
+            onDiscard={() => { setConfirmClose(false); onClose(); }}
+            onCancel={() => setConfirmClose(false)}
+          />
+        )}
       </div>
     </div>,
     document.body,
@@ -1111,6 +1127,42 @@ function ConfirmDialog({ message, confirmLabel, cancelLabel, onConfirm, onCancel
           <button type="button" onClick={onCancel}>{cancelLabel}</button>
           <button type="button" ref={confirmRef} className="te-confirm-delete" onClick={onConfirm}>
             {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// "Save before closing?" prompt for a dirty editor. Three choices: Save (the
+// primary action, auto-focused so Enter saves), Discard, or Cancel. Esc cancels.
+// Built in-app for the same reason as ConfirmDialog (WebView2's window.confirm is
+// unreliable) and because a native confirm can't offer a third "save" option.
+function SaveChangesDialog({ message, saveLabel, discardLabel, cancelLabel, onSave, onDiscard, onCancel }: {
+  message: string;
+  saveLabel: string;
+  discardLabel: string;
+  cancelLabel: string;
+  onSave: () => void;
+  onDiscard: () => void;
+  onCancel: () => void;
+}) {
+  const saveRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    saveRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onCancel(); } };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onCancel]);
+  return (
+    <div className="te-confirm" role="dialog" aria-modal="true" aria-label={message} onClick={onCancel}>
+      <div className="te-confirm-box" onClick={e => e.stopPropagation()}>
+        <p>{message}</p>
+        <div className="te-confirm-actions">
+          <button type="button" onClick={onDiscard}>{discardLabel}</button>
+          <button type="button" onClick={onCancel}>{cancelLabel}</button>
+          <button type="button" ref={saveRef} className="te-save" onClick={onSave}>
+            {saveLabel}
           </button>
         </div>
       </div>

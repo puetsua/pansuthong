@@ -508,6 +508,62 @@ describe("TaskEditor outside clicks", () => {
   });
 });
 
+describe("TaskEditor close with unsaved changes", () => {
+  const closeBtn = () => button("Close");
+  const saveDialog = () => screen.getByRole("dialog", { name: /save your changes before closing/i });
+
+  it("closes immediately when nothing has changed", () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.click(closeBtn());
+    expect(screen.queryByRole("dialog", { name: /save your changes before closing/i })).toBeNull();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("prompts to save when closing a dirty editor and saves on confirm", async () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Edited title" } });
+    fireEvent.click(closeBtn());
+
+    // The editor stays open behind a Save / Discard / Cancel prompt.
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(within(saveDialog()).getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(expect.objectContaining({ id: "k_1", title: "Edited title" })),
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("discards changes and closes without saving", () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Edited title" } });
+    fireEvent.click(closeBtn());
+    fireEvent.click(within(saveDialog()).getByRole("button", { name: "Discard" }));
+
+    expect(api.updateTask).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("cancels the prompt and keeps the editor open", () => {
+    const onClose = vi.fn();
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Edited title" } });
+    fireEvent.click(closeBtn());
+    fireEvent.click(within(saveDialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog", { name: /save your changes before closing/i })).toBeNull();
+    expect(api.updateTask).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
 const templateTask: TemplateTask = {
   id: "k_1", title: "Write report", notes: "", tag_ids: ["t_a"],
   created_at: "1970-01-01T00:00:00Z", start_offset_days: 0, due_offset_days: 2,

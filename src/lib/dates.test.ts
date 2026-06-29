@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addDaysIso, daysBetweenIso, formatDate, formatDateTime, formatIsoDate, formatIsoLocal, formatTime, formatTimeOfDay, logicalDayOf, todayIso,
+  addDaysIso, daysBetweenIso, formatDate, formatDateTime, formatIsoDate, formatIsoLocal, formatIsoLocalShort, formatTime, formatTimeOfDay, logicalDayOf, todayIso,
 } from "./dates";
 
 describe("todayIso (day-start hour)", () => {
@@ -98,6 +98,31 @@ describe("formatIsoLocal", () => {
     expect(formatIsoLocal(undefined)).toBe("—");
     expect(formatIsoLocal(null)).toBe("—");
     expect(formatIsoLocal("")).toBe("—");
+  });
+});
+
+describe("formatIsoLocalShort", () => {
+  // Build local-time dates (no offset) so assertions are timezone-independent.
+  const now = new Date(2026, 5, 15, 12, 0); // 2026-06-15 12:00 local
+
+  it("shows only HH:MM when the timestamp is on the same day as now", () => {
+    expect(formatIsoLocalShort(new Date(2026, 5, 15, 9, 8).getTime(), now)).toBe("09:08");
+  });
+
+  it("shows MM-DD HH:MM for an earlier day in the same year", () => {
+    expect(formatIsoLocalShort(new Date(2026, 4, 30, 16, 8).getTime(), now)).toBe("05-30 16:08");
+  });
+
+  it("shows the full YYYY-MM-DD HH:MM for a different year", () => {
+    expect(formatIsoLocalShort(new Date(2025, 11, 31, 23, 59).getTime(), now)).toBe("2025-12-31 23:59");
+  });
+
+  it("renders an em dash for a missing/empty/zero/invalid timestamp", () => {
+    expect(formatIsoLocalShort(0, now)).toBe("—");
+    expect(formatIsoLocalShort(undefined, now)).toBe("—");
+    expect(formatIsoLocalShort(null, now)).toBe("—");
+    expect(formatIsoLocalShort("", now)).toBe("—");
+    expect(formatIsoLocalShort("not-a-date", now)).toBe("—");
   });
 });
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/tauri";
-import { formatIsoLocal } from "../lib/dates";
+import { formatIsoLocal, formatIsoLocalShort } from "../lib/dates";
 
 type Props = {
   /** doc.last_modified — ISO-8601 local time w/ offset of the last edit (undefined = never). */
@@ -43,8 +43,15 @@ export function SyncStatus({ lastModified, className }: Props) {
         <span className={syncing ? "sync-icon spinning" : "sync-icon"} aria-hidden>⟳</span>
         {syncing ? t("syncStatus.syncing") : t("syncStatus.syncNow")}
       </button>
-      <span className="sync-time" title={t("syncStatus.lastEditedTitle")}>
-        {t("syncStatus.lastSynced")}<time>{formatIsoLocal(lastModified)}</time>
+      <span className="sync-time">
+        {t("syncStatus.lastSynced")}
+        {/* Compact value in the bar; full precision (and what it means) on hover. */}
+        <time
+          dateTime={lastModified}
+          title={`${t("syncStatus.lastEditedTitle")} — ${formatIsoLocal(lastModified)}`}
+        >
+          {formatIsoLocalShort(lastModified)}
+        </time>
       </span>
     </div>
   );

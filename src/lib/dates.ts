@@ -304,6 +304,28 @@ export function formatIsoLocal(ts: string | number | undefined | null): string {
 }
 
 /**
+ * A space-frugal local timestamp for the "last synced" indicator. Drops the
+ * seconds and offset that `formatIsoLocal` keeps, and elides the parts that match
+ * `now`: same calendar day → `HH:MM`; same year → `MM-DD HH:MM`; otherwise the
+ * full `YYYY-MM-DD HH:MM`. The precise value still lives in the element's tooltip.
+ * Returns an em dash for a missing/empty/zero timestamp.
+ */
+export function formatIsoLocalShort(
+  ts: string | number | undefined | null,
+  now: Date = new Date(),
+): string {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "—";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const md = `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  if (d.getFullYear() !== now.getFullYear()) return `${d.getFullYear()}-${md} ${hm}`;
+  const sameDay = d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  return sameDay ? hm : `${md} ${hm}`;
+}
+
+/**
  * YYYY-MM-DD of the current logical day in local time. `dayStartHour` (0–23, the
  * user's configured day-start) shifts when the day rolls over: with hour 4, the
  * stretch from 00:00 to 03:59 still counts as the previous calendar day, so the
