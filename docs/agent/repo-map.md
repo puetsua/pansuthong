@@ -9,6 +9,7 @@
 - Capture: `src/components/Composer.tsx` (inline add in Today/Inbox/Tag views; one-line parse + `ComposerPreview.tsx`) opens the full `TaskEditor.tsx` modal
 - Editors: `src/components/TaskEditor.tsx`, `TagEditor.tsx`
 - Rows/lists: `src/components/TaskRow.tsx`, `TaskList.tsx`, `RowList.tsx`, `GhostRow.tsx`
+- List filters/paging (shared by Archived + History): `src/components/ListControls.tsx` (`DateRangeFilters` etc.), `src/lib/listPaging.ts` (`usePagedItems`, `PAGE_SIZES`)
 - Parser mirrors: `src/state/parse.ts`, `src-tauri/src/parse.rs`
 - Locales: `src/i18n/locales/en.json`, `src/i18n/locales/zh-TW.json`
 

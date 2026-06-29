@@ -5,7 +5,7 @@
 - Tauri command: `commands.rs` -> `lib.rs` handler -> `src/lib/tauri.ts` -> tests.
 - Synced field: `model.rs` -> `src/lib/tauri.ts` -> `schemas/tasks.schema.json` -> fixtures/tests.
 - UI text: update both locale files.
-- View behavior: prefer `src/state/indexes.ts`; reuse `ArchivedView` for filters/pagination.
+- View behavior: prefer `src/state/indexes.ts`; reuse `ListControls.tsx` + `listPaging.ts` (`usePagedItems`) for date filters/pagination.
 - Editor modals: `TaskEditor` and `TagEditor` backdrop clicks are inert.
 - Settings screen: do not add a new section/control without explicit approval.
 
