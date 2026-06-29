@@ -3,10 +3,10 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { todayIso as computeTodayIso, formatDateTime, currentDateFormat, currentTimeFormat } from "../lib/dates";
 import { api, HistoryEntry } from "../lib/tauri";
+import { DateRangeFilters, PageSizeSelect, PaginationControls } from "../components/ListControls";
+import { usePagedItems } from "../lib/listPaging";
 import { errorMessage } from "../lib/errors";
 import { currentLocale } from "../i18n";
-
-const PAGE_SIZES = [10, 30, 50] as const;
 
 type Props = {
   todayIso?: string;
@@ -48,8 +48,6 @@ export function HistoryView({ todayIso = computeTodayIso() }: Props) {
   const [query, setQuery] = useState("");
   const [from, setFrom] = useState(() => todayIso);
   const [to, setTo] = useState(() => todayIso);
-  const [pageSize, setPageSize] = useState<number>(PAGE_SIZES[0]);
-  const [page, setPage] = useState(1);
 
   useEffect(() => {
     let mounted = true;
@@ -84,17 +82,21 @@ export function HistoryView({ todayIso = computeTodayIso() }: Props) {
     });
   }, [entries, trimmed, from, to]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const current = Math.min(page, totalPages);
-  const start = (current - 1) * pageSize;
-  const pageItems = filtered.slice(start, start + pageSize);
+  const {
+    pageSize,
+    setPageSize,
+    page: current,
+    setPage,
+    totalPages,
+    start,
+    pageItems,
+    resetPage,
+  } = usePagedItems(filtered);
 
-  const reset = () => setPage(1);
-  const onQuery = (v: string) => { setQuery(v); reset(); };
-  const onFrom = (v: string) => { setFrom(v); reset(); };
-  const onTo = (v: string) => { setTo(v); reset(); };
-  const onPageSize = (v: number) => { setPageSize(v); reset(); };
-  const clearDates = () => { setFrom(""); setTo(""); reset(); };
+  const onQuery = (v: string) => { setQuery(v); resetPage(); };
+  const onFrom = (v: string) => { setFrom(v); resetPage(); };
+  const onTo = (v: string) => { setTo(v); resetPage(); };
+  const clearDates = () => { setFrom(""); setTo(""); resetPage(); };
 
   return (
     <section>
@@ -120,19 +122,18 @@ export function HistoryView({ todayIso = computeTodayIso() }: Props) {
       />
 
       <div className="archived-filters">
-        <label className="archived-filter">
-          <span>{t("common.from")}</span>
-          <input type="date" aria-label={t("common.fromDate")} value={from} max={to || undefined}
-                 onChange={e => onFrom(e.currentTarget.value)} />
-        </label>
-        <label className="archived-filter">
-          <span>{t("common.to")}</span>
-          <input type="date" aria-label={t("common.toDate")} value={to} min={from || undefined}
-                 onChange={e => onTo(e.currentTarget.value)} />
-        </label>
-        {(from || to) && (
-          <button type="button" className="archived-clear" onClick={clearDates}>{t("common.clearDates")}</button>
-        )}
+        <DateRangeFilters
+          from={from}
+          to={to}
+          fromLabel={t("common.from")}
+          toLabel={t("common.to")}
+          fromAriaLabel={t("common.fromDate")}
+          toAriaLabel={t("common.toDate")}
+          clearLabel={t("common.clearDates")}
+          onFromChange={onFrom}
+          onToChange={onTo}
+          onClear={clearDates}
+        />
       </div>
 
       {invalidRange && (
@@ -162,27 +163,23 @@ export function HistoryView({ todayIso = computeTodayIso() }: Props) {
             </ol>
           )}
 
-          {totalPages > 1 && (
-            <div className="pagination">
-              <button type="button" className="pagination-btn" aria-label={t("common.previousPage")}
-                      disabled={current <= 1} onClick={() => setPage(current - 1)}>
-                {t("common.prev")}
-              </button>
-              <span className="pagination-status">{t("common.pageStatus", { current, total: totalPages })}</span>
-              <button type="button" className="pagination-btn" aria-label={t("common.nextPage")}
-                      disabled={current >= totalPages} onClick={() => setPage(current + 1)}>
-                {t("common.next")}
-              </button>
-            </div>
-          )}
+          <PaginationControls
+            current={current}
+            totalPages={totalPages}
+            previousLabel={t("common.prev")}
+            nextLabel={t("common.next")}
+            previousAriaLabel={t("common.previousPage")}
+            nextAriaLabel={t("common.nextPage")}
+            status={t("common.pageStatus", { current, total: totalPages })}
+            onPageChange={setPage}
+          />
 
-          <label className="pagination-size">
-            {t("common.perPage")}{" "}
-            <select aria-label={t("history.perPageAria")} value={pageSize}
-                    onChange={e => onPageSize(Number(e.currentTarget.value))}>
-              {PAGE_SIZES.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </label>
+          <PageSizeSelect
+            label={t("common.perPage")}
+            ariaLabel={t("history.perPageAria")}
+            value={pageSize}
+            onChange={setPageSize}
+          />
         </>
       )}
     </section>
