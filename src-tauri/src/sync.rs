@@ -159,17 +159,18 @@ mod poll_tests {
     #[test]
     fn reload_if_changed_detects_out_of_band_write() {
         let dir = tempdir().unwrap();
-        let path = dir.path().join("tasks.json");
+        let path = dir.path().join("tasks_desktop.db");
         let state = AppState::open(path.clone()).unwrap();
 
         // Nothing changed since open → no reload.
         assert!(!reload_if_changed(&state, &path));
 
-        // Simulate Google Drive syncing a cloud-pulled change down: overwrite the
-        // file out-of-band (not through AppState::write, so no FS event is
-        // guaranteed) with a different document.
-        let mut doc = state.read(|d| d.clone());
-        doc.tags.push(crate::model::Tag {
+        // Simulate Google Drive syncing another device's replica down: a peer
+        // `tasks_<peer>.db` appears in the folder (not written through our store,
+        // so no FS event is guaranteed) carrying a tag we don't have. A `.json`
+        // peer is accepted too (cross-version), and is simplest to author here.
+        let mut peer = crate::model::Document::default();
+        peer.tags.push(crate::model::Tag {
             id: "t_x".into(),
             name: "x".into(),
             color: "#fff".into(),
@@ -178,9 +179,13 @@ mod poll_tests {
             updated_at: 1,
             dashboard_view: None,
         });
-        std::fs::write(&path, serde_json::to_vec_pretty(&doc).unwrap()).unwrap();
+        std::fs::write(
+            dir.path().join("tasks_peer.json"),
+            serde_json::to_vec_pretty(&peer).unwrap(),
+        )
+        .unwrap();
 
-        // The polling core detects the difference and reloads the in-memory doc.
+        // The polling core detects the new peer replica and merges it in.
         assert!(reload_if_changed(&state, &path));
         assert_eq!(
             state.read(|d| d.tags.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),

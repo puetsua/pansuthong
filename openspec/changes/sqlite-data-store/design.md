@@ -63,7 +63,22 @@ rejected: doubles maintenance (every model field → a migration), and risks the
 backward-compat invariant. Nested lists (`tag_ids`, `time_entries`, `attachments`) would
 need child tables purely to be re-flattened for the in-memory `Document` anyway.
 
-### D3: Local WAL working DB + checkpointed snapshot for sync
+### D3a: First implementation is a single-file rollback-journal store (revises D3)
+Mapping the integration surface showed the fully-isolated working-DB + snapshot split
+(D3) adds large churn — `state.path()` feeds ~40 call sites and the byte/JSON APIs drive
+the Android `safsync` layer — for a small safety gain. The **first implementation**
+therefore uses a single SQLite database living at the replica path
+(`<folder>/tasks_<device>.db`) opened in **rollback-journal mode (`DELETE`)**, which
+leaves exactly one file at rest (no persistent `-wal`/`-shm` sidecars), directly
+addressing the original cloud-sync-corruption concern. The only residual exposure is the
+sub-millisecond `-journal` window during a commit; peers guard against reading a torn file
+with `PRAGMA quick_check` and skip-then-retry. This is delivered **desktop-first** (two PC
+instances against a shared folder are fully verifiable here); the Android `safsync` layer
+keeps its JSON wire format until a follow-up converts it with on-device testing. The
+`VACUUM INTO` snapshot split (D3, below) remains the fallback if the two-device test ever
+shows mid-write corruption.
+
+### D3: Local WAL working DB + checkpointed snapshot for sync (deferred fallback)
 The **working** database lives in app-private local storage (never synced) in WAL mode
 for fast transactional writes. On each debounced change, publish a **snapshot** to the
 synced data folder via `VACUUM INTO '<folder>/tasks_<device>.db'`, which produces a

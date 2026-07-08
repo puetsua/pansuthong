@@ -21,12 +21,16 @@ const TASKS: &str = "tasks";
 const TAGS: &str = "tags";
 const TEMPLATES: &str = "template_tasks";
 
-/// Open (or create) the working database at `path` in WAL mode and ensure the
-/// schema. WAL gives fast, transactional writes; the working DB is app-private and
-/// never synced (a checkpointed snapshot is exported for sync instead).
+/// Open (or create) the database at `path` and ensure the schema. Uses rollback
+/// (`DELETE`) journal mode with `synchronous=FULL` so exactly one file exists at
+/// rest — no persistent `-wal`/`-shm` sidecars for a cloud-sync client to sync out
+/// of step — and a committed transaction is durable. The brief `-journal` written
+/// during a commit is removed when the transaction ends; peers guard against a torn
+/// mid-commit read with `PRAGMA quick_check` (see `load_from_file`).
 pub fn open(path: &Path) -> Result<Connection> {
     let conn = Connection::open(path)?;
-    conn.pragma_update(None, "journal_mode", "WAL")?;
+    conn.pragma_update(None, "journal_mode", "DELETE")?;
+    conn.pragma_update(None, "synchronous", "FULL")?;
     init(&conn)?;
     Ok(conn)
 }

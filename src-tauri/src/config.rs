@@ -214,7 +214,7 @@ pub fn data_file_name(device_id: &str) -> String {
     } else {
         clean.as_str()
     };
-    format!("tasks_{id}.json")
+    format!("tasks_{id}.db")
 }
 
 pub fn legacy_data_file_name() -> &'static str {
