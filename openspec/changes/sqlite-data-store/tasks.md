@@ -55,4 +55,4 @@
 
 - [~] 8.1 Desktop: full test suite (156/156) + `cargo clippy` clean; `aarch64-linux-android` `cargo check` clean. (Android clippy/tests not run here)
 - [x] 8.2 Desktop verified. Two-device round-trip through the real store code (`tests/two_device_sync.rs`: two replicas in a shared folder converge, no conflict files, no content-hash loop, tombstone honored). Live PansutongDev run confirmed: the app booted on SQLite and migrated the real Google-Drive dev folder in place — `tasks_<device>.db` with 33 tasks / 16 tags / 8 templates / 8 tombstones, `user_version`=10, `quick_check`=ok, and both JSON files preserved as fallback. (Live PC↔Android round-trip still pending group 6.)
-- [ ] 8.3 Update `docs/agent/data-model.md`, `docs/agent/repo-map.md`, and `docs/agent/releases.md` (JSON→SQLite store, single-file model, JSON-fallback retention); keep `schemas/tasks.schema.json` documented as the migration/export contract
+- [x] 8.3 Update `docs/agent/data-model.md`, `docs/agent/repo-map.md`, and `docs/agent/releases.md` (JSON→SQLite store, single-file model, JSON-fallback retention); keep `schemas/tasks.schema.json` documented as the migration/export contract

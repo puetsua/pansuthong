@@ -26,7 +26,7 @@
 - Setup/registration: `src-tauri/src/lib.rs`
 - Model: `src-tauri/src/model.rs`
 - Commands/validation: `src-tauri/src/commands.rs`
-- Persistence: `src-tauri/src/store.rs`
+- Persistence: `src-tauri/src/store.rs` (in-memory `Document` + merge/reload) over `src-tauri/src/db.rs` (SQLite schema, `Document` <-> DB, `quick_check` read, version gate)
 - Local config: `src-tauri/src/config.rs`
 - Watcher/conflicts: `src-tauri/src/sync.rs`, `conflict.rs`
 - History sidecar: `src-tauri/src/history.rs`
