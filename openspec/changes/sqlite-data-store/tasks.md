@@ -1,16 +1,16 @@
 ## 1. Dependency and Android link gate
 
-- [ ] 1.1 Add `rusqlite` with the `bundled` feature to `src-tauri/Cargo.toml`
-- [ ] 1.2 Add a trivial `rusqlite::Connection::open_in_memory` call behind a test and confirm `cargo test` builds on desktop
-- [ ] 1.3 GATE: verify the bundled SQLite links for Android with `cargo check --target aarch64-linux-android` and `cargo clippy --target aarch64-linux-android` (CI does not build Android); resolve any C/link issues before proceeding
+- [x] 1.1 Add `rusqlite` with the `bundled` feature to `src-tauri/Cargo.toml`
+- [x] 1.2 Add a trivial `rusqlite::Connection::open_in_memory` call behind a test and confirm `cargo test` builds on desktop
+- [x] 1.3 GATE: verify the bundled SQLite links for Android with `cargo check --target aarch64-linux-android` and `cargo clippy --target aarch64-linux-android` (CI does not build Android); resolve any C/link issues before proceeding
 
 ## 2. Database module and schema
 
-- [ ] 2.1 Create `src-tauri/src/db.rs`: open a connection, set WAL mode, and initialize schema (entity tables `tasks`/`tags`/`templates` shaped `(id PK, edit_stamp INTEGER, deleted_at INTEGER NULL, data TEXT)`, a `meta` table for document-level fields, and `PRAGMA user_version = CURRENT_VERSION`)
-- [ ] 2.2 Implement `Document -> DB` write (encode each entity as serde-JSON into `data`, promote `edit_stamp`/`deleted_at` to columns) inside a single transaction
-- [ ] 2.3 Implement `DB -> Document` read that reconstructs the exact `Document` (including tombstones, time entries, attachment metadata)
-- [ ] 2.4 Implement the `user_version` gate: refuse to read a DB whose `user_version` exceeds `CURRENT_VERSION`, returning the existing "update the app" error
-- [ ] 2.5 Unit tests: `Document` round-trip equality, new optional-field back-compat (no migration needed), and version-gate rejection
+- [x] 2.1 Create `src-tauri/src/db.rs`: open a connection, set WAL mode, and initialize schema (entity tables `tasks`/`tags`/`templates` shaped `(id PK, edit_stamp INTEGER, deleted_at INTEGER NULL, data TEXT)`, a `meta` table for document-level fields, and `PRAGMA user_version = CURRENT_VERSION`)
+- [x] 2.2 Implement `Document -> DB` write (encode each entity as serde-JSON into `data`, promote `edit_stamp`/`deleted_at` to columns) inside a single transaction
+- [x] 2.3 Implement `DB -> Document` read that reconstructs the exact `Document` (including tombstones, time entries, attachment metadata)
+- [x] 2.4 Implement the `user_version` gate: refuse to read a DB whose `user_version` exceeds `CURRENT_VERSION`, returning the existing "update the app" error
+- [x] 2.5 Unit tests: `Document` round-trip equality, new optional-field back-compat (no migration needed), and version-gate rejection
 
 ## 3. Store rework over SQLite
 

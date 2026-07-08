@@ -29,6 +29,10 @@ uuid = { version = "1", features = ["v4"] }
 notify = "6"
 tauri-plugin-os = "2"
 tauri-plugin-notification = "2"
+# Durable store. `bundled` compiles SQLite into the binary so there is no system
+# dependency and it links the same way for desktop and the aarch64-linux-android
+# target (verify Android locally: `cargo check --target aarch64-linux-android`).
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 [dev-dependencies]
 tempfile = "3"

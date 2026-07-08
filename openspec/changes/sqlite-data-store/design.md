@@ -112,6 +112,16 @@ as a rollback fallback for a downgrade window.
   reading it. Document the retention window in `releases.md`.
 - **Snapshot churn on rapid edits** → reuse the existing write debounce so `VACUUM INTO`
   runs at most once per debounce window, not per keystroke.
+- **Byte-hash loop suppression breaks** (surfaced during implementation) → today `store.rs`
+  suppresses cross-device sync echoes by `sha256`-ing the file *bytes*, and `adopt_synced`
+  writes a peer's bytes **verbatim** so the on-disk file, in-memory doc, and stored hash all
+  agree. A `VACUUM INTO` snapshot is **not** byte-deterministic (page layout/freelist can
+  differ for identical logical content), so byte-hashing a snapshot would never de-dup and
+  would loop. Group 3 must switch loop-suppression to a **content identity of the decoded
+  `Document`** (e.g. hash of its canonical serialization, or reuse `last_modified`) rather
+  than the snapshot file bytes, and replace the "adopt verbatim bytes" path with "adopt the
+  decoded document and re-materialize locally." This is the central subtlety of the store
+  rework and why it is sequenced after the tested DB foundation.
 
 ## Migration Plan
 

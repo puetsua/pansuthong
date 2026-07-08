@@ -7,6 +7,7 @@ pub enum AppError {
     Serde(serde_json::Error),
     NotFound(String),
     Invalid(String),
+    Db(rusqlite::Error),
 }
 
 impl std::fmt::Display for AppError {
@@ -16,6 +17,7 @@ impl std::fmt::Display for AppError {
             AppError::Serde(e) => write!(f, "serde: {e}"),
             AppError::NotFound(s) => write!(f, "not found: {s}"),
             AppError::Invalid(s) => write!(f, "invalid: {s}"),
+            AppError::Db(e) => write!(f, "db: {e}"),
         }
     }
 }
@@ -31,6 +33,12 @@ impl From<io::Error> for AppError {
 impl From<serde_json::Error> for AppError {
     fn from(e: serde_json::Error) -> Self {
         AppError::Serde(e)
+    }
+}
+
+impl From<rusqlite::Error> for AppError {
+    fn from(e: rusqlite::Error) -> Self {
+        AppError::Db(e)
     }
 }
 
