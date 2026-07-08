@@ -54,5 +54,5 @@
 ## 8. Verification and docs
 
 - [~] 8.1 Desktop: full test suite (156/156) + `cargo clippy` clean; `aarch64-linux-android` `cargo check` clean. (Android clippy/tests not run here)
-- [ ] 8.2 Manually verify a real two-device round-trip (two PC instances via a shared folder; PC↔Android after group 6) produces no conflict copies and merges edits both ways
+- [~] 8.2 Two-device round-trip verified through the real store code (`tests/two_device_sync.rs`: two replicas in a shared folder converge, no conflict files, no content-hash loop, tombstone honored) and real-data migration verified against the actual PansutongDev dev folder (33 tasks/16 tags/8 templates/7 tombstones → `.db`, JSON preserved). Live GUI two-instance run blocked locally by Windows reserving port 1420 (excluded range 1353–1452); needs a `winnat` restart or a devUrl port change to run the desktop app here. PC↔Android after group 6.
 - [ ] 8.3 Update `docs/agent/data-model.md`, `docs/agent/repo-map.md`, and `docs/agent/releases.md` (JSON→SQLite store, single-file model, JSON-fallback retention); keep `schemas/tasks.schema.json` documented as the migration/export contract
