@@ -1,0 +1,27 @@
+schema: spec-driven
+
+context: |
+  Pansutong is a Tauri 2 task tracker for Windows desktop and Android.
+  Frontend: React 19 + TypeScript + Vite (src/). Backend: Rust/Tauri (src-tauri/).
+  Rust crate `pansutong`; lib `pansutong_lib`. Prod id net.puetsua.pansutong; dev id net.puetsua.pansutong.dev.
+
+  Domain center: tasks and tags. There is no Projects/parallel grouping system.
+  Synced data is a single `Document` (tasks + tags + templates) stored as per-device
+  tasks_<device>.json replicas that merge with entity-level last-write-wins + tombstones.
+  Settings and the data-folder choice are device-local (config.json), never synced.
+  Views (Today/Inbox/Upcoming/Tag) are computed queries, never persisted.
+  Task.completed_at is the single source of truth for done AND archived state.
+
+  Non-negotiables: model changes stay backward-compatible (serde defaults/aliases,
+  optional TS keys, schema + tests). New Settings sections require user approval.
+  See AGENTS.md and docs/agent/ for authoritative guidance.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
