@@ -186,6 +186,50 @@ fn read_tombstones(conn: &Connection, kind: &str) -> Result<Vec<Tombstone>> {
     Ok(out)
 }
 
+/// Export a checkpointed single-file snapshot of the working database to `dest`
+/// via `VACUUM INTO`. The result is a self-contained `.db` with no `-wal`/`-shm`
+/// sidecars — safe for a cloud folder to sync. `VACUUM INTO` requires the
+/// destination not to exist, so an existing snapshot is replaced atomically via a
+/// temp file + rename.
+pub fn snapshot(conn: &Connection, dest: &Path) -> Result<()> {
+    let tmp = dest.with_extension("db.tmp");
+    let _ = std::fs::remove_file(&tmp);
+    let tmp_str = tmp
+        .to_str()
+        .ok_or_else(|| AppError::Invalid("snapshot path is not valid UTF-8".into()))?;
+    conn.execute("VACUUM INTO ?1", [tmp_str])?;
+    // Rename over the destination so a reader never sees a half-written snapshot.
+    std::fs::rename(&tmp, dest).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        AppError::Io(e)
+    })?;
+    Ok(())
+}
+
+/// Load a `Document` from a replica `.db` file, opened read-only/immutable (it may
+/// live in the synced folder and be mid-upload). Applies the version gate.
+pub fn load_from_file(path: &Path) -> Result<Document> {
+    let conn = open_readonly(path)?;
+    // A partially-synced file may fail an integrity check; surface it as an error
+    // so the caller can skip this replica for now.
+    let ok: String = conn.query_row("PRAGMA quick_check", [], |r| r.get(0))?;
+    if ok != "ok" {
+        return Err(AppError::Invalid(format!("replica failed integrity check: {ok}")));
+    }
+    read_document(&conn)
+}
+
+/// Decode a `Document` from raw `.db` file bytes (e.g. a replica pulled over SAF).
+/// The bytes are staged to a temp file because SQLite opens paths, not buffers.
+pub fn load_from_bytes(bytes: &[u8]) -> Result<Document> {
+    let mut tmp = std::env::temp_dir();
+    tmp.push(format!("pansutong-replica-{}.db", crate::model::now_ms()));
+    std::fs::write(&tmp, bytes)?;
+    let result = load_from_file(&tmp);
+    let _ = std::fs::remove_file(&tmp);
+    result
+}
+
 fn read_meta_i64(conn: &Connection, key: &str) -> Result<Option<i64>> {
     let value: Option<String> = conn
         .query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
