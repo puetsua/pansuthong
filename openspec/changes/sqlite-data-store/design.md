@@ -89,7 +89,25 @@ snapshot) whose `user_version` exceeds the build's supported version is refused,
 decoded — same "update the app" semantics as the JSON version gate, so a newer device
 cannot get its fields silently stripped by an older one.
 
-### D6: Migration by dual-read
+### D6: Content-hash change detection (replaces byte-hash loop suppression)
+Loop suppression moves from hashing the snapshot file bytes to hashing the **decoded
+document's canonical serialization**, because `VACUUM INTO` snapshots are not
+byte-deterministic (D3). The content hash is computed one layer up (over task data, not
+storage bytes), so two snapshots of identical data hash equal. It is stored as a row in
+the snapshot's `meta` table so a peer's hash can be read cheaply — a **fast pre-filter**
+to skip decoding a peer whose content is unchanged. The stored hash is never the
+authority: when it differs or is absent, the app falls back to decoding and merging by
+per-entity edit stamps (which travel with each entity and cannot drift), so a stale or
+version-mismatched hash can at worst cause an unnecessary decode, never silent data loss.
+`last_modified` may serve as an even cheaper first pre-filter. The `adopt_synced` path
+changes from "write peer bytes verbatim" to "adopt the peer's decoded document and
+re-materialize the local database from it." The in-memory `AppState` hash fields stay
+in memory (no new persistence for the local side); only their input changes.
+*Cost:* a full decode is milliseconds at task-tracker scale — no worse than today's JSON
+store, which already re-parses the whole file each poll — and happens only when the
+pre-filter signals a real change.
+
+### D7: Migration by dual-read
 On store open: if the local working DB is absent but a legacy `tasks_<device>.json` (or
 `tasks.json`) exists, import it through the existing parse/merge (preserving all legacy
 key folding) into a fresh DB, then emit the first snapshot. The JSON file is left in place
