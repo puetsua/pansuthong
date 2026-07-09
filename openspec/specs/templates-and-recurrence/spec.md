@@ -7,9 +7,7 @@ separate from active tasks, so they never appear in any active view or search. A
 template carries relative date offsets (resolved to absolute dates when a task is
 spawned) and an optional recurrence schedule. Recurring templates project "ghost"
 rows into the date-based views and can be pinned to the Dashboard.
-
 ## Requirements
-
 ### Requirement: Template creation and offsets
 
 The system SHALL create a template from a non-empty title, storing relative
@@ -74,3 +72,13 @@ deletes so stale replicas cannot resurrect them.
 #### Scenario: Legacy is_template tasks migrate on load
 - **WHEN** an older document carries tasks flagged `is_template` in the `tasks` list
 - **THEN** they are lifted into `template_tasks` on load rather than becoming hidden ordinary tasks
+
+### Requirement: Template editor field order
+
+The template editor SHALL present the estimated-time field above the notes field.
+
+#### Scenario: Estimated time appears above notes
+
+- **WHEN** the user opens the editor for a template
+- **THEN** the estimated-time (預估時間) field is rendered before the notes (備註) field in the form
+

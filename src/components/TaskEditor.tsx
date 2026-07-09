@@ -804,6 +804,18 @@ export function TaskEditor(props: Props) {
           />
         )}
 
+        {isTemplate && (
+          <>
+            <label className="te-field">
+              <span>{t("taskEditor.estimatedSeconds")}</span>
+              <input type="text" inputMode="text" placeholder={t("taskEditor.estimatedSecondsPlaceholder")}
+                     value={form.estimated_seconds}
+                     onChange={e => set("estimated_seconds", e.currentTarget.value)} />
+            </label>
+            {estimateError && <p className="te-warn" role="alert">{estimateError}</p>}
+          </>
+        )}
+
         <div className="te-field te-notes-field">
           <div className="te-field-head">
             <span>{t("taskEditor.notes")}</span>
@@ -875,18 +887,6 @@ export function TaskEditor(props: Props) {
             />
           )}
         </div>
-
-        {isTemplate && (
-          <>
-            <label className="te-field">
-              <span>{t("taskEditor.estimatedSeconds")}</span>
-              <input type="text" inputMode="text" placeholder={t("taskEditor.estimatedSecondsPlaceholder")}
-                     value={form.estimated_seconds}
-                     onChange={e => set("estimated_seconds", e.currentTarget.value)} />
-            </label>
-            {estimateError && <p className="te-warn" role="alert">{estimateError}</p>}
-          </>
-        )}
 
         {error && <p className="composer-error">{error}</p>}
         {notice && <p className="te-notice" role="status">{notice}</p>}

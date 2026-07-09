@@ -632,9 +632,10 @@ describe("TaskEditor template editing (#71)", () => {
     render(<TaskEditor kind="template"
                        template={{ ...templateTask, estimated_seconds: 3_600 }}
                        allTags={tags} onClose={vi.fn()} />);
-    const attachments = screen.getByRole("button", { name: /Attachments/ });
     const estimate = screen.getByLabelText("Estimated time") as HTMLInputElement;
-    expect(attachments.compareDocumentPosition(estimate) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The template estimate sits above the notes field, not below the attachments (#…).
+    const notes = screen.getByLabelText("Markdown notes");
+    expect(estimate.compareDocumentPosition(notes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(estimate.value).toBe("1h");
   });
 });
