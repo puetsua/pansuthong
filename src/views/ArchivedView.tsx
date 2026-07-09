@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Document, Task } from "../lib/tauri";
-import { IdleStatus } from "../components/IdleStatus";
 import { DateRangeFilters, PageSizeSelect, PaginationControls } from "../components/ListControls";
 import { usePagedItems } from "../lib/listPaging";
 import { taskMatchesQuery } from "../lib/taskSearch";
@@ -9,7 +8,6 @@ import { TaskList } from "../components/TaskList";
 import { Indexes } from "../state/indexes";
 import { addDaysIso, logicalDayOf } from "../lib/dates";
 import { dayStartHour } from "../lib/settings";
-import { useIdleAnchor } from "../lib/useIdleAnchor";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -34,7 +32,6 @@ export function ArchivedView({ doc, indexes }: Props) {
   const archived = indexes.archived;
   const today = indexes.todayIso;
   const dsh = dayStartHour(doc.settings);
-  const { idleAnchorMs } = useIdleAnchor();
 
   const [query, setQuery] = useState("");
   const [dateField, setDateField] = useState<DateField>("completed");
@@ -90,7 +87,6 @@ export function ArchivedView({ doc, indexes }: Props) {
           {filtering
             ? t("archived.subtitleFiltered", { shown: filtered.length, total: archived.length })
             : t("archived.subtitleAll", { total: archived.length })}
-          <IdleStatus tasks={doc.tasks} idleAnchorMs={idleAnchorMs} />
         </p>
       </header>
 

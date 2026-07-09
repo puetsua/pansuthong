@@ -2,10 +2,8 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PageSizeSelect, PaginationControls } from "../components/ListControls";
 import { TaskList } from "../components/TaskList";
-import { IdleStatus } from "../components/IdleStatus";
 import { usePagedItems } from "../lib/listPaging";
 import { taskMatchesQuery } from "../lib/taskSearch";
-import { useIdleAnchor } from "../lib/useIdleAnchor";
 import { Document, SortOrder } from "../lib/tauri";
 import { Indexes, sortTasks } from "../state/indexes";
 import { useHeldCompletions, withHeld } from "../state/heldCompletions";
@@ -15,7 +13,6 @@ type Props = { doc: Document; indexes: Indexes };
 export function SearchView({ doc, indexes }: Props) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
-  const { idleAnchorMs } = useIdleAnchor();
   const { held, onCompleted, onReopened } = useHeldCompletions(doc.tasks);
 
   const trimmed = query.trim();
@@ -54,7 +51,6 @@ export function SearchView({ doc, indexes }: Props) {
           {filtering
             ? t("search.subtitleFiltered", { shown: matched.length, total: indexes.tasks.length })
             : t("search.subtitlePrompt", { total: indexes.tasks.length })}
-          <IdleStatus tasks={doc.tasks} idleAnchorMs={idleAnchorMs} />
         </p>
       </header>
 
