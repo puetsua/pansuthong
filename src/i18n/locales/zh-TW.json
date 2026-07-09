@@ -36,6 +36,7 @@
     "today": "今日",
     "inbox": "未分類",
     "upcoming": "即將到來",
+    "search": "搜尋",
     "tags": "標籤",
     "archived": "已封存",
     "templates": "任務模板",
@@ -80,6 +81,15 @@
   "inbox": {
     "subtitle": "沒有釘選標籤的任務",
     "empty": "收件匣是空的。"
+  },
+  "search": {
+    "subtitlePrompt": "{{total}} 個進行中 · 輸入以搜尋",
+    "subtitleFiltered": "{{total}} 個進行中有 {{shown}} 個符合",
+    "searchPlaceholder": "搜尋進行中的任務…",
+    "searchAria": "搜尋進行中的任務",
+    "emptyPrompt": "輸入關鍵字以搜尋進行中的任務。",
+    "emptyFiltered": "沒有符合搜尋的進行中任務。",
+    "perPageAria": "每頁任務數"
   },
   "tagView": {
     "editTag": "編輯標籤",

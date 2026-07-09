@@ -44,6 +44,19 @@ const renderSidebar = (tags: Tag[]) => {
   );
 };
 
+describe("Sidebar — primary nav order", () => {
+  it("places Search immediately below Upcoming, before Tags", () => {
+    renderSidebar([]);
+    const links = screen.getAllByRole("link").map(a => a.getAttribute("href"));
+    const upcoming = links.indexOf("/upcoming");
+    const search = links.indexOf("/search");
+    const tags = links.indexOf("/tags");
+    expect(upcoming).toBeGreaterThanOrEqual(0);
+    expect(search).toBe(upcoming + 1);
+    expect(tags).toBeGreaterThan(search);
+  });
+});
+
 describe("Sidebar — tag curation (#78)", () => {
   it("lists only pinned tags, hiding the rest", () => {
     renderSidebar([

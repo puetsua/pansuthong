@@ -92,7 +92,8 @@ export function openCount(tasks: Task[]): number {
  *   priority: done last -> weight desc -> date asc -> insertion
  *   date:     done last -> date asc -> weight desc -> insertion
  */
-function sortTasks(tasks: Task[], order: SortOrder, tagsById: Map<string, Tag>): Task[] {
+/** Sort a task list in place by the configured order (used by active views and Search). */
+export function sortTasks(tasks: Task[], order: SortOrder, tagsById: Map<string, Tag>): Task[] {
   const byWeightDesc = (a: Task, b: Task) =>
     effectivePriority(b, tagsById) - effectivePriority(a, tagsById);
   if (order === "date") {

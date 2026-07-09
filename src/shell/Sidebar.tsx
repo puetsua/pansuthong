@@ -57,6 +57,11 @@ export function Sidebar({ doc, indexes }: Props) {
             {t("nav.upcoming")}
           </NavLink>
         </li>
+        <li>
+          <NavLink to="/search" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+            {t("nav.search")}
+          </NavLink>
+        </li>
       </ul>
 
       <div className="sidebar-section">

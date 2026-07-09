@@ -4,6 +4,7 @@ import { Document, Task } from "../lib/tauri";
 import { IdleStatus } from "../components/IdleStatus";
 import { DateRangeFilters, PageSizeSelect, PaginationControls } from "../components/ListControls";
 import { usePagedItems } from "../lib/listPaging";
+import { taskMatchesQuery } from "../lib/taskSearch";
 import { TaskList } from "../components/TaskList";
 import { Indexes } from "../state/indexes";
 import { addDaysIso, logicalDayOf } from "../lib/dates";
@@ -50,9 +51,8 @@ export function ArchivedView({ doc, indexes }: Props) {
     // With no search and no date bound, the archive could be enormous — require
     // an active filter before listing anything.
     if (!filtering) return [];
-    const q = trimmed.toLowerCase();
     return archived.filter(t => {
-      if (q && !(t.title.toLowerCase().includes(q) || t.notes.toLowerCase().includes(q))) return false;
+      if (trimmed && !taskMatchesQuery(t, trimmed, indexes.tagsById)) return false;
       if (from || to) {
         const d = taskDate(t, dateField, dsh);
         if (!d) return false; // no date for this field can't sit in a bounded range
@@ -61,7 +61,7 @@ export function ArchivedView({ doc, indexes }: Props) {
       }
       return true;
     });
-  }, [archived, filtering, trimmed, dateField, from, to, dsh]);
+  }, [archived, filtering, trimmed, dateField, from, to, dsh, indexes.tagsById]);
 
   const {
     pageSize,

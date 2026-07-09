@@ -37,6 +37,7 @@
     "today": "Today",
     "inbox": "Inbox",
     "upcoming": "Upcoming",
+    "search": "Search",
     "tags": "Tags",
     "archived": "Archived",
     "templates": "Templates",
@@ -84,6 +85,15 @@
   "inbox": {
     "subtitle": "Tasks with no pinned tag",
     "empty": "Inbox is empty."
+  },
+  "search": {
+    "subtitlePrompt": "{{total}} active · type to search",
+    "subtitleFiltered": "{{shown}} of {{total}} active match",
+    "searchPlaceholder": "Search active tasks…",
+    "searchAria": "Search active tasks",
+    "emptyPrompt": "Type to search active tasks.",
+    "emptyFiltered": "No active tasks match the search.",
+    "perPageAria": "Tasks per page"
   },
   "tagView": {
     "editTag": "Edit tag",
