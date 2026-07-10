@@ -29,6 +29,9 @@ uuid = { version = "1", features = ["v4"] }
 notify = "6"
 tauri-plugin-os = "2"
 tauri-plugin-notification = "2"
+# Dev-only MCP bridge (registered under #[cfg(debug_assertions)] in lib.rs).
+# Lets Cursor/Claude drive the running app via @hypothesi/tauri-mcp-server.
+tauri-plugin-mcp-bridge = "0.12"
 # Durable store. `bundled` compiles SQLite into the binary so there is no system
 # dependency and it links the same way for desktop and the aarch64-linux-android
 # target (verify Android locally: `cargo check --target aarch64-linux-android`).

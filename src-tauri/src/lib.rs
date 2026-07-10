@@ -74,6 +74,11 @@ pub fn run() {
     #[cfg(target_os = "android")]
     let builder = builder.plugin(tauri_plugin_android_fs::init());
 
+    // MCP Bridge: WebSocket on :9223 for @hypothesi/tauri-mcp-server (screenshots,
+    // DOM, IPC). Debug builds only — not shipped in release.
+    #[cfg(debug_assertions)]
+    let builder = builder.plugin(tauri_plugin_mcp_bridge::init());
+
     builder
         .setup(|app| {
             let default_dir = app.path().app_data_dir().expect("app_data_dir resolvable");
