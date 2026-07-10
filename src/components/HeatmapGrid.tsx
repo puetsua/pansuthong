@@ -1,18 +1,13 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { HeatCell } from "../lib/recurrence-heatmap";
+import { buildHeatmapWeeks, weeksFittingIn } from "../lib/heatmap-layout";
 
 const WEEKDAY_KEYS = [
   "taskEditor.weekdaySun", "taskEditor.weekdayMon", "taskEditor.weekdayTue",
   "taskEditor.weekdayWed", "taskEditor.weekdayThu", "taskEditor.weekdayFri",
   "taskEditor.weekdaySat",
 ];
-
-function weekPosition(iso: string, fdow: number): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  const js = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return (js - fdow + 7) % 7;
-}
 
 type Props = {
   cells: HeatCell[];
@@ -26,33 +21,69 @@ type Props = {
 export function HeatmapGrid({ cells, todayIso, firstDayOfWeek, ariaLabel, labelForCell }: Props) {
   const { t } = useTranslation();
   const [hoverYm, setHoverYm] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // null = show all (unmeasured / zero-size host like jsdom)
+  const [maxWeeks, setMaxWeeks] = useState<number | null>(null);
+
+  const weeks = buildHeatmapWeeks(cells, firstDayOfWeek);
+  const visibleWeeks = maxWeeks == null ? weeks : weeks.slice(Math.max(0, weeks.length - maxWeeks));
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || weeks.length === 0) return;
+
+    const measure = () => {
+      const weekdays = root.querySelector<HTMLElement>(".heatmap-weekdays");
+      const body = root.querySelector<HTMLElement>(".heatmap-body");
+      const weeksEl = root.querySelector<HTMLElement>(".heatmap-weeks");
+      const week = weeksEl?.querySelector<HTMLElement>(".heatmap-week");
+      if (!weekdays || !body || !weeksEl || !week) return;
+
+      const rootCs = getComputedStyle(root);
+      const pad = parseFloat(rootCs.paddingLeft) + parseFloat(rootCs.paddingRight);
+      const bodyGap = parseFloat(getComputedStyle(body).columnGap || getComputedStyle(body).gap) || 0;
+      const weekGap = parseFloat(getComputedStyle(weeksEl).columnGap || getComputedStyle(weeksEl).gap) || 0;
+      const clientW = root.clientWidth;
+      const weekW = week.offsetWidth;
+      // Unreliable layout (jsdom / hidden): keep full range.
+      if (clientW <= 0 || weekW <= 0) {
+        setMaxWeeks(null);
+        return;
+      }
+      // Always derive from the root's constrained width. weeksEl.clientWidth can
+      // equal the full content width when an ancestor still expands to fit.
+      const weeksBudget = clientW - pad - weekdays.offsetWidth - bodyGap;
+      const next = weeksFittingIn(weeksBudget, weekW, weekGap, weeks.length);
+      setMaxWeeks(prev => (prev === next ? prev : next));
+    };
+
+    // After layout (and after CSS that constrains parents) so clientWidth is real.
+    const raf = requestAnimationFrame(measure);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    ro?.observe(root);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro?.disconnect();
+    };
+  }, [weeks.length, cells, firstDayOfWeek]);
+
   if (cells.length === 0) return null;
 
   const monthsShort = t("taskEditor.monthsShort", { returnObjects: true }) as string[];
   const monthName = (m: number): string => monthsShort[m - 1] ?? "";
 
-  const pad: HeatCell[] = Array.from({ length: weekPosition(cells[0].iso, firstDayOfWeek) }, () => ({
-    iso: "", status: "none" as const,
-  }));
-
-  const weeks: HeatCell[][] = [];
-  const all = [...pad, ...cells];
-  for (let i = 0; i < all.length; i += 7) {
-    weeks.push(all.slice(i, i + 7));
-  }
-
-  const monthHeaders = weeks.map((w, wi) => {
+  const monthHeaders = visibleWeeks.map((w, wi) => {
     const first = w.find(c => c.iso);
     if (!first) return { ym: "", label: "" };
     const ym = first.iso.slice(0, 7);
     const m = Number(first.iso.slice(5, 7));
-    const prev = wi > 0 ? weeks[wi - 1].find(c => c.iso) : undefined;
+    const prev = wi > 0 ? visibleWeeks[wi - 1].find(c => c.iso) : undefined;
     const prevM = prev ? Number(prev.iso.slice(5, 7)) : 0;
     return { ym, label: m === prevM ? "" : monthName(m) };
   });
 
   return (
-    <div className="heatmap" role="table" aria-label={ariaLabel}>
+    <div ref={rootRef} className="heatmap" role="table" aria-label={ariaLabel}>
       <div className="heatmap-months" role="row">
         {monthHeaders.map((mh, i) => (
           <span key={i} className="heatmap-month"
@@ -69,7 +100,7 @@ export function HeatmapGrid({ cells, todayIso, firstDayOfWeek, ariaLabel, labelF
           ))}
         </div>
         <div className="heatmap-weeks" role="rowgroup">
-          {weeks.map((week, wi) => (
+          {visibleWeeks.map((week, wi) => (
             <div className="heatmap-week" role="row" key={wi}>
               {week.map((cell, ci) => {
                 if (!cell.iso) {

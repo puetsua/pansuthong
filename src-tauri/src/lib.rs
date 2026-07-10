@@ -17,6 +17,11 @@ use tauri::Manager;
 const STATE_FILENAME: &str = ".state.json";
 #[cfg(desktop)]
 const LEGACY_WINDOW_STATE_FILENAME: &str = ".window-state.json";
+/// Floor so mobile bottom tabs (Today / Inbox / Upcoming) stay fully visible.
+#[cfg(desktop)]
+const MAIN_MIN_WIDTH: f64 = 400.0;
+#[cfg(desktop)]
+const MAIN_MIN_HEIGHT: f64 = 500.0;
 
 /// Allow the asset protocol to serve only managed attachment blobs under `parent`:
 /// flat legacy `attachment_*` and per-device `attachments_*/attachment_*`. Mirrors
@@ -133,25 +138,52 @@ pub fn run() {
             // Force frameless main chrome on desktop. Config sets decorations:false,
             // but window-state / DWM can still leave a captioned frame — re-assert
             // now and once more on the next event-loop tick after plugins settle.
+            // Min size comes from OS constraints (config + set_size_constraints) so
+            // drag-resize stops cleanly; only clamp once after window-state restore
+            // (never on every Resized — that fights the drag and shakes the window).
             #[cfg(desktop)]
             {
-                use tauri::Manager;
-                let force_frameless = |app: &tauri::AppHandle| {
+                use tauri::{LogicalSize, Manager, PixelUnit, Size, WindowSizeConstraints};
+                fn clamp_main(win: &tauri::WebviewWindow) {
+                    if let (Ok(size), Ok(scale)) = (win.inner_size(), win.scale_factor()) {
+                        let logical_w = size.width as f64 / scale;
+                        let logical_h = size.height as f64 / scale;
+                        if logical_w + 0.5 < MAIN_MIN_WIDTH || logical_h + 0.5 < MAIN_MIN_HEIGHT {
+                            if let Err(e) = win.set_size(Size::Logical(LogicalSize::new(
+                                logical_w.max(MAIN_MIN_WIDTH),
+                                logical_h.max(MAIN_MIN_HEIGHT),
+                            ))) {
+                                eprintln!("warning: clamp window size failed: {e}");
+                            }
+                        }
+                    }
+                }
+                fn enforce_desktop_chrome(app: &tauri::AppHandle) {
                     if let Some(win) = app.get_webview_window("main") {
                         if let Err(e) = win.set_decorations(false) {
                             eprintln!("warning: set_decorations(false) failed: {e}");
                         }
+                        let constraints = WindowSizeConstraints {
+                            min_width: Some(PixelUnit::Logical(MAIN_MIN_WIDTH.into())),
+                            min_height: Some(PixelUnit::Logical(MAIN_MIN_HEIGHT.into())),
+                            max_width: None,
+                            max_height: None,
+                        };
+                        if let Err(e) = win.set_size_constraints(constraints) {
+                            eprintln!("warning: set_size_constraints failed: {e}");
+                        }
+                        clamp_main(&win);
                     } else {
-                        eprintln!("warning: main window missing when forcing frameless");
+                        eprintln!("warning: main window missing when enforcing desktop chrome");
                     }
-                };
-                force_frameless(app.handle());
+                }
+                enforce_desktop_chrome(app.handle());
                 let handle = app.handle().clone();
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_millis(50));
-                    force_frameless(&handle);
+                    enforce_desktop_chrome(&handle);
                     std::thread::sleep(std::time::Duration::from_millis(250));
-                    force_frameless(&handle);
+                    enforce_desktop_chrome(&handle);
                 });
             }
 

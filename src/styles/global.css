@@ -3,6 +3,7 @@
 html, body, #root {
   margin: 0;
   height: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -12,6 +13,44 @@ body {
   color: var(--c-text);
   background: var(--c-bg);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Themed thin scrollbars — derive from existing --c-* tokens so light/dark/
+   custom presets pick them up without new theme-editor keys. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--c-border);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--c-text-muted);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:active {
+  background: var(--c-text-muted);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 a { color: var(--c-accent); text-decoration: none; }
@@ -179,6 +218,8 @@ button {
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
 }
 .desktop-titlebar {
   flex: 0 0 32px;
@@ -231,7 +272,7 @@ button {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -278,7 +319,9 @@ button {
 
 .desktop-main {
   padding: var(--space-5) var(--space-6);
+  overflow-x: hidden;
   overflow-y: auto;
+  min-width: 0;
 }
 
 .view-header { margin-bottom: var(--space-4); }
@@ -1094,11 +1137,15 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
      ballooned it to fill the screen once SyncStatus was added as a 4th child.) */
   grid-template-rows: auto auto 1fr auto;
   height: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 .mobile-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
   padding: max(var(--space-3), env(safe-area-inset-top)) var(--space-4) var(--space-2);
   background: var(--c-surface);
   border-bottom: 1px solid var(--c-border);
@@ -1108,6 +1155,10 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   font-weight: 700;
   letter-spacing: -0.01em;
   margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .mobile-header-icon {
   font-size: 1.4rem;
@@ -1117,18 +1168,23 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 }
 .mobile-main {
   padding: var(--space-3) var(--space-4) var(--space-3);
+  overflow-x: hidden;
   overflow-y: auto;
+  min-width: 0;
   background: var(--c-bg);
 }
 .bottom-tabs {
   display: flex;
   justify-content: space-around;
+  min-width: 0;
+  overflow: hidden;
   padding: var(--space-1) 0 max(var(--space-1), env(safe-area-inset-bottom));
   background: var(--c-surface);
   border-top: 1px solid var(--c-border);
 }
 .bottom-tab {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2053,10 +2109,11 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 }
 .dashboard-add select:hover { border-color: var(--c-accent); }
 
-.dashboard-cards { display: flex; flex-direction: column; gap: var(--space-4); }
+.dashboard-cards { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 .dashboard-card {
   border: 1px solid var(--c-border); border-radius: var(--radius-lg);
   background: var(--c-surface); padding: var(--space-4);
+  min-width: 0; max-width: 100%;
 }
 .dashboard-card-head {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
@@ -2087,13 +2144,13 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
    row height from this rem value, so the two columns can never drift apart (an
    earlier `em`-based label height shrank with the small glyph font and pushed the
    labels out of alignment with the cell rows). */
-.heatmap { --heat-cell: 1.2rem; display: inline-block; max-width: 100%; overflow-x: auto; padding: var(--space-1); }
-.heatmap-months { display: flex; gap: 2px; margin-left: calc(1.4em + var(--space-1)); margin-bottom: var(--space-1); }
+.heatmap { --heat-cell: 1.2rem; display: block; width: 100%; max-width: 100%; overflow-x: hidden; padding: var(--space-1); }
+.heatmap-months { display: flex; gap: 2px; margin-left: calc(1.4em + var(--space-1)); margin-bottom: var(--space-1); min-width: 0; overflow: hidden; }
 .heatmap-month { flex: 0 0 var(--heat-cell); width: var(--heat-cell); font-size: 0.65rem; color: var(--c-text-muted); overflow: visible; white-space: nowrap; }
-.heatmap-body { display: flex; gap: var(--space-1); }
-.heatmap-weekdays { display: flex; flex-direction: column; gap: 2px; }
+.heatmap-body { display: flex; gap: var(--space-1); min-width: 0; }
+.heatmap-weekdays { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
 .heatmap-weekday { height: var(--heat-cell); line-height: var(--heat-cell); font-size: 0.65rem; color: var(--c-text-muted); width: 1.4em; text-align: right; }
-.heatmap-weeks { display: flex; flex-direction: row; gap: 2px; }
+.heatmap-weeks { display: flex; flex-direction: row; gap: 2px; min-width: 0; }
 .heatmap-week { display: flex; flex-direction: column; gap: 2px; }
 .heatmap-cell {
   width: var(--heat-cell); height: var(--heat-cell); border-radius: var(--radius-sm);
@@ -2110,6 +2167,6 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .heatmap-cell.heatmap-hl { box-shadow: 0 0 0 2px var(--c-accent); }
 .heatmap-month:hover { color: var(--c-text); }
 
-.heatmap-legend { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); padding: 0; font-size: 0.8rem; color: var(--c-text-muted); }
+.heatmap-legend { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); padding: 0; font-size: 0.8rem; color: var(--c-text-muted); min-width: 0; }
 .heatmap-legend li { display: flex; align-items: center; gap: var(--space-1); }
 .heatmap-legend .heatmap-cell { width: 0.9em; height: 0.9em; }
