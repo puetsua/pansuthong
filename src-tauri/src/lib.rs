@@ -64,10 +64,20 @@ pub fn run() {
             .build(),
     );
 
+    // Persist size/position/maximized — but never decorations. Restoring a
+    // previously decorated state would override `decorations: false` and bring
+    // back the OS titlebar (tauri-apps/plugins-workspace#1970 / #2203).
     #[cfg(desktop)]
     let builder = builder.plugin(
         tauri_plugin_window_state::Builder::default()
             .with_filename(STATE_FILENAME)
+            .with_state_flags(
+                tauri_plugin_window_state::StateFlags::SIZE
+                    | tauri_plugin_window_state::StateFlags::POSITION
+                    | tauri_plugin_window_state::StateFlags::MAXIMIZED
+                    | tauri_plugin_window_state::StateFlags::VISIBLE
+                    | tauri_plugin_window_state::StateFlags::FULLSCREEN,
+            )
             .build(),
     );
 
@@ -119,6 +129,31 @@ pub fn run() {
             app.manage(crate::sync::WatcherHandle(std::sync::Mutex::new(
                 sync_handle,
             )));
+
+            // Force frameless main chrome on desktop. Config sets decorations:false,
+            // but window-state / DWM can still leave a captioned frame — re-assert
+            // now and once more on the next event-loop tick after plugins settle.
+            #[cfg(desktop)]
+            {
+                use tauri::Manager;
+                let force_frameless = |app: &tauri::AppHandle| {
+                    if let Some(win) = app.get_webview_window("main") {
+                        if let Err(e) = win.set_decorations(false) {
+                            eprintln!("warning: set_decorations(false) failed: {e}");
+                        }
+                    } else {
+                        eprintln!("warning: main window missing when forcing frameless");
+                    }
+                };
+                force_frameless(app.handle());
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    force_frameless(&handle);
+                    std::thread::sleep(std::time::Duration::from_millis(250));
+                    force_frameless(&handle);
+                });
+            }
 
             // Android folder-sync: restore the previously linked SAF folder (if any)
             // and manage the sync runtime state. The sidecar (sync.json) lives beside

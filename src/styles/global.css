@@ -174,7 +174,65 @@ button {
 .composer-error { color: var(--c-danger); margin: var(--space-1) 0 0; font-size: 0.85rem; flex-basis: 100%; }
 .composer-hint { color: var(--c-text-muted); margin: var(--space-1) 0 0; font-size: 0.8rem; flex-basis: 100%; }
 
-.desktop-shell { display: grid; grid-template-columns: 220px 1fr; height: 100%; }
+.desktop-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.desktop-titlebar {
+  flex: 0 0 32px;
+  display: flex;
+  align-items: stretch;
+  user-select: none;
+  background: var(--c-surface-2);
+  border-bottom: 1px solid var(--c-border);
+}
+.desktop-titlebar-drag {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  min-width: 0;
+}
+.desktop-titlebar-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.desktop-titlebar-controls {
+  display: flex;
+  flex-shrink: 0;
+}
+.desktop-titlebar-btn {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  width: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--c-text-muted);
+  cursor: default;
+}
+.desktop-titlebar-btn:hover {
+  background: var(--c-surface);
+  color: var(--c-text);
+}
+.desktop-titlebar-btn-close:hover {
+  background: var(--c-danger);
+  color: #fff;
+}
+.desktop-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 220px 1fr;
+}
 
 .sidebar {
   display: flex;

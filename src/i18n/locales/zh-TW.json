@@ -24,6 +24,12 @@
     "dismiss": "關閉",
     "notBuilt": "尚未建置 — 將於第 2 階段推出。"
   },
+  "titlebar": {
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "還原",
+    "close": "關閉"
+  },
   "update": {
     "title": "有可用的新版本 {{version}}",
     "now": "立即更新",
