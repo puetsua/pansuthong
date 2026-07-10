@@ -22,9 +22,11 @@ pub fn history_path(data_path: &Path) -> PathBuf {
         .file_name()
         .and_then(|name| name.to_str())
         .and_then(|name| {
-            name.strip_prefix("tasks_")
-                .and_then(|rest| rest.strip_suffix(".json"))
-                .map(|device| format!("history_{device}.jsonl"))
+            name.strip_prefix("tasks_").and_then(|rest| {
+                rest.strip_suffix(".db")
+                    .or_else(|| rest.strip_suffix(".json"))
+                    .map(|device| format!("history_{device}.jsonl"))
+            })
         })
         .unwrap_or_else(|| "history.jsonl".to_string());
     data_path
@@ -410,22 +412,30 @@ mod tests {
     #[test]
     fn device_replica_history_path_matches_task_replica() {
         let dir = tempdir().unwrap();
-        let data = dir.path().join("tasks_desktop.json");
-        append_history(
-            &data,
-            &[entry(
-                1_000,
-                "task.created",
-                "task",
-                "k_1",
-                "One".into(),
-                "Created task",
-            )],
-        )
-        .unwrap();
+        for name in ["tasks_desktop.json", "tasks_desktop.db"] {
+            let data = dir.path().join(name);
+            append_history(
+                &data,
+                &[entry(
+                    1_000,
+                    "task.created",
+                    "task",
+                    "k_1",
+                    "One".into(),
+                    "Created task",
+                )],
+            )
+            .unwrap();
 
-        assert!(dir.path().join("history_desktop.jsonl").exists());
-        assert!(!dir.path().join("history.jsonl").exists());
+            assert!(
+                dir.path().join("history_desktop.jsonl").exists(),
+                "expected per-device history for {name}"
+            );
+            assert!(
+                !dir.path().join("history.jsonl").exists(),
+                "must not fall back to legacy history.jsonl for {name}"
+            );
+        }
     }
 
     #[test]
