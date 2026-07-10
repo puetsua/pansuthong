@@ -57,6 +57,11 @@ jobs:
       ANDROID_API: "24"
     steps:
       - uses: actions/checkout@v4
+      # sdkmanager (via setup-android) needs JAVA_HOME; match release.yml.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
       - uses: android-actions/setup-android@v3
       # Host build scripts (cc-rs / libsqlite3-sys) need a C toolchain even when
       # the final link is for Android.
