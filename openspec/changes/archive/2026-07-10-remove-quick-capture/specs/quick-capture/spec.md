@@ -1,16 +1,10 @@
-# quick-capture Specification
-
-## Purpose
-
-Quick Capture is a standalone, lightweight window for adding a task without opening
-the full app. It is a second Vite entry point (`quick-capture.html` →
-`src/quick-capture/`) and reuses the one-line parser so a single typed line becomes
-a structured task. Inline capture in the main views (the Composer) shares the same
-parse-and-preview behavior.
-
-## Requirements
+## REMOVED Requirements
 
 ### Requirement: Standalone capture window
+
+**Reason**: Quick Capture is being retired; in-app Composer already covers one-line task creation without a second window or global hotkey.
+
+**Migration**: Use the main app Composer to add tasks. No data migration is required.
 
 The system SHALL provide a separate quick-capture window that can add a task
 independently of the main app window.
@@ -21,6 +15,10 @@ independently of the main app window.
 
 ### Requirement: One-line parsing
 
+**Reason**: This requirement was scoped to the Quick Capture capability, which is being retired. In-app Composer continues to use the shared one-line parser; that behavior is no longer specified under `quick-capture`.
+
+**Migration**: Continue using Composer in the main app for parsed one-line capture. No user action required.
+
 The system SHALL parse a single capture line into a structured task (title plus
 recognized date/tag tokens), with the frontend and Rust parsers kept in mirror.
 
@@ -29,6 +27,10 @@ recognized date/tag tokens), with the frontend and Rust parsers kept in mirror.
 - **THEN** the preview reflects the parsed fields and the saved task matches the preview
 
 ### Requirement: Second build entry point
+
+**Reason**: The standalone Quick Capture window and its HTML entry are removed, so the extra Vite rollup input is no longer required.
+
+**Migration**: None — builds emit only the main app entry.
 
 The system SHALL keep the quick-capture HTML entry registered as an additional
 Vite rollup input so the standalone window is built.

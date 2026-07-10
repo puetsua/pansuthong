@@ -15,7 +15,6 @@
 
 ## Frontend Subsystems
 
-- Quick Capture: second Vite entry point — `quick-capture.html` -> `src/quick-capture/` (`main.tsx`, `QuickCapture.tsx`). Standalone capture window; keep the extra `rollupOptions.input` in `vite.config.ts` when touching the build.
 - Theming: `src/lib/themes.ts` (presets + token resolution; Rust stores only opaque preset strings). UI: `ThemePickerModal.tsx`, `ThemeEditorModal.tsx`, `ThemeSettings.tsx`, `ThemePreview.tsx`; tokens in `src/styles/tokens.css`.
 - Time tracking: `src/lib/time.ts` (running/finished `TimeEntry` intervals, concurrent timers). UI: `TimeTracking.tsx`, `TimeEstimateReminder.tsx`.
 - Idle assignment: `src/lib/useIdleAnchor.ts` (session-local idle anchor; not synced) + `AssignIdle.tsx`, `IdleStatus.tsx` to assign untracked time to tasks.

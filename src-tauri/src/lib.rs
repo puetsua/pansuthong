@@ -11,8 +11,6 @@ pub mod store;
 pub mod sync;
 
 use crate::store::AppState;
-#[cfg(desktop)]
-use tauri::Emitter;
 use tauri::Manager;
 
 #[cfg(desktop)]
@@ -38,22 +36,6 @@ pub fn run() {
         .plugin(tauri_plugin_os::init());
 
     #[cfg(desktop)]
-    let builder = builder.plugin(
-        tauri_plugin_global_shortcut::Builder::new()
-            .with_handler(|app, _shortcut, event| {
-                use tauri_plugin_global_shortcut::ShortcutState;
-                if event.state() == ShortcutState::Pressed {
-                    if let Some(win) = app.get_webview_window("quick-capture") {
-                        let _ = win.show();
-                        let _ = win.set_focus();
-                        let _ = win.emit("capture-focus", ());
-                    }
-                }
-            })
-            .build(),
-    );
-
-    #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_dialog::init());
 
     // In-app updater (desktop only; Android updates via the Play Store / APK).
@@ -65,8 +47,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init());
 
     // Remember the main window's size, position, and maximized state across
-    // launches (desktop only — mobile has no movable window). The quick-capture
-    // window is fixed-size and centered, so it's excluded from persistence.
+    // launches (desktop only — mobile has no movable window).
     #[cfg(desktop)]
     let builder = builder.plugin(
         tauri::plugin::Builder::<_, ()>::new("state-file-migration")
@@ -87,22 +68,8 @@ pub fn run() {
     let builder = builder.plugin(
         tauri_plugin_window_state::Builder::default()
             .with_filename(STATE_FILENAME)
-            .with_denylist(&["quick-capture"])
             .build(),
     );
-
-    // Closing the main window quits the app. Otherwise the hidden, always-on-top
-    // quick-capture window keeps the process alive (there's no tray and no way to
-    // reopen the main window), and tauri-plugin-window-state only flushes geometry
-    // to disk on RunEvent::Exit — which would then never fire. The plugin refreshes
-    // its cache on the preceding CloseRequested/move/resize, so the saved geometry
-    // is current.
-    #[cfg(desktop)]
-    let builder = builder.on_window_event(|window, event| {
-        if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
-            window.app_handle().exit(0);
-        }
-    });
 
     #[cfg(target_os = "android")]
     let builder = builder.plugin(tauri_plugin_android_fs::init());
@@ -168,45 +135,6 @@ pub fn run() {
                     g.last_synced_hash = cfg.last_synced_hash;
                 }
                 app.manage(saf);
-            }
-
-            // Desktop quick-capture: a hidden, always-on-top window the global
-            // shortcut shows. Created here (not in tauri.conf.json) so it never
-            // exists on Android.
-            #[cfg(desktop)]
-            {
-                use tauri::{WebviewUrl, WebviewWindowBuilder};
-                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
-
-                // Quick capture is a convenience, not core. If its window can't be
-                // built or the Ctrl+Shift+N hotkey can't be registered (e.g. another
-                // app already owns it), log and carry on so the main app still
-                // launches instead of aborting startup (#29).
-                let quick_capture = WebviewWindowBuilder::new(
-                    app,
-                    "quick-capture",
-                    WebviewUrl::App("quick-capture.html".into()),
-                )
-                .title("Quick Capture")
-                .inner_size(480.0, 140.0)
-                .decorations(false)
-                .always_on_top(true)
-                .visible(false)
-                .skip_taskbar(true)
-                .resizable(false)
-                .center()
-                .build();
-
-                match quick_capture {
-                    Ok(_) => {
-                        let hotkey =
-                            Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyN);
-                        if let Err(e) = app.global_shortcut().register(hotkey) {
-                            eprintln!("warning: quick-capture shortcut unavailable: {e}");
-                        }
-                    }
-                    Err(e) => eprintln!("warning: quick-capture window unavailable: {e}"),
-                }
             }
 
             Ok(())

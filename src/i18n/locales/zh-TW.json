@@ -431,13 +431,6 @@
     "chooseRecurrenceTag": "選擇此項目重複所依據的標籤。",
     "estimatedSecondsRange": "預估時間必須是最長 {{max}} 的正數時間，例如 1h、20m、50s、1d 或 P1DT1H。"
   },
-  "quickCapture": {
-    "placeholder": "快速新增…（#tag  due fri  ~1h）",
-    "aria": "快速擷取",
-    "hint": "Enter 儲存 · Shift+Enter 保持開啟 · Esc 取消",
-    "needTitle": "加入標題 — 這只有標籤／日期。",
-    "saved": "已儲存 ✓"
-  },
   "settings": {
     "title": "設定",
     "saveError": "無法儲存設定：{{error}}",

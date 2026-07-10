@@ -15,15 +15,6 @@ export default defineConfig(async () => ({
     setupFiles: ["./src/test-setup.ts"],
   },
 
-  build: {
-    rollupOptions: {
-      input: {
-        main: "index.html",
-        "quick-capture": "quick-capture.html",
-      },
-    },
-  },
-
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

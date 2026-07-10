@@ -38,7 +38,6 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 tempfile = "3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-global-shortcut = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-window-state = "2"
 # In-app updater (desktop only — the updater has no Android/iOS support, and
