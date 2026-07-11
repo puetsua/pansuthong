@@ -407,7 +407,9 @@ fn sha256(bytes: &[u8]) -> [u8; 32] {
     h.finalize().into()
 }
 
-/// Atomic JSON write (temp + rename). Used for conflict copies, which remain JSON.
+/// Atomic write (temp + fsync + rename). Used for conflict copies, config, and
+/// history sidecars. On Windows, replaces an existing target via a short
+/// backup+rename dance because `rename` does not overwrite.
 pub(crate) fn atomic_write(target: &Path, bytes: &[u8]) -> Result<()> {
     let tmp = target.with_extension("json.tmp");
     let result: std::io::Result<()> = (|| {
@@ -415,7 +417,7 @@ pub(crate) fn atomic_write(target: &Path, bytes: &[u8]) -> Result<()> {
         f.write_all(bytes)?;
         f.sync_all()?;
         drop(f);
-        fs::rename(&tmp, target)?;
+        replace_file(&tmp, target)?;
         Ok(())
     })();
     match result {
@@ -424,6 +426,29 @@ pub(crate) fn atomic_write(target: &Path, bytes: &[u8]) -> Result<()> {
             let _ = fs::remove_file(&tmp);
             Err(AppError::Io(e))
         }
+    }
+}
+
+fn replace_file(from: &Path, to: &Path) -> std::io::Result<()> {
+    match fs::rename(from, to) {
+        Ok(()) => Ok(()),
+        Err(_e) if to.exists() => {
+            // Windows (and some network FS): rename refuses to overwrite.
+            let bak = to.with_extension("bak");
+            let _ = fs::remove_file(&bak);
+            fs::rename(to, &bak)?;
+            match fs::rename(from, to) {
+                Ok(()) => {
+                    let _ = fs::remove_file(&bak);
+                    Ok(())
+                }
+                Err(err) => {
+                    let _ = fs::rename(&bak, to);
+                    Err(err)
+                }
+            }
+        }
+        Err(e) => Err(e),
     }
 }
 
