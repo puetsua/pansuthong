@@ -23,14 +23,20 @@ excluding active tasks.
 
 The system SHALL append entity change events (timestamp, event, entity, id, title,
 summary) to a per-device history sidecar file, derived from document diffs.
+Append SHALL be crash-safe: a failure mid-append MUST NOT corrupt previously
+durable entries (at worst the in-flight entries are lost).
 
 #### Scenario: Edits produce history entries
 - **WHEN** a task/tag/template is created, updated, or deleted
 - **THEN** a corresponding entry is appended to `history_<device>.jsonl`
 
 #### Scenario: History is per-device
-- **WHEN** the data file is `tasks_<device>.json`
+- **WHEN** the data file is `tasks_<device>.db`
 - **THEN** its history is written to `history_<device>.jsonl` beside it
+
+#### Scenario: Crash mid-append preserves prior entries
+- **WHEN** the process is interrupted while appending history
+- **THEN** previously flushed entries remain readable
 
 ### Requirement: Shared list filters and paging
 
