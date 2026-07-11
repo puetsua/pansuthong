@@ -205,6 +205,9 @@ export type DataLocation = {
   effective_path: string;
 };
 
+/** How to handle this device's owned payload when changing the data folder. */
+export type TransferMode = "copy" | "move";
+
 export type TaskDiff =
   | { kind: "differs";     id: string; mine: Task;   theirs: Task }
   | { kind: "only_mine";   id: string; mine: Task }
@@ -304,12 +307,20 @@ export const api = {
                                         { input: { conflict_path: path, decisions } }),
   dismissConflict:  (path: string) => invoke<void>("dismiss_conflict", { conflictPath: path }),
   getDataLocation: () => invoke<DataLocation>("get_data_location"),
-  clearDataFolder: () => invoke<DataLocation>("clear_data_folder"),
-  /** Opens the OS folder picker; on a selection, repoints tasks.json into it. Returns null if cancelled. */
-  pickAndSetDataFolder: async (): Promise<DataLocation | null> => {
+  /** Opens the OS folder picker; returns the chosen path, or null if cancelled. */
+  pickDataFolder: async (): Promise<string | null> => {
+    const dir = await open({ directory: true, multiple: false, title: "Choose a sync folder" });
+    return typeof dir === "string" ? dir : null;
+  },
+  setDataFolder: (folder: string, transferMode: TransferMode) =>
+    invoke<DataLocation>("set_data_folder", { folder, transferMode }),
+  clearDataFolder: (transferMode: TransferMode) =>
+    invoke<DataLocation>("clear_data_folder", { transferMode }),
+  /** Opens the OS folder picker; on a selection, repoints with the given transfer mode. Returns null if cancelled. */
+  pickAndSetDataFolder: async (transferMode: TransferMode): Promise<DataLocation | null> => {
     const dir = await open({ directory: true, multiple: false, title: "Choose a sync folder" });
     if (typeof dir !== "string") return null;
-    return invoke<DataLocation>("set_data_folder", { folder: dir });
+    return invoke<DataLocation>("set_data_folder", { folder: dir, transferMode });
   },
   // Android SAF folder sync (#Phase 4B). On desktop these resolve to inert stubs.
   safPickFolder:  () => invoke<SyncStatus>("saf_pick_folder"),

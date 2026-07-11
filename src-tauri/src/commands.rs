@@ -297,6 +297,41 @@ pub(crate) fn fill_missing_referenced_attachments(
     Ok(())
 }
 
+/// After a successful Move transfer, delete only this device's owned files from
+/// the old data folder. Never touches peer replicas, history, or attachment trees.
+/// No-op when `old` and `new` share a parent (same-folder relocate).
+pub(crate) fn remove_own_payload(old_data_path: &Path, new_data_path: &Path) -> Result<()> {
+    let old_parent = old_data_path.parent().unwrap_or_else(|| Path::new("."));
+    let new_parent = new_data_path.parent().unwrap_or_else(|| Path::new("."));
+    if old_parent == new_parent {
+        return Ok(());
+    }
+
+    let device_id = crate::config::device_id_from_data_path(old_data_path)
+        .unwrap_or_else(|| "device".to_string());
+
+    // Own SQLite replica at the path we just left.
+    if old_data_path.is_file() {
+        std::fs::remove_file(old_data_path)?;
+    }
+    // Legacy JSON replica for this device, if still present.
+    let legacy_json = old_parent.join(format!("tasks_{device_id}.json"));
+    if legacy_json.is_file() {
+        std::fs::remove_file(&legacy_json)?;
+    }
+
+    let history = crate::history::history_path(old_data_path);
+    if history.is_file() {
+        std::fs::remove_file(&history)?;
+    }
+
+    let attachments = old_parent.join(crate::config::attachments_dir_name(&device_id));
+    if attachments.is_dir() {
+        std::fs::remove_dir_all(&attachments)?;
+    }
+    Ok(())
+}
+
 fn file_display_name(path: &Path) -> Result<String> {
     path.file_name()
         .and_then(|n| n.to_str())
@@ -2407,6 +2442,7 @@ pub fn get_data_location(
 #[tauri::command]
 pub fn set_data_folder(
     folder: String,
+    transfer_mode: crate::store::TransferMode,
     state: State<'_, AppState>,
     config: State<'_, ConfigState>,
     watcher: State<'_, crate::sync::WatcherHandle>,
@@ -2417,7 +2453,7 @@ pub fn set_data_folder(
         return Err(AppError::Invalid(format!("not a folder: {folder}")));
     }
     let new_path = folder_path.join(crate::config::data_file_name(&config.device_id()));
-    state.repoint(new_path.clone())?;
+    state.repoint(new_path.clone(), transfer_mode)?;
     config.set_folder(Some(folder))?;
     // Allow serving attachments from the newly-chosen folder via the asset
     // protocol (the default app-data dir is covered by the config scope). Scoped
@@ -2435,6 +2471,7 @@ pub fn set_data_folder(
 
 #[tauri::command]
 pub fn clear_data_folder(
+    transfer_mode: crate::store::TransferMode,
     state: State<'_, AppState>,
     config: State<'_, ConfigState>,
     watcher: State<'_, crate::sync::WatcherHandle>,
@@ -2442,7 +2479,7 @@ pub fn clear_data_folder(
 ) -> Result<DataLocation> {
     let default_dir = default_data_dir(&app)?;
     let new_path = default_dir.join(crate::config::data_file_name(&config.device_id()));
-    state.repoint(new_path.clone())?;
+    state.repoint(new_path.clone(), transfer_mode)?;
     config.set_folder(None)?;
     crate::sync::restart(&watcher, &app, new_path);
     emit_changed(&app);
