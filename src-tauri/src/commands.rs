@@ -214,6 +214,89 @@ fn attachment_abs_path(data_path: &Path, relative: &str) -> Result<PathBuf> {
     Ok(abs)
 }
 
+fn copy_dir_recursive(from: &Path, to: &Path) -> Result<()> {
+    std::fs::create_dir_all(to)?;
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        let dest = to.join(entry.file_name());
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            copy_dir_recursive(&entry.path(), &dest)?;
+        } else if file_type.is_file() {
+            std::fs::copy(entry.path(), &dest)?;
+        }
+    }
+    Ok(())
+}
+
+/// Copy this device's `attachments_<device>/` tree when seeding an empty data folder.
+///
+/// Mirrors `history::copy_own_history`: leave the source intact, skip peer
+/// `attachments_*` dirs, and no-op when `from` and `to` share a parent.
+pub(crate) fn copy_own_attachments(from_data_path: &Path, to_data_path: &Path) -> Result<()> {
+    let from_parent = from_data_path.parent().unwrap_or_else(|| Path::new("."));
+    let to_parent = to_data_path.parent().unwrap_or_else(|| Path::new("."));
+    if from_parent == to_parent {
+        return Ok(());
+    }
+
+    let device_id = crate::config::device_id_from_data_path(from_data_path)
+        .unwrap_or_else(|| "device".to_string());
+    let dir_name = crate::config::attachments_dir_name(&device_id);
+    let from_dir = from_parent.join(&dir_name);
+    if !from_dir.is_dir() {
+        return Ok(());
+    }
+    let to_dir = to_parent.join(&dir_name);
+    copy_dir_recursive(&from_dir, &to_dir)
+}
+
+/// On adopt, copy only document-referenced managed attachment blobs that are
+/// missing at the new folder and present at the old folder. Never overwrites
+/// existing destination files; leaves sources intact; skips unreferenced blobs.
+pub(crate) fn fill_missing_referenced_attachments(
+    from_data_path: &Path,
+    to_data_path: &Path,
+    doc: &crate::model::Document,
+) -> Result<()> {
+    let from_parent = from_data_path.parent().unwrap_or_else(|| Path::new("."));
+    let to_parent = to_data_path.parent().unwrap_or_else(|| Path::new("."));
+    if from_parent == to_parent {
+        return Ok(());
+    }
+
+    let mut seen = std::collections::HashSet::new();
+    let refs = doc
+        .tasks
+        .iter()
+        .flat_map(|t| t.attachments.iter())
+        .chain(doc.template_tasks.iter().flat_map(|t| t.attachments.iter()))
+        .map(|a| a.path.as_str());
+
+    for rel in refs {
+        // Only modern `attachments_<device>/attachment_*` paths (not legacy flat).
+        if !rel.contains('/') || !is_attachment_filename(rel) {
+            continue;
+        }
+        if !seen.insert(rel.to_string()) {
+            continue;
+        }
+        let dest = attachment_abs_path(to_data_path, rel)?;
+        if dest.exists() {
+            continue;
+        }
+        let src = attachment_abs_path(from_data_path, rel)?;
+        if !src.is_file() {
+            continue;
+        }
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::copy(&src, &dest)?;
+    }
+    Ok(())
+}
+
 fn file_display_name(path: &Path) -> Result<String> {
     path.file_name()
         .and_then(|n| n.to_str())
@@ -2987,6 +3070,115 @@ mod tests {
             .read(|d| Ok::<_, AppError>(d.tasks[0].attachments[0].path.clone()))
             .unwrap();
         assert_eq!(stored, "attachments_dev/attachment_x_doc.bin");
+    }
+
+    #[test]
+    fn copy_own_attachments_copies_device_subdir_to_new_folder() {
+        let from_dir = tempfile::tempdir().unwrap();
+        let to_dir = tempfile::tempdir().unwrap();
+        let from = from_dir.path().join("tasks_dev.db");
+        let to = to_dir.path().join("tasks_dev.db");
+        let own = from_dir.path().join("attachments_dev");
+        std::fs::create_dir_all(&own).unwrap();
+        std::fs::write(own.join("attachment_a_x.bin"), b"blob-a").unwrap();
+        // Peer tree must stay behind.
+        let peer = from_dir.path().join("attachments_other");
+        std::fs::create_dir_all(&peer).unwrap();
+        std::fs::write(peer.join("attachment_b_y.bin"), b"blob-b").unwrap();
+
+        copy_own_attachments(&from, &to).unwrap();
+
+        assert_eq!(
+            std::fs::read(to_dir.path().join("attachments_dev").join("attachment_a_x.bin")).unwrap(),
+            b"blob-a"
+        );
+        assert!(
+            from_dir
+                .path()
+                .join("attachments_dev")
+                .join("attachment_a_x.bin")
+                .exists(),
+            "source left intact (copy, not move)"
+        );
+        assert!(
+            !to_dir.path().join("attachments_other").exists(),
+            "peer attachments_* must not be seeded"
+        );
+    }
+
+    #[test]
+    fn copy_own_attachments_is_noop_within_same_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let from = dir.path().join("tasks_dev.db");
+        let to = dir.path().join("tasks_dev.db");
+        let own = dir.path().join("attachments_dev");
+        std::fs::create_dir_all(&own).unwrap();
+        std::fs::write(own.join("attachment_a_x.bin"), b"x").unwrap();
+        copy_own_attachments(&from, &to).unwrap();
+        assert!(own.join("attachment_a_x.bin").exists());
+    }
+
+    #[test]
+    fn copy_own_attachments_noop_when_source_subdir_missing() {
+        let from_dir = tempfile::tempdir().unwrap();
+        let to_dir = tempfile::tempdir().unwrap();
+        let from = from_dir.path().join("tasks_dev.db");
+        let to = to_dir.path().join("tasks_dev.db");
+        copy_own_attachments(&from, &to).unwrap();
+        assert!(!to_dir.path().join("attachments_dev").exists());
+    }
+
+    #[test]
+    fn fill_missing_referenced_attachments_copies_only_gaps() {
+        let from_dir = tempfile::tempdir().unwrap();
+        let to_dir = tempfile::tempdir().unwrap();
+        let from = from_dir.path().join("tasks_dev.db");
+        let to = to_dir.path().join("tasks_dev.db");
+
+        let missing_rel = "attachments_dev/attachment_missing_x.bin";
+        let keep_rel = "attachments_dev/attachment_keep_y.bin";
+        let orphan_rel = "attachments_dev/attachment_orphan_z.bin";
+        std::fs::create_dir_all(from_dir.path().join("attachments_dev")).unwrap();
+        std::fs::write(from_dir.path().join(missing_rel), b"from-missing").unwrap();
+        std::fs::write(from_dir.path().join(keep_rel), b"from-keep").unwrap();
+        std::fs::write(from_dir.path().join(orphan_rel), b"from-orphan").unwrap();
+
+        std::fs::create_dir_all(to_dir.path().join("attachments_dev")).unwrap();
+        std::fs::write(to_dir.path().join(keep_rel), b"dest-keep").unwrap();
+
+        let mut doc = crate::model::Document::default();
+        doc.tasks.push(task_with_attachment("t1", missing_rel));
+        doc.tasks[0]
+            .attachments
+            .push(Attachment {
+                id: "att_keep".into(),
+                name: "keep".into(),
+                path: keep_rel.into(),
+                mime_type: None,
+                size: Some(9),
+                created_at: 0,
+            });
+
+        fill_missing_referenced_attachments(&from, &to, &doc).unwrap();
+
+        assert_eq!(
+            std::fs::read(to_dir.path().join(missing_rel)).unwrap(),
+            b"from-missing",
+            "missing referenced blob filled from old folder"
+        );
+        assert_eq!(
+            std::fs::read(to_dir.path().join(keep_rel)).unwrap(),
+            b"dest-keep",
+            "existing destination blob must not be replaced"
+        );
+        assert!(
+            !to_dir.path().join(orphan_rel).exists(),
+            "unreferenced old blobs must not be copied"
+        );
+        assert!(
+            from_dir.path().join(missing_rel).exists(),
+            "source left intact"
+        );
     }
 
     #[test]

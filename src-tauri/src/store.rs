@@ -222,6 +222,17 @@ impl AppState {
             if let Err(e) = crate::history::copy_own_history(&old_path, &g.path) {
                 eprintln!("warning: failed to copy history on folder change: {e}");
             }
+            // Own attachment blobs must follow the seeded document (#133).
+            if let Err(e) = crate::commands::copy_own_attachments(&old_path, &g.path) {
+                eprintln!("warning: failed to copy attachments on folder change: {e}");
+            }
+        } else {
+            // Adopt: never overwrite existing blobs; fill only referenced gaps.
+            if let Err(e) =
+                crate::commands::fill_missing_referenced_attachments(&old_path, &g.path, &g.doc)
+            {
+                eprintln!("warning: failed to fill missing attachments on folder change: {e}");
+            }
         }
         Ok(())
     }
@@ -786,6 +797,184 @@ mod tests {
             "adopting an existing folder must not copy this device's old history over it"
         );
         assert!(target.path().join("history_other.jsonl").exists());
+    }
+
+    #[test]
+    fn repoint_seeds_copies_own_attachments_subdir() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path).unwrap();
+        let own = dir.path().join("attachments_dev");
+        fs::create_dir_all(&own).unwrap();
+        fs::write(own.join("attachment_a_photo.bin"), b"photo").unwrap();
+        let peer = dir.path().join("attachments_other");
+        fs::create_dir_all(&peer).unwrap();
+        fs::write(peer.join("attachment_b_peer.bin"), b"peer").unwrap();
+        state
+            .write(|d| {
+                let mut t = sample_task("k_seed");
+                t.attachments.push(crate::model::Attachment {
+                    id: "att_a".into(),
+                    name: "photo".into(),
+                    path: "attachments_dev/attachment_a_photo.bin".into(),
+                    mime_type: None,
+                    size: Some(5),
+                    created_at: 0,
+                });
+                d.tasks.push(t);
+                Ok(())
+            })
+            .unwrap();
+
+        let target = tempdir().unwrap();
+        let new_path = target.path().join("tasks_dev.db");
+        state.repoint(new_path).unwrap();
+
+        assert_eq!(
+            fs::read(
+                target
+                    .path()
+                    .join("attachments_dev")
+                    .join("attachment_a_photo.bin")
+            )
+            .unwrap(),
+            b"photo",
+            "own attachments must be copied when seeding"
+        );
+        assert!(
+            dir.path()
+                .join("attachments_dev")
+                .join("attachment_a_photo.bin")
+                .exists(),
+            "source attachments left intact"
+        );
+        assert!(
+            !target.path().join("attachments_other").exists(),
+            "peer attachments_* must not be seeded"
+        );
+    }
+
+    #[test]
+    fn repoint_adopt_does_not_copy_own_attachments_tree_over_target() {
+        let dir = tempdir().unwrap();
+        let state = AppState::open(dir.path().join("tasks_dev.db")).unwrap();
+        let own = dir.path().join("attachments_dev");
+        fs::create_dir_all(&own).unwrap();
+        fs::write(own.join("attachment_local_x.bin"), b"local-only").unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_local"));
+                Ok(())
+            })
+            .unwrap();
+
+        let target = tempdir().unwrap();
+        write_json_replica(&target.path().join("tasks_other.json"), "k_theirs");
+        // Target has its own attachment tree; adopt must not dump the old own tree.
+        let target_own = target.path().join("attachments_dev");
+        fs::create_dir_all(&target_own).unwrap();
+        fs::write(target_own.join("attachment_target_y.bin"), b"target").unwrap();
+
+        let new_path = target.path().join("tasks_dev.db");
+        state.repoint(new_path).unwrap();
+
+        assert!(
+            !target
+                .path()
+                .join("attachments_dev")
+                .join("attachment_local_x.bin")
+                .exists(),
+            "adopting must not copy the whole own attachments tree over the target"
+        );
+        assert_eq!(
+            fs::read(
+                target
+                    .path()
+                    .join("attachments_dev")
+                    .join("attachment_target_y.bin")
+            )
+            .unwrap(),
+            b"target",
+            "existing target blobs must remain"
+        );
+    }
+
+    #[test]
+    fn repoint_adopt_fills_missing_referenced_attachments() {
+        let dir = tempdir().unwrap();
+        let state = AppState::open(dir.path().join("tasks_dev.db")).unwrap();
+        // Old folder holds a blob the target document will reference.
+        let missing_rel = "attachments_other/attachment_shared_x.bin";
+        fs::create_dir_all(dir.path().join("attachments_other")).unwrap();
+        fs::write(dir.path().join(missing_rel), b"shared-blob").unwrap();
+        // Unreferenced blob in old folder must stay behind.
+        fs::write(
+            dir.path()
+                .join("attachments_other")
+                .join("attachment_orphan_z.bin"),
+            b"orphan",
+        )
+        .unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_local"));
+                Ok(())
+            })
+            .unwrap();
+
+        let target = tempdir().unwrap();
+        let mut theirs = Document::default();
+        let mut t = sample_task("k_theirs");
+        t.attachments.push(crate::model::Attachment {
+            id: "att_shared".into(),
+            name: "shared".into(),
+            path: missing_rel.into(),
+            mime_type: None,
+            size: Some(11),
+            created_at: 0,
+        });
+        // Also reference a blob that already exists at the target — must not overwrite.
+        let keep_rel = "attachments_other/attachment_keep_y.bin";
+        t.attachments.push(crate::model::Attachment {
+            id: "att_keep".into(),
+            name: "keep".into(),
+            path: keep_rel.into(),
+            mime_type: None,
+            size: Some(10),
+            created_at: 0,
+        });
+        theirs.tasks.push(t);
+        fs::write(
+            target.path().join("tasks_other.json"),
+            serde_json::to_vec_pretty(&theirs).unwrap(),
+        )
+        .unwrap();
+        fs::create_dir_all(target.path().join("attachments_other")).unwrap();
+        fs::write(target.path().join(keep_rel), b"dest-keep").unwrap();
+        // Old folder also has a different version of keep — must not replace dest.
+        fs::write(dir.path().join(keep_rel), b"from-keep").unwrap();
+
+        let new_path = target.path().join("tasks_dev.db");
+        state.repoint(new_path).unwrap();
+
+        assert_eq!(
+            fs::read(target.path().join(missing_rel)).unwrap(),
+            b"shared-blob",
+            "missing referenced blob filled from old folder"
+        );
+        assert_eq!(
+            fs::read(target.path().join(keep_rel)).unwrap(),
+            b"dest-keep",
+            "existing destination blob must not be replaced"
+        );
+        assert!(
+            !target
+                .path()
+                .join("attachments_other")
+                .join("attachment_orphan_z.bin")
+                .exists(),
+            "unreferenced old blobs must not be copied on adopt"
+        );
     }
 
     #[test]
