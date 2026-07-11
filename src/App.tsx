@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { applyLanguage, resolveLanguage } from "./i18n";
@@ -22,6 +22,7 @@ import { useDocument } from "./state/store";
 import { setCompletionSoundEnabled } from "./lib/sound";
 import { currentDateFormat, currentTimeFormat, setDateFormat, setTimeFormat } from "./lib/dates";
 import { dateFormat, reminderIntervalMinutes, timeFormat } from "./lib/settings";
+import { api } from "./lib/tauri";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import { TimeEstimateReminder } from "./components/TimeEstimateReminder";
 
@@ -29,6 +30,7 @@ export default function App() {
   const { t } = useTranslation();
   const { doc, indexes, error, reloadError, dismissReloadError } = useDocument();
   const isMobile = useIsMobile();
+  const didShowWindow = useRef(false);
 
   // Apply the chosen UI language ("auto" follows the OS locale) whenever the
   // setting changes; switching here re-renders the whole tree in the new language (#26).
@@ -57,6 +59,39 @@ export default function App() {
     if (nextDate !== currentDateFormat()) setDateFormat(nextDate);
     if (nextTime !== currentTimeFormat()) setTimeFormat(nextTime);
   }, [doc?.settings]);
+
+  // The native window starts hidden so persisted position/size and WebView2 can
+  // settle off-screen. This effect follows the theme effect in useDocument; two
+  // animation frames ensure the first themed success or error UI has painted
+  // before revealing the window.
+  useEffect(() => {
+    if (didShowWindow.current || (!error && (!doc || !indexes))) return;
+
+    let cancelled = false;
+    let secondFrame: number | undefined;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const reveal = () => {
+      void api.showMainWindow()
+        .then(() => {
+          if (!cancelled) didShowWindow.current = true;
+        })
+        .catch(() => {
+          if (!cancelled) retryTimer = setTimeout(reveal, 250);
+        });
+    };
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        reveal();
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(firstFrame);
+      if (secondFrame != null) cancelAnimationFrame(secondFrame);
+      if (retryTimer != null) clearTimeout(retryTimer);
+    };
+  }, [doc, indexes, error]);
 
   if (error) return <p className="app-error">{t("app.loadFailed", { error })}</p>;
   if (!doc || !indexes) return <p className="app-loading">{t("app.loading")}</p>;

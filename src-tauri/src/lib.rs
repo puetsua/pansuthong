@@ -69,9 +69,11 @@ pub fn run() {
             .build(),
     );
 
-    // Persist size/position/maximized — but never decorations. Restoring a
-    // previously decorated state would override `decorations: false` and bring
-    // back the OS titlebar (tauri-apps/plugins-workspace#1970 / #2203).
+    // Persist size/position/maximized — but never decorations or visibility.
+    // Restoring a previously decorated state would override `decorations: false`
+    // and bring back the OS titlebar (tauri-apps/plugins-workspace#1970 / #2203).
+    // The window stays hidden until the frontend's first rendered frame, so saved
+    // geometry can settle without a visible move/resize flash.
     #[cfg(desktop)]
     let builder = builder.plugin(
         tauri_plugin_window_state::Builder::default()
@@ -80,7 +82,6 @@ pub fn run() {
                 tauri_plugin_window_state::StateFlags::SIZE
                     | tauri_plugin_window_state::StateFlags::POSITION
                     | tauri_plugin_window_state::StateFlags::MAXIMIZED
-                    | tauri_plugin_window_state::StateFlags::VISIBLE
                     | tauri_plugin_window_state::StateFlags::FULLSCREEN,
             )
             .build(),
@@ -213,6 +214,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_document,
+            commands::show_main_window,
             commands::list_history,
             commands::sync_now,
             commands::attach_task_files,

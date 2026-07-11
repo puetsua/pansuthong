@@ -56,6 +56,15 @@ pub fn get_document(state: State<'_, AppState>, config: State<'_, ConfigState>) 
     document_view(&state, &config)
 }
 
+/// Reveal the initially hidden main window only after the frontend has painted
+/// its first meaningful state. The invoking window is used so this remains
+/// correct for the desktop main window and the mobile webview.
+#[tauri::command]
+pub fn show_main_window(window: tauri::WebviewWindow) -> std::result::Result<(), String> {
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn list_history(state: State<'_, AppState>) -> Result<Vec<HistoryEntry>> {
     crate::history::read_all_history(&state.path())

@@ -225,6 +225,7 @@ export type SyncStatus = {
 
 export const api = {
   getDocument:   ()                          => invoke<Document>("get_document"),
+  showMainWindow: ()                         => invoke<void>("show_main_window"),
   listHistory:   ()                          => invoke<HistoryEntry[]>("list_history"),
   /** Force an immediate re-read of tasks.json from disk; returns the freshest doc. */
   syncNow:       ()                          => invoke<Document>("sync_now"),
