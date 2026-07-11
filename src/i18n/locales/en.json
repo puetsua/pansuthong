@@ -600,7 +600,7 @@
     "chooseFolder": "Choose folder…",
     "useDefault": "Use default location",
     "transferTitle": "Change data folder?",
-    "transferBody": "Copy keeps this device's tasks, history, and attachments in the old folder and places a copy in the new one. Move transfers them, then removes only this device's files from the old folder after success. Peer device files are never touched.",
+    "transferBody": "Copy keeps this device's tasks, history, and attachments in the old folder and places a copy in the new one.\n\nMove transfers them, then removes only this device's files from the old folder after success.\n\nPeer device files are never touched.",
     "transferCopy": "Copy",
     "transferMove": "Move",
     "transferCancel": "Cancel"
