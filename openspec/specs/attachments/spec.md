@@ -4,9 +4,11 @@
 
 Tasks and templates may carry file attachments. Blobs are copied into a per-device
 subdirectory of the data folder (`attachments_<device>/`) and mirrored with the
-rest of the synced data. Stored paths are validated so a crafted reference can
-never escape the data folder. A configurable size ceiling bounds how much each
-attachment can bloat every device's synced copy.
+rest of the synced data. Metadata lives in the Document and merges by id union;
+blobs are ordinary files and are not entity-tombstoned like tasks (see the
+cross-device delete limitation below). Stored paths are validated so a crafted
+reference can never escape the data folder. A configurable size ceiling bounds
+how much each attachment can bloat every device's synced copy.
 
 ## Requirements
 
