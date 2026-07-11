@@ -554,6 +554,11 @@ pub struct Document {
     pub deleted_tags: Vec<Tombstone>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub deleted_template_tasks: Vec<Tombstone>,
+    /// Attachment deletes across replicas. Same semantics as entity tombstones:
+    /// suppress a live attachment when `deleted_at >= created_at`; a recreate with
+    /// a newer `created_at` survives.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deleted_attachments: Vec<Tombstone>,
 }
 
 impl Default for Document {
@@ -567,6 +572,7 @@ impl Default for Document {
             deleted_tasks: Vec::new(),
             deleted_tags: Vec::new(),
             deleted_template_tasks: Vec::new(),
+            deleted_attachments: Vec::new(),
         }
     }
 }
@@ -597,6 +603,8 @@ struct DocumentCompat {
     deleted_tags: Vec<Tombstone>,
     #[serde(default)]
     deleted_template_tasks: Vec<Tombstone>,
+    #[serde(default)]
+    deleted_attachments: Vec<Tombstone>,
 }
 
 impl From<DocumentCompat> for Document {
@@ -622,6 +630,7 @@ impl From<DocumentCompat> for Document {
             deleted_tasks: c.deleted_tasks,
             deleted_tags: c.deleted_tags,
             deleted_template_tasks: c.deleted_template_tasks,
+            deleted_attachments: c.deleted_attachments,
         }
     }
 }
@@ -802,12 +811,7 @@ fn merge_time_entries(into: &mut Task, from: &Task) {
         .sort_by_key(|entry| (entry.start, entry.id.clone()));
 }
 
-/// Union attachments by id (like `merge_time_entries`). LIMITATION: this is a
-/// pure union with no per-attachment tombstone, so an attachment deleted on one
-/// replica is re-added from another replica that still has it — attachment
-/// deletes do not propagate across devices until the blob is gone from every
-/// replica. Matches the time-entry merge; propagating deletes would need
-/// attachment-level tombstones.
+/// Union attachments by id, then the caller applies attachment tombstones.
 fn merge_attachments(into: &mut Task, from: &Task) {
     let mut seen: HashSet<String> = into
         .attachments
@@ -821,6 +825,14 @@ fn merge_attachments(into: &mut Task, from: &Task) {
     }
     into.attachments
         .sort_by_key(|att| (att.created_at, att.id.clone()));
+}
+
+fn apply_attachment_tombstones(attachments: &mut Vec<Attachment>, tombs: &HashMap<String, Tombstone>) {
+    attachments.retain(|att| {
+        tombs
+            .get(&att.id)
+            .is_none_or(|t| t.deleted_at < att.created_at)
+    });
 }
 
 /// Merge per-device replica documents into one computed document. Entity-level
@@ -844,6 +856,7 @@ pub fn merge_documents(replicas: Vec<Document>) -> Document {
     let mut deleted_tasks = Vec::new();
     let mut deleted_tags = Vec::new();
     let mut deleted_templates = Vec::new();
+    let mut deleted_attachments = Vec::new();
 
     for doc in replicas {
         merged.version = merged.version.max(doc.version);
@@ -851,6 +864,7 @@ pub fn merge_documents(replicas: Vec<Document>) -> Document {
         deleted_tasks.extend(doc.deleted_tasks.clone());
         deleted_tags.extend(doc.deleted_tags.clone());
         deleted_templates.extend(doc.deleted_template_tasks.clone());
+        deleted_attachments.extend(doc.deleted_attachments.clone());
 
         for task in doc.tasks {
             let stamp = task_stamp(&task);
@@ -906,6 +920,7 @@ pub fn merge_documents(replicas: Vec<Document>) -> Document {
     let task_tombs = latest_tombstones(deleted_tasks);
     let tag_tombs = latest_tombstones(deleted_tags);
     let template_tombs = latest_tombstones(deleted_templates);
+    let attachment_tombs = latest_tombstones(deleted_attachments);
 
     merged.tags = tags
         .into_values()
@@ -933,6 +948,7 @@ pub fn merge_documents(replicas: Vec<Document>) -> Document {
         })
         .map(|(_, mut task)| {
             task.tag_ids.retain(|id| live_tag_ids.contains(id));
+            apply_attachment_tombstones(&mut task.attachments, &attachment_tombs);
             task
         })
         .collect();
@@ -956,6 +972,7 @@ pub fn merge_documents(replicas: Vec<Document>) -> Document {
             {
                 template.recurrence_tag_id = None;
             }
+            apply_attachment_tombstones(&mut template.attachments, &attachment_tombs);
             template
         })
         .collect();
@@ -966,6 +983,7 @@ pub fn merge_documents(replicas: Vec<Document>) -> Document {
     merged.deleted_tasks = task_tombs.into_values().collect();
     merged.deleted_tags = tag_tombs.into_values().collect();
     merged.deleted_template_tasks = template_tombs.into_values().collect();
+    merged.deleted_attachments = attachment_tombs.into_values().collect();
     merged
 }
 
@@ -1584,6 +1602,54 @@ mod tests {
         let merged = merge_documents(vec![right, left]);
         let ids: Vec<_> = merged.tasks[0].attachments.iter().map(|a| a.id.as_str()).collect();
         assert_eq!(ids, ["a_left", "a_right"], "attachments unioned by id, order-independent");
+    }
+
+    #[test]
+    fn merge_attachment_tombstone_suppresses_peer_copy() {
+        let mut keeper = Document::default();
+        let mut task_with = task();
+        task_with.id = "k_1".into();
+        task_with.attachments.push(attachment("a_1", 10));
+        keeper.tasks.push(task_with);
+
+        let mut deleter = Document::default();
+        deleter.deleted_attachments.push(Tombstone {
+            id: "a_1".into(),
+            deleted_at: 20,
+            deleted_by: None,
+        });
+
+        let merged = merge_documents(vec![keeper, deleter]);
+        assert!(
+            merged.tasks[0].attachments.is_empty(),
+            "tombstone suppresses the peer's still-listed attachment"
+        );
+        assert_eq!(merged.deleted_attachments.len(), 1);
+    }
+
+    #[test]
+    fn merge_attachment_recreate_survives_stale_tombstone() {
+        let mut recreated = Document::default();
+        let mut task_with = task();
+        task_with.id = "k_1".into();
+        task_with.attachments.push(attachment("a_1", 30)); // newer than tombstone
+        recreated.tasks.push(task_with);
+        recreated.deleted_attachments.push(Tombstone {
+            id: "a_1".into(),
+            deleted_at: 20,
+            deleted_by: None,
+        });
+
+        let mut stale = Document::default();
+        stale.deleted_attachments.push(Tombstone {
+            id: "a_1".into(),
+            deleted_at: 20,
+            deleted_by: None,
+        });
+
+        let merged = merge_documents(vec![recreated, stale]);
+        assert_eq!(merged.tasks[0].attachments.len(), 1);
+        assert_eq!(merged.tasks[0].attachments[0].id, "a_1");
     }
 
     #[test]
