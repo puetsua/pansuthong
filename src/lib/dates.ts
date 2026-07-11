@@ -76,7 +76,6 @@ export const TIME_FORMATS: TimeFormat[] = [
   "thai_day_period",
   "arabic_day_period",
 ];
-export const DATE_TIME_FORMATS: DateTimeFormat[] = DATE_FORMATS;
 
 export const DEFAULT_DATE_FORMAT: DateFormat = "locale";
 export const DEFAULT_TIME_FORMAT: TimeFormat = "locale";
@@ -103,16 +102,6 @@ export function setTimeFormat(fmt: TimeFormat): void {
 /** The currently active time display format preset. */
 export function currentTimeFormat(): TimeFormat {
   return activeTimeFormat;
-}
-
-/** Legacy helper: update the date half of the display format. */
-export function setDateTimeFormat(fmt: DateTimeFormat): void {
-  setDateFormat(fmt);
-}
-
-/** Legacy helper: the currently active date half of the display format. */
-export function currentDateTimeFormat(): DateTimeFormat {
-  return currentDateFormat();
 }
 
 /** Normalize a stored/wire date format value to a supported preset. */

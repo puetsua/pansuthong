@@ -126,19 +126,6 @@ impl AppState {
         Ok(value)
     }
 
-    /// Replace the in-memory document with `bytes` (legacy JSON). Kept for callers
-    /// that hand raw JSON; persists it into the database.
-    pub fn reload_from_bytes(&self, bytes: Vec<u8>) -> Result<()> {
-        let doc = parse_checked(&bytes)?;
-        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        let inner = &mut *g;
-        inner.doc = doc;
-        crate::db::write_document(&mut inner.conn, &inner.doc)?;
-        g.own_hash = content_hash(&g.doc);
-        g.peers_hash = peers_content_hash(&g.path);
-        Ok(())
-    }
-
     /// Re-merge if any peer replica changed. Returns `true` when a reload happened.
     /// When the merged Document differs from the pre-merge Document, appends
     /// history entries (with stable dedup) so peer-visible changes appear in History.

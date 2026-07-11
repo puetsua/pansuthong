@@ -205,16 +205,7 @@ fn config_path(default_dir: &Path) -> PathBuf {
 }
 
 pub fn data_file_name(device_id: &str) -> String {
-    let clean: String = device_id
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
-        .collect();
-    let id = if clean.is_empty() {
-        "device"
-    } else {
-        clean.as_str()
-    };
-    format!("tasks_{id}.db")
+    format!("tasks_{}.db", sanitize_device_id(device_id))
 }
 
 /// Extract the device id embedded in a replica filename (`tasks_<id>.db` / `.json`).
@@ -260,20 +251,11 @@ pub fn legacy_data_file_name() -> &'static str {
 /// devices syncing into the same folder never collide on a blob. Sanitized with
 /// the same charset as `data_file_name` so the name is always path-safe.
 pub fn attachments_dir_name(device_id: &str) -> String {
-    let clean: String = device_id
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
-        .collect();
-    let id = if clean.is_empty() {
-        "device"
-    } else {
-        clean.as_str()
-    };
-    format!("attachments_{id}")
+    format!("attachments_{}", sanitize_device_id(device_id))
 }
 
-/// Resolve this device's writable replica path: `<folder>/tasks_<device>.json`
-/// if a valid folder is configured, else `<default_dir>/tasks_<device>.json`.
+/// Resolve this device's writable replica path: `<folder>/tasks_<device>.db`
+/// if a valid folder is configured, else `<default_dir>/tasks_<device>.db`.
 pub fn resolve_data_path(default_dir: &Path, folder: &Option<String>, device_id: &str) -> PathBuf {
     let file = data_file_name(device_id);
     match folder {

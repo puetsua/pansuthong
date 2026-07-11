@@ -22,6 +22,6 @@ master for history or blobs.
 |------|---------|----------------------|
 | Document (tasks/tags/templates) | `tasks_<device>.db` | Active merge (LWW + entity tombstones); UI uses the merged in-memory `Document` |
 | History | `history_<device>.jsonl` | Append-only per device; read-time concat; peer merge does not append locally |
-| Attachments | `attachments_<device>/` blobs + metadata in Document | Metadata unions by id (no attachment tombstones yet); blobs sync as files; local GC when unreferenced |
+| Attachments | `attachments_<device>/` blobs + metadata in Document | Metadata LWW + `deleted_attachments` tombstones; blobs sync as files; local GC when unreferenced |
 
-Backlog to align these: #120 (SAF `.db`), #121–#123 (attachment delete/GC/SAF subdirs), #124–#126 (history merge decision, atomic append, optional SQLite).
+Shipped alignment (#120–#126): SAF mirrors `.db` + `attachments_<device>/`; attachment tombstones/GC; peer-merge history append with dedup; atomic history append; history stays a JSONL sidecar (SQLite move not planned). The three kinds above still do not share one merge protocol — that split is intentional.
