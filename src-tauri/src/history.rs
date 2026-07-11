@@ -112,6 +112,37 @@ pub fn append_history(data_path: &Path, entries: &[HistoryEntry]) -> Result<()> 
     Ok(())
 }
 
+/// Copy this device's history sidecar(s) when seeding an empty data folder.
+///
+/// Used by `AppState::repoint` so relocating the sync folder keeps History
+/// continuous. Copies the per-device `history_<device>.jsonl` when present, and
+/// the legacy `history.jsonl` when that is what the old folder still has.
+/// Peer history replicas are left behind — same as peer task replicas, which
+/// `repoint` also does not seed. No-op when `from` and `to` share a parent.
+pub fn copy_own_history(from_data_path: &Path, to_data_path: &Path) -> Result<()> {
+    let from_parent = from_data_path.parent().unwrap_or_else(|| Path::new("."));
+    let to_parent = to_data_path.parent().unwrap_or_else(|| Path::new("."));
+    if from_parent == to_parent {
+        return Ok(());
+    }
+    fs::create_dir_all(to_parent)?;
+
+    let from_own = history_path(from_data_path);
+    let to_own = history_path(to_data_path);
+    if from_own.exists() {
+        fs::copy(&from_own, &to_own)?;
+    }
+
+    let from_legacy = legacy_history_path(from_data_path);
+    let to_legacy = legacy_history_path(to_data_path);
+    // Only copy legacy when it is a distinct file (not the same path we already
+    // handled as the "own" sidecar for a non-device-named data file).
+    if from_legacy.exists() && from_legacy != from_own {
+        fs::copy(&from_legacy, &to_legacy)?;
+    }
+    Ok(())
+}
+
 pub fn entries_for_change(
     before: &Document,
     after: &Document,
@@ -483,5 +514,126 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["k_mobile", "k_desktop"]
         );
+    }
+
+    #[test]
+    fn copy_own_history_copies_device_sidecar_to_new_folder() {
+        let from_dir = tempdir().unwrap();
+        let to_dir = tempdir().unwrap();
+        let from = from_dir.path().join("tasks_dev.db");
+        let to = to_dir.path().join("tasks_dev.db");
+        append_history(
+            &from,
+            &[entry(
+                1_000,
+                "task.created",
+                "task",
+                "k_1",
+                "One".into(),
+                "Created task",
+            )],
+        )
+        .unwrap();
+
+        copy_own_history(&from, &to).unwrap();
+
+        assert!(to_dir.path().join("history_dev.jsonl").exists());
+        assert!(from_dir.path().join("history_dev.jsonl").exists());
+        let entries = read_all_history(&to).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].entity_id, "k_1");
+    }
+
+    #[test]
+    fn copy_own_history_copies_legacy_sidecar_when_present() {
+        let from_dir = tempdir().unwrap();
+        let to_dir = tempdir().unwrap();
+        let from = from_dir.path().join("tasks_dev.db");
+        let to = to_dir.path().join("tasks_dev.db");
+        // Legacy-only folder (pre per-device history).
+        fs::write(
+            from_dir.path().join("history.jsonl"),
+            serde_json::to_string(&entry(
+                1_000,
+                "task.created",
+                "task",
+                "k_legacy",
+                "Legacy".into(),
+                "Created task",
+            ))
+            .unwrap()
+                + "\n",
+        )
+        .unwrap();
+
+        copy_own_history(&from, &to).unwrap();
+
+        assert!(to_dir.path().join("history.jsonl").exists());
+        let entries = read_all_history(&to).unwrap();
+        assert_eq!(entries[0].entity_id, "k_legacy");
+    }
+
+    #[test]
+    fn copy_own_history_skips_peer_sidecars() {
+        let from_dir = tempdir().unwrap();
+        let to_dir = tempdir().unwrap();
+        let from = from_dir.path().join("tasks_dev.db");
+        let to = to_dir.path().join("tasks_dev.db");
+        append_history(
+            &from,
+            &[entry(
+                1_000,
+                "task.created",
+                "task",
+                "k_dev",
+                "Dev".into(),
+                "Created task",
+            )],
+        )
+        .unwrap();
+        fs::write(
+            from_dir.path().join("history_peer.jsonl"),
+            serde_json::to_string(&entry(
+                2_000,
+                "task.created",
+                "task",
+                "k_peer",
+                "Peer".into(),
+                "Created task",
+            ))
+            .unwrap()
+                + "\n",
+        )
+        .unwrap();
+
+        copy_own_history(&from, &to).unwrap();
+
+        assert!(to_dir.path().join("history_dev.jsonl").exists());
+        assert!(
+            !to_dir.path().join("history_peer.jsonl").exists(),
+            "peer history is not seeded — same as peer task replicas"
+        );
+    }
+
+    #[test]
+    fn copy_own_history_is_noop_within_same_folder() {
+        let dir = tempdir().unwrap();
+        let from = dir.path().join("tasks_dev.db");
+        let to = dir.path().join("tasks_dev.db");
+        append_history(
+            &from,
+            &[entry(
+                1_000,
+                "task.created",
+                "task",
+                "k_1",
+                "One".into(),
+                "Created task",
+            )],
+        )
+        .unwrap();
+        copy_own_history(&from, &to).unwrap();
+        // Still a single sidecar; no duplicate/rename side effects.
+        assert!(dir.path().join("history_dev.jsonl").exists());
     }
 }
