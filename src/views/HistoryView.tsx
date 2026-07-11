@@ -36,8 +36,17 @@ function entryMatches(entry: HistoryEntry, query: string): boolean {
     entry.entity,
     entry.event,
     entry.entity_id,
+    entry.device_name ?? "",
+    entry.device_id ?? "",
   ].join(" ").toLowerCase();
   return haystack.includes(query);
+}
+
+function deviceLabel(entry: HistoryEntry): string | null {
+  const name = entry.device_name?.trim();
+  if (name) return name;
+  const id = entry.device_id?.trim();
+  return id || null;
 }
 
 export function HistoryView({ todayIso = computeTodayIso() }: Props) {
@@ -151,15 +160,23 @@ export function HistoryView({ todayIso = computeTodayIso() }: Props) {
             <p className="view-empty">{t("history.emptyFiltered")}</p>
           ) : (
             <ol className="history-list">
-              {pageItems.map((entry, index) => (
+              {pageItems.map((entry, index) => {
+                const device = deviceLabel(entry);
+                return (
                 <li className="history-row" key={`${entry.timestamp}-${entry.event}-${entry.entity_id}-${start + index}`}>
                   <div className="history-main">
                     <span className="history-summary">{entry.summary}</span>
                     <span className="history-title">{entityLabel(entry, t)}</span>
+                    {device && (
+                      <span className="history-device" title={entry.device_id ?? device}>
+                        {device}
+                      </span>
+                    )}
                   </div>
                   <time className="history-time" dateTime={entry.timestamp}>{formatTime(entry.timestamp)}</time>
                 </li>
-              ))}
+                );
+              })}
             </ol>
           )}
 

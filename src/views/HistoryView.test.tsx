@@ -104,6 +104,19 @@ describe("HistoryView — search + pagination", () => {
     expect(rowCount()).toBe(0);
     expect(screen.getByText(/no history entries match/i)).toBeTruthy();
   });
+
+  it("shows device name when present and includes it in search", async () => {
+    await renderView([
+      todaysEntry(1, { title: "Buy milk", device_name: "Puetsua-PC", device_id: "dev-abc" }),
+      todaysEntry(2, { title: "No device" }),
+    ]);
+
+    expect(screen.getByText("Puetsua-PC")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText(/search history/i), { target: { value: "puetsua" } });
+    expect(rowCount()).toBe(1);
+    expect(screen.getByText("Buy milk")).toBeTruthy();
+  });
 });
 
 describe("HistoryView — date-range filter", () => {

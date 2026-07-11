@@ -15,6 +15,15 @@ pub struct HistoryEntry {
     pub entity_id: String,
     pub title: String,
     pub summary: String,
+    /// Device that recorded this line (this install's id). Absent on legacy lines.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_id: Option<String>,
+    /// Readable device label (prefer OS hostname). Absent on legacy lines.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_name: Option<String>,
+    /// Stable key for merge-append dedup: `event|entity|entity_id|source_updated_at`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dedup_key: Option<String>,
 }
 
 pub fn history_path(data_path: &Path) -> PathBuf {
@@ -121,6 +130,62 @@ pub fn append_history(data_path: &Path, entries: &[HistoryEntry]) -> Result<()> 
     crate::store::atomic_write(&path, &bytes)
 }
 
+/// Stamp device identity onto entries (local writes and peer-merge appends).
+pub fn stamp_device(entries: &mut [HistoryEntry], device_id: &str, device_name: &str) {
+    for entry in entries {
+        entry.device_id = Some(device_id.to_string());
+        entry.device_name = Some(device_name.to_string());
+    }
+}
+
+fn make_dedup_key(event: &str, entity: &str, entity_id: &str, source_updated_at: i64) -> String {
+    format!("{event}|{entity}|{entity_id}|{source_updated_at}")
+}
+
+/// Keys already present in this device's own history sidecar (not peer replicas).
+fn own_dedup_keys(data_path: &Path) -> Result<std::collections::HashSet<String>> {
+    let mut keys = std::collections::HashSet::new();
+    let path = history_path(data_path);
+    if !path.exists() {
+        return Ok(keys);
+    }
+    let file = fs::File::open(path)?;
+    for line in BufReader::new(file).lines() {
+        let line = line?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        if let Ok(entry) = serde_json::from_str::<HistoryEntry>(&line) {
+            if let Some(key) = entry.dedup_key {
+                keys.insert(key);
+            }
+        }
+    }
+    Ok(keys)
+}
+
+/// Drop entries whose `dedup_key` already exists in this device's history sidecar.
+/// Entries without a `dedup_key` always pass through.
+pub fn filter_unseen_entries(
+    data_path: &Path,
+    entries: Vec<HistoryEntry>,
+) -> Result<Vec<HistoryEntry>> {
+    if entries.is_empty() {
+        return Ok(entries);
+    }
+    let existing = own_dedup_keys(data_path)?;
+    if existing.is_empty() {
+        return Ok(entries);
+    }
+    Ok(entries
+        .into_iter()
+        .filter(|entry| match &entry.dedup_key {
+            Some(key) => !existing.contains(key),
+            None => true,
+        })
+        .collect())
+}
+
 /// Copy this device's history sidecar(s) when seeding an empty data folder.
 ///
 /// Used by `AppState::repoint` so relocating the sync folder keeps History
@@ -177,6 +242,7 @@ fn diff_tasks(before: &[Task], after: &[Task], timestamp: i64) -> Vec<HistoryEnt
             entity: "task",
             id: task_id,
             title: task_title,
+            stamp: task_stamp,
             update_kind: task_update_kind,
             created: ("task.created", "Created task"),
             deleted: ("task.deleted", "Deleted task"),
@@ -193,6 +259,7 @@ fn diff_tags(before: &[Tag], after: &[Tag], timestamp: i64) -> Vec<HistoryEntry>
             entity: "tag",
             id: tag_id,
             title: tag_title,
+            stamp: tag_stamp,
             update_kind: tag_update_kind,
             created: ("tag.created", "Created tag"),
             deleted: ("tag.deleted", "Deleted tag"),
@@ -213,6 +280,7 @@ fn diff_templates(
             entity: "template",
             id: template_id,
             title: template_title,
+            stamp: template_stamp,
             update_kind: template_update_kind,
             created: ("template.created", "Created template"),
             deleted: ("template.deleted", "Deleted template"),
@@ -253,6 +321,7 @@ where
                 entity_id,
                 (history.title)(new),
                 history.created.1,
+                (history.stamp)(new),
             )),
             (Some(old), None) => entries.push(entry(
                 timestamp,
@@ -261,6 +330,7 @@ where
                 entity_id,
                 (history.title)(old),
                 history.deleted.1,
+                (history.stamp)(old),
             )),
             (Some(old), Some(new)) if to_value(old) != to_value(new) => {
                 let (event, summary) = (history.update_kind)(old, new);
@@ -271,6 +341,7 @@ where
                     entity_id,
                     (history.title)(new),
                     summary,
+                    (history.stamp)(new),
                 ));
             }
             _ => {}
@@ -286,6 +357,7 @@ fn entry(
     entity_id: &str,
     title: String,
     summary: &str,
+    source_updated_at: i64,
 ) -> HistoryEntry {
     HistoryEntry {
         timestamp,
@@ -294,6 +366,14 @@ fn entry(
         entity_id: entity_id.to_string(),
         title,
         summary: summary.to_string(),
+        device_id: None,
+        device_name: None,
+        dedup_key: Some(make_dedup_key(
+            event,
+            entity,
+            entity_id,
+            source_updated_at,
+        )),
     }
 }
 
@@ -307,17 +387,26 @@ fn task_id(t: &Task) -> &str {
 fn task_title(t: &Task) -> String {
     t.title.clone()
 }
+fn task_stamp(t: &Task) -> i64 {
+    t.updated_at.max(t.created_at)
+}
 fn tag_id(t: &Tag) -> &str {
     &t.id
 }
 fn tag_title(t: &Tag) -> String {
     format!("#{}", t.name)
 }
+fn tag_stamp(t: &Tag) -> i64 {
+    t.updated_at
+}
 fn template_id(t: &TemplateTask) -> &str {
     &t.id
 }
 fn template_title(t: &TemplateTask) -> String {
     t.title.clone()
+}
+fn template_stamp(t: &TemplateTask) -> i64 {
+    t.updated_at.max(t.created_at)
 }
 
 type UpdateKind<T> = fn(&T, &T) -> (&'static str, &'static str);
@@ -326,6 +415,7 @@ struct EntityHistory<T> {
     entity: &'static str,
     id: fn(&T) -> &str,
     title: fn(&T) -> String,
+    stamp: fn(&T) -> i64,
     update_kind: UpdateKind<T>,
     created: (&'static str, &'static str),
     deleted: (&'static str, &'static str),
@@ -375,6 +465,18 @@ mod tests {
         }
     }
 
+    /// Test helper: history entry with stamp 0 (dedup key still set).
+    fn te(
+        timestamp: i64,
+        event: &str,
+        entity: &str,
+        entity_id: &str,
+        title: String,
+        summary: &str,
+    ) -> HistoryEntry {
+        entry(timestamp, event, entity, entity_id, title, summary, 0)
+    }
+
     #[test]
     fn derives_task_lifecycle_entries() {
         let mut before = Document::default();
@@ -390,6 +492,7 @@ mod tests {
         assert_eq!(entries[0].title, "Buy milk");
         assert_eq!(entries[1].event, "task.created");
         assert_eq!(entries[1].title, "Call mom");
+        assert!(entries[0].dedup_key.is_some());
     }
 
     #[test]
@@ -424,7 +527,7 @@ mod tests {
         append_history(
             &data,
             &[
-                entry(
+                te(
                     1_000,
                     "task.created",
                     "task",
@@ -432,7 +535,7 @@ mod tests {
                     "One".into(),
                     "Created task",
                 ),
-                entry(
+                te(
                     2_000,
                     "task.created",
                     "task",
@@ -456,7 +559,7 @@ mod tests {
             let data = dir.path().join(name);
             append_history(
                 &data,
-                &[entry(
+                &[te(
                     1_000,
                     "task.created",
                     "task",
@@ -484,7 +587,7 @@ mod tests {
         let data = dir.path().join("tasks_desktop.json");
         append_history(
             &data,
-            &[entry(
+            &[te(
                 1_000,
                 "task.created",
                 "task",
@@ -499,7 +602,7 @@ mod tests {
         let mut line = Vec::new();
         serde_json::to_writer(
             &mut line,
-            &entry(
+            &te(
                 2_000,
                 "task.created",
                 "task",
@@ -530,7 +633,7 @@ mod tests {
         let to = to_dir.path().join("tasks_dev.db");
         append_history(
             &from,
-            &[entry(
+            &[te(
                 1_000,
                 "task.created",
                 "task",
@@ -559,7 +662,7 @@ mod tests {
         // Legacy-only folder (pre per-device history).
         fs::write(
             from_dir.path().join("history.jsonl"),
-            serde_json::to_string(&entry(
+            serde_json::to_string(&te(
                 1_000,
                 "task.created",
                 "task",
@@ -587,7 +690,7 @@ mod tests {
         let to = to_dir.path().join("tasks_dev.db");
         append_history(
             &from,
-            &[entry(
+            &[te(
                 1_000,
                 "task.created",
                 "task",
@@ -599,7 +702,7 @@ mod tests {
         .unwrap();
         fs::write(
             from_dir.path().join("history_peer.jsonl"),
-            serde_json::to_string(&entry(
+            serde_json::to_string(&te(
                 2_000,
                 "task.created",
                 "task",
@@ -628,7 +731,7 @@ mod tests {
         let to = dir.path().join("tasks_dev.db");
         append_history(
             &from,
-            &[entry(
+            &[te(
                 1_000,
                 "task.created",
                 "task",
@@ -644,12 +747,72 @@ mod tests {
     }
 
     #[test]
+    fn device_fields_round_trip() {
+        let dir = tempdir().unwrap();
+        let data = dir.path().join("tasks_dev.db");
+        let mut entries = vec![te(
+            1_000,
+            "task.created",
+            "task",
+            "k_1",
+            "One".into(),
+            "Created task",
+        )];
+        stamp_device(&mut entries, "dev-abc", "Puetsua-PC");
+        append_history(&data, &entries).unwrap();
+
+        let loaded = read_all_history(&data).unwrap();
+        assert_eq!(loaded[0].device_id.as_deref(), Some("dev-abc"));
+        assert_eq!(loaded[0].device_name.as_deref(), Some("Puetsua-PC"));
+        assert!(loaded[0].dedup_key.is_some());
+    }
+
+    #[test]
+    fn legacy_lines_without_device_still_load() {
+        let dir = tempdir().unwrap();
+        let data = dir.path().join("tasks_dev.db");
+        // Raw pre-device-field JSONL (integer timestamp, no optional fields).
+        fs::write(
+            dir.path().join("history_dev.jsonl"),
+            r#"{"timestamp":1000,"event":"task.created","entity":"task","entity_id":"k_legacy","title":"Legacy","summary":"Created task"}
+"#,
+        )
+        .unwrap();
+
+        let entries = read_all_history(&data).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].entity_id, "k_legacy");
+        assert_eq!(entries[0].device_id, None);
+        assert_eq!(entries[0].device_name, None);
+    }
+
+    #[test]
+    fn filter_unseen_skips_duplicate_dedup_keys() {
+        let dir = tempdir().unwrap();
+        let data = dir.path().join("tasks_dev.db");
+        let first = te(
+            1_000,
+            "task.created",
+            "task",
+            "k_1",
+            "One".into(),
+            "Created task",
+        );
+        append_history(&data, &[first.clone()]).unwrap();
+
+        let mut again = first.clone();
+        again.timestamp = 2_000;
+        let filtered = filter_unseen_entries(&data, vec![again]).unwrap();
+        assert!(filtered.is_empty(), "same dedup_key must not append again");
+    }
+
+    #[test]
     fn append_history_is_atomic_and_leaves_no_tmp() {
         let dir = tempdir().unwrap();
         let data = dir.path().join("tasks_dev.db");
         append_history(
             &data,
-            &[entry(
+            &[te(
                 1_000,
                 "task.created",
                 "task",
@@ -662,7 +825,7 @@ mod tests {
         // Second append must replace safely (Windows rename-over-existing).
         append_history(
             &data,
-            &[entry(
+            &[te(
                 2_000,
                 "task.created",
                 "task",

@@ -149,6 +149,9 @@ export type HistoryEntry = {
   entity_id: string;
   title: string;
   summary: string;
+  device_id?: string | null;
+  device_name?: string | null;
+  dedup_key?: string | null;
 };
 
 // `null` clears an optional field; an omitted key leaves it unchanged.
