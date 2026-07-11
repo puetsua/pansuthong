@@ -138,6 +138,9 @@ impl AppState {
         crate::db::write_document(&mut inner.conn, &inner.doc)?;
         g.own_hash = content_hash(&g.doc);
         g.peers_hash = peers_content_hash(&g.path);
+        drop(g);
+        // Attachment tombstones from peers may have dropped live refs — GC orphans.
+        crate::commands::gc_unreferenced_attachment_blobs(self);
         Ok(true)
     }
 

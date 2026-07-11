@@ -125,6 +125,7 @@ pub fn write_document(conn: &mut Connection, doc: &Document) -> Result<()> {
     insert_tombstones(&tx, "task", &doc.deleted_tasks)?;
     insert_tombstones(&tx, "tag", &doc.deleted_tags)?;
     insert_tombstones(&tx, "template", &doc.deleted_template_tasks)?;
+    insert_tombstones(&tx, "attachment", &doc.deleted_attachments)?;
 
     tx.execute(
         "INSERT OR REPLACE INTO meta (key, value) VALUES ('last_modified', ?1)",
@@ -164,6 +165,7 @@ pub fn read_document(conn: &Connection) -> Result<Document> {
         deleted_tasks: read_tombstones(conn, "task")?,
         deleted_tags: read_tombstones(conn, "tag")?,
         deleted_template_tasks: read_tombstones(conn, "template")?,
+        deleted_attachments: read_tombstones(conn, "attachment")?,
     };
     Ok(doc)
 }
