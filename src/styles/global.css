@@ -585,6 +585,12 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.history-device {
+  color: var(--c-text-subtle);
+  font-size: 0.72rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
 .history-time {
   color: var(--c-text-subtle);
   font-size: 0.75rem;

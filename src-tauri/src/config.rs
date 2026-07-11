@@ -217,6 +217,40 @@ pub fn data_file_name(device_id: &str) -> String {
     format!("tasks_{id}.db")
 }
 
+/// Extract the device id embedded in a replica filename (`tasks_<id>.db` / `.json`).
+pub fn device_id_from_data_path(data_path: &Path) -> Option<String> {
+    data_path.file_name().and_then(|name| name.to_str()).and_then(|name| {
+        name.strip_prefix("tasks_").and_then(|rest| {
+            rest.strip_suffix(".db")
+                .or_else(|| rest.strip_suffix(".json"))
+                .map(|id| id.to_string())
+        })
+    })
+}
+
+/// Sanitize a device id the same way replica filenames do.
+pub fn sanitize_device_id(device_id: &str) -> String {
+    let clean: String = device_id
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect();
+    if clean.is_empty() {
+        "device".into()
+    } else {
+        clean
+    }
+}
+
+/// Readable device label for history: prefer OS hostname, else sanitized device id.
+pub fn resolve_device_name(device_id: &str) -> String {
+    let host = std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    host.unwrap_or_else(|| sanitize_device_id(device_id))
+}
+
 pub fn legacy_data_file_name() -> &'static str {
     LEGACY_DATA_FILE
 }

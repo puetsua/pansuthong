@@ -37,6 +37,9 @@ struct Inner {
     /// Combined content hash of peer replicas, so the poll can detect a peer
     /// change cheaply. Excludes our own replica.
     peers_hash: [u8; 32],
+    /// This device's id (from the replica filename) and readable name for history.
+    device_id: String,
+    device_name: String,
 }
 
 impl AppState {
@@ -44,6 +47,9 @@ impl AppState {
     /// legacy JSON file) into the local database.
     pub fn open(path: PathBuf) -> Result<Self> {
         ensure_parent(&path)?;
+        let device_id = crate::config::device_id_from_data_path(&path)
+            .unwrap_or_else(|| "device".to_string());
+        let device_name = crate::config::resolve_device_name(&device_id);
         let mut conn = crate::db::open(&path)?;
         // Our own database (empty on a fresh install).
         let working = crate::db::read_document(&conn)?;
@@ -66,6 +72,8 @@ impl AppState {
                 path,
                 own_hash,
                 peers_hash,
+                device_id,
+                device_name,
             }),
         })
     }
@@ -90,7 +98,8 @@ impl AppState {
         let before = g.doc.clone();
         let value = f(&mut g.doc)?;
         let ts = crate::model::now_ms();
-        let history = crate::history::entries_for_change(&before, &g.doc, ts);
+        let mut history = crate::history::entries_for_change(&before, &g.doc, ts);
+        crate::history::stamp_device(&mut history, &g.device_id, &g.device_name);
         g.doc.last_modified = ts;
         g.doc.version = CURRENT_VERSION;
         let inner = &mut *g;
@@ -117,6 +126,8 @@ impl AppState {
     }
 
     /// Re-merge if any peer replica changed. Returns `true` when a reload happened.
+    /// When the merged Document differs from the pre-merge Document, appends
+    /// history entries (with stable dedup) so peer-visible changes appear in History.
     pub fn reload_replicas_if_changed(&self) -> Result<bool> {
         let path = self.path();
         // Cheap fast path: hash peers without holding the lock so the 2s poll
@@ -131,9 +142,23 @@ impl AppState {
         // A peer changed. Hold the lock across the whole re-merge-and-assign so a
         // concurrent write() can't have its just-persisted edit clobbered.
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let before = g.doc.clone();
         let mut docs = collect_peer_docs(&g.path);
-        docs.push(g.doc.clone());
+        docs.push(before.clone());
         let merged = merge_documents(docs);
+        if content_hash(&before) != content_hash(&merged) {
+            let ts = crate::model::now_ms();
+            let history = crate::history::entries_for_change(&before, &merged, ts);
+            match crate::history::filter_unseen_entries(&g.path, history) {
+                Ok(mut filtered) => {
+                    crate::history::stamp_device(&mut filtered, &g.device_id, &g.device_name);
+                    if let Err(e) = crate::history::append_history(&g.path, &filtered) {
+                        eprintln!("warning: failed to append merge history: {e}");
+                    }
+                }
+                Err(e) => eprintln!("warning: failed to dedup merge history: {e}"),
+            }
+        }
         let inner = &mut *g;
         inner.doc = merged;
         crate::db::write_document(&mut inner.conn, &inner.doc)?;
@@ -510,6 +535,73 @@ mod tests {
     }
 
     #[test]
+    fn peer_merge_appends_history_once_without_poll_duplicates() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_dev"));
+                Ok(())
+            })
+            .unwrap();
+        let before_count = crate::history::read_all_history(&state.path())
+            .unwrap()
+            .len();
+
+        write_json_replica(&dir.path().join("tasks_peer.json"), "k_peer");
+        assert!(state.reload_replicas_if_changed().unwrap());
+
+        let after_first = crate::history::read_all_history(&state.path()).unwrap();
+        let peer_creates: Vec<_> = after_first
+            .iter()
+            .filter(|e| e.entity_id == "k_peer" && e.event == "task.created")
+            .collect();
+        assert_eq!(
+            peer_creates.len(),
+            1,
+            "peer merge must append exactly one history entry for the new task"
+        );
+        assert!(
+            peer_creates[0].device_id.as_deref() == Some("dev"),
+            "merge history stamped with this device id"
+        );
+        assert!(
+            peer_creates[0].device_name.is_some(),
+            "merge history stamped with a device name"
+        );
+        assert!(peer_creates[0].dedup_key.is_some());
+        assert!(after_first.len() > before_count);
+
+        // Same peers again: no reload, so no duplicate lines.
+        assert!(!state.reload_replicas_if_changed().unwrap());
+        let after_second = crate::history::read_all_history(&state.path()).unwrap();
+        assert_eq!(
+            after_second.len(),
+            after_first.len(),
+            "second poll must not duplicate history"
+        );
+
+        // Force another reload path with a new peer that does not change the
+        // already-merged k_peer entity — still must not re-append k_peer.
+        write_json_replica(&dir.path().join("tasks_other.json"), "k_other");
+        assert!(state.reload_replicas_if_changed().unwrap());
+        let after_third = crate::history::read_all_history(&state.path()).unwrap();
+        let peer_creates_again = after_third
+            .iter()
+            .filter(|e| e.entity_id == "k_peer" && e.event == "task.created")
+            .count();
+        assert_eq!(peer_creates_again, 1, "k_peer create must stay unique");
+        assert_eq!(
+            after_third
+                .iter()
+                .filter(|e| e.entity_id == "k_other" && e.event == "task.created")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
     fn open_migrates_legacy_json() {
         let dir = tempdir().unwrap();
         // Pre-SQLite world: a single legacy tasks.json, no per-device replica.
@@ -634,6 +726,9 @@ mod tests {
                 entity_id: "k_theirs".into(),
                 title: "theirs".into(),
                 summary: "Created task".into(),
+                device_id: None,
+                device_name: None,
+                dedup_key: None,
             }],
         )
         .unwrap();
