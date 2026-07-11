@@ -158,7 +158,8 @@ impl AppState {
     /// Relocate the store to `new_path`. If the target folder already holds data
     /// (a replica or legacy file), load it outright — the user is switching data
     /// source, so the current in-memory document is discarded (no conflict file).
-    /// Otherwise seed the target from the current document. Validated before
+    /// Otherwise seed the target from the current document and copy this device's
+    /// history sidecar so the History view stays continuous. Validated before
     /// anything is replaced, so an invalid target leaves the current store intact.
     pub fn repoint(&self, new_path: PathBuf) -> Result<()> {
         ensure_parent(&new_path)?;
@@ -169,8 +170,10 @@ impl AppState {
         if let Some(existing) = read_db_if_present(&new_path)? {
             target_docs.push(existing);
         }
+        let seeding = target_docs.is_empty();
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        let doc = if target_docs.is_empty() {
+        let old_path = g.path.clone();
+        let doc = if seeding {
             g.doc.clone() // seed the new location from the current document
         } else {
             merge_documents(target_docs)
@@ -182,6 +185,13 @@ impl AppState {
         g.path = new_path;
         g.own_hash = content_hash(&g.doc);
         g.peers_hash = peers_content_hash(&g.path);
+        if seeding {
+            // History is a sidecar beside the data file; without this, seeding an
+            // empty folder leaves History empty until the next edit (#118).
+            if let Err(e) = crate::history::copy_own_history(&old_path, &g.path) {
+                eprintln!("warning: failed to copy history on folder change: {e}");
+            }
+        }
         Ok(())
     }
 
@@ -566,6 +576,75 @@ mod tests {
             state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
             ["k_seed"]
         );
+    }
+
+    #[test]
+    fn repoint_seeds_copies_own_history_sidecar() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_seed"));
+                Ok(())
+            })
+            .unwrap();
+        // write() appends history; confirm the sidecar exists before relocating.
+        assert!(dir.path().join("history_dev.jsonl").exists());
+
+        let target = tempdir().unwrap();
+        let new_path = target.path().join("tasks_dev.db");
+        state.repoint(new_path).unwrap();
+
+        assert!(
+            target.path().join("history_dev.jsonl").exists(),
+            "own history sidecar must be copied when seeding an empty folder"
+        );
+        let entries = crate::history::read_all_history(&state.path()).unwrap();
+        assert!(
+            entries.iter().any(|e| e.entity_id == "k_seed"),
+            "History view must still see the seeded entries"
+        );
+        // Source left intact (copy, not move) — same as the old tasks file.
+        assert!(dir.path().join("history_dev.jsonl").exists());
+    }
+
+    #[test]
+    fn repoint_adopt_does_not_copy_old_history_over_target() {
+        let dir = tempdir().unwrap();
+        let state = AppState::open(dir.path().join("tasks_dev.db")).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_local"));
+                Ok(())
+            })
+            .unwrap();
+        assert!(dir.path().join("history_dev.jsonl").exists());
+
+        let target = tempdir().unwrap();
+        write_json_replica(&target.path().join("tasks_other.json"), "k_theirs");
+        // Target already has peer history — adopting must leave it alone and not
+        // drop this device's old sidecar on top of the folder.
+        crate::history::append_history(
+            &target.path().join("tasks_other.json"),
+            &[crate::history::HistoryEntry {
+                timestamp: 1_000,
+                event: "task.created".into(),
+                entity: "task".into(),
+                entity_id: "k_theirs".into(),
+                title: "theirs".into(),
+                summary: "Created task".into(),
+            }],
+        )
+        .unwrap();
+        let new_path = target.path().join("tasks_dev.db");
+        state.repoint(new_path).unwrap();
+
+        assert!(
+            !target.path().join("history_dev.jsonl").exists(),
+            "adopting an existing folder must not copy this device's old history over it"
+        );
+        assert!(target.path().join("history_other.jsonl").exists());
     }
 
     #[test]
