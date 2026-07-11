@@ -593,6 +593,10 @@
     "pickFolder": "選擇資料夾…",
     "desktopHint": "將此指向一個會在裝置間同步的資料夾以保持同步。首次連結時，若該資料夾已有 tasks.json 則會採用它，否則會建立一個。",
     "chooseFolder": "選擇資料夾…",
-    "useDefault": "使用預設位置"
+    "useDefault": "使用預設位置",
+    "transferBody": "「複製」會在新資料夾放入此裝置的任務、歷史與附件，並保留舊資料夾中的原檔。「移動」會在成功轉移後，只刪除舊資料夾中此裝置的檔案。其他裝置的檔案一律不會更動。",
+    "transferCopy": "複製",
+    "transferMove": "移動",
+    "transferCancel": "取消"
   }
 }

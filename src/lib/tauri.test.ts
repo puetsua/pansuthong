@@ -120,23 +120,43 @@ describe("api IPC wrappers — command names & arg keys", () => {
     expect(invokeMock).toHaveBeenCalledWith("get_data_location");
   });
 
-  it("clearDataFolder → clear_data_folder", async () => {
-    await api.clearDataFolder();
-    expect(invokeMock).toHaveBeenCalledWith("clear_data_folder");
+  it("clearDataFolder → clear_data_folder with transferMode", async () => {
+    await api.clearDataFolder("copy");
+    expect(invokeMock).toHaveBeenCalledWith("clear_data_folder", { transferMode: "copy" });
   });
 });
 
 describe("pickAndSetDataFolder", () => {
-  it("invokes set_data_folder with the chosen folder when a directory is picked", async () => {
+  it("invokes set_data_folder with the chosen folder and transfer mode when a directory is picked", async () => {
     openMock.mockResolvedValue("/home/me/sync");
-    await api.pickAndSetDataFolder();
-    expect(invokeMock).toHaveBeenCalledWith("set_data_folder", { folder: "/home/me/sync" });
+    await api.pickAndSetDataFolder("move");
+    expect(invokeMock).toHaveBeenCalledWith("set_data_folder", {
+      folder: "/home/me/sync",
+      transferMode: "move",
+    });
   });
 
   it("returns null and never invokes when the picker is cancelled", async () => {
     openMock.mockResolvedValue(null as never);
-    const result = await api.pickAndSetDataFolder();
+    const result = await api.pickAndSetDataFolder("copy");
     expect(result).toBeNull();
     expect(invokeMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("pickDataFolder / setDataFolder", () => {
+  it("pickDataFolder returns the chosen path without invoking set_data_folder", async () => {
+    openMock.mockResolvedValue("/home/me/sync");
+    const result = await api.pickDataFolder();
+    expect(result).toBe("/home/me/sync");
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it("setDataFolder invokes with folder and transferMode", async () => {
+    await api.setDataFolder("/home/me/sync", "copy");
+    expect(invokeMock).toHaveBeenCalledWith("set_data_folder", {
+      folder: "/home/me/sync",
+      transferMode: "copy",
+    });
   });
 });

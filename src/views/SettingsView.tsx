@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, DataLocation, Document, SyncStatus } from "../lib/tauri";
+import { api, DataLocation, Document, SyncStatus, TransferMode } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { currentLocale } from "../i18n";
 import { isAndroid } from "../lib/platform";
@@ -26,6 +26,46 @@ function hourLabel(h: number): string {
   const period = h < 12 ? "AM" : "PM";
   const twelve = h % 12 === 0 ? 12 : h % 12;
   return `${twelve}:00 ${period}`;
+}
+
+/** Copy / Move / Cancel before relocating the data folder (WebView2-safe in-app dialog). */
+function DataFolderTransferDialog({
+  onCopy,
+  onMove,
+  onCancel,
+}: {
+  onCopy: () => void;
+  onMove: () => void;
+  onCancel: () => void;
+}) {
+  const { t } = useTranslation();
+  const copyRef = useRef<HTMLButtonElement>(null);
+  const message = t("settings.transferBody");
+  useEffect(() => {
+    copyRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onCancel();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onCancel]);
+  return (
+    <div className="te-confirm" role="dialog" aria-modal="true" aria-label={message} onClick={onCancel}>
+      <div className="te-confirm-box" onClick={e => e.stopPropagation()}>
+        <p>{message}</p>
+        <div className="te-confirm-actions">
+          <button type="button" onClick={onMove}>{t("settings.transferMove")}</button>
+          <button type="button" onClick={onCancel}>{t("settings.transferCancel")}</button>
+          <button type="button" ref={copyRef} className="te-save" onClick={onCopy}>
+            {t("settings.transferCopy")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function SettingsView({ doc }: Props) {
@@ -176,6 +216,9 @@ export function SettingsView({ doc }: Props) {
   const [sync, setSync] = useState<SyncStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Pending desktop data-folder change awaiting Copy / Move / Cancel.
+  const [transferPrompt, setTransferPrompt] = useState<"set" | "clear" | null>(null);
+  const [pendingFolder, setPendingFolder] = useState<string | null>(null);
 
   useEffect(() => { void isAndroid().then(setAndroid); }, []);
   useEffect(() => { void api.getDataLocation().then(setLoc).catch(() => {}); }, []);
@@ -184,15 +227,37 @@ export function SettingsView({ doc }: Props) {
   const pick = async () => {
     setBusy(true); setErr(null);
     try {
-      const next = await api.pickAndSetDataFolder();
-      if (next) setLoc(next);
+      const dir = await api.pickDataFolder();
+      if (!dir) return;
+      setPendingFolder(dir);
+      setTransferPrompt("set");
     } catch (e) { setErr(errorMessage(e)); }
     finally { setBusy(false); }
   };
-  const reset = async () => {
+  const reset = () => {
+    setErr(null);
+    setPendingFolder(null);
+    setTransferPrompt("clear");
+  };
+  const cancelTransfer = () => {
+    setTransferPrompt(null);
+    setPendingFolder(null);
+  };
+  const confirmTransfer = async (mode: TransferMode) => {
+    const kind = transferPrompt;
+    const folder = pendingFolder;
+    setTransferPrompt(null);
+    setPendingFolder(null);
+    if (!kind) return;
     setBusy(true); setErr(null);
-    try { setLoc(await api.clearDataFolder()); }
-    catch (e) { setErr(errorMessage(e)); }
+    try {
+      if (kind === "set") {
+        if (!folder) return;
+        setLoc(await api.setDataFolder(folder, mode));
+      } else {
+        setLoc(await api.clearDataFolder(mode));
+      }
+    } catch (e) { setErr(errorMessage(e)); }
     finally { setBusy(false); }
   };
 
@@ -528,6 +593,14 @@ export function SettingsView({ doc }: Props) {
         )}
         {err && <p className="view-sub" style={{ color: "var(--c-danger)" }}>{err}</p>}
       </section>
+
+      {transferPrompt && (
+        <DataFolderTransferDialog
+          onCopy={() => { void confirmTransfer("copy"); }}
+          onMove={() => { void confirmTransfer("move"); }}
+          onCancel={cancelTransfer}
+        />
+      )}
     </section>
   );
 }
