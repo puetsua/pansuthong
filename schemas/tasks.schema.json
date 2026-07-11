@@ -58,6 +58,12 @@
       "type": "array",
       "items": { "$ref": "#/$defs/tombstone" },
       "default": []
+    },
+    "deleted_attachments": {
+      "description": "Delete tombstones for attachments, used by per-device replica merging so attachment deletes propagate across devices.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/tombstone" },
+      "default": []
     }
   },
   "required": ["tags", "tasks"],

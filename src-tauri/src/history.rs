@@ -2,8 +2,8 @@ use crate::error::Result;
 use crate::model::{Document, Tag, Task, TemplateTask};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
-use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::fs;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -83,8 +83,8 @@ pub fn read_history(data_path: &Path, limit: usize) -> Result<Vec<HistoryEntry>>
             }
             match serde_json::from_str::<HistoryEntry>(&line) {
                 Ok(entry) => entries.push(entry),
-                // A torn/partial append (the log is appended non-atomically) would
-                // otherwise vanish silently. Surface it instead of dropping it mute.
+                // A torn/partial last line from an older non-atomic append is
+                // skipped so one bad line cannot poison the whole history view.
                 Err(e) => eprintln!("warning: skipping unparseable history line: {e}"),
             }
         }
@@ -112,13 +112,22 @@ pub fn append_history(data_path: &Path, entries: &[HistoryEntry]) -> Result<()> 
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
-    for entry in entries {
-        serde_json::to_writer(&mut file, entry)?;
-        file.write_all(b"\n")?;
+    // Rebuild the sidecar and replace atomically so a crash mid-append cannot
+    // tear the last line of a previously durable file (at worst the in-flight
+    // batch is lost).
+    let mut bytes = if path.exists() {
+        fs::read(&path)?
+    } else {
+        Vec::new()
+    };
+    if !bytes.is_empty() && !bytes.ends_with(b"\n") {
+        bytes.push(b'\n');
     }
-    file.flush()?;
-    Ok(())
+    for entry in entries {
+        serde_json::to_writer(&mut bytes, entry)?;
+        bytes.push(b'\n');
+    }
+    crate::store::atomic_write(&path, &bytes)
 }
 
 /// Stamp device identity onto entries (local writes and peer-merge appends).
@@ -590,13 +599,9 @@ mod tests {
         .unwrap();
 
         let mobile_history = dir.path().join("history_mobile.jsonl");
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(mobile_history)
-            .unwrap();
+        let mut line = Vec::new();
         serde_json::to_writer(
-            &mut file,
+            &mut line,
             &te(
                 2_000,
                 "task.created",
@@ -607,7 +612,8 @@ mod tests {
             ),
         )
         .unwrap();
-        file.write_all(b"\n").unwrap();
+        line.push(b'\n');
+        fs::write(mobile_history, line).unwrap();
 
         let entries = read_history(&data, 10).unwrap();
         assert_eq!(
@@ -798,5 +804,45 @@ mod tests {
         again.timestamp = 2_000;
         let filtered = filter_unseen_entries(&data, vec![again]).unwrap();
         assert!(filtered.is_empty(), "same dedup_key must not append again");
+    }
+
+    #[test]
+    fn append_history_is_atomic_and_leaves_no_tmp() {
+        let dir = tempdir().unwrap();
+        let data = dir.path().join("tasks_dev.db");
+        append_history(
+            &data,
+            &[te(
+                1_000,
+                "task.created",
+                "task",
+                "k_1",
+                "One".into(),
+                "Created task",
+            )],
+        )
+        .unwrap();
+        // Second append must replace safely (Windows rename-over-existing).
+        append_history(
+            &data,
+            &[te(
+                2_000,
+                "task.created",
+                "task",
+                "k_2",
+                "Two".into(),
+                "Created task",
+            )],
+        )
+        .unwrap();
+        let entries = read_all_history(&data).unwrap();
+        assert_eq!(entries.len(), 2);
+        let names: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        assert!(names.iter().any(|n| n == "history_dev.jsonl"));
+        assert!(!names.iter().any(|n| n.ends_with(".tmp") || n.ends_with(".bak")));
     }
 }

@@ -179,7 +179,7 @@ fn is_managed_attachment_file(name: &str) -> bool {
 
 /// A per-device attachment subdirectory: `attachments_<seg>` where `<seg>` is the
 /// sanitized device-id charset (see `config::attachments_dir_name`).
-fn is_attachments_subdir(dir: &str) -> bool {
+pub(crate) fn is_attachments_subdir(dir: &str) -> bool {
     dir.len() > "attachments_".len()
         && dir.starts_with("attachments_")
         && dir.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
@@ -345,6 +345,51 @@ fn gc_attachment_files(state: &AppState, paths: &[String]) {
             let _ = std::fs::remove_file(abs);
         }
     }
+}
+
+/// Opportunistic GC: delete every managed attachment blob under the data folder
+/// whose path is unreferenced in the merged document (flat `attachment_*` and
+/// `attachments_*/attachment_*`). Safe after local removes and after peer merges
+/// that apply attachment tombstones. Failed unlinks are non-fatal.
+pub(crate) fn gc_unreferenced_attachment_blobs(state: &AppState) {
+    let folder = match state.path().parent() {
+        Some(p) => p.to_path_buf(),
+        None => return,
+    };
+    let Ok(entries) = std::fs::read_dir(&folder) else {
+        return;
+    };
+    let mut candidates = Vec::new();
+    for entry in entries.flatten() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        let Some(name) = entry.file_name().to_str().map(|n| n.to_string()) else {
+            continue;
+        };
+        if file_type.is_file() {
+            if is_attachment_filename(&name) {
+                candidates.push(name);
+            }
+        } else if file_type.is_dir() && is_attachments_subdir(&name) {
+            let Ok(inner) = std::fs::read_dir(entry.path()) else {
+                continue;
+            };
+            for child in inner.flatten() {
+                if !child.file_type().map(|t| t.is_file()).unwrap_or(false) {
+                    continue;
+                }
+                let Some(file) = child.file_name().to_str().map(|n| n.to_string()) else {
+                    continue;
+                };
+                let relative = format!("{name}/{file}");
+                if is_attachment_filename(&relative) {
+                    candidates.push(relative);
+                }
+            }
+        }
+    }
+    gc_attachment_files(state, &candidates);
 }
 
 /// Relocate this device's legacy flat attachment blobs into the per-device
@@ -651,35 +696,41 @@ pub fn remove_task_attachment(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<Task> {
-    let mut removed_path: Option<String> = None;
     let updated = state.write(|d| {
-        let t = task_mut(d, &input.id)?;
-        let before = t.attachments.len();
-        t.attachments.retain(|a| {
+        let idx = d
+            .tasks
+            .iter()
+            .position(|t| t.id == input.id)
+            .ok_or_else(|| AppError::NotFound(format!("task {}", input.id)))?;
+        let before = d.tasks[idx].attachments.len();
+        let mut removed_id: Option<String> = None;
+        d.tasks[idx].attachments.retain(|a| {
             if a.id == input.attachment_id {
-                removed_path = Some(a.path.clone());
+                removed_id = Some(a.id.clone());
                 false
             } else {
                 true
             }
         });
-        if t.attachments.len() == before {
+        if d.tasks[idx].attachments.len() == before {
             return Err(AppError::NotFound(format!(
                 "attachment {}",
                 input.attachment_id
             )));
         }
-        t.updated_at = now_ms();
-        Ok(t.clone())
-    })?;
-    if let Some(path) = removed_path {
-        let still_used = state.read(|d| attachments_referenced(d, &path));
-        if !still_used {
-            if let Ok(abs) = attachment_abs_path(&state.path(), &path) {
-                let _ = std::fs::remove_file(abs);
-            }
+        d.tasks[idx].updated_at = now_ms();
+        let out = d.tasks[idx].clone();
+        if let Some(id) = removed_id {
+            d.deleted_attachments.retain(|tomb| tomb.id != id);
+            d.deleted_attachments.push(Tombstone {
+                id,
+                deleted_at: now_ms(),
+                deleted_by: None,
+            });
         }
-    }
+        Ok(out)
+    })?;
+    gc_unreferenced_attachment_blobs(&state);
     emit_changed(&app);
     Ok(updated)
 }
@@ -690,39 +741,41 @@ pub fn remove_template_attachment(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<TemplateTask> {
-    let mut removed_path: Option<String> = None;
     let updated = state.write(|d| {
-        let t = d
+        let idx = d
             .template_tasks
-            .iter_mut()
-            .find(|t| t.id == input.id)
+            .iter()
+            .position(|t| t.id == input.id)
             .ok_or_else(|| AppError::NotFound(format!("template {}", input.id)))?;
-        let before = t.attachments.len();
-        t.attachments.retain(|a| {
+        let before = d.template_tasks[idx].attachments.len();
+        let mut removed_id: Option<String> = None;
+        d.template_tasks[idx].attachments.retain(|a| {
             if a.id == input.attachment_id {
-                removed_path = Some(a.path.clone());
+                removed_id = Some(a.id.clone());
                 false
             } else {
                 true
             }
         });
-        if t.attachments.len() == before {
+        if d.template_tasks[idx].attachments.len() == before {
             return Err(AppError::NotFound(format!(
                 "attachment {}",
                 input.attachment_id
             )));
         }
-        t.updated_at = now_ms();
-        Ok(t.clone())
-    })?;
-    if let Some(path) = removed_path {
-        let still_used = state.read(|d| attachments_referenced(d, &path));
-        if !still_used {
-            if let Ok(abs) = attachment_abs_path(&state.path(), &path) {
-                let _ = std::fs::remove_file(abs);
-            }
+        d.template_tasks[idx].updated_at = now_ms();
+        let out = d.template_tasks[idx].clone();
+        if let Some(id) = removed_id {
+            d.deleted_attachments.retain(|tomb| tomb.id != id);
+            d.deleted_attachments.push(Tombstone {
+                id,
+                deleted_at: now_ms(),
+                deleted_by: None,
+            });
         }
-    }
+        Ok(out)
+    })?;
+    gc_unreferenced_attachment_blobs(&state);
     emit_changed(&app);
     Ok(updated)
 }

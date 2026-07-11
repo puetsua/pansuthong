@@ -125,6 +125,7 @@ pub fn write_document(conn: &mut Connection, doc: &Document) -> Result<()> {
     insert_tombstones(&tx, "task", &doc.deleted_tasks)?;
     insert_tombstones(&tx, "tag", &doc.deleted_tags)?;
     insert_tombstones(&tx, "template", &doc.deleted_template_tasks)?;
+    insert_tombstones(&tx, "attachment", &doc.deleted_attachments)?;
 
     tx.execute(
         "INSERT OR REPLACE INTO meta (key, value) VALUES ('last_modified', ?1)",
@@ -164,6 +165,7 @@ pub fn read_document(conn: &Connection) -> Result<Document> {
         deleted_tasks: read_tombstones(conn, "task")?,
         deleted_tags: read_tombstones(conn, "tag")?,
         deleted_template_tasks: read_tombstones(conn, "template")?,
+        deleted_attachments: read_tombstones(conn, "attachment")?,
     };
     Ok(doc)
 }
@@ -226,8 +228,14 @@ pub fn load_from_file(path: &Path) -> Result<Document> {
 /// Decode a `Document` from raw `.db` file bytes (e.g. a replica pulled over SAF).
 /// The bytes are staged to a temp file because SQLite opens paths, not buffers.
 pub fn load_from_bytes(bytes: &[u8]) -> Result<Document> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
     let mut tmp = std::env::temp_dir();
-    tmp.push(format!("pansutong-replica-{}.db", crate::model::now_ms()));
+    tmp.push(format!(
+        "pansutong-replica-{}-{}.db",
+        crate::model::now_ms(),
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
     std::fs::write(&tmp, bytes)?;
     let result = load_from_file(&tmp);
     let _ = std::fs::remove_file(&tmp);
