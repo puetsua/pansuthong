@@ -78,9 +78,10 @@ describe("SettingsView data location", () => {
     fireEvent.click(screen.getByRole("button", { name: /choose folder/i }));
     await waitFor(() => expect(pickDataFolder).toHaveBeenCalled());
 
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("button", { name: /^copy$/i })).toBeTruthy();
-    expect(within(dialog).getByRole("button", { name: /^move$/i })).toBeTruthy();
+    const dialog = await screen.findByRole("dialog", { name: /change data folder/i });
+    expect(within(dialog).getByRole("heading", { name: /change data folder/i })).toBeTruthy();
+    const actions = within(dialog).getAllByRole("button");
+    expect(actions.map(b => b.textContent)).toEqual(["Cancel", "Move", "Copy"]);
 
     fireEvent.click(within(dialog).getByRole("button", { name: /cancel/i }));
     expect(setDataFolder).not.toHaveBeenCalled();

@@ -40,6 +40,7 @@ function DataFolderTransferDialog({
 }) {
   const { t } = useTranslation();
   const copyRef = useRef<HTMLButtonElement>(null);
+  const title = t("settings.transferTitle");
   const message = t("settings.transferBody");
   useEffect(() => {
     copyRef.current?.focus();
@@ -53,12 +54,21 @@ function DataFolderTransferDialog({
     return () => window.removeEventListener("keydown", onKey, true);
   }, [onCancel]);
   return (
-    <div className="te-confirm" role="dialog" aria-modal="true" aria-label={message} onClick={onCancel}>
+    <div
+      className="te-confirm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="data-folder-transfer-title"
+      onClick={onCancel}
+    >
       <div className="te-confirm-box" onClick={e => e.stopPropagation()}>
+        <h2 id="data-folder-transfer-title" className="te-confirm-title">{title}</h2>
         <p>{message}</p>
         <div className="te-confirm-actions">
+          <button type="button" className="te-confirm-cancel-start" onClick={onCancel}>
+            {t("settings.transferCancel")}
+          </button>
           <button type="button" onClick={onMove}>{t("settings.transferMove")}</button>
-          <button type="button" onClick={onCancel}>{t("settings.transferCancel")}</button>
           <button type="button" ref={copyRef} className="te-save" onClick={onCopy}>
             {t("settings.transferCopy")}
           </button>
