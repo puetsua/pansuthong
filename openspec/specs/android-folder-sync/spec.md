@@ -2,11 +2,13 @@
 
 ## Purpose
 
-On Android there is no always-mounted cloud folder, so the app-private
-`tasks.json` remains the crash-safe master and a mirror layer copies it (and any
-conflict copies) to and from a user-picked SAF (Storage Access Framework) folder.
-All SAF I/O sits behind a `SafBackend` trait so the mirror logic is testable on
-desktop; the SAF commands are no-ops on non-Android targets.
+On Android there is no always-mounted cloud folder, so an app-private local
+master remains crash-safe and a mirror layer copies it (and any conflict copies)
+to and from a user-picked SAF (Storage Access Framework) folder. Desktop peers
+already use per-device `tasks_<device>.db`; the SAF wire format is still JSON until
+that layer is converted to `.db` snapshots (tracked separately). All SAF I/O sits
+behind a `SafBackend` trait so the mirror logic is testable on desktop; the SAF
+commands are no-ops on non-Android targets.
 
 ## Requirements
 

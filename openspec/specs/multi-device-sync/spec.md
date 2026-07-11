@@ -3,22 +3,34 @@
 ## Purpose
 
 Pansutong syncs by placing each device's data file in a shared cloud folder
-(e.g. Google Drive) as a per-device replica (`tasks_<device>.json`). The app never
+(e.g. Google Drive) as a per-device replica (`tasks_<device>.db`). The app never
 writes another device's replica; instead it reads all replicas and computes a
 merged document with entity-level last-write-wins plus tombstones. A filesystem
 watcher and a polling fallback pick up changes pulled in from other devices, and a
 whole-document divergence path preserves the loser as a conflict file.
+
+The shared folder also holds related sidecars that are **not** part of the
+Document merge: per-device history logs (`history_<device>.jsonl`) and attachment
+blobs (`attachments_<device>/`). Those use different consistency rules (see
+`archive-and-history` and `attachments`); there is no single master file for all
+synced data.
 
 ## Requirements
 
 ### Requirement: Per-device replicas
 
 The system SHALL write only this device's replica, named from its stable
-`device_id`, and never modify another device's replica file.
+`device_id`, and never modify another device's replica file. The primary at-rest
+format is `tasks_<device>.db`; legacy `tasks_<device>.json` (and `tasks.json`) MAY
+still be read as peer/migration input.
 
 #### Scenario: Each device owns its file
 - **WHEN** two devices sync into the same folder
-- **THEN** each writes only its own `tasks_<device>.json` and reads the others read-only
+- **THEN** each writes only its own `tasks_<device>.db` and reads the others read-only
+
+#### Scenario: Legacy JSON peers still merge
+- **WHEN** a sibling `tasks_*.json` replica is present beside `.db` files
+- **THEN** it is read read-only and included in the same entity-level merge
 
 ### Requirement: Entity-level merge
 
