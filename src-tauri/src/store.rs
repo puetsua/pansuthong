@@ -10,10 +10,9 @@
 //!
 //! Cross-device change detection uses a **content hash** of the decoded document
 //! (not the file bytes), because two databases with identical content are not
-//! byte-identical. The Android SAF path (`safsync`) still exchanges JSON and is
-//! unchanged here; its `adopt_synced`/`load_replacing_local` entry points decode
-//! JSON, persist it into this SQLite store, and keep JSON-byte hashing so the SAF
-//! sync bookkeeping is untouched.
+//! byte-identical. The Android SAF path (`safsync`) exchanges `.db` replicas the
+//! same way and uses the same content-hash bookkeeping via
+//! `adopt_synced`/`load_replacing_local`.
 
 use crate::error::{AppError, Result};
 use crate::model::{merge_documents, Document, CURRENT_VERSION};
@@ -195,19 +194,29 @@ impl AppState {
         Ok(())
     }
 
-    /// Adopt an externally-synced JSON document (Android SAF path). Preserves the
+    /// Adopt an externally-synced document (Android SAF path). Preserves the
     /// current local document as a conflict file when it holds data, has un-synced
-    /// changes (its JSON hash differs from `last_synced_hash`), and differs from the
-    /// incoming bytes — mirroring the prior behavior so folder-sync adoption never
-    /// silently drops local edits. Returns the incoming bytes' JSON hash.
-    pub fn adopt_synced(&self, bytes: &[u8], last_synced_hash: Option<[u8; 32]>) -> Result<[u8; 32]> {
-        let doc = parse_checked(bytes)?; // validate before mutating
-        let hash = sha256(bytes);
+    /// changes (its content hash differs from `last_synced_hash`), and differs from
+    /// the incoming document — so folder-sync adoption never silently drops local
+    /// edits. Returns the incoming document's content hash.
+    pub fn adopt_synced(
+        &self,
+        doc: Document,
+        last_synced_hash: Option<[u8; 32]>,
+    ) -> Result<[u8; 32]> {
+        if doc.version > CURRENT_VERSION {
+            return Err(AppError::Invalid(format!(
+                "data file version {} is newer than this app supports (max {}); update the app",
+                doc.version, CURRENT_VERSION
+            )));
+        }
+        let hash = content_hash(&doc);
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         if doc_has_data(&g.doc) {
-            let local_bytes = serde_json::to_vec_pretty(&g.doc)?;
-            let local_diverged = Some(sha256(&local_bytes)) != last_synced_hash;
-            if local_diverged && local_bytes != bytes {
+            let local_hash = content_hash(&g.doc);
+            let local_diverged = Some(local_hash) != last_synced_hash;
+            if local_diverged && local_hash != hash {
+                let local_bytes = serde_json::to_vec_pretty(&g.doc)?;
                 write_local_conflict(&g.path, &local_bytes)?;
             }
         }
@@ -219,12 +228,17 @@ impl AppState {
         Ok(hash)
     }
 
-    /// Replace the store with an externally-synced JSON document, DISCARDING the
+    /// Replace the store with an externally-synced document, DISCARDING the
     /// current local document (no conflict file). Used when the user switches data
-    /// source. Returns the incoming bytes' JSON hash.
-    pub fn load_replacing_local(&self, bytes: &[u8]) -> Result<[u8; 32]> {
-        let doc = parse_checked(bytes)?; // validate before mutating
-        let hash = sha256(bytes);
+    /// source. Returns the incoming document's content hash.
+    pub fn load_replacing_local(&self, doc: Document) -> Result<[u8; 32]> {
+        if doc.version > CURRENT_VERSION {
+            return Err(AppError::Invalid(format!(
+                "data file version {} is newer than this app supports (max {}); update the app",
+                doc.version, CURRENT_VERSION
+            )));
+        }
+        let hash = content_hash(&doc);
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let inner = &mut *g;
         inner.doc = doc;
@@ -238,7 +252,7 @@ impl AppState {
 /// Content hash of a document: SHA-256 of its compact serialization. Stable across
 /// re-serializations of identical content (the model has no maps in `Document`), so
 /// it identifies content regardless of storage-byte differences.
-fn content_hash(doc: &Document) -> [u8; 32] {
+pub(crate) fn content_hash(doc: &Document) -> [u8; 32] {
     // Serialization of the model is deterministic (fixed struct field order, Vec
     // collections). Fall back to an empty hash only if serialization somehow fails.
     match serde_json::to_vec(doc) {
