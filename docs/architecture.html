@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pansutong — Architecture Overview</title>
+  <style>
+    :root {
+      --bg: #f6f5f2;
+      --surface: #ffffff;
+      --ink: #1c1b19;
+      --muted: #5c5a55;
+      --line: #d8d4cc;
+      --accent: #2f5d50;
+      --accent-soft: #e4efe9;
+      --warn: #8a5a1a;
+      --warn-soft: #f5ecd9;
+      --code: #f0ebe3;
+      --box-ui: #e8f0f5;
+      --box-ipc: #eef2e8;
+      --box-store: #f5ebe4;
+      --box-disk: #ebe8f0;
+      --box-sync: #e6f0ea;
+      --radius: 8px;
+      --shadow: 0 1px 2px rgba(28, 27, 25, 0.06);
+      --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+      --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.55;
+      font-size: 15px;
+    }
+
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+
+    header.doc-header {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 1.25rem;
+      margin-bottom: 1.75rem;
+    }
+    header.doc-header h1 {
+      margin: 0 0 0.35rem;
+      font-size: 1.75rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    header.doc-header .meta {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    nav.toc {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem;
+      margin-bottom: 2rem;
+      box-shadow: var(--shadow);
+    }
+    nav.toc strong { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    nav.toc ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem 1rem;
+    }
+    nav.toc a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.95rem;
+    }
+    nav.toc a:hover { text-decoration: underline; }
+
+    section {
+      margin-bottom: 2.5rem;
+    }
+    section > h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1.25rem;
+      font-weight: 650;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 0.4rem;
+    }
+    h3 {
+      margin: 1.25rem 0 0.5rem;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+    p { margin: 0.5rem 0 0.75rem; }
+    ul, ol { margin: 0.4rem 0 0.8rem; padding-left: 1.25rem; }
+    li { margin: 0.25rem 0; }
+    code, .path {
+      font-family: var(--mono);
+      font-size: 0.86em;
+      background: var(--code);
+      padding: 0.1em 0.35em;
+      border-radius: 4px;
+    }
+    a { color: var(--accent); }
+
+    .callout {
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      padding: 0.65rem 0.9rem;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 0.85rem 0;
+      font-size: 0.95rem;
+    }
+    .callout.warn {
+      background: var(--warn-soft);
+      border-left-color: var(--warn);
+    }
+
+    /* Layer diagram */
+    .layers {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      margin: 1rem 0;
+    }
+    .layer {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .layer.ui { background: var(--box-ui); }
+    .layer.ipc { background: var(--box-ipc); }
+    .layer.store { background: var(--box-store); }
+    .layer.disk { background: var(--box-disk); }
+    .layer .label {
+      font-weight: 650;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+    .layer .title { font-weight: 600; margin-bottom: 0.2rem; }
+    .layer .detail { color: var(--muted); font-size: 0.92rem; }
+    .arrow-down {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1;
+      user-select: none;
+    }
+
+    /* Grid cards */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin: 0.85rem 0;
+    }
+    @media (max-width: 700px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem;
+      box-shadow: var(--shadow);
+    }
+    .card h3 { margin-top: 0; }
+    .card.sync { background: var(--box-sync); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      font-size: 0.92rem;
+      margin: 0.75rem 0;
+      box-shadow: var(--shadow);
+    }
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th {
+      background: #eceae4;
+      font-weight: 600;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+    }
+    tr:last-child td { border-bottom: none; }
+
+    /* SVG diagram container */
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+      box-shadow: var(--shadow);
+    }
+    .diagram svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+    .diagram .caption {
+      margin-top: 0.65rem;
+      font-size: 0.88rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0.5rem 0;
+    }
+    .pill {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      font-size: 0.82rem;
+      font-family: var(--mono);
+    }
+
+    .file-map {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem;
+      white-space: pre;
+      overflow-x: auto;
+      line-height: 1.45;
+      box-shadow: var(--shadow);
+    }
+
+    footer {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    /* Tabs for desktop vs Android sync */
+    .tabs {
+      display: flex;
+      gap: 0.35rem;
+      margin-bottom: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .tabs button {
+      appearance: none;
+      border: 1px solid transparent;
+      border-bottom: none;
+      background: transparent;
+      padding: 0.5rem 0.9rem;
+      font: inherit;
+      cursor: pointer;
+      color: var(--muted);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .tabs button[aria-selected="true"] {
+      background: var(--surface);
+      color: var(--ink);
+      border-color: var(--line);
+      font-weight: 600;
+      margin-bottom: -1px;
+      padding-bottom: calc(0.5rem + 1px);
+    }
+    .tab-panel {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: none;
+      border-radius: 0 0 var(--radius) var(--radius);
+      padding: 1rem;
+      box-shadow: var(--shadow);
+    }
+    .tab-panel.active { display: block; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="doc-header">
+      <h1>Pansutong — Architecture Overview</h1>
+      <p class="meta">
+        Tauri 2 task tracker · Windows desktop + Android · React 19 / Vite frontend · Rust backend
+        (<code>pansutong</code> / <code>pansutong_lib</code>)
+      </p>
+    </header>
+
+    <nav class="toc" aria-label="Contents">
+      <strong>Contents</strong>
+      <ul>
+        <li><a href="#product">Product</a></li>
+        <li><a href="#runtime">Runtime layers</a></li>
+        <li><a href="#data-folder">Data folder</a></li>
+        <li><a href="#consistency">Three consistency models</a></li>
+        <li><a href="#sync-paths">Desktop vs Android sync</a></li>
+        <li><a href="#config">Device-local vs synced</a></li>
+        <li><a href="#frontend">Frontend map</a></li>
+        <li><a href="#rust">Rust modules</a></li>
+      </ul>
+    </nav>
+
+    <!-- ── Product ─────────────────────────────────────────── -->
+    <section id="product">
+      <h2>1. Product</h2>
+      <p>
+        Pansutong is a local-first task tracker. Tasks and tags are the product center
+        (no Projects). Views are computed queries over the in-memory document — they are
+        never persisted as lists.
+      </p>
+      <ul>
+        <li><strong>IDs:</strong> production <code>net.puetsua.pansutong</code>;
+          testing target <code>net.puetsua.pansutong.dev</code> (Pansutong Dev only).</li>
+        <li><strong>Frontend:</strong> <code>src/</code> — React 19, TypeScript, Vite.</li>
+        <li><strong>Backend:</strong> <code>src-tauri/</code> — Rust / Tauri 2 commands, SQLite store, sync.</li>
+        <li><strong>Wire types:</strong> Rust <code>model.rs</code> ↔ TS <code>src/lib/tauri.ts</code>.</li>
+      </ul>
+      <div class="callout">
+        Model changes must stay backward-compatible (serde defaults, optional TS keys,
+        schema version gate). Settings and data-folder choice are device-local and never
+        written into the synced document.
+      </div>
+    </section>
+
+    <!-- ── Runtime layers ──────────────────────────────────── -->
+    <section id="runtime">
+      <h2>2. Runtime layers</h2>
+      <p>
+        A mutation flows UI → IPC command → <code>AppState</code> write → SQLite
+        <code>Document</code> (+ history append / attachment files). Peer changes reload
+        the store and emit <code>store-changed</code> so the React tree refreshes.
+      </p>
+
+      <div class="layers">
+        <div class="layer ui">
+          <div class="label">UI</div>
+          <div class="title">React views + shells</div>
+          <div class="detail">
+            <code>App.tsx</code> · <code>shell/</code> · <code>views/*</code> ·
+            <code>useDocument()</code> builds indexes · listens for <code>store-changed</code>
+          </div>
+        </div>
+        <div class="arrow-down">↓ invoke / events</div>
+        <div class="layer ipc">
+          <div class="label">IPC</div>
+          <div class="title">Tauri commands</div>
+          <div class="detail">
+            <code>commands.rs</code> — validation &amp; mutations · registered in
+            <code>lib.rs</code> · TS wrappers in <code>src/lib/tauri.ts</code>
+          </div>
+        </div>
+        <div class="arrow-down">↓</div>
+        <div class="layer store">
+          <div class="label">Store</div>
+          <div class="title">AppState (in-memory Document)</div>
+          <div class="detail">
+            <code>store.rs</code> — mutex-guarded doc · merge/reload · content-hash change detection ·
+            history append on write
+          </div>
+        </div>
+        <div class="arrow-down">↓</div>
+        <div class="layer disk">
+          <div class="label">Persistence</div>
+          <div class="title">SQLite Document + sidecars</div>
+          <div class="detail">
+            <code>db.rs</code> → <code>tasks_&lt;device&gt;.db</code> (rollback journal) ·
+            <code>history_&lt;device&gt;.jsonl</code> · <code>attachments_&lt;device&gt;/</code>
+          </div>
+        </div>
+      </div>
+
+      <div class="diagram" aria-label="Runtime flow diagram">
+        <svg viewBox="0 0 880 220" xmlns="http://www.w3.org/2000/svg" role="img">
+          <title>UI to disk request path and peer reload path</title>
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#5c5a55"/>
+            </marker>
+          </defs>
+          <!-- boxes -->
+          <rect x="20" y="70" width="140" height="56" rx="6" fill="#e8f0f5" stroke="#b8c8d4"/>
+          <text x="90" y="94" text-anchor="middle" font-size="13" font-family="Segoe UI,sans-serif" font-weight="600">React UI</text>
+          <text x="90" y="112" text-anchor="middle" font-size="11" fill="#5c5a55" font-family="Segoe UI,sans-serif">views / store.ts</text>
+
+          <rect x="200" y="70" width="140" height="56" rx="6" fill="#eef2e8" stroke="#b8c8a8"/>
+          <text x="270" y="94" text-anchor="middle" font-size="13" font-family="Segoe UI,sans-serif" font-weight="600">commands</text>
+          <text x="270" y="112" text-anchor="middle" font-size="11" fill="#5c5a55" font-family="Segoe UI,sans-serif">IPC handlers</text>
+
+          <rect x="380" y="70" width="140" height="56" rx="6" fill="#f5ebe4" stroke="#d4b8a8"/>
+          <text x="450" y="94" text-anchor="middle" font-size="13" font-family="Segoe UI,sans-serif" font-weight="600">AppState</text>
+          <text x="450" y="112" text-anchor="middle" font-size="11" fill="#5c5a55" font-family="Segoe UI,sans-serif">Document merge</text>
+
+          <rect x="560" y="30" width="140" height="48" rx="6" fill="#ebe8f0" stroke="#c0b8d0"/>
+          <text x="630" y="50" text-anchor="middle" font-size="12" font-family="Segoe UI,sans-serif" font-weight="600">tasks_*.db</text>
+          <text x="630" y="66" text-anchor="middle" font-size="10" fill="#5c5a55" font-family="Segoe UI,sans-serif">SQLite Document</text>
+
+          <rect x="560" y="92" width="140" height="48" rx="6" fill="#ebe8f0" stroke="#c0b8d0"/>
+          <text x="630" y="112" text-anchor="middle" font-size="12" font-family="Segoe UI,sans-serif" font-weight="600">history_*.jsonl</text>
+          <text x="630" y="128" text-anchor="middle" font-size="10" fill="#5c5a55" font-family="Segoe UI,sans-serif">append-only</text>
+
+          <rect x="560" y="154" width="140" height="48" rx="6" fill="#ebe8f0" stroke="#c0b8d0"/>
+          <text x="630" y="174" text-anchor="middle" font-size="12" font-family="Segoe UI,sans-serif" font-weight="600">attachments_*/</text>
+          <text x="630" y="190" text-anchor="middle" font-size="10" fill="#5c5a55" font-family="Segoe UI,sans-serif">blob files</text>
+
+          <rect x="740" y="70" width="120" height="56" rx="6" fill="#e6f0ea" stroke="#a8c8b8"/>
+          <text x="800" y="94" text-anchor="middle" font-size="12" font-family="Segoe UI,sans-serif" font-weight="600">Peers</text>
+          <text x="800" y="112" text-anchor="middle" font-size="10" fill="#5c5a55" font-family="Segoe UI,sans-serif">sync / SAF</text>
+
+          <!-- arrows forward -->
+          <line x1="160" y1="98" x2="198" y2="98" stroke="#5c5a55" stroke-width="1.5" marker-end="url(#arr)"/>
+          <line x1="340" y1="98" x2="378" y2="98" stroke="#5c5a55" stroke-width="1.5" marker-end="url(#arr)"/>
+          <line x1="520" y1="85" x2="558" y2="54" stroke="#5c5a55" stroke-width="1.5" marker-end="url(#arr)"/>
+          <line x1="520" y1="98" x2="558" y2="116" stroke="#5c5a55" stroke-width="1.5" marker-end="url(#arr)"/>
+          <line x1="520" y1="110" x2="558" y2="170" stroke="#5c5a55" stroke-width="1.5" marker-end="url(#arr)"/>
+
+          <!-- peer reload -->
+          <path d="M740,98 L700,98 L700,210 L90,210 L90,126" fill="none" stroke="#2f5d50" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+          <text x="400" y="205" text-anchor="middle" font-size="11" fill="#2f5d50" font-family="Segoe UI,sans-serif">store-changed → UI reload</text>
+        </svg>
+        <p class="caption">Solid: local write path. Dashed: peer change → reload → event.</p>
+      </div>
+    </section>
+
+    <!-- ── Data folder ─────────────────────────────────────── -->
+    <section id="data-folder">
+      <h2>3. Data folder layout</h2>
+      <p>
+        Synced data lives in a user-chosen (or default app-data) folder. Each device
+        owns files named with its <code>device_id</code>. Peers’ replicas are read-only
+        merge inputs.
+      </p>
+      <div class="file-map">sync-folder/
+├── tasks_&lt;device&gt;.db          # this device’s Document (SQLite, rollback journal)
+├── tasks_&lt;peer&gt;.db            # peer replicas (merged read-only)
+├── history_&lt;device&gt;.jsonl     # append-only change log
+├── history_&lt;peer&gt;.jsonl
+├── attachments_&lt;device&gt;/      # managed blobs for this device
+│   └── attachment_*
+└── (legacy) tasks.json / tasks_*.json / flat attachment_*</div>
+      <ul>
+        <li>SQLite uses rollback-journal mode so exactly one <code>.db</code> file exists at rest (no <code>-wal</code>/<code>-shm</code> for cloud clients to desync).</li>
+        <li>Entities are stored as serde-JSON in a <code>data</code> column; schema version is <code>PRAGMA user_version</code>.</li>
+        <li>Cross-device change detection hashes the <em>decoded document content</em>, not file bytes (identical content ≠ byte-identical DBs).</li>
+        <li>Legacy JSON is imported on first launch and left as a downgrade fallback.</li>
+      </ul>
+    </section>
+
+    <!-- ── Three consistency models ────────────────────────── -->
+    <section id="consistency">
+      <h2>4. Three consistency models</h2>
+      <p>
+        The sync folder holds three related kinds of data. They share device-id naming
+        but <strong>do not</strong> share one merge/delete protocol — do not treat a
+        single <code>tasks_*.db</code> as master for history or blobs.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Kind</th>
+            <th>On disk</th>
+            <th>Cross-device behavior</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Document</strong><br/><span style="color:var(--muted);font-size:0.88em">tasks / tags / templates</span></td>
+            <td><code>tasks_&lt;device&gt;.db</code></td>
+            <td>Active merge: entity-level <strong>LWW + tombstones</strong>. UI uses the merged in-memory <code>Document</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>History</strong></td>
+            <td><code>history_&lt;device&gt;.jsonl</code></td>
+            <td>Append-only per device; UI concatenates at read time. Peer merge does <em>not</em> append into the local sidecar.</td>
+          </tr>
+          <tr>
+            <td><strong>Attachments</strong></td>
+            <td><code>attachments_&lt;device&gt;/</code> + metadata in Document</td>
+            <td>Metadata unions by id (+ attachment tombstones in Document). Blobs sync as files; local GC when unreferenced.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Document merge (LWW + tombstones)</h3>
+      <ul>
+        <li>Each replica is a full <code>Document</code>; <code>merge_documents</code> in <code>model.rs</code> picks the latest entity stamp per id.</li>
+        <li>Deletes leave tombstones (<code>deleted_tasks</code> / <code>deleted_tags</code> / …) so stale replicas cannot resurrect entities.</li>
+        <li>Time entries and attachment metadata on the winning task are unioned by id.</li>
+        <li>Limitation: concurrent edits to the <em>same</em> entity silently drop the loser (no conflict file). Whole-document divergence on adopt can still produce <code>.sync-conflict</code> copies.</li>
+      </ul>
+    </section>
+
+    <!-- ── Desktop vs Android ──────────────────────────────── -->
+    <section id="sync-paths">
+      <h2>5. Desktop folder sync vs Android SAF</h2>
+      <div class="tabs" role="tablist" aria-label="Sync path">
+        <button type="button" role="tab" id="tab-desktop" aria-selected="true" aria-controls="panel-desktop">Desktop</button>
+        <button type="button" role="tab" id="tab-android" aria-selected="false" aria-controls="panel-android">Android SAF</button>
+      </div>
+      <div class="tab-panel active" role="tabpanel" id="panel-desktop" aria-labelledby="tab-desktop">
+        <p>
+          User picks a sync folder (often a cloud-synced directory). <code>sync.rs</code>
+          watches the parent with <code>notify</code> plus a 2s poll fallback (cloud clients
+          often miss FS events on pull-down).
+        </p>
+        <ul>
+          <li>On change: content-hash compare → reload/merge peer <code>tasks_*.db</code> → emit <code>store-changed</code>.</li>
+          <li>Conflict copies from the cloud client are surfaced via <code>conflict.rs</code> / Conflicts view.</li>
+          <li>Attachments served to the webview via asset protocol scopes (flat legacy + per-device subdirs).</li>
+        </ul>
+      </div>
+      <div class="tab-panel" role="tabpanel" id="panel-android" aria-labelledby="tab-android" hidden>
+        <p>
+          App-private <code>tasks_&lt;device&gt;.db</code> remains the crash-safe master.
+          <code>safsync.rs</code> mirrors it (and attachments / conflict copies) to a
+          user-picked SAF folder. Wire format matches desktop: per-device <code>.db</code>,
+          legacy JSON peers still readable.
+        </p>
+        <ul>
+          <li>Frontend triggers: pull on launch + foreground; debounced push after local writes (<code>store.ts</code>).</li>
+          <li>Commands: <code>saf_pick_folder</code>, <code>saf_push</code>, <code>saf_sync_now</code>, <code>saf_status</code>, <code>saf_clear_folder</code>.</li>
+          <li><code>SafBackend</code> trait keeps mirror logic testable off-device.</li>
+        </ul>
+      </div>
+
+      <div class="diagram" aria-label="Desktop vs Android sync">
+        <svg viewBox="0 0 880 200" xmlns="http://www.w3.org/2000/svg" role="img">
+          <title>Desktop cloud folder vs Android SAF mirror</title>
+          <!-- Desktop -->
+          <rect x="20" y="20" width="400" height="160" rx="8" fill="#f8f7f4" stroke="#d8d4cc"/>
+          <text x="40" y="48" font-size="14" font-weight="650" font-family="Segoe UI,sans-serif">Desktop</text>
+          <rect x="40" y="64" width="110" height="40" rx="5" fill="#e8f0f5" stroke="#b8c8d4"/>
+          <text x="95" y="88" text-anchor="middle" font-size="12" font-family="Segoe UI,sans-serif">AppState</text>
+          <rect x="180" y="64" width="110" height="40" rx="5" fill="#e6f0ea" stroke="#a8c8b8"/>
+          <text x="235" y="88" text-anchor="middle" font-size="12" font-family="Segoe UI,sans-serif">sync.rs</text>
+          <rect x="320" y="64" width="80" height="40" rx="5" fill="#ebe8f0" stroke="#c0b8d0"/>
+          <text x="360" y="88" text-anchor="middle" font-size="11" font-family="Segoe UI,sans-serif">folder</text>
+          <text x="40" y="130" font-size="11" fill="#5c5a55" font-family="Segoe UI,sans-serif">watch + poll → merge peers in place</text>
+          <text x="40" y="150" font-size="11" fill="#5c5a55" font-family="Segoe UI,sans-serif">same folder = source of truth for peers</text>
+
+          <!-- Android -->
+          <rect x="460" y="20" width="400" height="160" rx="8" fill="#f8f7f4" stroke="#d8d4cc"/>
+          <text x="480" y="48" font-size="14" font-weight="650" font-family="Segoe UI,sans-serif">Android</text>
+          <rect x="480" y="64" width="110" height="40" rx="5" fill="#e8f0f5" stroke="#b8c8d4"/>
+          <text x="535" y="88" text-anchor="middle" font-size="12" font-family="Segoe UI,sans-serif">AppState</text>
+          <text x="535" y="100" text-anchor="middle" font-size="9" fill="#5c5a55" font-family="Segoe UI,sans-serif">(app-private)</text>
+          <rect x="620" y="64" width="110" height="40" rx="5" fill="#e6f0ea" stroke="#a8c8b8"/>
+          <text x="675" y="88" text-anchor="middle" font-size="12" font-family="Segoe UI,sans-serif">safsync.rs</text>
+          <rect x="760" y="64" width="80" height="40" rx="5" fill="#ebe8f0" stroke="#c0b8d0"/>
+          <text x="800" y="88" text-anchor="middle" font-size="11" font-family="Segoe UI,sans-serif">SAF</text>
+          <text x="480" y="130" font-size="11" fill="#5c5a55" font-family="Segoe UI,sans-serif">push/pull mirror; private DB is master</text>
+          <text x="480" y="150" font-size="11" fill="#5c5a55" font-family="Segoe UI,sans-serif">same .db / attachments wire format</text>
+        </svg>
+      </div>
+    </section>
+
+    <!-- ── Config ──────────────────────────────────────────── -->
+    <section id="config">
+      <h2>6. Device-local config vs synced data</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Device-local (not synced)</h3>
+          <p><code>config.json</code> in the default app-data dir (<code>config.rs</code>).</p>
+          <ul>
+            <li>Chosen data-folder path / SAF folder handle</li>
+            <li>Theme, sort order, language, day-start hour</li>
+            <li>Upcoming horizon, reminder interval, sound, attachment size cap</li>
+            <li>Window geometry (desktop plugin state file)</li>
+          </ul>
+          <p style="color:var(--muted);font-size:0.9rem;margin-bottom:0">
+            A device-specific folder path never leaks into the synced Document.
+          </p>
+        </div>
+        <div class="card sync">
+          <h3>Synced (per-device replicas)</h3>
+          <p><code>Document</code>: tags, tasks, template_tasks, tombstones, attachment metadata.</p>
+          <ul>
+            <li>Tasks reference tags via <code>tag_ids</code>; tags are flat with priority weights</li>
+            <li>Task priority = max resolvable tag weight</li>
+            <li><code>completed_at</code> is source of truth for done / archived</li>
+            <li>Templates live in <code>template_tasks</code>, not <code>tasks</code></li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout warn">
+        New Settings sections/controls need explicit product approval. Do not move
+        settings back into the synced document.
+      </div>
+    </section>
+
+    <!-- ── Frontend ────────────────────────────────────────── -->
+    <section id="frontend">
+      <h2>7. Frontend map</h2>
+      <p>
+        Shells adapt layout (<code>DesktopShell</code> / <code>MobileShell</code>).
+        <code>useDocument()</code> loads the document once, rebuilds
+        <code>indexes</code> on every change, and on Android drives SAF pull/push.
+      </p>
+
+      <h3>Views (computed)</h3>
+      <div class="pill-row">
+        <span class="pill">Today</span>
+        <span class="pill">Inbox</span>
+        <span class="pill">Upcoming</span>
+        <span class="pill">Tag / Tags</span>
+        <span class="pill">Search</span>
+        <span class="pill">Templates</span>
+        <span class="pill">Recurrence</span>
+        <span class="pill">Archived</span>
+        <span class="pill">History</span>
+        <span class="pill">Conflicts</span>
+        <span class="pill">Settings</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>State</h3>
+          <ul>
+            <li><code>state/store.ts</code> — document load + <code>store-changed</code></li>
+            <li><code>state/indexes.ts</code> — today / inbox / byTag / ghosts / archived</li>
+            <li><code>state/parse.ts</code> — quick-add parser (mirrors Rust <code>parse.rs</code>)</li>
+            <li><code>state/conflicts.ts</code> — conflict UI decisions</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Key UI building blocks</h3>
+          <ul>
+            <li>Capture: <code>Composer</code> → <code>TaskEditor</code></li>
+            <li>Lists: <code>TaskRow</code>, <code>TaskList</code>, <code>GhostRow</code></li>
+            <li>Time: <code>TimeTracking</code>, idle assign, estimate reminders</li>
+            <li>Themes: <code>lib/themes.ts</code> + token CSS (Rust stores opaque preset strings)</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Rust modules ────────────────────────────────────── -->
+    <section id="rust">
+      <h2>8. Rust module ownership</h2>
+      <table>
+        <thead>
+          <tr><th>Module</th><th>Role</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>lib.rs</code></td><td>App setup, plugins, command registration, attachment FS scope</td></tr>
+          <tr><td><code>model.rs</code></td><td>Durable Document / Task / Tag / Template; merge LWW + tombstones</td></tr>
+          <tr><td><code>commands.rs</code></td><td>IPC validation and mutations</td></tr>
+          <tr><td><code>store.rs</code></td><td>AppState: open, write, peer merge/reload, content hashes</td></tr>
+          <tr><td><code>db.rs</code></td><td>SQLite schema, Document ↔ DB, quick_check, version gate</td></tr>
+          <tr><td><code>config.rs</code></td><td>Device-local config.json + settings + data path resolution</td></tr>
+          <tr><td><code>history.rs</code></td><td>Per-device JSONL sidecar; list/concat; dedup keys</td></tr>
+          <tr><td><code>sync.rs</code></td><td>Desktop folder watcher + poll → reload</td></tr>
+          <tr><td><code>safsync.rs</code></td><td>Android SAF mirror (push/pull .db + attachments)</td></tr>
+          <tr><td><code>conflict.rs</code></td><td>Conflict copy listing / resolve / dismiss</td></tr>
+          <tr><td><code>parse.rs</code></td><td>Quick-add line parser (mirrored in TS)</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        Deeper navigation: <a href="./llm-navigation.md">llm-navigation.md</a>,
+        <a href="./agent/repo-map.md">repo-map.md</a>,
+        <a href="./agent/data-model.md">data-model.md</a>.
+      </p>
+    </section>
+
+    <footer>
+      Generated as a standalone technical overview for agents and humans.
+      Open this file directly in a browser — no build step.
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      var tabs = document.querySelectorAll('.tabs [role="tab"]');
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          tabs.forEach(function (t) {
+            t.setAttribute('aria-selected', 'false');
+            var panel = document.getElementById(t.getAttribute('aria-controls'));
+            if (panel) {
+              panel.classList.remove('active');
+              panel.hidden = true;
+            }
+          });
+          tab.setAttribute('aria-selected', 'true');
+          var show = document.getElementById(tab.getAttribute('aria-controls'));
+          if (show) {
+            show.classList.add('active');
+            show.hidden = false;
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
