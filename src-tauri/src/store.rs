@@ -49,6 +49,10 @@ impl AppState {
         let device_id = crate::config::device_id_from_data_path(&path)
             .unwrap_or_else(|| "device".to_string());
         let device_name = crate::config::resolve_device_name(&device_id);
+        // One-time: fold bare `history.jsonl` into `history_<device>.jsonl`, then delete it.
+        if let Err(e) = crate::history::migrate_legacy_history_jsonl(&path) {
+            eprintln!("warning: failed to migrate legacy history.jsonl: {e}");
+        }
         let mut conn = crate::db::open(&path)?;
         // Our own database (empty on a fresh install).
         let working = crate::db::read_document(&conn)?;

@@ -26,38 +26,62 @@ pub struct HistoryEntry {
     pub dedup_key: Option<String>,
 }
 
+/// Bare pre-per-device sidecar; migrated once into `history_<device>.jsonl` then deleted.
+const LEGACY_HISTORY_FILE: &str = "history.jsonl";
+
 pub fn history_path(data_path: &Path) -> PathBuf {
-    let file_name = data_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .and_then(|name| {
-            name.strip_prefix("tasks_").and_then(|rest| {
-                rest.strip_suffix(".db")
-                    .or_else(|| rest.strip_suffix(".json"))
-                    .map(|device| format!("history_{device}.jsonl"))
-            })
-        })
-        .unwrap_or_else(|| "history.jsonl".to_string());
+    // Always per-device: never bare `history.jsonl`. Non-`tasks_*` paths (e.g. legacy
+    // `tasks.json`) use the same `"device"` fallback as `AppState::open`.
+    let device = crate::config::device_id_from_data_path(data_path)
+        .map(|id| crate::config::sanitize_device_id(&id))
+        .unwrap_or_else(|| "device".to_string());
     data_path
         .parent()
         .unwrap_or_else(|| Path::new("."))
-        .join(file_name)
+        .join(format!("history_{device}.jsonl"))
 }
 
 fn legacy_history_path(data_path: &Path) -> PathBuf {
     data_path
         .parent()
         .unwrap_or_else(|| Path::new("."))
-        .join("history.jsonl")
+        .join(LEGACY_HISTORY_FILE)
+}
+
+/// If bare `history.jsonl` exists beside the data file, append its lines into this
+/// device's `history_<device>.jsonl` (respecting `dedup_key`), then delete the bare file.
+pub fn migrate_legacy_history_jsonl(data_path: &Path) -> Result<()> {
+    let legacy = legacy_history_path(data_path);
+    if !legacy.exists() {
+        return Ok(());
+    }
+    // Guard: if somehow own path were the bare file, do not delete while reading.
+    let own = history_path(data_path);
+    if legacy == own {
+        return Ok(());
+    }
+
+    let mut entries = Vec::new();
+    let file = fs::File::open(&legacy)?;
+    for line in BufReader::new(file).lines() {
+        let line = line?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<HistoryEntry>(&line) {
+            Ok(entry) => entries.push(entry),
+            Err(e) => eprintln!("warning: skipping unparseable legacy history line: {e}"),
+        }
+    }
+    let unseen = filter_unseen_entries(data_path, entries)?;
+    append_history(data_path, &unseen)?;
+    fs::remove_file(&legacy)?;
+    Ok(())
 }
 
 fn history_replica_paths(data_path: &Path) -> Vec<PathBuf> {
     let parent = data_path.parent().unwrap_or_else(|| Path::new("."));
     let mut paths = Vec::new();
-    let legacy = legacy_history_path(data_path);
-    if legacy.exists() {
-        paths.push(legacy);
-    }
     if let Ok(entries) = fs::read_dir(parent) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
@@ -186,11 +210,11 @@ pub fn filter_unseen_entries(
         .collect())
 }
 
-/// Copy this device's history sidecar(s) when seeding an empty data folder.
+/// Copy this device's history sidecar when seeding an empty data folder.
 ///
 /// Used by `AppState::repoint` so relocating the sync folder keeps History
-/// continuous. Copies the per-device `history_<device>.jsonl` when present, and
-/// the legacy `history.jsonl` when that is what the old folder still has.
+/// continuous. Migrates any bare `history.jsonl` on the source into the
+/// per-device sidecar first, then copies only `history_<device>.jsonl`.
 /// Peer history replicas are left behind — same as peer task replicas, which
 /// `repoint` also does not seed. No-op when `from` and `to` share a parent.
 pub fn copy_own_history(from_data_path: &Path, to_data_path: &Path) -> Result<()> {
@@ -201,18 +225,13 @@ pub fn copy_own_history(from_data_path: &Path, to_data_path: &Path) -> Result<()
     }
     fs::create_dir_all(to_parent)?;
 
+    // Fold legacy bare sidecar into the device file before copying.
+    migrate_legacy_history_jsonl(from_data_path)?;
+
     let from_own = history_path(from_data_path);
     let to_own = history_path(to_data_path);
     if from_own.exists() {
         fs::copy(&from_own, &to_own)?;
-    }
-
-    let from_legacy = legacy_history_path(from_data_path);
-    let to_legacy = legacy_history_path(to_data_path);
-    // Only copy legacy when it is a distinct file (not the same path we already
-    // handled as the "own" sidecar for a non-device-named data file).
-    if from_legacy.exists() && from_legacy != from_own {
-        fs::copy(&from_legacy, &to_legacy)?;
     }
     Ok(())
 }
@@ -523,6 +542,7 @@ mod tests {
     #[test]
     fn reads_newest_entries_first() {
         let dir = tempdir().unwrap();
+        // Bare tasks.json → history_device.jsonl (stable fallback, never history.jsonl).
         let data = dir.path().join("tasks.json");
         append_history(
             &data,
@@ -546,6 +566,9 @@ mod tests {
             ],
         )
         .unwrap();
+
+        assert!(dir.path().join("history_device.jsonl").exists());
+        assert!(!dir.path().join("history.jsonl").exists());
 
         let entries = read_history(&data, 1).unwrap();
         assert_eq!(entries.len(), 1);
@@ -654,7 +677,101 @@ mod tests {
     }
 
     #[test]
-    fn copy_own_history_copies_legacy_sidecar_when_present() {
+    fn migrate_legacy_history_jsonl_appends_then_deletes() {
+        let dir = tempdir().unwrap();
+        let data = dir.path().join("tasks_dev.db");
+        // Existing own sidecar with a deduped entry.
+        let mut existing = te(
+            500,
+            "task.created",
+            "task",
+            "k_existing",
+            "Existing".into(),
+            "Created task",
+        );
+        existing.dedup_key = Some("task.created|task|k_dup|1000".into());
+        append_history(&data, &[existing]).unwrap();
+
+        let mut dup = te(
+            1_000,
+            "task.created",
+            "task",
+            "k_dup",
+            "Dup".into(),
+            "Created task",
+        );
+        dup.dedup_key = Some("task.created|task|k_dup|1000".into());
+        let fresh = te(
+            2_000,
+            "task.created",
+            "task",
+            "k_legacy",
+            "Legacy".into(),
+            "Created task",
+        );
+        let legacy_body = format!(
+            "{}\n{}\n",
+            serde_json::to_string(&dup).unwrap(),
+            serde_json::to_string(&fresh).unwrap()
+        );
+        fs::write(dir.path().join("history.jsonl"), legacy_body).unwrap();
+
+        migrate_legacy_history_jsonl(&data).unwrap();
+
+        assert!(
+            !dir.path().join("history.jsonl").exists(),
+            "bare history.jsonl must be deleted after migrate"
+        );
+        let entries = read_all_history(&data).unwrap();
+        let ids: Vec<_> = entries.iter().map(|e| e.entity_id.as_str()).collect();
+        assert!(ids.contains(&"k_existing"));
+        assert!(ids.contains(&"k_legacy"));
+        assert_eq!(
+            ids.iter().filter(|id| **id == "k_dup").count(),
+            0,
+            "dedup_key already in own sidecar must skip duplicate"
+        );
+    }
+
+    #[test]
+    fn read_does_not_include_bare_history_jsonl_without_migration() {
+        let dir = tempdir().unwrap();
+        let data = dir.path().join("tasks_dev.db");
+        append_history(
+            &data,
+            &[te(
+                1_000,
+                "task.created",
+                "task",
+                "k_own",
+                "Own".into(),
+                "Created task",
+            )],
+        )
+        .unwrap();
+        // Stale bare file that was not migrated (e.g. mid-failure) must not be read.
+        fs::write(
+            dir.path().join("history.jsonl"),
+            serde_json::to_string(&te(
+                9_000,
+                "task.created",
+                "task",
+                "k_bare",
+                "Bare".into(),
+                "Created task",
+            ))
+            .unwrap()
+                + "\n",
+        )
+        .unwrap();
+
+        let entries = read_all_history(&data).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].entity_id, "k_own");
+    }
+
+    #[test]
+    fn copy_own_history_migrates_legacy_into_device_sidecar() {
         let from_dir = tempdir().unwrap();
         let to_dir = tempdir().unwrap();
         let from = from_dir.path().join("tasks_dev.db");
@@ -677,7 +794,15 @@ mod tests {
 
         copy_own_history(&from, &to).unwrap();
 
-        assert!(to_dir.path().join("history.jsonl").exists());
+        assert!(
+            !to_dir.path().join("history.jsonl").exists(),
+            "must not copy bare history.jsonl"
+        );
+        assert!(to_dir.path().join("history_dev.jsonl").exists());
+        assert!(
+            !from_dir.path().join("history.jsonl").exists(),
+            "source legacy file deleted after migrate"
+        );
         let entries = read_all_history(&to).unwrap();
         assert_eq!(entries[0].entity_id, "k_legacy");
     }
