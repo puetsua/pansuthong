@@ -5,8 +5,11 @@
 Completed tasks are archived (the same `completed_at` state that removes them from
 active views) and browsable in the Archived view. Separately, a per-device
 append-only history sidecar (`history_<device>.jsonl`) records created/updated/
-deleted events derived by diffing document snapshots, surfaced in the History
-view. Both views share date-range filtering and paging controls.
+deleted events derived by diffing **local** document writes, surfaced in the
+History view. Peer replica merges update the live document but do not append
+history on this device — History is a federated audit of what each device wrote,
+not a log of the merged world. Both views share date-range filtering and paging
+controls.
 
 ## Requirements
 
@@ -29,8 +32,14 @@ summary) to a per-device history sidecar file, derived from document diffs.
 - **THEN** a corresponding entry is appended to `history_<device>.jsonl`
 
 #### Scenario: History is per-device
-- **WHEN** the data file is `tasks_<device>.json`
+- **WHEN** the data file is `tasks_<device>.db`
 - **THEN** its history is written to `history_<device>.jsonl` beside it
+
+#### Scenario: Peer merge does not append local history
+- **WHEN** a peer replica change is merged via reload/poll
+- **THEN** this device's `history_<device>.jsonl` is not appended for that merge
+  (peer devices keep their own history sidecars; the History view concatenates
+  all `history_*.jsonl` at read time)
 
 ### Requirement: Shared list filters and paging
 

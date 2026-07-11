@@ -11,3 +11,17 @@
 - Templates live in `template_tasks`, not `tasks`.
 - Views are computed from tasks/tags/templates, mainly in `src/state/indexes.ts`.
 - Keep model changes backward-compatible with serde defaults, aliases, optional TS keys, schema updates, and tests.
+
+## Three consistency models in the data folder
+
+The sync folder holds three related kinds of data. They share device-id naming but
+**do not** share one merge/delete protocol — do not treat a single `tasks_*.db` as
+master for history or blobs.
+
+| Kind | On disk | Cross-device behavior |
+|------|---------|----------------------|
+| Document (tasks/tags/templates) | `tasks_<device>.db` | Active merge (LWW + entity tombstones); UI uses the merged in-memory `Document` |
+| History | `history_<device>.jsonl` | Append-only per device; read-time concat; peer merge does not append locally |
+| Attachments | `attachments_<device>/` blobs + metadata in Document | Metadata unions by id (no attachment tombstones yet); blobs sync as files; local GC when unreferenced |
+
+Backlog to align these: #120 (SAF `.db`), #121–#123 (attachment delete/GC/SAF subdirs), #124–#126 (history merge decision, atomic append, optional SQLite).
