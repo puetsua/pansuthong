@@ -200,6 +200,39 @@ pub(crate) fn is_attachment_filename(name: &str) -> bool {
     }
 }
 
+/// Relative paths of managed attachment blobs under `dir`: legacy flat
+/// `attachment_*` files and one level of `attachments_*/attachment_*`.
+pub(crate) fn list_managed_attachment_rels(dir: &Path) -> Result<Vec<String>> {
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let Some(name) = entry.file_name().to_str().map(|n| n.to_string()) else {
+            continue;
+        };
+        let file_type = entry.file_type()?;
+        if file_type.is_file() {
+            if is_attachment_filename(&name) {
+                out.push(name);
+            }
+        } else if file_type.is_dir() && is_attachments_subdir(&name) {
+            for inner in std::fs::read_dir(entry.path())? {
+                let inner = inner?;
+                if !inner.file_type()?.is_file() {
+                    continue;
+                }
+                let Some(file) = inner.file_name().to_str().map(|n| n.to_string()) else {
+                    continue;
+                };
+                let relative = format!("{name}/{file}");
+                if is_attachment_filename(&relative) {
+                    out.push(relative);
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
 fn attachment_abs_path(data_path: &Path, relative: &str) -> Result<PathBuf> {
     if !is_attachment_filename(relative) {
         return Err(AppError::Invalid("invalid attachment path".into()));
@@ -474,39 +507,9 @@ pub(crate) fn gc_unreferenced_attachment_blobs(state: &AppState) {
         Some(p) => p.to_path_buf(),
         None => return,
     };
-    let Ok(entries) = std::fs::read_dir(&folder) else {
+    let Ok(candidates) = list_managed_attachment_rels(&folder) else {
         return;
     };
-    let mut candidates = Vec::new();
-    for entry in entries.flatten() {
-        let Ok(file_type) = entry.file_type() else {
-            continue;
-        };
-        let Some(name) = entry.file_name().to_str().map(|n| n.to_string()) else {
-            continue;
-        };
-        if file_type.is_file() {
-            if is_attachment_filename(&name) {
-                candidates.push(name);
-            }
-        } else if file_type.is_dir() && is_attachments_subdir(&name) {
-            let Ok(inner) = std::fs::read_dir(entry.path()) else {
-                continue;
-            };
-            for child in inner.flatten() {
-                if !child.file_type().map(|t| t.is_file()).unwrap_or(false) {
-                    continue;
-                }
-                let Some(file) = child.file_name().to_str().map(|n| n.to_string()) else {
-                    continue;
-                };
-                let relative = format!("{name}/{file}");
-                if is_attachment_filename(&relative) {
-                    candidates.push(relative);
-                }
-            }
-        }
-    }
     gc_attachment_files(state, &candidates);
 }
 

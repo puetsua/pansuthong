@@ -233,7 +233,7 @@ export const api = {
   getDocument:   ()                          => invoke<Document>("get_document"),
   showMainWindow: ()                         => invoke<void>("show_main_window"),
   listHistory:   ()                          => invoke<HistoryEntry[]>("list_history"),
-  /** Force an immediate re-read of tasks.json from disk; returns the freshest doc. */
+  /** Force an immediate re-read of this device's data replica from disk; returns the freshest doc. */
   syncNow:       ()                          => invoke<Document>("sync_now"),
   addTask:       (input: Partial<Task> & { title: string }) => invoke<Task>("add_task", { input }),
   updateTask:    (input: TaskUpdate)                         => invoke<Task>("update_task", { input }),

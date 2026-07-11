@@ -9,7 +9,7 @@
 //! Wire format matches desktop: per-device `.db` replicas, legacy JSON peers still
 //! readable, attachments under `attachments_<device>/` (plus legacy flat files).
 
-use crate::commands::{is_attachment_filename, is_attachments_subdir};
+use crate::commands::is_attachment_filename;
 use crate::error::Result;
 use crate::model::{merge_documents, Document};
 use crate::store::{content_hash, AppState};
@@ -31,8 +31,6 @@ const CONFLICT_NEEDLE: &str = "conflict";
 pub trait SafBackend {
     /// Legacy remote `tasks.json` bytes, or `None` if it doesn't exist yet.
     fn read_tasks(&self) -> Result<Option<Vec<u8>>>;
-    /// Create-or-overwrite the legacy remote `tasks.json`.
-    fn write_tasks(&self, bytes: &[u8]) -> Result<()>;
     /// Relative paths of files in the folder (top-level and one-level attachment subdirs).
     fn list_file_names(&self) -> Result<Vec<String>>;
     /// Read a file by relative path (may include one `/`).
@@ -322,34 +320,7 @@ fn mirror_remote_attachment_files(backend: &dyn SafBackend, dir: &Path) -> Resul
 /// Collect relative attachment paths: legacy flat files and one level of
 /// `attachments_*/attachment_*`.
 fn local_attachment_rel_paths(dir: &Path) -> Result<Vec<String>> {
-    let mut out = Vec::new();
-    for entry in std::fs::read_dir(dir)? {
-        let entry = entry?;
-        let Some(name) = entry.file_name().to_str().map(|n| n.to_string()) else {
-            continue;
-        };
-        let file_type = entry.file_type()?;
-        if file_type.is_file() {
-            if is_attachment_filename(&name) {
-                out.push(name);
-            }
-        } else if file_type.is_dir() && is_attachments_subdir(&name) {
-            for inner in std::fs::read_dir(entry.path())? {
-                let inner = inner?;
-                if !inner.file_type()?.is_file() {
-                    continue;
-                }
-                let Some(file) = inner.file_name().to_str().map(|n| n.to_string()) else {
-                    continue;
-                };
-                let relative = format!("{name}/{file}");
-                if is_attachment_filename(&relative) {
-                    out.push(relative);
-                }
-            }
-        }
-    }
-    Ok(out)
+    crate::commands::list_managed_attachment_rels(dir)
 }
 
 /// Switch the master to the folder's replicas, **discarding** the current
@@ -529,6 +500,7 @@ impl SafSync {
 #[cfg(target_os = "android")]
 pub mod android {
     use super::*;
+    use crate::commands::is_attachments_subdir;
     use tauri::AppHandle;
     use tauri_plugin_android_fs::{AndroidFsExt, Entry, FileUri, UriPermission};
 
@@ -570,9 +542,6 @@ pub mod android {
                 .resolve_file_uri(&self.folder, BASE_FILENAME)
                 .map_err(saferr)?;
             Ok(Some(fs.read(&uri).map_err(saferr)?))
-        }
-        fn write_tasks(&self, bytes: &[u8]) -> Result<()> {
-            self.write_file(BASE_FILENAME, bytes)
         }
         fn write_file(&self, name: &str, bytes: &[u8]) -> Result<()> {
             let fs = self.app.android_fs();
@@ -688,13 +657,6 @@ mod tests {
         fn read_tasks(&self) -> crate::error::Result<Option<Vec<u8>>> {
             Ok(self.files.lock().unwrap().get("tasks.json").cloned())
         }
-        fn write_tasks(&self, bytes: &[u8]) -> crate::error::Result<()> {
-            self.files
-                .lock()
-                .unwrap()
-                .insert("tasks.json".into(), bytes.to_vec());
-            Ok(())
-        }
         fn write_file(&self, name: &str, bytes: &[u8]) -> crate::error::Result<()> {
             self.files
                 .lock()
@@ -726,9 +688,6 @@ mod tests {
     impl SafBackend for UnreadableBackend {
         fn read_tasks(&self) -> crate::error::Result<Option<Vec<u8>>> {
             Err(crate::error::AppError::Invalid("saf: read failed".into()))
-        }
-        fn write_tasks(&self, _bytes: &[u8]) -> crate::error::Result<()> {
-            panic!("write_tasks must never be called when the folder state is unknown");
         }
         fn write_file(&self, _name: &str, _bytes: &[u8]) -> crate::error::Result<()> {
             panic!("write_file must never be called when the folder state is unknown");

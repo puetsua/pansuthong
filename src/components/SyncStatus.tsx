@@ -12,8 +12,8 @@ type Props = {
 
 /**
  * "Last synced" indicator + manual "Sync now" button. The button forces an
- * immediate re-read of tasks.json from disk; if it changed, the backend emits
- * `store-changed` and the document store reloads on its own. Shared by the
+ * immediate re-read of peer data replicas from disk; if they changed, the backend
+ * emits `store-changed` and the document store reloads on its own. Shared by the
  * desktop sidebar and the mobile shell.
  */
 export function SyncStatus({ lastModified, className }: Props) {

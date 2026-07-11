@@ -37,7 +37,6 @@ pub fn open(path: &Path) -> Result<Connection> {
 
 /// Open a peer replica read-only and immutable (it lives in the synced folder and
 /// may be mid-upload). Does not initialize schema — a peer DB is never written.
-#[allow(dead_code)] // consumed by the multi-device merge (tasks group 5)
 pub fn open_readonly(path: &Path) -> Result<Connection> {
     let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
     let conn = Connection::open_with_flags(path, flags)?;
@@ -190,26 +189,6 @@ fn read_tombstones(conn: &Connection, kind: &str) -> Result<Vec<Tombstone>> {
         out.push(serde_json::from_str(&row?)?);
     }
     Ok(out)
-}
-
-/// Export a checkpointed single-file snapshot of the working database to `dest`
-/// via `VACUUM INTO`. The result is a self-contained `.db` with no `-wal`/`-shm`
-/// sidecars — safe for a cloud folder to sync. `VACUUM INTO` requires the
-/// destination not to exist, so an existing snapshot is replaced atomically via a
-/// temp file + rename.
-pub fn snapshot(conn: &Connection, dest: &Path) -> Result<()> {
-    let tmp = dest.with_extension("db.tmp");
-    let _ = std::fs::remove_file(&tmp);
-    let tmp_str = tmp
-        .to_str()
-        .ok_or_else(|| AppError::Invalid("snapshot path is not valid UTF-8".into()))?;
-    conn.execute("VACUUM INTO ?1", [tmp_str])?;
-    // Rename over the destination so a reader never sees a half-written snapshot.
-    std::fs::rename(&tmp, dest).map_err(|e| {
-        let _ = std::fs::remove_file(&tmp);
-        AppError::Io(e)
-    })?;
-    Ok(())
 }
 
 /// Load a `Document` from a replica `.db` file, opened read-only/immutable (it may
