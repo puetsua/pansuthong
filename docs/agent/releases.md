@@ -12,4 +12,4 @@
 
 - First launch on the SQLite build migrates `tasks_<device>.json` (and legacy `tasks.json`) into `tasks_<device>.db` and leaves the JSON files in place as a downgrade fallback.
 - The new build stops writing the JSON replica, so an older build no longer sees this device's *new* edits — upgrade all of a user's desktop devices together, and keep the JSON fallback for a retention window (a few releases) before a later change drops JSON writes.
-- Android still syncs via JSON over SAF until the SAF layer is converted (`safsync.rs`, change `sqlite-data-store` group 6), so a PC and phone won't yet interoperate through the same folder.
+- Android SAF push/pull uses `tasks_<device>.db` replicas (and still reads legacy JSON peers); live PC↔phone round-trip through a shared folder should be verified on device after install.

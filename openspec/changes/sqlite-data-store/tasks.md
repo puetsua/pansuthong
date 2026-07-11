@@ -40,12 +40,14 @@
 - [x] 5.5 Confirm conflict copies stay JSON so `conflict.rs`/`scan_conflict_files` are unchanged and still work
 - [x] 5.6 Tests: peer `.db`/`.json` merge, reload picks up a new peer then settles, bad peer replica skipped
 
-## 6. Android SAF mirror — DEFERRED (needs on-device testing)
+## 6. Android SAF mirror
 
-- [ ] 6.1 Update `src-tauri/src/safsync.rs` to push/pull `tasks_<device>.db` replicas over SAF (currently still JSON; PC↔Android interop lands here)
-- [ ] 6.2 Keep attachment and conflict-copy mirroring; resolved/dismissed conflicts still removed from the SAF folder
-- [ ] 6.3 Tests (desktop `SafBackend` fake): push/pull with `.db` replicas
+- [x] 6.1 Update `src-tauri/src/safsync.rs` to push/pull `tasks_<device>.db` replicas over SAF (currently still JSON; PC↔Android interop lands here)
+- [x] 6.2 Keep attachment and conflict-copy mirroring; resolved/dismissed conflicts still removed from the SAF folder
+- [x] 6.3 Tests (desktop `SafBackend` fake): push/pull with `.db` replicas
 
+> Delivered in change `saf-db-and-attachment-mirror` (issues #120/#122). Live
+> PC↔Android round-trip on device remains a manual verification item.
 ## 7. Data-folder relocation and asset scope
 
 - [x] 7.1 `set_data_folder`/`clear_data_folder` repoint the store (`repoint`) and re-scan peer replicas

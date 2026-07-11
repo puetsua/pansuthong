@@ -179,7 +179,7 @@ fn is_managed_attachment_file(name: &str) -> bool {
 
 /// A per-device attachment subdirectory: `attachments_<seg>` where `<seg>` is the
 /// sanitized device-id charset (see `config::attachments_dir_name`).
-fn is_attachments_subdir(dir: &str) -> bool {
+pub(crate) fn is_attachments_subdir(dir: &str) -> bool {
     dir.len() > "attachments_".len()
         && dir.starts_with("attachments_")
         && dir.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
