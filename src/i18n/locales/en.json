@@ -599,6 +599,7 @@
     "desktopHint": "Point this at a folder that syncs across your devices to keep tasks in sync. On first link it adopts that folder's tasks.json if present, otherwise it seeds it.",
     "chooseFolder": "Choose folder…",
     "useDefault": "Use default location",
+    "transferTitle": "Change data folder?",
     "transferBody": "Copy keeps this device's tasks, history, and attachments in the old folder and places a copy in the new one. Move transfers them, then removes only this device's files from the old folder after success. Peer device files are never touched.",
     "transferCopy": "Copy",
     "transferMove": "Move",
