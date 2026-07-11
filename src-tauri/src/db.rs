@@ -226,8 +226,14 @@ pub fn load_from_file(path: &Path) -> Result<Document> {
 /// Decode a `Document` from raw `.db` file bytes (e.g. a replica pulled over SAF).
 /// The bytes are staged to a temp file because SQLite opens paths, not buffers.
 pub fn load_from_bytes(bytes: &[u8]) -> Result<Document> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
     let mut tmp = std::env::temp_dir();
-    tmp.push(format!("pansutong-replica-{}.db", crate::model::now_ms()));
+    tmp.push(format!(
+        "pansutong-replica-{}-{}.db",
+        crate::model::now_ms(),
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
     std::fs::write(&tmp, bytes)?;
     let result = load_from_file(&tmp);
     let _ = std::fs::remove_file(&tmp);

@@ -1,24 +1,4 @@
-# android-folder-sync Specification
-
-## Purpose
-
-On Android there is no always-mounted cloud folder, so an app-private local
-master (`tasks_<device>.db`) remains crash-safe and a mirror layer copies it (and
-any conflict copies / attachment blobs) to and from a user-picked SAF (Storage
-Access Framework) folder. All SAF I/O sits behind a `SafBackend` trait so the
-mirror logic is testable on desktop; the SAF commands are no-ops on non-Android
-targets.
-
-## Requirements
-
-### Requirement: Pick and clear the SAF folder
-
-The system SHALL let the user pick a SAF folder to mirror into, and clear it,
-reporting sync status.
-
-#### Scenario: Non-Android is a no-op
-- **WHEN** a SAF command runs on desktop
-- **THEN** it returns a neutral status without touching any folder
+## MODIFIED Requirements
 
 ### Requirement: Bidirectional mirror
 

@@ -1,16 +1,21 @@
 //! Android folder-sync mirror layer.
 //!
-//! The app-private `tasks.json` remains the crash-safe master (store.rs). This
-//! module mirrors it (and any sync-tool conflict copies) to/from a user-picked SAF
-//! folder. All SAF I/O is hidden behind `SafBackend` so the mirror logic is
-//! testable on desktop; the real Android backend lives in the `android` submodule.
+//! The app-private `tasks_<device>.db` remains the crash-safe master (`store.rs`).
+//! This module mirrors it (and conflict copies / attachment blobs) to/from a
+//! user-picked SAF folder. All SAF I/O is hidden behind `SafBackend` so the
+//! mirror logic is testable on desktop; the real Android backend lives in the
+//! `android` submodule.
+//!
+//! Wire format matches desktop: per-device `.db` replicas, legacy JSON peers still
+//! readable, attachments under `attachments_<device>/` (plus legacy flat files).
 
-use crate::commands::is_attachment_filename;
+use crate::commands::{is_attachment_filename, is_attachments_subdir};
 use crate::error::Result;
 use crate::model::{merge_documents, Document};
-use crate::store::AppState;
+use crate::store::{content_hash, AppState};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -20,18 +25,21 @@ const CONFLICT_NEEDLE: &str = "conflict";
 
 /// Abstraction over the picked SAF folder. Implemented for real on Android and
 /// with an in-memory fake in tests.
+///
+/// File names may be top-level (`tasks_dev.db`, `attachment_…`) or one-level
+/// nested (`attachments_dev/attachment_…`). Nested paths use `/` as the separator.
 pub trait SafBackend {
     /// Legacy remote `tasks.json` bytes, or `None` if it doesn't exist yet.
     fn read_tasks(&self) -> Result<Option<Vec<u8>>>;
     /// Create-or-overwrite the legacy remote `tasks.json`.
     fn write_tasks(&self, bytes: &[u8]) -> Result<()>;
-    /// Names of all files directly in the folder.
+    /// Relative paths of files in the folder (top-level and one-level attachment subdirs).
     fn list_file_names(&self) -> Result<Vec<String>>;
-    /// Read a file in the folder by name.
+    /// Read a file by relative path (may include one `/`).
     fn read_file(&self, name: &str) -> Result<Vec<u8>>;
-    /// Create-or-overwrite a file in the folder by name.
+    /// Create-or-overwrite a file by relative path (creates parent dir if needed).
     fn write_file(&self, name: &str, bytes: &[u8]) -> Result<()>;
-    /// Delete a file in the folder by name (no-op if absent).
+    /// Delete a file by relative path (no-op if absent).
     fn delete_file(&self, name: &str) -> Result<()>;
 }
 
@@ -50,16 +58,75 @@ pub fn is_conflict_filename(name: &str, base_stem: &str, base_filename: &str) ->
 }
 
 fn is_replica_filename(name: &str) -> bool {
-    name.starts_with("tasks_") && name.ends_with(".json") && !name.contains(CONFLICT_NEEDLE)
+    name.starts_with("tasks_")
+        && (name.ends_with(".db") || name.ends_with(".json"))
+        && !name.contains(CONFLICT_NEEDLE)
+}
+
+fn replica_stem(name: &str) -> &str {
+    name.rsplit_once('.')
+        .map(|(stem, _)| stem)
+        .unwrap_or(name)
+}
+
+/// Prefer `.db` when both `tasks_X.db` and `tasks_X.json` exist for the same stem.
+fn pick_replica_names(names: &[String]) -> Vec<String> {
+    let mut by_stem: HashMap<String, String> = HashMap::new();
+    for name in names {
+        if !is_replica_filename(name) {
+            continue;
+        }
+        let stem = replica_stem(name).to_string();
+        let prefer_db = name.ends_with(".db");
+        match by_stem.get(&stem) {
+            Some(existing) if existing.ends_with(".db") => {}
+            Some(_) if prefer_db => {
+                by_stem.insert(stem, name.clone());
+            }
+            None => {
+                by_stem.insert(stem, name.clone());
+            }
+            _ => {}
+        }
+    }
+    by_stem.into_values().collect()
 }
 
 fn writable_replica_name(data_path: &Path) -> String {
-    data_path
+    let name = data_path
         .file_name()
         .and_then(|n| n.to_str())
-        .filter(|name| is_replica_filename(name))
-        .unwrap_or(BASE_FILENAME)
-        .to_string()
+        .unwrap_or("tasks.db");
+    if is_replica_filename(name) {
+        if name.ends_with(".json") {
+            return format!("{}.db", replica_stem(name));
+        }
+        return name.to_string();
+    }
+    if name == BASE_FILENAME || name == "tasks.db" {
+        return "tasks.db".into();
+    }
+    // Unknown local name — still publish a `.db` beside peers.
+    "tasks.db".into()
+}
+
+fn decode_replica_bytes(name: &str, bytes: &[u8]) -> Result<Document> {
+    if name.ends_with(".db") {
+        crate::db::load_from_bytes(bytes)
+    } else {
+        crate::store::parse_checked(bytes)
+    }
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn mime_for_name(name: &str) -> Option<&'static str> {
+    if name.ends_with(".json") {
+        Some("application/json")
+    } else if name.ends_with(".db") {
+        Some("application/vnd.sqlite3")
+    } else {
+        Some("application/octet-stream")
+    }
 }
 
 /// What a first link to a picked folder should do, decided **fail-safe**.
@@ -76,16 +143,15 @@ pub enum LinkAction {
     Abort,
 }
 
-/// True if the picked folder already contains a `tasks.json`. Uses directory
+/// True if the picked folder already contains a tasks replica. Uses directory
 /// enumeration (`list_file_names`), which works across SAF providers including
 /// Google Drive, and **propagates errors** so a caller never mistakes "couldn't
 /// read the folder" for "the folder is empty" — the latter is what overwrote a
 /// real remote on first link (the Drive data-loss bug).
 pub fn remote_has_tasks(backend: &dyn SafBackend) -> Result<bool> {
-    Ok(backend
-        .list_file_names()?
-        .iter()
-        .any(|n| n == BASE_FILENAME || is_replica_filename(n)))
+    Ok(backend.list_file_names()?.iter().any(|n| {
+        n == BASE_FILENAME || n == "tasks.db" || is_replica_filename(n)
+    }))
 }
 
 /// Decide a first link's action without ever risking the remote: only `Seed`
@@ -108,12 +174,14 @@ pub fn push_out(
     data_path: &Path,
     last_synced_hash: Option<[u8; 32]>,
 ) -> Result<Option<[u8; 32]>> {
-    let bytes = state.read(serde_json::to_vec_pretty)?;
-    let h = sha256(&bytes);
+    let doc = state.read(|d| d.clone());
+    let h = content_hash(&doc);
     if Some(h) == last_synced_hash {
         mirror_local_attachment_files(backend, data_path)?;
         return Ok(None);
     }
+    // Single-file DELETE-journal store: the on-disk master is the publishable replica.
+    let bytes = std::fs::read(state.path())?;
     backend.write_file(&writable_replica_name(data_path), &bytes)?;
     mirror_local_attachment_files(backend, data_path)?;
     Ok(Some(h))
@@ -130,7 +198,7 @@ pub struct PullOutcome {
     pub warning: Option<String>,
 }
 
-/// Mirror the folder into app-private: adopt a changed remote `tasks.json`
+/// Mirror the folder into app-private: adopt a changed remote replica document
 /// (last-write-wins) and copy any conflict files into the app-private dir for
 /// the existing conflict UI. Never clobbers the shadow with unparseable bytes.
 pub fn pull_in(
@@ -163,16 +231,16 @@ pub fn pull_in(
                 ));
             }
             if let Some(remote) = maybe_remote {
-                let h = sha256(&remote);
+                let h = content_hash(&remote);
                 if Some(h) != last_synced_hash {
-                    match state.adopt_synced(&remote, last_synced_hash) {
+                    match state.adopt_synced(remote, last_synced_hash) {
                         Ok(hash) => {
                             new_hash = Some(hash);
                             imported = true;
                         }
                         Err(_) => {
                             warning = Some(
-                                "saf: remote tasks.json is not valid; kept local data".into(),
+                                "saf: remote replica is not valid; kept local data".into(),
                             );
                         }
                     }
@@ -214,24 +282,15 @@ fn mirror_local_attachment_files(backend: &dyn SafBackend, data_path: &Path) -> 
         return Ok(());
     }
     let remote_names = backend.list_file_names().unwrap_or_default();
-    for entry in std::fs::read_dir(dir)? {
-        let entry = entry?;
-        if !entry.file_type()?.is_file() {
-            continue;
-        }
-        let Some(name) = entry.file_name().to_str().map(|n| n.to_string()) else {
-            continue;
-        };
-        if !is_attachment_filename(&name) {
-            continue;
-        }
-        let bytes = std::fs::read(entry.path())?;
-        let should_write = match backend.read_file(&name) {
+    for relative in local_attachment_rel_paths(dir)? {
+        let abs = dir.join(Path::new(&relative));
+        let bytes = std::fs::read(&abs)?;
+        let should_write = match backend.read_file(&relative) {
             Ok(remote) => sha256(&remote) != sha256(&bytes),
-            Err(_) => !remote_names.iter().any(|n| n == &name),
+            Err(_) => !remote_names.iter().any(|n| n == &relative),
         };
         if should_write {
-            backend.write_file(&name, &bytes)?;
+            backend.write_file(&relative, &bytes)?;
         }
     }
     Ok(())
@@ -244,7 +303,10 @@ fn mirror_remote_attachment_files(backend: &dyn SafBackend, dir: &Path) -> Resul
             continue;
         }
         if let Ok(bytes) = backend.read_file(&name) {
-            let path = dir.join(&name);
+            let path = dir.join(Path::new(&name));
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
             let changed = std::fs::read(&path)
                 .map(|local| sha256(&local) != sha256(&bytes))
                 .unwrap_or(true);
@@ -257,7 +319,40 @@ fn mirror_remote_attachment_files(backend: &dyn SafBackend, dir: &Path) -> Resul
     Ok(imported)
 }
 
-/// Switch the master to the folder's `tasks.json`, **discarding** the current
+/// Collect relative attachment paths: legacy flat files and one level of
+/// `attachments_*/attachment_*`.
+fn local_attachment_rel_paths(dir: &Path) -> Result<Vec<String>> {
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let Some(name) = entry.file_name().to_str().map(|n| n.to_string()) else {
+            continue;
+        };
+        let file_type = entry.file_type()?;
+        if file_type.is_file() {
+            if is_attachment_filename(&name) {
+                out.push(name);
+            }
+        } else if file_type.is_dir() && is_attachments_subdir(&name) {
+            for inner in std::fs::read_dir(entry.path())? {
+                let inner = inner?;
+                if !inner.file_type()?.is_file() {
+                    continue;
+                }
+                let Some(file) = inner.file_name().to_str().map(|n| n.to_string()) else {
+                    continue;
+                };
+                let relative = format!("{name}/{file}");
+                if is_attachment_filename(&relative) {
+                    out.push(relative);
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Switch the master to the folder's replicas, **discarding** the current
 /// local in-memory document (no conflict file). For the explicit "change data
 /// source" action, where the user wants the new folder's data loaded outright.
 /// The remote is read and validated before anything is replaced, so local data is
@@ -274,7 +369,7 @@ pub fn switch_to_remote(
     // The explicit folder-switch loads the remote outright; skipped replicas are
     // already logged in read_merged_remote.
     let (imported, new_synced_hash) = match read_merged_remote(backend)?.0 {
-        Some(remote) => (true, Some(state.load_replacing_local(&remote)?)),
+        Some(remote) => (true, Some(state.load_replacing_local(remote)?)),
         None => (false, None),
     };
     Ok(PullOutcome {
@@ -285,21 +380,38 @@ pub fn switch_to_remote(
     })
 }
 
-/// Returns the merged remote bytes (if any) plus the names of any replicas that
+/// Returns the merged remote document (if any) plus the names of any replicas that
 /// were skipped because they couldn't be read or parsed, so the caller can
 /// surface degraded sync rather than silently dropping a device's data.
-fn read_merged_remote(backend: &dyn SafBackend) -> Result<(Option<Vec<u8>>, Vec<String>)> {
+fn read_merged_remote(backend: &dyn SafBackend) -> Result<(Option<Document>, Vec<String>)> {
     let names = backend.list_file_names()?;
-    let replica_names: Vec<_> = names
-        .iter()
-        .filter(|name| is_replica_filename(name))
-        .cloned()
-        .collect();
+    let replica_names = pick_replica_names(&names);
     let mut docs = Vec::new();
     let mut skipped = Vec::new();
     if replica_names.is_empty() {
-        if let Some(bytes) = backend.read_tasks()? {
-            docs.push(serde_json::from_slice::<Document>(&bytes)?);
+        // Legacy single-file folder: prefer tasks.db, then tasks.json.
+        if names.iter().any(|n| n == "tasks.db") {
+            match backend.read_file("tasks.db") {
+                Ok(bytes) => match decode_replica_bytes("tasks.db", &bytes) {
+                    Ok(doc) => docs.push(doc),
+                    Err(e) => {
+                        eprintln!("saf: skipping unparseable tasks.db: {e}");
+                        skipped.push("tasks.db".into());
+                    }
+                },
+                Err(e) => {
+                    eprintln!("saf: skipping unreadable tasks.db: {e}");
+                    skipped.push("tasks.db".into());
+                }
+            }
+        } else if let Some(bytes) = backend.read_tasks()? {
+            match crate::store::parse_checked(&bytes) {
+                Ok(doc) => docs.push(doc),
+                Err(e) => {
+                    eprintln!("saf: skipping unparseable tasks.json: {e}");
+                    skipped.push(BASE_FILENAME.into());
+                }
+            }
         }
     } else {
         for name in replica_names {
@@ -308,7 +420,7 @@ fn read_merged_remote(backend: &dyn SafBackend) -> Result<(Option<Vec<u8>>, Vec<
             // rather than letting one bad replica sink the whole pull — but record
             // it so the skip is surfaced, not silent.
             match backend.read_file(&name) {
-                Ok(bytes) => match serde_json::from_slice::<Document>(&bytes) {
+                Ok(bytes) => match decode_replica_bytes(&name, &bytes) {
                     Ok(doc) => docs.push(doc),
                     Err(e) => {
                         eprintln!("saf: skipping unparseable replica {name}: {e}");
@@ -325,7 +437,7 @@ fn read_merged_remote(backend: &dyn SafBackend) -> Result<(Option<Vec<u8>>, Vec<
     if docs.is_empty() {
         return Ok((None, skipped));
     }
-    Ok((Some(serde_json::to_vec_pretty(&merge_documents(docs))?), skipped))
+    Ok((Some(merge_documents(docs)), skipped))
 }
 
 /// Status surfaced to the UI.
@@ -467,12 +579,9 @@ pub mod android {
             let uri = match fs.resolve_file_uri(&self.folder, name) {
                 Ok(u) => u,
                 Err(_) => {
-                    let mime = if name.ends_with(".json") {
-                        Some("application/json")
-                    } else {
-                        Some("application/octet-stream")
-                    };
-                    fs.create_new_file(&self.folder, name, mime)
+                    // create_new_file creates parent dirs for nested paths like
+                    // `attachments_dev/attachment_….bin`.
+                    fs.create_new_file(&self.folder, name, mime_for_name(name))
                         .map_err(saferr)?
                 }
             };
@@ -481,13 +590,22 @@ pub mod android {
         fn list_file_names(&self) -> Result<Vec<String>> {
             let fs = self.app.android_fs();
             let entries = fs.read_dir(&self.folder).map_err(saferr)?;
-            Ok(entries
-                .into_iter()
-                .filter_map(|e| match e {
-                    Entry::File { name, .. } => Some(name),
-                    _ => None,
-                })
-                .collect())
+            let mut names = Vec::new();
+            for e in entries {
+                match e {
+                    Entry::File { name, .. } => names.push(name),
+                    Entry::Dir { name, uri, .. } if is_attachments_subdir(&name) => {
+                        let inner = fs.read_dir(&uri).map_err(saferr)?;
+                        for child in inner {
+                            if let Entry::File { name: file, .. } = child {
+                                names.push(format!("{name}/{file}"));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Ok(names)
         }
         fn read_file(&self, name: &str) -> Result<Vec<u8>> {
             let fs = self.app.android_fs();
@@ -628,15 +746,27 @@ mod tests {
 
     fn temp_state() -> (tempfile::TempDir, AppState, std::path::PathBuf) {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("tasks.json");
+        let path = dir.path().join("tasks_android.db");
         let state = AppState::open(path.clone()).unwrap();
         (dir, state, path)
+    }
+
+    fn write_peer_db(doc: &Document) -> Vec<u8> {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("peer.db");
+        let mut conn = crate::db::open(&path).unwrap();
+        crate::db::write_document(&mut conn, doc).unwrap();
+        drop(conn);
+        std::fs::read(&path).unwrap()
     }
 
     #[test]
     fn remote_has_tasks_detects_presence_via_enumeration() {
         let present = FakeBackend::with(&[("tasks.json", b"{\"tasks\":[],\"tags\":[]}")]);
         assert_eq!(remote_has_tasks(&present).unwrap(), true);
+
+        let present_db = FakeBackend::with(&[("tasks_peer.db", b"not-a-real-db-but-name-counts")]);
+        assert_eq!(remote_has_tasks(&present_db).unwrap(), true);
 
         let absent = FakeBackend::with(&[("notes.txt", b"x")]);
         assert_eq!(remote_has_tasks(&absent).unwrap(), false);
@@ -691,8 +821,8 @@ mod tests {
             updated_at: 1,
             dashboard_view: None,
         });
-        let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
-        let backend = FakeBackend::with(&[("tasks.json", &remote)]);
+        let remote = write_peer_db(&remote_doc);
+        let backend = FakeBackend::with(&[("tasks_peer.db", &remote)]);
 
         let out = switch_to_remote(&state, &backend, &path).unwrap();
         assert!(out.imported);
@@ -734,30 +864,18 @@ mod tests {
 
     #[test]
     fn push_out_writes_then_suppresses_identical() {
-        let (_d, state, _p) = temp_state();
+        let (_d, state, path) = temp_state();
         let backend = FakeBackend::default();
         // First push writes and returns a hash.
-        let h1 = push_out(
-            &state,
-            &backend,
-            &std::path::PathBuf::from("tasks_android.json"),
-            None,
-        )
-        .unwrap();
+        let h1 = push_out(&state, &backend, &path, None).unwrap();
         assert!(h1.is_some());
         assert!(backend
             .files
             .lock()
             .unwrap()
-            .contains_key("tasks_android.json"));
+            .contains_key("tasks_android.db"));
         // Second push with the same last_synced_hash is suppressed (no new hash).
-        let h2 = push_out(
-            &state,
-            &backend,
-            &std::path::PathBuf::from("tasks_android.json"),
-            h1,
-        )
-        .unwrap();
+        let h2 = push_out(&state, &backend, &path, h1).unwrap();
         assert!(h2.is_none());
     }
 
@@ -775,8 +893,8 @@ mod tests {
             updated_at: 1,
             dashboard_view: None,
         });
-        let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
-        let backend = FakeBackend::with(&[("tasks.json", &remote)]);
+        let remote = write_peer_db(&remote_doc);
+        let backend = FakeBackend::with(&[("tasks_peer.db", &remote)]);
 
         let out = pull_in(&state, &backend, &path, None).unwrap();
         assert!(out.imported);
@@ -812,8 +930,8 @@ mod tests {
 
         // Remote holds a different document (empty, no such tag).
         let remote_doc = crate::model::Document::default();
-        let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
-        let backend = FakeBackend::with(&[("tasks.json", &remote)]);
+        let remote = write_peer_db(&remote_doc);
+        let backend = FakeBackend::with(&[("tasks_peer.db", &remote)]);
 
         // First link (last_synced_hash = None): adopt remote, preserve local.
         let out = pull_in(&state, &backend, &path, None).unwrap();
@@ -845,7 +963,7 @@ mod tests {
     #[test]
     fn pull_in_adopts_cleanly_when_local_matches_last_synced() {
         let (_d, state, path) = temp_state();
-        // Seed local with data and treat it as already-synced (hash of local).
+        // Seed local with data and treat it as already-synced (content hash).
         state
             .write(|d| {
                 d.tags.push(crate::model::Tag {
@@ -860,7 +978,7 @@ mod tests {
                 Ok(())
             })
             .unwrap();
-        let synced_hash = sha256(&state.read(serde_json::to_vec_pretty).unwrap());
+        let synced_hash = state.read(|d| content_hash(d));
 
         // Remote moved ahead (another device); this device has NO un-synced edits.
         let mut remote_doc = state.read(|d| d.clone());
@@ -873,8 +991,8 @@ mod tests {
             updated_at: 1,
             dashboard_view: None,
         });
-        let remote = serde_json::to_vec_pretty(&remote_doc).unwrap();
-        let backend = FakeBackend::with(&[("tasks.json", &remote)]);
+        let remote = write_peer_db(&remote_doc);
+        let backend = FakeBackend::with(&[("tasks_peer.db", &remote)]);
 
         let out = pull_in(&state, &backend, &path, Some(synced_hash)).unwrap();
         assert!(out.imported);
@@ -895,7 +1013,7 @@ mod tests {
         let before = state.read(|d| d.clone());
         let conflict_bytes = serde_json::to_vec_pretty(&before).unwrap();
         let backend = FakeBackend::with(&[
-            ("tasks.json", b"{ this is not valid json"),
+            ("tasks_peer.db", b"not a sqlite database at all"),
             (
                 "tasks.sync-conflict-20260530-120000-AAA.json",
                 &conflict_bytes,
@@ -903,7 +1021,7 @@ mod tests {
             ("unrelated.txt", b"ignore me"),
         ]);
 
-        // Garbage tasks.json must NOT clobber the shadow, and must NOT abort the
+        // Garbage replica must NOT clobber the shadow, and must NOT abort the
         // pull: the conflict mirror already done this pass has to survive.
         let out = pull_in(&state, &backend, &path, None).expect("pull is non-fatal on bad remote");
         assert!(out.warning.is_some(), "invalid remote surfaces a non-fatal warning");
@@ -931,19 +1049,71 @@ mod tests {
             updated_at: 1,
             dashboard_view: None,
         });
-        let good_bytes = serde_json::to_vec_pretty(&good).unwrap();
+        let good_bytes = write_peer_db(&good);
         let backend = FakeBackend::with(&[
-            ("tasks_good.json", &good_bytes),
-            ("tasks_bad.json", b"{ not valid json"),
+            ("tasks_good.db", &good_bytes),
+            ("tasks_bad.db", b"not a sqlite database"),
         ]);
 
         let out = pull_in(&state, &backend, &path, None).expect("pull is non-fatal");
         assert!(
-            out.warning.as_deref().unwrap_or("").contains("tasks_bad.json"),
+            out.warning.as_deref().unwrap_or("").contains("tasks_bad.db"),
             "the skipped replica is surfaced as a warning, got {:?}",
             out.warning
         );
         assert!(out.imported, "the healthy replica was still imported");
         assert_eq!(state.read(|d| d.tags.len()), 1, "good replica's tag merged in");
+    }
+
+    #[test]
+    fn pull_merges_legacy_json_peer_when_no_db() {
+        let (_d, state, path) = temp_state();
+        let mut good = Document::default();
+        good.tags.push(crate::model::Tag {
+            id: "t_json".into(),
+            name: "legacy".into(),
+            color: "#000".into(),
+            priority: 0,
+            pinned: false,
+            updated_at: 1,
+            dashboard_view: None,
+        });
+        let good_bytes = serde_json::to_vec_pretty(&good).unwrap();
+        let backend = FakeBackend::with(&[("tasks_legacy.json", &good_bytes)]);
+
+        let out = pull_in(&state, &backend, &path, None).unwrap();
+        assert!(out.imported);
+        assert_eq!(
+            state.read(|d| d.tags[0].id.clone()),
+            "t_json"
+        );
+    }
+
+    #[test]
+    fn push_and_pull_mirror_attachment_subdirectories() {
+        let (dir, state, path) = temp_state();
+        let sub = dir.path().join("attachments_android");
+        std::fs::create_dir_all(&sub).unwrap();
+        let rel = "attachments_android/attachment_a_photo.bin";
+        std::fs::write(dir.path().join(rel), b"blob-bytes").unwrap();
+
+        let backend = FakeBackend::default();
+        let h = push_out(&state, &backend, &path, None).unwrap();
+        assert!(h.is_some());
+        assert_eq!(
+            backend.files.lock().unwrap().get(rel).map(|b| b.as_slice()),
+            Some(b"blob-bytes".as_slice())
+        );
+
+        // Pull into a fresh local folder.
+        let dir2 = tempfile::tempdir().unwrap();
+        let path2 = dir2.path().join("tasks_phone.db");
+        let state2 = AppState::open(path2.clone()).unwrap();
+        let out = pull_in(&state2, &backend, &path2, None).unwrap();
+        assert!(out.imported);
+        assert_eq!(
+            std::fs::read(dir2.path().join(rel)).unwrap(),
+            b"blob-bytes"
+        );
     }
 }
