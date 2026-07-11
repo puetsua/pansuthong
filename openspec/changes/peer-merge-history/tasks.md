@@ -18,4 +18,4 @@
 ## 4. Specs and issue hygiene
 
 - [x] 4.1 Sync delta into `openspec/specs/archive-and-history/spec.md` (or archive/sync per project pattern)
-- [ ] 4.2 Comment on #126 with sidecar rationale and close as not planned; ensure PR references `Fixes #124`
+- [x] 4.2 Comment on #126 with sidecar rationale and close as not planned; ensure PR references `Fixes #124`
