@@ -7,8 +7,6 @@ import { Document, Tag } from "../lib/tauri";
 import { appVersion } from "../lib/platform";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
-// SyncStatus (rendered inside the sidebar) touches the tauri api; stub it out.
-vi.mock("../lib/tauri", () => ({ api: { syncNow: vi.fn() } }));
 // The footer version label reads the app version and opens the release page.
 vi.mock("../lib/platform", () => ({ appVersion: vi.fn() }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));

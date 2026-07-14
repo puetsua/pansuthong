@@ -210,13 +210,6 @@
     "many": "{{count}} sync conflicts",
     "review": "Review →"
   },
-  "syncStatus": {
-    "syncNow": "Sync now",
-    "syncing": "Syncing…",
-    "syncNowTitle": "Re-read data from disk now",
-    "lastSynced": "Last synced: ",
-    "lastEditedTitle": "Data last edited (this view)"
-  },
   "ghostRow": {
     "open": "Open {{title}} (recurring)",
     "startTimer": "Start timer for {{title}}",

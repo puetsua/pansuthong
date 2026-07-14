@@ -216,7 +216,6 @@ pub fn run() {
             commands::get_document,
             commands::show_main_window,
             commands::list_history,
-            commands::sync_now,
             commands::attach_task_files,
             commands::attach_template_files,
             commands::attach_task_bytes,

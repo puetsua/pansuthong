@@ -5,7 +5,6 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { Document, Tag } from "../lib/tauri";
 import { appVersion } from "../lib/platform";
 import { Indexes, openCount } from "../state/indexes";
-import { SyncStatus } from "../components/SyncStatus";
 import { TagEditor } from "../components/TagEditor";
 
 const RELEASES_BASE = "https://github.com/puetsua/pansutong/releases/tag/";
@@ -115,7 +114,6 @@ export function Sidebar({ doc, indexes }: Props) {
             </NavLink>
           </li>
         </ul>
-        <SyncStatus lastModified={doc.last_modified} />
         {version && (
           <button type="button" className="sidebar-version"
                   title={t("sidebar.releaseNotes", { version })}

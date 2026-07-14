@@ -206,13 +206,6 @@
     "many": "{{count}} 個同步衝突",
     "review": "檢視 →"
   },
-  "syncStatus": {
-    "syncNow": "立即同步",
-    "syncing": "同步中…",
-    "syncNowTitle": "立即從磁碟重新讀取資料",
-    "lastSynced": "上次同步：",
-    "lastEditedTitle": "資料上次編輯（此檢視）"
-  },
   "ghostRow": {
     "open": "開啟 {{title}}（週期性）",
     "startTimer": "開始 {{title}} 的計時",

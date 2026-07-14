@@ -70,22 +70,6 @@ pub fn list_history(state: State<'_, AppState>) -> Result<Vec<HistoryEntry>> {
     crate::history::read_all_history(&state.path())
 }
 
-/// Manual "Sync now": re-read the data file from disk immediately instead of
-/// waiting for the polling fallback. Picks up changes a cloud-sync client
-/// (Google Drive) pulled in from another device. Returns the freshest document.
-#[tauri::command]
-pub fn sync_now(
-    state: State<'_, AppState>,
-    config: State<'_, ConfigState>,
-    app: AppHandle,
-) -> DocumentView {
-    let path = state.path();
-    if crate::sync::reload_if_changed(&state, &path) {
-        emit_changed(&app);
-    }
-    document_view(&state, &config)
-}
-
 #[derive(Deserialize)]
 pub struct NewTaskInput {
     pub title: String,

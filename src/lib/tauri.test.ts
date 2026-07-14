@@ -25,11 +25,6 @@ describe("api IPC wrappers — command names & arg keys", () => {
     expect(invokeMock).toHaveBeenCalledWith("get_document");
   });
 
-  it("syncNow → sync_now", async () => {
-    await api.syncNow();
-    expect(invokeMock).toHaveBeenCalledWith("sync_now");
-  });
-
   it("addTask wraps the payload under `input`", async () => {
     await api.addTask({ title: "Buy milk" });
     expect(invokeMock).toHaveBeenCalledWith("add_task", { input: { title: "Buy milk" } });
