@@ -1,4 +1,4 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { DateFormat, DateTimeFormat, TimeFormat } from "./dates";
 import { isAndroid } from "./platform";
@@ -257,8 +257,14 @@ export const api = {
     invoke<Task>("remove_task_attachment", { input: { id, attachment_id: attachmentId } }),
   removeTemplateAttachment: (id: string, attachmentId: string) =>
     invoke<TemplateTask>("remove_template_attachment", { input: { id, attachment_id: attachmentId } }),
-  attachmentUrl: async (path: string): Promise<string> =>
-    convertFileSrc(await invoke<string>("resolve_attachment_path", { path })),
+  // Read an attachment blob's bytes and hand back an object URL for display.
+  // Bytes come over IPC (not the asset protocol), so previews render regardless
+  // of the data folder's path form (non-ASCII, cloud reparse points). The caller
+  // owns the returned URL and MUST revokeObjectURL it when done to avoid a leak.
+  attachmentUrl: async (path: string): Promise<string> => {
+    const bytes = await invoke<ArrayBuffer>("read_attachment", { path });
+    return URL.createObjectURL(new Blob([bytes]));
+  },
   // Persist pasted/dropped in-memory content (clipboard image, or a file the
   // webview only has as bytes) as a managed attachment. Returns the updated
   // entity; the caller diffs its attachments to find the freshly-added one.

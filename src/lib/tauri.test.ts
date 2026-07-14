@@ -30,6 +30,19 @@ describe("api IPC wrappers — command names & arg keys", () => {
     expect(invokeMock).toHaveBeenCalledWith("add_task", { input: { title: "Buy milk" } });
   });
 
+  it("attachmentUrl reads bytes via read_attachment and returns a blob: URL", async () => {
+    invokeMock.mockResolvedValueOnce(new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer as never);
+    // jsdom has no createObjectURL; stub it to observe the Blob and return a URL.
+    const createObjectURL = vi.fn((_blob: Blob) => "blob:stub-url");
+    (URL as unknown as { createObjectURL: unknown }).createObjectURL = createObjectURL;
+
+    const url = await api.attachmentUrl("attachments_dev/attachment_x.png");
+
+    expect(invokeMock).toHaveBeenCalledWith("read_attachment", { path: "attachments_dev/attachment_x.png" });
+    expect(createObjectURL.mock.calls[0][0]).toBeInstanceOf(Blob);
+    expect(url).toBe("blob:stub-url");
+  });
+
   it("updateTask wraps the payload under `input`", async () => {
     const input = { id: "k_1", title: "x", tag_ids: ["t_a"] };
     await api.updateTask(input);

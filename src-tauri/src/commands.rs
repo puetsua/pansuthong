@@ -885,11 +885,23 @@ pub fn remove_template_attachment(
     Ok(updated)
 }
 
+/// Read a managed attachment blob's bytes. Reuses `attachment_abs_path` so the
+/// same managed-path guard (no `..`, no backslash, managed name only) applies as
+/// on every other attachment read, then reads the file directly. Plain file IO
+/// has no asset-protocol canonicalize/glob-scope dependency, so it works when the
+/// data folder sits on a path the asset scope can't match (non-ASCII, cloud
+/// reparse points), which is exactly where the old asset-URL display failed.
+pub(crate) fn read_attachment_bytes(data_path: &Path, relative: &str) -> Result<Vec<u8>> {
+    let abs = attachment_abs_path(data_path, relative)?;
+    Ok(std::fs::read(abs)?)
+}
+
+/// Deliver an attachment blob to the webview as raw bytes (rendered as a
+/// `blob:` URL) rather than via the asset protocol.
 #[tauri::command]
-pub fn resolve_attachment_path(path: String, state: State<'_, AppState>) -> Result<String> {
-    Ok(attachment_abs_path(&state.path(), &path)?
-        .to_string_lossy()
-        .to_string())
+pub fn read_attachment(path: String, state: State<'_, AppState>) -> Result<tauri::ipc::Response> {
+    let bytes = read_attachment_bytes(&state.path(), &path)?;
+    Ok(tauri::ipc::Response::new(bytes))
 }
 
 #[cfg(target_os = "android")]
@@ -2442,11 +2454,6 @@ pub fn set_data_folder(
     let new_path = folder_path.join(crate::config::data_file_name(&config.device_id()));
     state.repoint(new_path.clone(), transfer_mode)?;
     config.set_folder(Some(folder))?;
-    // Allow serving attachments from the newly-chosen folder via the asset
-    // protocol (the default app-data dir is covered by the config scope). Scoped
-    // to the managed-attachment globs only — not the whole folder — so unrelated
-    // files beside the blobs stay unreachable.
-    crate::allow_attachment_scope(&app.asset_protocol_scope(), &folder_path);
     crate::sync::restart(&watcher, &app, new_path);
     emit_changed(&app);
     let _ = app.emit(
@@ -3004,6 +3011,41 @@ mod tests {
         let oversized = vec![0u8; (max + 1) as usize];
         let res = attachment_from_bytes(&data, "dev", max, "big.bin".into(), None, &oversized);
         assert!(res.is_err(), "a file over the cap must be rejected");
+    }
+
+    #[test]
+    fn read_attachment_bytes_round_trips_from_non_ascii_data_folder() {
+        // The exact case that broke asset-protocol display: a data folder whose
+        // path contains non-ASCII characters (e.g. Google Drive's localized
+        // マイドライブ). Plain file IO must still round-trip the blob bytes.
+        let base = tempfile::tempdir().unwrap();
+        let folder = base.path().join("マイドライブ_テスト");
+        std::fs::create_dir_all(&folder).unwrap();
+        let data = folder.join("tasks_dev.json");
+        let payload = b"\x89PNG\r\n\x1a\n not really a png, just bytes";
+        let att = attachment_from_bytes(
+            &data,
+            "dev",
+            1_000_000,
+            "image.png".into(),
+            Some("image/png".into()),
+            payload,
+        )
+        .unwrap();
+        let got = read_attachment_bytes(&data, &att.path).unwrap();
+        assert_eq!(got, payload.to_vec());
+    }
+
+    #[test]
+    fn read_attachment_bytes_rejects_unsafe_and_missing_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("tasks_dev.json");
+        // Same managed-path guard as every other attachment read.
+        assert!(read_attachment_bytes(&data, "../secret").is_err());
+        assert!(read_attachment_bytes(&data, "attachments_dev\\attachment_a.png").is_err());
+        assert!(read_attachment_bytes(&data, "notmanaged.png").is_err());
+        // A well-formed managed path whose blob is absent errors rather than panics.
+        assert!(read_attachment_bytes(&data, "attachments_dev/attachment_missing.png").is_err());
     }
 
     #[test]

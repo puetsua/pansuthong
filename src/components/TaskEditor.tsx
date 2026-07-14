@@ -1004,11 +1004,13 @@ function AttachmentItem({
   const [imgFailed, setImgFailed] = useState(false);
   useEffect(() => {
     let live = true;
+    let objectUrl: string | null = null;
     setImgFailed(false);
     api.attachmentUrl(attachment.path)
-      .then(u => { if (live) setUrl(u); })
+      .then(u => { if (live) { objectUrl = u; setUrl(u); } else URL.revokeObjectURL(u); })
       .catch(() => { if (live) setUrl(null); });
-    return () => { live = false; };
+    // The object URL is owned here; revoke it on unmount / path change to avoid a leak.
+    return () => { live = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [attachment.path]);
   const isImage = isImageAttachment(attachment);
   // Only reserve the image column when we'll actually show a preview, so a
@@ -1061,11 +1063,13 @@ function MarkdownImage({ path, alt, onOpen }: {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let live = true;
+    let objectUrl: string | null = null;
     setFailed(false);
     api.attachmentUrl(path)
-      .then(u => { if (live) setUrl(u); })
+      .then(u => { if (live) { objectUrl = u; setUrl(u); } else URL.revokeObjectURL(u); })
       .catch(() => { if (live) setFailed(true); });
-    return () => { live = false; };
+    // The object URL is owned here; revoke it on unmount / path change to avoid a leak.
+    return () => { live = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [path]);
   // A managed image whose file is gone (deleted attachment) resolves to a URL
   // that 404s — surface it as a "broken link" marker, not a silent gap, so the

@@ -8,3 +8,11 @@ import "./i18n";
 if (typeof HTMLMediaElement !== "undefined") {
   HTMLMediaElement.prototype.play = () => Promise.resolve();
 }
+
+// jsdom implements neither URL.createObjectURL nor revokeObjectURL; attachment
+// previews build an object URL from the blob's bytes and revoke it on cleanup.
+// Stub both so components that render attachments can mount/unmount in tests.
+if (typeof URL !== "undefined") {
+  URL.createObjectURL = (() => "blob:test") as typeof URL.createObjectURL;
+  URL.revokeObjectURL = (() => {}) as typeof URL.revokeObjectURL;
+}

@@ -23,16 +23,6 @@ const MAIN_MIN_WIDTH: f64 = 400.0;
 #[cfg(desktop)]
 const MAIN_MIN_HEIGHT: f64 = 500.0;
 
-/// Allow the asset protocol to serve only managed attachment blobs under `parent`:
-/// flat legacy `attachment_*` and per-device `attachments_*/attachment_*`. Mirrors
-/// the static scope in tauri.conf.json for a folder whose path is only known at
-/// runtime (the default app-data dir, or a user-chosen sync folder), without
-/// exposing unrelated files that sit beside the blobs (e.g. tasks_*.json).
-fn allow_attachment_scope(scope: &tauri::scope::fs::Scope, parent: &std::path::Path) {
-    let _ = scope.allow_file(parent.join("attachment_*"));
-    let _ = scope.allow_file(parent.join("attachments_*").join("attachment_*"));
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -113,18 +103,10 @@ pub fn run() {
             // attachments_<device>/ folder before the UI can reference them.
             commands::migrate_attachments_to_subdir(&state, &config.device_id);
             app.manage(state);
-            // Attachments live in attachments_<device>/ beside the data file and
-            // are served to the webview via the asset protocol (convertFileSrc).
-            // The default app-data dir is covered by the config scope ($APPDATA),
-            // but a user-chosen folder is only known at runtime, so allow it here
-            // too. Scope to the managed-attachment globs (flat legacy + per-device
-            // subdirs, including other devices' synced ones) rather than the whole
-            // folder recursively, so the webview can't fetch unrelated files that
-            // happen to sit beside the blobs (e.g. tasks_*.json). Mirrors the
-            // static asset scope in tauri.conf.json.
-            if let Some(parent) = path.parent() {
-                allow_attachment_scope(&app.asset_protocol_scope(), parent);
-            }
+            // Attachment blobs live in attachments_<device>/ beside the data file
+            // and are served to the webview as raw bytes via the `read_attachment`
+            // command (rendered as blob: URLs), so there is no asset-protocol path
+            // scope to maintain here.
             app.manage(crate::config::ConfigState::new(&default_dir, config));
 
             let handle = app.handle().clone();
@@ -222,7 +204,7 @@ pub fn run() {
             commands::attach_template_bytes,
             commands::remove_task_attachment,
             commands::remove_template_attachment,
-            commands::resolve_attachment_path,
+            commands::read_attachment,
             commands::reveal_attachment,
             commands::open_attachment,
             commands::pick_task_attachments,
