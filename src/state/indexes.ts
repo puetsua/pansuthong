@@ -224,13 +224,26 @@ export function buildIndexes(doc: Document): Indexes {
     return t.due_date != null && t.due_date <= todayIso;        // due today or overdue
   };
 
+  // Time tracking pulls an open task into Today independent of its dates: a running
+  // timer (open entry) shows the task you're working on *now*, and a task tracked
+  // earlier in today's logical day stays put after the timer stops — until the day
+  // rolls over. Entry timestamps are local ISO strings, so logicalDayOf attributes
+  // them the same way completions are (honoring the day-start hour). Both start and
+  // end are checked so an overnight session stopped this morning still counts.
+  const trackedToday = (t: Task, todayIso: string): boolean =>
+    (t.time_entries ?? []).some(e =>
+      e.end == null
+      || logicalDayOf(e.start, dsh) === todayIso
+      || logicalDayOf(e.end, dsh) === todayIso,
+    );
+
   const inToday = (t: Task, todayIso: string): boolean => {
     if (isDone(t)) {
       if (logicalDayOf(t.completed_at ?? "", dsh) !== todayIso) return false;
       // Only keep it if it belonged to Today's list while it was open.
       return coversToday(t, todayIso);
     }
-    return coversToday(t, todayIso);
+    return coversToday(t, todayIso) || trackedToday(t, todayIso);
   };
 
   const today = (todayIso: string): Task[] =>

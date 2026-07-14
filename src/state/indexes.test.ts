@@ -353,6 +353,62 @@ describe("templates (#71)", () => {
   });
 });
 
+// A date-less task carrying time entries, so only tracking can pull it into Today.
+describe("time-tracked tasks appear in Today independent of dates", () => {
+  const TODAY_ISO = "2026-05-28";
+  const mk = (id: string, entries: { start: string; end?: string }[]): Task => ({
+    id, title: id, notes: "", tag_ids: [], created_at: "1970-01-01T00:00:00+00:00",
+    time_entries: entries.map((e, i) => ({ id: `${id}_e${i}`, ...e })),
+  });
+  const withTasks = (tasks: Task[]): Document => doc({
+    settings: { theme: "auto", sort_order: "priority" }, tasks,
+  });
+
+  it("a running timer surfaces an undated task in Today", () => {
+    // Open entry (no end) => the timer is running now; no start/due date otherwise.
+    const ix = buildIndexes(withTasks([mk("k_run", [{ start: "2026-05-28T09:00:00+00:00" }])]));
+    expect(ix.today(TODAY_ISO).map(t => t.id)).toEqual(["k_run"]);
+  });
+
+  it("a task tracked-then-stopped today stays; a prior-day-only entry does not", () => {
+    const ix = buildIndexes(withTasks([
+      mk("k_stopped_today", [{ start: "2026-05-28T08:00:00+00:00", end: "2026-05-28T08:30:00+00:00" }]),
+      mk("k_yesterday",     [{ start: "2026-05-27T08:00:00+00:00", end: "2026-05-27T08:30:00+00:00" }]),
+    ]));
+    expect(ix.today(TODAY_ISO).map(t => t.id)).toEqual(["k_stopped_today"]);
+  });
+
+  it("an entry ending today (started yesterday) keeps the task in Today", () => {
+    const ix = buildIndexes(withTasks([
+      mk("k_overnight", [{ start: "2026-05-27T23:30:00+00:00", end: "2026-05-28T00:10:00+00:00" }]),
+    ]));
+    expect(ix.today(TODAY_ISO).map(t => t.id)).toEqual(["k_overnight"]);
+  });
+
+  it("attributes an entry to the logical day, honoring day_start_hour (#109)", () => {
+    // Day starts at 3am. An entry at 00:15 on 06-11 belongs to the 06-10 logical day,
+    // so it surfaces in 06-10's Today and is absent from 06-11's (rollover drop).
+    const d: Document = {
+      version: 2, last_modified: undefined,
+      settings: { theme: "auto", sort_order: "priority", day_start_hour: 3 }, tags: [],
+      tasks: [mk("k_after_midnight", [{ start: "2026-06-11T00:15:00+08:00", end: "2026-06-11T00:45:00+08:00" }])],
+      template_tasks: [],
+    };
+    const ix = buildIndexes(d);
+    expect(ix.today("2026-06-10").map(t => t.id)).toEqual(["k_after_midnight"]);
+    expect(ix.today("2026-06-11").map(t => t.id)).toEqual([]);
+  });
+
+  it("does not resurface a completed (archived) task tracked on a prior day", () => {
+    // Completion is unchanged: a done task tracked yesterday stays out of Today.
+    const done = mk("k_done", [{ start: "2026-05-27T08:00:00+00:00", end: "2026-05-27T08:30:00+00:00" }]);
+    done.completed_at = "2026-05-27T09:00:00+00:00";
+    const ix = buildIndexes(withTasks([done]));
+    expect(ix.today(TODAY_ISO).map(t => t.id)).toEqual([]);
+    expect(ix.archived.map(t => t.id)).toEqual(["k_done"]);
+  });
+});
+
 function doc(over: Partial<Document>): Document {
   return {
     version: 7,
