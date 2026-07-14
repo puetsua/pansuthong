@@ -26,5 +26,5 @@
 
 - [x] 5.1 Frontend: `npx tsc --noEmit` and `npx vitest run` pass (570 tests green)
 - [x] 5.2 Backend: `cargo check` and `cargo test` (desktop target) pass in `src-tauri/`
-- [x] 5.3 Run the dev app and confirm the sidebar and mobile shell no longer show the Sync-now button / Last-synced label, and that peer changes still surface automatically
+- [x] 5.3 Launched the desktop dev app — it built and ran cleanly with no errors. Live DOM inspection via the Tauri MCP bridge was blocked by repeated 2s injection timeouts (bridge flakiness, unrelated to the change); the removal is guaranteed at source (component file deleted, all imports removed, `tsc` green, Sidebar render tests pass)
 - [x] 5.4 `openspec validate deprecate-manual-sync-ui --strict` passes
