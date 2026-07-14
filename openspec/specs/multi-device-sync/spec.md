@@ -14,9 +14,7 @@ Document merge: per-device history logs (`history_<device>.jsonl`) and attachmen
 blobs (`attachments_<device>/`). Those use different consistency rules (see
 `archive-and-history` and `attachments`); there is no single master file for all
 synced data.
-
 ## Requirements
-
 ### Requirement: Per-device replicas
 
 The system SHALL write only this device's replica, named from its stable
@@ -49,11 +47,17 @@ tombstones so a deleted entity is not resurrected by a stale replica.
 ### Requirement: Watcher and polling fallback
 
 The system SHALL detect data-file changes via a filesystem watcher and also poll
-periodically, because native FS events are unreliable on cloud-sync folders.
+periodically, because native FS events are unreliable on cloud-sync folders. Freshness
+is guaranteed by these automatic mechanisms alone; there is no user-facing manual
+"sync now" trigger.
 
-#### Scenario: Manual sync re-reads immediately
-- **WHEN** `sync_now` is invoked
-- **THEN** the data file is re-read at once and, if changed, a store-changed event is emitted
+#### Scenario: Watcher detects a peer change
+- **WHEN** a peer replica in the data folder changes on disk
+- **THEN** the filesystem watcher re-reads it and, if the merged document changed, a store-changed event is emitted
+
+#### Scenario: Polling picks up changes the watcher missed
+- **WHEN** a cloud-sync client pulls in a peer change without firing a native FS event
+- **THEN** the periodic poll re-reads the data file and, if the merged document changed, a store-changed event is emitted
 
 ### Requirement: Whole-document conflict files
 
@@ -155,3 +159,4 @@ device's owned files from the old folder (`tasks_<device>.db` / legacy own
 - **WHEN** the user clears the data folder back to the default app-data directory
   and the operation would seed or leave own local data behind
 - **THEN** the same Copy / Move / Cancel choice applies before repointing
+
