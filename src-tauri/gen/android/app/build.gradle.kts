@@ -13,6 +13,30 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// One Gradle project, two Tauri identifiers: production `net.puetsua.pansutong`
+// (CI release) and `net.puetsua.pansutong.dev` (local testing via
+// tauri.android-dev.conf.json). The Tauri CLI writes the merged config into
+// assets before invoking Gradle and generates TauriActivity under the ACTIVE
+// identifier's package, so the two MainActivity variants can never compile in
+// the same build — the inactive package tree is excluded below. Defaults to
+// production when the CLI hasn't run (e.g. a bare Android Studio sync).
+val prodAppId = "net.puetsua.pansutong"
+val devAppId = "$prodAppId.dev"
+val mergedTauriConf = file("src/main/assets/tauri.conf.json")
+val isDevId = mergedTauriConf.exists() &&
+    Regex("\"identifier\"\\s*:\\s*\"${Regex.escape(devAppId)}\"")
+        .containsMatchIn(mergedTauriConf.readText())
+val tauriAppId = if (isDevId) devAppId else prodAppId
+val tauriAppLabel = if (isDevId) "Pansuthong Dev" else "Pansuthong"
+// The inactive identifier's Kotlin sources: its MainActivity plus any stale
+// CLI-generated tree from a previous build of the other identifier — those
+// classes reference a TauriActivity that doesn't exist in this build.
+val inactiveIdSources = if (isDevId) {
+    listOf("net/puetsua/pansutong/MainActivity.kt", "net/puetsua/pansutong/generated/**")
+} else {
+    listOf("net/puetsua/pansutong/dev/**")
+}
+
 // Release signing. CI writes keystore.properties + the keystore from secrets
 // (see .github/workflows/release.yml). When the file is absent (local dev),
 // the release build stays unsigned rather than failing.
@@ -25,10 +49,15 @@ val keystoreProperties = Properties().apply {
 
 android {
     compileSdk = 36
-    namespace = "net.puetsua.pansutong"
+    // Follows the active identifier: the CLI-generated Kotlin (Logger.kt) does
+    // an unqualified BuildConfig reference, so BuildConfig must be generated in
+    // the same package the CLI writes its sources into.
+    namespace = tauriAppId
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        applicationId = "net.puetsua.pansutong"
+        manifestPlaceholders["mainActivityClass"] = "$tauriAppId.MainActivity"
+        manifestPlaceholders["appLabel"] = tauriAppLabel
+        applicationId = tauriAppId
         minSdk = 24
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
@@ -78,6 +107,11 @@ android {
 
 rust {
     rootDirRel = "../../../"
+}
+
+// Compile only the active identifier's sources (see inactiveIdSources above).
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    exclude(inactiveIdSources)
 }
 
 dependencies {

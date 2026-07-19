@@ -14,6 +14,17 @@
 
 Use `npm run tauri <subcommand>`, not a global `tauri`.
 
+`gen/android` is one committed Gradle project serving BOTH identifiers: production
+(`net.puetsua.pansutong`, CI release) and dev (`net.puetsua.pansutong.dev`, local
+testing). `app/build.gradle.kts` reads the CLI-generated
+`src/main/assets/tauri.conf.json` to pick applicationId/namespace/label/activity and to
+exclude the inactive identifier's Kotlin sources; `scripts/tauri.mjs` deletes the
+inactive identifier's `generated/` tree before Android builds so tauri's build script
+regenerates `TauriActivity.kt` for the active one (tauri has no rerun-if-env-changed
+for the kotlin out dir). Never delete + re-init `gen/android` for one identifier; keep
+both `MainActivity.kt` variants. Always build through `npm run tauri`, not a bare
+`tauri` CLI, or the generated-tree cleanup is skipped.
+
 Do not touch the production app (`Pansuthong`, `net.puetsua.pansutong`) during testing. Use only `Pansuthong Dev` / `PansuthongDev` (`net.puetsua.pansutong.dev`) unless the user explicitly asks for production work.
 
 ## Machine Toolchain
