@@ -279,6 +279,20 @@ impl AppState {
                 write_local_conflict(&g.path, &local_bytes)?;
             }
         }
+        // Mirror `reload_replicas_if_changed`: peer-visible changes adopted from
+        // the synced folder must land in History too — without this, the Android
+        // SAF pull path never surfaced other devices' edits in the History view.
+        let ts = crate::model::now_ms();
+        let history = crate::history::entries_for_change(&g.doc, &doc, ts);
+        match crate::history::filter_unseen_entries(&g.path, history) {
+            Ok(mut filtered) => {
+                crate::history::stamp_device(&mut filtered, &g.device_id, &g.device_name);
+                if let Err(e) = crate::history::append_history(&g.path, &filtered) {
+                    eprintln!("warning: failed to append adopt history: {e}");
+                }
+            }
+            Err(e) => eprintln!("warning: failed to dedup adopt history: {e}"),
+        }
         let inner = &mut *g;
         inner.doc = doc;
         crate::db::write_document(&mut inner.conn, &inner.doc)?;
@@ -539,6 +553,40 @@ mod tests {
         let mut doc = Document::default();
         doc.tasks.push(sample_task(task_id));
         fs::write(path, serde_json::to_vec_pretty(&doc).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn adopt_synced_appends_history_for_incoming_changes() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path.clone()).unwrap();
+
+        // Adopt a remote doc containing a task this device has never seen
+        // (the Android SAF pull path). The change must land in History.
+        let mut remote = Document::default();
+        remote.tasks.push(sample_task("k_remote"));
+        state.adopt_synced(remote, None).unwrap();
+
+        let entries = crate::history::read_all_history(&path).unwrap();
+        assert!(
+            entries
+                .iter()
+                .any(|e| e.event == "task.created" && e.entity_id == "k_remote"),
+            "adopting a synced doc must surface the incoming change in History, got {entries:?}"
+        );
+
+        // Re-adopting the same content must not duplicate the entry (dedup key).
+        let again = state.read(|d| d.clone());
+        state.adopt_synced(again, None).unwrap();
+        let entries = crate::history::read_all_history(&path).unwrap();
+        assert_eq!(
+            entries
+                .iter()
+                .filter(|e| e.event == "task.created" && e.entity_id == "k_remote")
+                .count(),
+            1,
+            "same dedup_key must not append twice"
+        );
     }
 
     #[test]

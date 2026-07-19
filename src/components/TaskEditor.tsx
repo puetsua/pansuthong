@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import { api, Attachment, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
+import { isAndroid } from "../lib/platform";
 import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, estimatedSecondsFormError, estimatedSecondsOrUndefined, formatEstimatedSecondsInput, isEditorDirty, maxDayForMonth, offsetFormError, recurrenceFormError, recurrenceFromForm, startOffsetDisabled } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
@@ -1018,8 +1019,15 @@ function AttachmentItem({
   // leaving a permanent blank gap.
   const showImage = isImage && url != null && !imgFailed;
   // Clicking the filename reveals the file in the OS file manager (both images
-  // and files); clicking the image thumbnail enlarges it in the lightbox.
+  // and files); clicking the image thumbnail enlarges it in the lightbox. On
+  // Android there is no file manager to reveal in — the same command exports a
+  // copy via the system save dialog, so the tooltip says what actually happens.
+  const [android, setAndroid] = useState(false);
+  useEffect(() => { void isAndroid().then(setAndroid); }, []);
   const reveal = () => { void api.revealAttachment(attachment.path); };
+  const revealTitle = android
+    ? t("taskEditor.saveAttachmentCopy", { name: attachment.name })
+    : t("taskEditor.revealAttachment", { name: attachment.name });
   return (
     <div className={showImage ? "te-attachment image" : "te-attachment"}>
       {showImage && (
@@ -1031,7 +1039,7 @@ function AttachmentItem({
       )}
       <div className="te-attachment-meta">
         <button type="button" className="te-attachment-name"
-                title={t("taskEditor.revealAttachment", { name: attachment.name })}
+                title={revealTitle}
                 onClick={reveal}>
           {attachment.name}
         </button>

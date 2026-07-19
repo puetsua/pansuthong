@@ -390,6 +390,7 @@
     "deleteAttachmentConfirm": "刪除 {{name}}？這會移除檔案。",
     "insertAttachment": "插入 {{name}} 至備註",
     "revealAttachment": "在檔案管理員中顯示 {{name}}",
+    "saveAttachmentCopy": "另存 {{name}} 複本",
     "enlargeImage": "放大 {{name}}",
     "closeImage": "關閉圖片",
     "savingAttachment": "正在儲存附件…",

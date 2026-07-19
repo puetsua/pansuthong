@@ -395,6 +395,7 @@
     "deleteAttachmentConfirm": "Delete {{name}}? This removes the file.",
     "insertAttachment": "Insert {{name}} into notes",
     "revealAttachment": "Show {{name}} in file manager",
+    "saveAttachmentCopy": "Save a copy of {{name}}",
     "enlargeImage": "Enlarge {{name}}",
     "closeImage": "Close image",
     "savingAttachment": "Saving attachment…",

@@ -250,6 +250,15 @@ pub fn pull_in(
         }
     }
 
+    // Attachment tombstones adopted from the remote may have dropped live refs.
+    // GC the local blobs now, or the next push's attachment mirror re-uploads a
+    // file another device already deleted, resurrecting it in the synced folder.
+    // Skipped on a degraded pull: with the remote only partially read, "locally
+    // unreferenced" is not yet trustworthy.
+    if warning.is_none() {
+        crate::commands::gc_unreferenced_attachment_blobs(state);
+    }
+
     Ok(PullOutcome {
         imported: imported || attachments_imported,
         new_synced_hash: new_hash,
@@ -343,6 +352,9 @@ pub fn switch_to_remote(
         Some(remote) => (true, Some(state.load_replacing_local(remote)?)),
         None => (false, None),
     };
+    // Same as pull_in: blobs the switched-to document doesn't reference must not
+    // linger locally, or the next push re-uploads them into the new folder.
+    crate::commands::gc_unreferenced_attachment_blobs(state);
     Ok(PullOutcome {
         imported: imported || attachments_imported,
         new_synced_hash,
@@ -1048,6 +1060,33 @@ mod tests {
         );
     }
 
+    /// A task whose single attachment blob lives at `rel`.
+    fn task_with_attachment(rel: &str) -> crate::model::Task {
+        crate::model::Task {
+            id: "k_att".into(),
+            title: "with attachment".into(),
+            due_date: None,
+            due_time: None,
+            start_date: None,
+            start_time: None,
+            notes: String::new(),
+            attachments: vec![crate::model::Attachment {
+                id: "a_1".into(),
+                name: "photo.bin".into(),
+                path: rel.into(),
+                mime_type: None,
+                size: Some(10),
+                created_at: 1,
+            }],
+            tag_ids: Vec::new(),
+            estimated_seconds: None,
+            created_at: 1,
+            completed_at: None,
+            updated_at: 1,
+            time_entries: Vec::new(),
+        }
+    }
+
     #[test]
     fn push_and_pull_mirror_attachment_subdirectories() {
         let (dir, state, path) = temp_state();
@@ -1055,6 +1094,14 @@ mod tests {
         std::fs::create_dir_all(&sub).unwrap();
         let rel = "attachments_android/attachment_a_photo.bin";
         std::fs::write(dir.path().join(rel), b"blob-bytes").unwrap();
+        // The blob must be referenced by the document, or the pull-side GC
+        // (correctly) treats it as an orphan and removes it.
+        state
+            .write(|d| {
+                d.tasks.push(task_with_attachment(rel));
+                Ok(())
+            })
+            .unwrap();
 
         let backend = FakeBackend::default();
         let h = push_out(&state, &backend, &path, None).unwrap();
@@ -1073,6 +1120,52 @@ mod tests {
         assert_eq!(
             std::fs::read(dir2.path().join(rel)).unwrap(),
             b"blob-bytes"
+        );
+    }
+
+    #[test]
+    fn pull_gcs_tombstoned_blob_so_push_cannot_resurrect_it() {
+        // Device A removed an attachment: the remote replica carries the
+        // tombstone and A's GC already deleted the blob from the synced folder.
+        // This device still holds the blob locally; after pulling the tombstone
+        // the blob must be GC'd here too — otherwise the next push's attachment
+        // mirror re-uploads the file A just deleted (the resurrection bug).
+        let (dir, state, path) = temp_state();
+        let rel = "attachments_android/attachment_a_photo.bin";
+        std::fs::create_dir_all(dir.path().join("attachments_android")).unwrap();
+        std::fs::write(dir.path().join(rel), b"blob-bytes").unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(task_with_attachment(rel));
+                Ok(())
+            })
+            .unwrap();
+        let synced_hash = state.read(|d| content_hash(d));
+
+        // Remote: same task, attachment removed + tombstoned, newer edit.
+        let mut remote_doc = state.read(|d| d.clone());
+        remote_doc.tasks[0].attachments.clear();
+        remote_doc.tasks[0].updated_at = 2;
+        remote_doc.deleted_attachments.push(crate::model::Tombstone {
+            id: "a_1".into(),
+            deleted_at: 2,
+            deleted_by: None,
+        });
+        let remote = write_peer_db(&remote_doc);
+        let backend = FakeBackend::with(&[("tasks_peer.db", &remote)]);
+
+        let out = pull_in(&state, &backend, &path, Some(synced_hash)).unwrap();
+        assert!(out.imported);
+        assert!(
+            !dir.path().join(rel).exists(),
+            "tombstoned blob must be GC'd from the local mirror"
+        );
+
+        // The follow-up push must not re-upload the deleted blob.
+        push_out(&state, &backend, &path, out.new_synced_hash).unwrap();
+        assert!(
+            !backend.files.lock().unwrap().contains_key(rel),
+            "push must not resurrect a blob the remote deleted"
         );
     }
 }

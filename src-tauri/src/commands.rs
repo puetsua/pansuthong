@@ -756,37 +756,93 @@ pub fn attach_template_bytes(
     Ok(updated)
 }
 
-/// Reveal an attachment in the OS file manager (Explorer/Finder). Desktop only;
-/// on mobile (no file manager) it degrades to opening the file. Routed through
-/// Rust so no opener ACL permission lands in the shared Android capabilities.
-#[tauri::command]
-pub fn reveal_attachment(path: String, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
-    use tauri_plugin_opener::OpenerExt;
-    let abs = attachment_abs_path(&state.path(), &path)?;
-    #[cfg(desktop)]
-    {
-        app.opener()
-            .reveal_item_in_dir(&abs)
-            .map_err(attachment_err)?;
-    }
-    #[cfg(not(desktop))]
-    {
-        app.opener()
-            .open_path(abs.to_string_lossy().to_string(), None::<&str>)
-            .map_err(attachment_err)?;
-    }
-    Ok(())
+/// Display name + MIME type for the attachment stored at `path`, looked up in
+/// the document so the Android save dialog can suggest the original filename
+/// rather than the managed `attachment_<id>_…` blob name.
+#[cfg(target_os = "android")]
+fn attachment_display_meta(state: &AppState, path: &str) -> (String, Option<String>) {
+    state.read(|d| {
+        d.tasks
+            .iter()
+            .flat_map(|t| t.attachments.iter())
+            .chain(d.template_tasks.iter().flat_map(|t| t.attachments.iter()))
+            .find(|a| a.path == path)
+            .map(|a| (a.name.clone(), a.mime_type.clone()))
+            .unwrap_or_else(|| {
+                let fallback = path.rsplit('/').next().unwrap_or(path).to_string();
+                (fallback, None)
+            })
+    })
 }
 
-/// Open an attachment in its default application.
-#[tauri::command]
-pub fn open_attachment(path: String, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
-    use tauri_plugin_opener::OpenerExt;
-    let abs = attachment_abs_path(&state.path(), &path)?;
-    app.opener()
-        .open_path(abs.to_string_lossy().to_string(), None::<&str>)
+/// Android: export the blob via the system "save as" dialog (SAF
+/// ACTION_CREATE_DOCUMENT). App-private files can't be handed to other apps as
+/// a plain path — an ACTION_VIEW intent on it resolves to nothing — so saving a
+/// copy the user can open from their file manager is the supported route.
+/// Cancelling the dialog is a no-op, not an error.
+#[cfg(target_os = "android")]
+async fn export_attachment_android(
+    app: &AppHandle,
+    abs: std::path::PathBuf,
+    name: String,
+    mime_type: Option<String>,
+) -> Result<()> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+    let fs = app.android_fs_async();
+    let picked = fs
+        .file_picker()
+        .save_file(None, &name, mime_type.as_deref(), false)
+        .await
         .map_err(attachment_err)?;
-    Ok(())
+    let Some(uri) = picked else { return Ok(()) };
+    let bytes = std::fs::read(&abs)?;
+    fs.write(&uri, &bytes).await.map_err(attachment_err)
+}
+
+/// Reveal an attachment in the OS file manager (Explorer/Finder) on desktop; on
+/// Android it exports a copy via the system save dialog (see
+/// `export_attachment_android`). Routed through Rust so no opener ACL permission
+/// lands in the shared Android capabilities.
+#[tauri::command]
+pub async fn reveal_attachment(
+    path: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<()> {
+    let abs = attachment_abs_path(&state.path(), &path)?;
+    #[cfg(target_os = "android")]
+    {
+        let (name, mime_type) = attachment_display_meta(&state, &path);
+        export_attachment_android(&app, abs, name, mime_type).await
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        app.opener().reveal_item_in_dir(&abs).map_err(attachment_err)
+    }
+}
+
+/// Open an attachment in its default application; on Android it exports a copy
+/// via the system save dialog instead (see `export_attachment_android`).
+#[tauri::command]
+pub async fn open_attachment(
+    path: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<()> {
+    let abs = attachment_abs_path(&state.path(), &path)?;
+    #[cfg(target_os = "android")]
+    {
+        let (name, mime_type) = attachment_display_meta(&state, &path);
+        export_attachment_android(&app, abs, name, mime_type).await
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        app.opener()
+            .open_path(abs.to_string_lossy().to_string(), None::<&str>)
+            .map_err(attachment_err)
+    }
 }
 
 #[derive(Deserialize)]
