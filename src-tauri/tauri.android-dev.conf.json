@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Pansutong Dev",
+  "productName": "Pansuthong Dev",
   "identifier": "net.puetsua.pansutong.dev",
   "app": {
     "security": {

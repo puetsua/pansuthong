@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pansutong — Architecture Overview</title>
+  <title>Pansuthong — Architecture Overview</title>
   <style>
     :root {
       --bg: #f6f5f2;
@@ -303,7 +303,7 @@
 <body>
   <div class="wrap">
     <header class="doc-header">
-      <h1>Pansutong — Architecture Overview</h1>
+      <h1>Pansuthong — Architecture Overview</h1>
       <p class="meta">
         Tauri 2 task tracker · Windows desktop + Android · React 19 / Vite frontend · Rust backend
         (<code>pansutong</code> / <code>pansutong_lib</code>)
@@ -328,13 +328,13 @@
     <section id="product">
       <h2>1. Product</h2>
       <p>
-        Pansutong is a local-first task tracker. Tasks and tags are the product center
+        Pansuthong is a local-first task tracker. Tasks and tags are the product center
         (no Projects). Views are computed queries over the in-memory document — they are
         never persisted as lists.
       </p>
       <ul>
         <li><strong>IDs:</strong> production <code>net.puetsua.pansutong</code>;
-          testing target <code>net.puetsua.pansutong.dev</code> (Pansutong Dev only).</li>
+          testing target <code>net.puetsua.pansutong.dev</code> (Pansuthong Dev only).</li>
         <li><strong>Frontend:</strong> <code>src/</code> — React 19, TypeScript, Vite.</li>
         <li><strong>Backend:</strong> <code>src-tauri/</code> — Rust / Tauri 2 commands, SQLite store, sync.</li>
         <li><strong>Wire types:</strong> Rust <code>model.rs</code> ↔ TS <code>src/lib/tauri.ts</code>.</li>

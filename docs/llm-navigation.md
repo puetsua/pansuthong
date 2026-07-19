@@ -17,7 +17,7 @@ Load this file after `AGENTS.md`; then open only the topic doc needed.
 - `src/state/indexes.ts` - derived views and sorting
 - `src-tauri/src/commands.rs` - validation and mutations
 - `src-tauri/src/lib.rs` - app setup and command registration
-- `src-tauri/tauri.dev.conf.json` - `Pansutong Dev` testing app config
+- `src-tauri/tauri.dev.conf.json` - `Pansuthong Dev` testing app config
 - `schemas/tasks.schema.json` - external `tasks.json` contract
 
 `docs/superpowers/` was removed; it held generated planning artifacts, not durable navigation docs.

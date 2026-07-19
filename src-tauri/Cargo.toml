@@ -1,7 +1,7 @@
 [package]
 name = "pansutong"
 version = "0.1.0"
-description = "Pansutong - cross-platform task tracker"
+description = "Pansuthong - cross-platform task tracker"
 authors = ["you"]
 edition = "2021"
 license = "CC-BY-NC-4.0"

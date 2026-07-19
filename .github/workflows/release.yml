@@ -187,7 +187,7 @@ jobs:
         run: |
           mkdir -p dist-apk
           cp src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk \
-             "dist-apk/Pansutong_${VERSION}_universal.apk"
+             "dist-apk/Pansuthong_${VERSION}_universal.apk"
 
       - name: Publish APK to the release
         uses: softprops/action-gh-release@v2

@@ -20,10 +20,10 @@ vi.mock("../lib/tauri", async (importOriginal) => {
     api: {
       updateSettings: vi.fn().mockResolvedValue(undefined),
       getDataLocation: vi.fn().mockResolvedValue({
-        folder: "C:\\Sync\\Pansutong",
+        folder: "C:\\Sync\\Pansuthong",
         device_id: "device-abc",
-        folder_path: "C:\\Sync\\Pansutong",
-        effective_path: "C:\\Sync\\Pansutong\\tasks_device-abc.json",
+        folder_path: "C:\\Sync\\Pansuthong",
+        effective_path: "C:\\Sync\\Pansuthong\\tasks_device-abc.json",
       }),
       pickDataFolder,
       setDataFolder,
@@ -67,8 +67,8 @@ describe("SettingsView data location", () => {
     render(<SettingsView doc={doc} />);
 
     await waitFor(() => expect(screen.getByText("device-abc")).toBeTruthy());
-    expect(screen.getByText("C:\\Sync\\Pansutong")).toBeTruthy();
-    expect(screen.queryByText("C:\\Sync\\Pansutong\\tasks_device-abc.json")).toBeNull();
+    expect(screen.getByText("C:\\Sync\\Pansuthong")).toBeTruthy();
+    expect(screen.queryByText("C:\\Sync\\Pansuthong\\tasks_device-abc.json")).toBeNull();
   });
 
   it("shows Copy / Move / Cancel after picking a folder; Cancel does not invoke", async () => {

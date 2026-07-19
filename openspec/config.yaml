@@ -1,7 +1,7 @@
 schema: spec-driven
 
 context: |
-  Pansutong is a Tauri 2 task tracker for Windows desktop and Android.
+  Pansuthong is a Tauri 2 task tracker for Windows desktop and Android.
   Frontend: React 19 + TypeScript + Vite (src/). Backend: Rust/Tauri (src-tauri/).
   Rust crate `pansutong`; lib `pansutong_lib`. Prod id net.puetsua.pansutong; dev id net.puetsua.pansutong.dev.
 

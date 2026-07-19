@@ -4,13 +4,13 @@ Small entrypoint for future coding agents. Load only the topic docs needed for t
 
 ## Project
 
-Pansutong is a Tauri 2 task tracker for Windows desktop and Android.
+Pansuthong is a Tauri 2 task tracker for Windows desktop and Android.
 
 - Frontend: React 19 + TypeScript + Vite in `src/`
 - Backend: Rust/Tauri in `src-tauri/`
 - Rust crate: `pansutong`; lib: `pansutong_lib`
 - Production id: `net.puetsua.pansutong`; dev id: `net.puetsua.pansutong.dev`
-- Testing target: `Pansutong Dev` / `PansutongDev` only. Never launch, modify data for, uninstall, reset, or otherwise touch the production `Pansutong` app unless the user explicitly asks.
+- Testing target: `Pansuthong Dev` / `PansuthongDev` only. Never launch, modify data for, uninstall, reset, or otherwise touch the production `Pansuthong` app unless the user explicitly asks.
 
 ## Start Here
 

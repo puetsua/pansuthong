@@ -3,7 +3,7 @@ name: setup-tauri-android
 description: One-time setup checklist for getting Tauri Android builds working on this machine. Use when the user wants to build/run on Android for the first time, or when `npm run tauri android dev` fails with missing-toolchain errors.
 ---
 
-# Tauri Android setup for Pansutong
+# Tauri Android setup for Pansuthong
 
 Walk through these checks **in order**. Stop and prompt the user if a step would install something or modify their env.
 

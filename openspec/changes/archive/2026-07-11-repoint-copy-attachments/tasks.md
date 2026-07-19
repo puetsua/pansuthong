@@ -16,4 +16,4 @@
 ## 4. Verify
 
 - [x] 4.1 Run focused Rust tests for store/attachment/repoint coverage (`cargo test` for the new modules/tests)
-- [ ] 4.2 Smoke on Pansutong Dev only: set data folder to empty dir with attachments present; confirm opens still work and old folder still has blobs
+- [ ] 4.2 Smoke on Pansuthong Dev only: set data folder to empty dir with attachments present; confirm opens still work and old folder still has blobs

@@ -2,7 +2,7 @@
 
 ## Commands
 
-- `npm run tauri dev` - desktop `Pansutong Dev` on port 1420; safe testing target
+- `npm run tauri dev` - desktop `Pansuthong Dev` on port 1420; safe testing target
 - `npm run tauri android dev` - Android dev id `net.puetsua.pansutong.dev`; safe testing target
 - `npm run tauri build` - desktop build
 - `npm run tauri android build` - Android build
@@ -14,7 +14,7 @@
 
 Use `npm run tauri <subcommand>`, not a global `tauri`.
 
-Do not touch the production app (`Pansutong`, `net.puetsua.pansutong`) during testing. Use only `Pansutong Dev` / `PansutongDev` (`net.puetsua.pansutong.dev`) unless the user explicitly asks for production work.
+Do not touch the production app (`Pansuthong`, `net.puetsua.pansutong`) during testing. Use only `Pansuthong Dev` / `PansuthongDev` (`net.puetsua.pansutong.dev`) unless the user explicitly asks for production work.
 
 ## Machine Toolchain
 

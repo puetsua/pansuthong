@@ -1,6 +1,6 @@
 ## Context
 
-Pansutong themes the entire UI through CSS custom properties (`--c-bg`, `--c-surface`, `--c-border`, `--c-text-muted`, etc.) applied from `src/lib/themes.ts`. Scrollable regions (`overflow: auto` / `overflow-y: auto`) still render the WebView’s default scrollbar, which on Windows WebView2 is a thick, OS-styled bar that ignores the app theme — especially jarring in dark and custom presets.
+Pansuthong themes the entire UI through CSS custom properties (`--c-bg`, `--c-surface`, `--c-border`, `--c-text-muted`, etc.) applied from `src/lib/themes.ts`. Scrollable regions (`overflow: auto` / `overflow-y: auto`) still render the WebView’s default scrollbar, which on Windows WebView2 is a thick, OS-styled bar that ignores the app theme — especially jarring in dark and custom presets.
 
 The app already has many scroll containers in `src/styles/global.css` (task lists, nav, modals, editors, analytics). A shared CSS approach is enough for scrollbar theming.
 
@@ -79,7 +79,7 @@ Heatmaps (`.heatmap` in `HeatmapGrid`) currently use `overflow-x: auto` and rend
 
 1. Land scrollbar CSS in `global.css`; no data migration.
 2. Update `HeatmapGrid` (+ `.heatmap` CSS) to fit-to-width truncation; no settings migration.
-3. Smoke-test on **Pansutong Dev** desktop: long task list, Settings/modals, theme switch; narrow the window on Tag/Recurrence heatmap and confirm older weeks drop off without horizontal scroll.
+3. Smoke-test on **Pansuthong Dev** desktop: long task list, Settings/modals, theme switch; narrow the window on Tag/Recurrence heatmap and confirm older weeks drop off without horizontal scroll.
 4. Optional Android WebView glance to confirm no regression.
 5. Rollback = revert CSS + HeatmapGrid changes; no persisted state to clean up.
 

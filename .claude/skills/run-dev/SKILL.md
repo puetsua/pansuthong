@@ -1,9 +1,9 @@
 ---
 name: run-dev
-description: Run Pansutong in development mode. Use when the user asks to "run the app", "start dev", "test on Windows", or "test on Android". Picks the right target and verifies prerequisites first.
+description: Run Pansuthong in development mode. Use when the user asks to "run the app", "start dev", "test on Windows", or "test on Android". Picks the right target and verifies prerequisites first.
 ---
 
-# Run Pansutong in dev
+# Run Pansuthong in dev
 
 ## Pick the target
 

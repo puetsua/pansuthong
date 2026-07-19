@@ -50,7 +50,7 @@ This change removes that entire surface. In-app capture via Composer stays.
 
 ## Migration Plan
 
-1. Implement removals on the `Pansutong Dev` app only for verification.
+1. Implement removals on the `Pansuthong Dev` app only for verification.
 2. Desktop smoke: launch main window, add a task via Composer, confirm Ctrl+Shift+N does nothing and no second window appears; closing main window exits the process.
 3. Confirm Vite/Tauri build no longer emits `quick-capture` assets and Cargo builds without `tauri-plugin-global-shortcut`.
 4. Rollback: revert the change commit(s); no data migration to undo.

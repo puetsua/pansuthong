@@ -51,7 +51,7 @@
     "settings": "設定",
     "tag": "標籤",
     "conflict": "衝突",
-    "appName": "Pansutong"
+    "appName": "Pansuthong"
   },
   "sidebar": {
     "addTag": "新增標籤",
@@ -457,7 +457,7 @@
     "themeImportPlaceholder": "在此貼上匯出的配色 JSON…",
     "themeImportButton": "覆寫配色",
     "themeImportInvalidJson": "這看起來不是有效的 JSON。",
-    "themeImportNotATheme": "這段 JSON 不是 Pansutong 配色。",
+    "themeImportNotATheme": "這段 JSON 不是 Pansuthong 配色。",
     "themeImportNoColors": "這個配色沒有可用的顏色。",
     "themeEditTitle": "編輯配色",
     "themeNewTitle": "新增配色",

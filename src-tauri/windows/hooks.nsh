@@ -1,4 +1,4 @@
-; NSIS installer hooks for Pansutong (wired via bundle.windows.nsis.installerHooks
+; NSIS installer hooks for Pansuthong (wired via bundle.windows.nsis.installerHooks
 ; in tauri.conf.json). These extend Tauri's stock NSIS template without replacing it.
 ;
 ; Problem this solves

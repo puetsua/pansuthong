@@ -1,6 +1,6 @@
 ## Why
 
-Pansutong’s UI is fully themed via CSS tokens, but scrollable regions still use the WebView’s native scrollbar chrome. On Windows desktop especially, that OS chrome clashes with dark and custom themes and breaks the polished look established by the custom titlebar and surface styling. A thin, token-driven scrollbar keeps chrome consistent without adding settings surface area.
+Pansuthong’s UI is fully themed via CSS tokens, but scrollable regions still use the WebView’s native scrollbar chrome. On Windows desktop especially, that OS chrome clashes with dark and custom themes and breaks the polished look established by the custom titlebar and surface styling. A thin, token-driven scrollbar keeps chrome consistent without adding settings surface area.
 
 Separately, activity heatmaps currently grow to the full configured day range and scroll horizontally when the panel is narrow. Prefer showing fewer (more recent) weeks so the grid stays fully visible without a horizontal scrollbar.
 

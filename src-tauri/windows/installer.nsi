@@ -14,14 +14,14 @@
 ; behave like the in-app updater: a silent in-place upgrade.
 ;
 ; The only local changes vs upstream are two small edits, each tagged with a
-; "Pansutong fork:" comment:
+; "Pansuthong fork:" comment:
 ;   1. PageReinstall      — never render the page (always take the skip path).
 ;   2. PageLeaveReinstall — for the non-WiX case, always Goto reinst_done so the
 ;                           old uninstaller never runs (shortcuts/pin preserved).
 ; WiX-migration behaviour (uninstall the old .msi) is left untouched.
 ;
 ; RE-SYNC ON TAURI UPGRADE: when bumping @tauri-apps/cli, re-download installer.nsi
-; from the matching tauri-cli-v<version> tag and re-apply the two "Pansutong fork:"
+; from the matching tauri-cli-v<version> tag and re-apply the two "Pansuthong fork:"
 ; edits, or the upstream reinstall prompt comes back.
 ; ============================================================================
 
@@ -285,7 +285,7 @@ Function PageReinstall
   ; of this function because we need to populate some variables
   ; related to current installed version if detected and whether
   ; we are downgrading or not.
-  ; Pansutong fork: never render the "Already Installed" reinstall page. Always
+  ; Pansuthong fork: never render the "Already Installed" reinstall page. Always
   ; take the skip path (upstream took it only for $PassiveMode = 1), so a manual
   ; setup.exe upgrades in place without the uninstall prompt. Paired with the
   ; "Goto reinst_done" edit in PageLeaveReinstall below to preserve shortcuts and
@@ -348,7 +348,7 @@ Function PageLeaveReinstall
     Goto reinst_done
   ${EndIf}
 
-  ; Pansutong fork: a manual reinstall/upgrade/downgrade also proceeds in place,
+  ; Pansuthong fork: a manual reinstall/upgrade/downgrade also proceeds in place,
   ; never running the old uninstaller (which would remove shortcuts + the taskbar
   ; pin). PageReinstall above suppresses the page, so there is no radio choice to
   ; honor — an in-place file overwrite is the desired upgrade path. WiX migration

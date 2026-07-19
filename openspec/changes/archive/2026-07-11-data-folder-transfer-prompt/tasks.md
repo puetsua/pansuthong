@@ -26,4 +26,4 @@
 ## 5. Verify
 
 - [x] 5.1 Run focused Rust + frontend tests for repoint/transfer and Settings dialog
-- [x] 5.2 Smoke on Pansutong Dev only: Copy to empty folder (old intact); Move to empty folder (own gone, peers remain); Cancel; clear back to app-data with dialog
+- [x] 5.2 Smoke on Pansuthong Dev only: Copy to empty folder (old intact); Move to empty folder (own gone, peers remain); Cancel; clear back to app-data with dialog

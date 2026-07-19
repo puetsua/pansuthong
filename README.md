@@ -1,4 +1,4 @@
-# Pansutong
+# Pansuthong
 
 A minimal cross-platform task tracker built with Tauri 2. Targets Windows desktop and Android from a single codebase.
 
@@ -6,9 +6,9 @@ A minimal cross-platform task tracker built with Tauri 2. Targets Windows deskto
 
 Grab the latest build from the [**Releases**](https://github.com/puetsua/pansutong/releases/latest) page.
 
-**Windows** — download `Pansutong_<version>_x64-setup.exe` and run it. It's a per-user installer, so no administrator rights are needed.
+**Windows** — download `Pansuthong_<version>_x64-setup.exe` and run it. It's a per-user installer, so no administrator rights are needed.
 
-**Android** — download `Pansutong_<version>_universal.apk`, copy it to your device, and open it. You'll need to allow installing from unknown sources when prompted. The APK is signed, so it installs and updates normally; it is not on the Play Store.
+**Android** — download `Pansuthong_<version>_universal.apk`, copy it to your device, and open it. You'll need to allow installing from unknown sources when prompted. The APK is signed, so it installs and updates normally; it is not on the Play Store.
 
 ## Stack
 - Tauri 2 (Rust core)
@@ -27,4 +27,14 @@ See [CLAUDE.md](./CLAUDE.md) for prerequisites and project conventions.
 
 ## License
 
-Licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)](https://creativecommons.org/licenses/by-nc/4.0/). You may share and adapt the work for **non-commercial** purposes with attribution; **commercial use is not permitted**. See [LICENSE](./LICENSE) for the full text.
+Licensed under the [Functional Source License, Version 1.1, MIT Future License (FSL-1.1-MIT)](./LICENSE).
+
+The intent, in plain language:
+
+- **Use it personally** — free, no strings attached.
+- **Use it at work** — internal use is fine, at a company of any size.
+- **Modify it and share it** — forks and redistribution are fine, as long as the license and copyright notices come along.
+- **Don't sell it as a product** — you may not offer Pansuthong, or anything substantially similar built from it, as a commercial product or service.
+- **Each release becomes MIT after two years** — on the second anniversary of a release, that release automatically converts to the plain [MIT license](https://opensource.org/license/mit), with no restrictions at all.
+
+See [LICENSE](./LICENSE) for the full, governing text, and [fsl.software](https://fsl.software) for background on the license.

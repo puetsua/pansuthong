@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Pansutong syncs by placing each device's data file in a shared cloud folder
+Pansuthong syncs by placing each device's data file in a shared cloud folder
 (e.g. Google Drive) as a per-device replica (`tasks_<device>.db`). The app never
 writes another device's replica; instead it reads all replicas and computes a
 merged document with entity-level last-write-wins plus tombstones. A filesystem

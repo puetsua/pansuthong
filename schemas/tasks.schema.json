@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://pansutong.local/schemas/tasks.schema.json",
-  "title": "Pansutong tasks.json",
-  "description": "Pansutong Document JSON. Desktop now persists this document per-device as a SQLite database (tasks_<device>.db); this JSON shape is the legacy on-disk format still used for one-time migration/import, the Android SAF sync wire format, and export. Settings are device-local in config.json and are not part of this document.",
+  "title": "Pansuthong tasks.json",
+  "description": "Pansuthong Document JSON. Desktop now persists this document per-device as a SQLite database (tasks_<device>.db); this JSON shape is the legacy on-disk format still used for one-time migration/import, the Android SAF sync wire format, and export. Settings are device-local in config.json and are not part of this document.",
   "type": "object",
   "properties": {
     "version": {

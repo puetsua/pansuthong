@@ -20,4 +20,4 @@
 ## 4. Verify
 
 - [x] 4.1 Confirm frontend/typecheck or relevant unit tests still pass (Composer / `parseComposer` unchanged)
-- [x] 4.2 Smoke on **Pansutong Dev** (desktop): main window launches; Composer still adds tasks; Ctrl+Shift+N does not open a capture window; closing the main window exits the process
+- [x] 4.2 Smoke on **Pansuthong Dev** (desktop): main window launches; Composer still adds tasks; Ctrl+Shift+N does not open a capture window; closing the main window exits the process

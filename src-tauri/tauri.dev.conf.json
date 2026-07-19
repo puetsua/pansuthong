@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Pansutong Dev",
+  "productName": "Pansuthong Dev",
   "identifier": "net.puetsua.pansutong.dev",
   "app": {
     "windows": [
       {
-        "title": "Pansutong Dev",
+        "title": "Pansuthong Dev",
         "width": 900,
         "height": 700,
         "minWidth": 400,

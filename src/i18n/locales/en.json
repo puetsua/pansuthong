@@ -52,7 +52,7 @@
     "settings": "Settings",
     "tag": "Tag",
     "conflict": "Conflict",
-    "appName": "Pansutong"
+    "appName": "Pansuthong"
   },
   "sidebar": {
     "addTag": "Add tag",
@@ -462,7 +462,7 @@
     "themeImportPlaceholder": "Paste exported theme JSON here…",
     "themeImportButton": "Override Theme",
     "themeImportInvalidJson": "That doesn't look like valid JSON.",
-    "themeImportNotATheme": "That JSON isn't a Pansutong theme.",
+    "themeImportNotATheme": "That JSON isn't a Pansuthong theme.",
     "themeImportNoColors": "That theme has no usable colors.",
     "themeEditTitle": "Edit theme",
     "themeNewTitle": "New theme",

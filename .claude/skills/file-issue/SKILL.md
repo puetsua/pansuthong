@@ -1,11 +1,11 @@
 ---
 name: file-issue
-description: Investigate, reproduce, and file a GitHub issue for a problem the user found while testing Pansutong (desktop or Android). Use whenever the user reports a bug, defect, glitch, missing behavior, or improvement they noticed in the app — e.g. "I found that…", "when I click X, Y happens", "the task list doesn't…", "on desktop it…". Verify reproducibility from the code/app BEFORE filing; do not fix it.
+description: Investigate, reproduce, and file a GitHub issue for a problem the user found while testing Pansuthong (desktop or Android). Use whenever the user reports a bug, defect, glitch, missing behavior, or improvement they noticed in the app — e.g. "I found that…", "when I click X, Y happens", "the task list doesn't…", "on desktop it…". Verify reproducibility from the code/app BEFORE filing; do not fix it.
 ---
 
 # File a GitHub issue from a user finding
 
-The user is testing Pansutong and reports things they find. For each finding: **investigate it, confirm it's real and reproducible, then file one issue.** Do not fix the problem — the goal here is a clean, reproducible bug report, not a patch.
+The user is testing Pansuthong and reports things they find. For each finding: **investigate it, confirm it's real and reproducible, then file one issue.** Do not fix the problem — the goal here is a clean, reproducible bug report, not a patch.
 
 Repo: `puetsua/pansutong` (use `gh`, already authenticated). One issue **per distinct finding** — if the user batches several, split them.
 

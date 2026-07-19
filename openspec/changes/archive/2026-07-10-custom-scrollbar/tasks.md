@@ -12,7 +12,7 @@
 
 ## 3. Verification
 
-- [x] 3.1 On **Pansutong Dev** desktop, confirm themed thin scrollbars on a long task list and a modal/settings panel
+- [x] 3.1 On **Pansuthong Dev** desktop, confirm themed thin scrollbars on a long task list and a modal/settings panel
 - [x] 3.2 Switch theme mode/preset (including at least one custom or non-default preset) and confirm scrollbar colors update without restart
 - [x] 3.3 Narrow the window on Tag/Recurrence heatmap: older weeks drop off, no horizontal scrollbar; widen and confirm more weeks return
 - [x] 3.4 Confirm Settings has no new scrollbar control and native scroll input (wheel / drag) still works on lists
