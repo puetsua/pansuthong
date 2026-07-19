@@ -1,4 +1,4 @@
-# Pansuthong
+# <img src="src-tauri/icons/128x128.png" alt="" width="48" height="48" /> Pansuthong
 
 [![CI](https://github.com/puetsua/pansuthong/workflows/CI/badge.svg)](https://github.com/puetsua/pansuthong/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/puetsua/pansuthong)](https://github.com/puetsua/pansuthong/releases/latest)
