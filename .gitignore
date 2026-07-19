@@ -29,3 +29,6 @@ dist-ssr
 
 # Cygwin/MSYS crash dumps (Windows)
 *.stackdump
+
+# Local scratch / agent temp artifacts
+tmp/
