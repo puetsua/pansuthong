@@ -181,11 +181,17 @@ button {
 
 .composer {
   display: flex;
+  /* Error/hint lines below use flex-basis: 100%, which needs wrapping; it also
+     keeps the Add / expand buttons on-screen on narrow (mobile) widths. */
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin-bottom: var(--space-3);
 }
 .composer input {
   flex: 1;
+  /* Let the input shrink below its intrinsic (placeholder-driven) width so the
+     buttons beside it never overflow a phone-width row. */
+  min-width: 0;
   background: var(--c-surface);
   color: var(--c-text);
   border: 1px solid var(--c-border);
@@ -1150,6 +1156,7 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   justify-content: space-between;
   gap: var(--space-2);
   min-width: 0;
+  position: relative; /* anchors the ⋯ dropdown menu */
   padding: max(var(--space-3), env(safe-area-inset-top)) var(--space-4) var(--space-2);
   background: var(--c-surface);
   border-bottom: 1px solid var(--c-border);
@@ -1983,8 +1990,49 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .sidebar-section-link:hover { color: var(--c-text); text-decoration: none; }
 .sidebar-section-link.active { color: var(--c-accent); }
 
-/* Group the mobile header's icon links (Tags + Settings) on the right. */
+/* Group the mobile header's actions (Search + More) on the right. */
 .mobile-header-actions { display: flex; align-items: center; gap: var(--space-1); }
+.mobile-header-more {
+  background: none;
+  border: none;
+  line-height: 1;
+}
+/* Secondary destinations behind the header's ⋯ button. */
+.mobile-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.mobile-menu {
+  position: absolute;
+  top: 100%;
+  right: var(--space-3);
+  z-index: 41;
+  min-width: 12rem;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.mobile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  color: var(--c-text);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+}
+.mobile-menu-item:active { background: var(--c-accent-bg); }
+.mobile-menu-icon {
+  width: 1.4rem;
+  text-align: center;
+  color: var(--c-text-muted);
+}
 
 /* Recurring-task ghost rows (#9): de-emphasised so they read as "not yet real". */
 .ghost-row { opacity: 0.62; }
