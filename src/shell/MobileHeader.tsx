@@ -12,7 +12,7 @@ const ROUTE_TITLE_KEYS: Record<string, string> = {
   "/upcoming": "nav.upcoming",
   "/search":   "nav.search",
   "/templates": "nav.templates",
-  "/recurrence": "nav.recurrence",
+  "/recurrence": "nav.dashboard",
   "/history": "nav.history",
   "/tags":     "nav.tags",
   "/archived": "nav.archived",
@@ -24,7 +24,7 @@ const ROUTE_TITLE_KEYS: Record<string, string> = {
 // glyph icons competed with labels on a dense phone menu.
 const MENU_ITEMS = [
   { to: "/templates",  labelKey: "nav.templates" },
-  { to: "/recurrence", labelKey: "nav.recurrence" },
+  { to: "/recurrence", labelKey: "nav.dashboard" },
   { to: "/history",    labelKey: "nav.history" },
   { to: "/tags",       labelKey: "nav.tags" },
   { to: "/archived",   labelKey: "nav.archived" },

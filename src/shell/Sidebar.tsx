@@ -104,7 +104,7 @@ export function Sidebar({ doc, indexes }: Props) {
           </li>
           <li>
             <NavLink to="/recurrence" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-              {t("nav.recurrence")}
+              {t("nav.dashboard")}
             </NavLink>
           </li>
           <li>

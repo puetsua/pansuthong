@@ -37,7 +37,7 @@ export function RecurrenceView({ doc, indexes }: Props) {
     <section>
       <header className="view-header dashboard-header">
         <div className="dashboard-header-text">
-          <h1>{t("nav.recurrence")}</h1>
+          <h1>{t("nav.dashboard")}</h1>
           <p className="view-sub">{t("recurrence.subtitle")}</p>
         </div>
         {available.length > 0 && (
