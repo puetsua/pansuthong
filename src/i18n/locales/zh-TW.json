@@ -337,6 +337,7 @@
   },
   "taskEditor": {
     "newTask": "新任務",
+    "newTemplate": "新增範本",
     "editTemplate": "編輯範本",
     "editTask": "編輯任務",
     "close": "關閉",
@@ -409,6 +410,7 @@
     "reopen": "重新開啟",
     "cancel": "取消",
     "addTask": "新增任務",
+    "addTemplate": "新增範本",
     "save": "儲存",
     "titleEmpty": "標題不能為空。",
     "dueBeforeStart": "到期日期不能早於開始日期。",

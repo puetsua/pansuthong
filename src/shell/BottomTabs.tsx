@@ -1,14 +1,17 @@
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import type { ComponentType, SVGProps } from "react";
 import { Indexes, openCount } from "../state/indexes";
+import { InboxIcon, TodayIcon, UpcomingIcon } from "../components/NavIcons";
 
 type Props = { indexes: Indexes };
+type IconComponent = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>;
 
-const TABS = [
-  { to: "/today",    labelKey: "nav.today",    icon: "●" },
-  { to: "/inbox",    labelKey: "nav.inbox",    icon: "▣" },
-  { to: "/upcoming", labelKey: "nav.upcoming", icon: "◔" },
-] as const;
+const TABS: { to: string; labelKey: string; Icon: IconComponent }[] = [
+  { to: "/today",    labelKey: "nav.today",    Icon: TodayIcon },
+  { to: "/inbox",    labelKey: "nav.inbox",    Icon: InboxIcon },
+  { to: "/upcoming", labelKey: "nav.upcoming", Icon: UpcomingIcon },
+];
 
 export function BottomTabs({ indexes }: Props) {
   const { t: tr } = useTranslation();
@@ -17,16 +20,18 @@ export function BottomTabs({ indexes }: Props) {
 
   return (
     <nav className="bottom-tabs" role="navigation" aria-label="Primary">
-      {TABS.map(t => (
+      {TABS.map(({ to, labelKey, Icon }) => (
         <NavLink
-          key={t.to}
-          to={t.to}
+          key={to}
+          to={to}
           className={({ isActive }) => isActive ? "bottom-tab active" : "bottom-tab"}
         >
-          <span className="bottom-tab-icon" aria-hidden>{t.icon}</span>
-          <span className="bottom-tab-label">{tr(t.labelKey)}</span>
-          {t.to === "/today" && todayCount > 0 && <span className="bottom-tab-badge">{todayCount}</span>}
-          {t.to === "/inbox" && inboxCount > 0 && <span className="bottom-tab-badge">{inboxCount}</span>}
+          <span className="bottom-tab-icon" aria-hidden>
+            <Icon size={20} />
+          </span>
+          <span className="bottom-tab-label">{tr(labelKey)}</span>
+          {to === "/today" && todayCount > 0 && <span className="bottom-tab-badge">{todayCount}</span>}
+          {to === "/inbox" && inboxCount > 0 && <span className="bottom-tab-badge">{inboxCount}</span>}
         </NavLink>
       ))}
     </nav>

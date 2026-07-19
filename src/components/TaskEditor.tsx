@@ -580,7 +580,12 @@ export function TaskEditor(props: Props) {
     },
   }), [openImage, attachmentPaths, t]);
 
-  const heading = creating ? t("taskEditor.newTask") : isTemplate ? t("taskEditor.editTemplate") : t("taskEditor.editTask");
+  const heading = creating
+    ? (isTemplate ? t("taskEditor.newTemplate") : t("taskEditor.newTask"))
+    : isTemplate ? t("taskEditor.editTemplate") : t("taskEditor.editTask");
+  const saveLabel = creating
+    ? (isTemplate ? t("taskEditor.addTemplate") : t("taskEditor.addTask"))
+    : t("taskEditor.save");
 
   return createPortal(
     <div className="modal-backdrop">
@@ -921,7 +926,7 @@ export function TaskEditor(props: Props) {
           <button type="button" onClick={requestClose} disabled={busy}>{t("taskEditor.cancel")}</button>
           <button type="button" className="te-save" onClick={save}
                   disabled={busy || !form.title.trim() || !!dateError || !!estimateError || !!offsetError || !!recurError}>
-            {creating ? t("taskEditor.addTask") : t("taskEditor.save")}
+            {saveLabel}
           </button>
         </div>
         {lightbox && (

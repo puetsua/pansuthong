@@ -313,6 +313,11 @@ button {
 .sidebar-link:hover { background: var(--c-surface); text-decoration: none; }
 .sidebar-link.active { background: var(--c-accent-bg); color: var(--c-accent); font-weight: 600; }
 .sidebar-count { margin-left: auto; font-size: 0.72rem; color: var(--c-text-subtle); }
+.sidebar-nav-icon {
+  flex-shrink: 0;
+  color: var(--c-text-muted);
+}
+.sidebar-link.active .sidebar-nav-icon { color: var(--c-accent); }
 .sidebar-hash { font-weight: 700; line-height: 1; }
 .sidebar-version {
   align-self: flex-start;
@@ -1209,7 +1214,14 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   position: relative;
 }
 .bottom-tab.active { color: var(--c-accent); font-weight: 600; }
-.bottom-tab-icon  { font-size: 1.1rem; line-height: 1; }
+.bottom-tab-icon {
+  display: flex;
+  line-height: 1;
+}
+.bottom-tab-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
 /* Keep each label on one line so a long label (e.g. "Templates") can't wrap and
    make one tab taller than the rest; clip with an ellipsis at the narrowest
    widths rather than pushing the 5-tab bar wider than the viewport. */
@@ -1244,6 +1256,16 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
     width: 22px;
     height: 22px;
   }
+  /* Title on its own row so tags/dates can't shrink CJK text into a 1-glyph
+     column (word-break + flex-shrink makes each character a valid break). */
+  .task-main {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .task-title {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
   .composer input,
   .search-input {
     font-size: 16px;  /* prevents iOS/Android auto-zoom */
@@ -1258,7 +1280,15 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: var(--space-5) var(--space-3);
+  /* Always add safe-area AND padding (not max): Android WebView often reports
+     inset 0 even when drawing edge-to-edge, and keyboard focus-scroll can pull
+     the dialog under the status bar without scroll-padding. */
+  padding: calc(env(safe-area-inset-top, 0px) + var(--space-5))
+           var(--space-3)
+           calc(env(safe-area-inset-bottom, 0px) + var(--space-5));
+  scroll-padding: calc(env(safe-area-inset-top, 0px) + var(--space-5))
+                  var(--space-3)
+                  calc(env(safe-area-inset-bottom, 0px) + var(--space-5));
   overflow-y: auto;
   z-index: 100;
 }
@@ -1269,6 +1299,11 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   padding: var(--space-4);
   width: 100%;
   max-width: min(860px, calc(100vw - (var(--space-3) * 2)));
+  /* Keep the dialog inside the visible viewport when the Android keyboard
+     resizes the WebView; scroll fields inside the card instead of panning the
+     top of the modal under the status bar. */
+  max-height: min(86vh, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - (var(--space-5) * 2)));
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -2081,7 +2116,12 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 
 @media (max-width: 720px) {
   .modal-backdrop {
-    padding: var(--space-3) var(--space-2);
+    padding: calc(env(safe-area-inset-top, 0px) + var(--space-5))
+             var(--space-2)
+             calc(env(safe-area-inset-bottom, 0px) + var(--space-4));
+    scroll-padding: calc(env(safe-area-inset-top, 0px) + var(--space-5))
+                    var(--space-2)
+                    calc(env(safe-area-inset-bottom, 0px) + var(--space-4));
   }
   .task-editor {
     max-width: none;
@@ -2162,13 +2202,16 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
    row height from this rem value, so the two columns can never drift apart (an
    earlier `em`-based label height shrank with the small glyph font and pushed the
    labels out of alignment with the cell rows). */
-.heatmap { --heat-cell: 1.2rem; display: block; width: 100%; max-width: 100%; overflow-x: hidden; padding: var(--space-1); }
+/* overflow: hidden (not overflow-x only): setting one axis to non-visible
+   forces the other to compute as auto, which shows a stray scrollbar when the
+   grid is even 1px over its box (common on Android WebView). */
+.heatmap { --heat-cell: 1.2rem; display: block; width: 100%; max-width: 100%; overflow: hidden; padding: var(--space-1); }
 .heatmap-months { display: flex; gap: 2px; margin-left: calc(1.4em + var(--space-1)); margin-bottom: var(--space-1); min-width: 0; overflow: hidden; }
 .heatmap-month { flex: 0 0 var(--heat-cell); width: var(--heat-cell); font-size: 0.65rem; color: var(--c-text-muted); overflow: visible; white-space: nowrap; }
 .heatmap-body { display: flex; gap: var(--space-1); min-width: 0; }
 .heatmap-weekdays { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
 .heatmap-weekday { height: var(--heat-cell); line-height: var(--heat-cell); font-size: 0.65rem; color: var(--c-text-muted); width: 1.4em; text-align: right; }
-.heatmap-weeks { display: flex; flex-direction: row; gap: 2px; min-width: 0; }
+.heatmap-weeks { display: flex; flex-direction: row; gap: 2px; min-width: 0; overflow: hidden; }
 .heatmap-week { display: flex; flex-direction: column; gap: 2px; }
 .heatmap-cell {
   width: var(--heat-cell); height: var(--heat-cell); border-radius: var(--radius-sm);

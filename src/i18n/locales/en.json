@@ -342,6 +342,7 @@
   },
   "taskEditor": {
     "newTask": "New task",
+    "newTemplate": "New template",
     "editTemplate": "Edit template",
     "editTask": "Edit task",
     "close": "Close",
@@ -414,6 +415,7 @@
     "reopen": "Reopen",
     "cancel": "Cancel",
     "addTask": "Add task",
+    "addTemplate": "Add template",
     "save": "Save",
     "titleEmpty": "Title can't be empty.",
     "dueBeforeStart": "Due date can't be before the start date.",

@@ -114,6 +114,13 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
       <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true"
            aria-label={isEdit ? t("tagEditor.editTitle") : t("tagEditor.addTitle")}
            onClick={e => e.stopPropagation()}>
+        <div className="te-header">
+          <div className="te-title-actions">
+            <h2>{isEdit ? t("tagEditor.editTitle") : t("tagEditor.addTitle")}</h2>
+          </div>
+          <button type="button" className="te-close" aria-label={t("tagEditor.cancel")}
+                  onClick={requestClose} disabled={busy}>✕</button>
+        </div>
         <label className="te-field">
           <span>{t("tagEditor.name")}</span>
           <input value={form.name} autoFocus
