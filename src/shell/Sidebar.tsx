@@ -7,7 +7,7 @@ import { appVersion } from "../lib/platform";
 import { Indexes, openCount } from "../state/indexes";
 import { TagEditor } from "../components/TagEditor";
 
-const RELEASES_BASE = "https://github.com/puetsua/pansutong/releases/tag/";
+const RELEASES_BASE = "https://github.com/puetsua/pansuthong/releases/tag/";
 
 type Props = { doc: Document; indexes: Indexes };
 

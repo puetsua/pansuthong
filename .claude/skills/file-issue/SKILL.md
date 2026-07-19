@@ -7,7 +7,7 @@ description: Investigate, reproduce, and file a GitHub issue for a problem the u
 
 The user is testing Pansuthong and reports things they find. For each finding: **investigate it, confirm it's real and reproducible, then file one issue.** Do not fix the problem — the goal here is a clean, reproducible bug report, not a patch.
 
-Repo: `puetsua/pansutong` (use `gh`, already authenticated). One issue **per distinct finding** — if the user batches several, split them.
+Repo: `puetsua/pansuthong` (use `gh`, already authenticated). One issue **per distinct finding** — if the user batches several, split them.
 
 ## Workflow per finding
 
@@ -32,7 +32,7 @@ Only after the finding is confirmed. Use the template below and pick a label:
 - `documentation` / `question` — only if it clearly fits better than the two above.
 
 ```bash
-gh issue create --repo puetsua/pansutong \
+gh issue create --repo puetsua/pansuthong \
   --title "<concise, specific summary>" \
   --label "<label>" \
   --body "<body from template>"

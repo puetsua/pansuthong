@@ -86,7 +86,7 @@ describe("Sidebar — version label", () => {
     const label = await screen.findByText("v0.5.0");
     fireEvent.click(label);
     expect(openUrlMock).toHaveBeenCalledWith(
-      "https://github.com/puetsua/pansutong/releases/tag/0.5.0",
+      "https://github.com/puetsua/pansuthong/releases/tag/0.5.0",
     );
   });
 

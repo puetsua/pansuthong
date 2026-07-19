@@ -10,7 +10,7 @@
 //   env NOTES — release notes to surface in the in-app prompt (optional)
 import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 
-const REPO = "puetsua/pansutong";
+const REPO = "puetsua/pansuthong";
 
 const version = process.argv[2];
 if (!version) {

@@ -28,7 +28,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/puetsua/pansutong/releases/latest/download/latest.json"
+        "https://github.com/puetsua/pansuthong/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZBMjFGRjBBRDU2Mjg0QzgKUldUSWhHTFZDdjhoYXVSMVlvU0xMejRjNStCdFJkYjBMaDVQZnhnS3NqV3EyTkwrWjFRQm1uM04K"
     }

@@ -4,7 +4,7 @@ A minimal cross-platform task tracker built with Tauri 2. Targets Windows deskto
 
 ## Install
 
-Grab the latest build from the [**Releases**](https://github.com/puetsua/pansutong/releases/latest) page.
+Grab the latest build from the [**Releases**](https://github.com/puetsua/pansuthong/releases/latest) page.
 
 **Windows** — download `Pansuthong_<version>_x64-setup.exe` and run it. It's a per-user installer, so no administrator rights are needed.
 

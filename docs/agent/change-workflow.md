@@ -24,4 +24,4 @@
 - Preserve unrelated dirty work.
 - Use a branch/worktree when local `main` is dirty or diverged.
 - Temp worktree convention: `.claude/worktrees/`.
-- If GitHub connector fails for `puetsua/pansutong`, use `gh` directly.
+- If GitHub connector fails for `puetsua/pansuthong`, use `gh` directly.
