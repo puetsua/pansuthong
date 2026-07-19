@@ -12,7 +12,7 @@ import {
   defaultTagPriority, soundOnComplete,
   clampReminderInterval, reminderIntervalMinutes, REMINDER_INTERVAL_MAX, REMINDER_INTERVAL_MIN,
   clampMaxAttachmentMb, maxAttachmentMb, MAX_ATTACHMENT_MB_MAX, MAX_ATTACHMENT_MB_MIN, MAX_ATTACHMENT_MB_WARN,
-  clampRecurrenceHeatmapDays, recurrenceHeatmapDays, RECURRENCE_HEATMAP_DAYS_MAX, RECURRENCE_HEATMAP_DAYS_MIN,
+  clampDashboardHeatmapDays, dashboardHeatmapDays, DASHBOARD_HEATMAP_DAYS_MAX, DASHBOARD_HEATMAP_DAYS_MIN,
   firstDayOfWeek,
   dateFormat, timeFormat,
 } from "../lib/settings";
@@ -194,18 +194,18 @@ export function SettingsView({ doc }: Props) {
   const startHour = dayStartHour(doc.settings);
   const setStartHour = (h: number) => { void applySettings({ day_start_hour: h }); };
 
-  // Recurrence dashboard heatmap range (#recurrence-dashboard): presets apply
-  // immediately; the free input commits on blur/Enter. Controls how far back the
-  // dashboard's heatmap reaches (ending today).
+  // Dashboard heatmap range: presets apply immediately; the free input commits
+  // on blur/Enter. Controls how far back the dashboard's heatmap reaches
+  // (ending today). Persisted as `recurrence_heatmap_days` for compatibility.
   const weekStart = firstDayOfWeek(doc.settings);
   const setWeekStart = (d: number) => { void applySettings({ first_day_of_week: d }); };
 
-  const heatDays = recurrenceHeatmapDays(doc.settings);
+  const heatDays = dashboardHeatmapDays(doc.settings);
   const [draftHeat, setDraftHeat] = useState(String(heatDays));
   useEffect(() => { setDraftHeat(String(heatDays)); }, [heatDays]);
   const setHeatDays = (n: number) => { void applySettings({ recurrence_heatmap_days: n }); };
   const commitDraftHeat = () => {
-    const n = clampRecurrenceHeatmapDays(draftHeat);
+    const n = clampDashboardHeatmapDays(draftHeat);
     setDraftHeat(String(n));
     if (n !== heatDays) setHeatDays(n);
   };
@@ -424,8 +424,8 @@ export function SettingsView({ doc }: Props) {
       </section>
 
       <section className="settings-section">
-        <h2>{t("settings.recurrenceHeatmapRange")}</h2>
-        <p className="view-sub">{t("settings.recurrenceHeatmapSub")}</p>
+        <h2>{t("settings.dashboardHeatmapRange")}</h2>
+        <p className="view-sub">{t("settings.dashboardHeatmapSub")}</p>
         <div className="theme-options">
           {[30, 60, 90, 180].map(n => (
             <button
@@ -441,8 +441,8 @@ export function SettingsView({ doc }: Props) {
             type="number"
             className="weight-input"
             aria-label={t("settings.customHeatmapAria")}
-            min={RECURRENCE_HEATMAP_DAYS_MIN}
-            max={RECURRENCE_HEATMAP_DAYS_MAX}
+            min={DASHBOARD_HEATMAP_DAYS_MIN}
+            max={DASHBOARD_HEATMAP_DAYS_MAX}
             value={draftHeat}
             onChange={e => setDraftHeat(e.currentTarget.value)}
             onBlur={commitDraftHeat}

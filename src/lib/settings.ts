@@ -126,22 +126,23 @@ export function clampMaxAttachmentMb(raw: string | number): number {
   return Math.max(MAX_ATTACHMENT_MB_MIN, Math.min(MAX_ATTACHMENT_MB_MAX, n));
 }
 
-/** Default Recurrence dashboard heatmap range (days back from today). */
-export const RECURRENCE_HEATMAP_DAYS_DEFAULT = 90;
+/** Default Dashboard heatmap range (days back from today). */
+export const DASHBOARD_HEATMAP_DAYS_DEFAULT = 90;
 /** Inclusive bounds for the heatmap range (mirrors the Rust check). */
-export const RECURRENCE_HEATMAP_DAYS_MIN = 7;
-export const RECURRENCE_HEATMAP_DAYS_MAX = 365;
+export const DASHBOARD_HEATMAP_DAYS_MIN = 7;
+export const DASHBOARD_HEATMAP_DAYS_MAX = 365;
 
-/** The effective heatmap range (days back from today) for a document's settings. */
-export function recurrenceHeatmapDays(settings: Settings): number {
-  return clampRecurrenceHeatmapDays(settings.recurrence_heatmap_days ?? RECURRENCE_HEATMAP_DAYS_DEFAULT);
+/** The effective Dashboard/Tag heatmap range (days back from today). */
+export function dashboardHeatmapDays(settings: Settings): number {
+  // Persisted key stays `recurrence_heatmap_days` for backward compatibility.
+  return clampDashboardHeatmapDays(settings.recurrence_heatmap_days ?? DASHBOARD_HEATMAP_DAYS_DEFAULT);
 }
 
 /** Parse a free-typed day count to an integer clamped to the allowed range. */
-export function clampRecurrenceHeatmapDays(raw: string | number): number {
+export function clampDashboardHeatmapDays(raw: string | number): number {
   const n = typeof raw === "number" ? Math.trunc(raw) : parseInt(raw, 10);
-  if (Number.isNaN(n)) return RECURRENCE_HEATMAP_DAYS_DEFAULT;
-  return Math.max(RECURRENCE_HEATMAP_DAYS_MIN, Math.min(RECURRENCE_HEATMAP_DAYS_MAX, n));
+  if (Number.isNaN(n)) return DASHBOARD_HEATMAP_DAYS_DEFAULT;
+  return Math.max(DASHBOARD_HEATMAP_DAYS_MIN, Math.min(DASHBOARD_HEATMAP_DAYS_MAX, n));
 }
 
 /** Default first day of the week for the heatmap (1 = Monday, the prior behavior). */

@@ -1,4 +1,4 @@
-# <img src="src-tauri/icons/128x128.png" alt="" width="48" height="48" /> Pansuthong
+# <img src="src-tauri/icons/128x128.png" alt="" width="48" height="48" /> 辦事通（Pansuthong）
 
 [![CI](https://github.com/puetsua/pansuthong/workflows/CI/badge.svg)](https://github.com/puetsua/pansuthong/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/puetsua/pansuthong)](https://github.com/puetsua/pansuthong/releases/latest)
@@ -15,8 +15,8 @@
 
 - **任務 + 標籤** — 幫任務貼標籤、釘選常用標籤，也能用標籤權重影響優先順序。畫面上的清單是即時查出來的，不是另一套還要自己同步的東西。
 - **日常畫面** — 今日、未分類（沒有釘選標籤的）、即將到來、搜尋、已封存，用得到才會出現。
-- **範本與週期** — 可重複使用的任務範本，以及週期工作總覽。
-- **時間與歷程** — 記錄任務花了多少時間、把閒置時間分給任務，也能翻完成紀錄。
+- **任務範本與儀表板** — 可重複使用的任務範本，以及標籤活動（熱圖／連續天數）總覽。
+- **時間與修改歷程** — 記錄任務花了多少時間、把閒置時間分給任務，也能翻近期變更。
 - **標籤分析** — 每個標籤的熱圖、連續天數、花費時間。
 - **跨裝置同步** — 兩邊都指向同一個共用資料夾（例如雲端同步資料夾），就能合併任務、標籤與附件。
 - **本機優先** — 資料存在本機；設定跟著裝置走，不會跟著同步。桌面版可從 GitHub Releases 在 App 內更新。

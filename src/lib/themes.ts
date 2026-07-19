@@ -26,8 +26,8 @@ export const TOKEN_ORDER = [
   "--c-accent", "--c-bg", "--c-surface", "--c-text",
   "--c-surface-2", "--c-border", "--c-text-muted", "--c-text-subtle",
   "--c-accent-bg", "--c-danger",
-  // Recurrence dashboard heatmap (#recurrence-dashboard): done / skipped /
-  // no-occurrence cell fills, the cell border, and today's highlight outline.
+  // Dashboard / Tag heatmap (#dashboard): done / skipped /
+  // no-activity cell fills, the cell border, and today's highlight outline.
   // Customize these in a theme to recolor the heatmap.
   "--c-heat-done", "--c-heat-skip", "--c-heat-empty", "--c-heat-border", "--c-heat-today",
 ] as const;

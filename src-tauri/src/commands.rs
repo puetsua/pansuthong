@@ -2061,7 +2061,7 @@ const REMINDER_INTERVAL_MAX: u32 = 1440;
 const TAG_WEIGHT_MIN: i64 = -9999;
 const TAG_WEIGHT_MAX: i64 = 9999;
 
-/// Bounds for the Recurrence dashboard heatmap range, in days (1 week .. 1 year).
+/// Bounds for the Dashboard heatmap range, in days (1 week .. 1 year).
 const RECURRENCE_HEATMAP_DAYS_MIN: u32 = 7;
 const RECURRENCE_HEATMAP_DAYS_MAX: u32 = 365;
 

@@ -17,7 +17,7 @@ type Props = {
   labelForCell: (cell: HeatCell) => string;
 };
 
-/** GitHub-style rolling heatmap, shared by recurrence and tag analytics. */
+/** GitHub-style rolling heatmap, shared by Dashboard and tag analytics. */
 export function HeatmapGrid({ cells, todayIso, firstDayOfWeek, ariaLabel, labelForCell }: Props) {
   const { t } = useTranslation();
   const [hoverYm, setHoverYm] = useState<string | null>(null);

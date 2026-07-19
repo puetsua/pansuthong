@@ -246,7 +246,7 @@
     "empty": "No templates yet. Open one's editor to set its title, tags, notes, and date offsets.",
     "newTemplateTitle": "New template"
   },
-  "recurrence": {
+  "dashboard": {
     "subtitle": "Add any tag to track its activity as a heatmap or streak.",
     "empty": "No tags yet. Create a tag to track it here.",
     "noPins": "Nothing added yet. Use “Add tag” above to track a tag here.",
@@ -257,7 +257,6 @@
     "view_streak": "Streak",
     "last7": "Last 7 days",
     "streakLabel": "day streak",
-    "pickTemplate": "Recurring template",
     "done": "Done",
     "skipped": "Skipped",
     "completion": "Completion",
@@ -509,11 +508,11 @@
     "upcomingSub": "How many days ahead the Upcoming view looks.",
     "daysPreset": "{{count}} days",
     "customUpcomingAria": "Custom upcoming days",
-    "recurrenceHeatmapRange": "Recurrence heatmap range",
-    "recurrenceHeatmapSub": "How many days back the Recurrence dashboard's heatmap reaches (ending today).",
+    "dashboardHeatmapRange": "Dashboard heatmap range",
+    "dashboardHeatmapSub": "How many days back the Dashboard heatmap reaches (ending today).",
     "firstDayOfWeek": "First day of the week",
     "firstDayOfWeekSub": "Which weekday the week starts on.",
-    "customHeatmapAria": "Custom recurrence heatmap days",
+    "customHeatmapAria": "Custom Dashboard heatmap days",
     "dayStart": "Day start",
     "dayStartSub": "When the Today view rolls over to the next day. Set this later than midnight if you work past midnight and still consider it the same day.",
     "dayStartsAt": "Day starts at",

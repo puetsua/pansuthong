@@ -19,7 +19,7 @@ export type Settings = {
   reminder_interval_minutes?: number; // re-notify cadence for tasks past their estimate; 1..1440, default 1
   max_attachment_mb?: number; // largest attachment in MiB; 1..10240, default 1024 (1 GiB) (#113)
   date_time_format?: DateTimeFormat; // legacy date-time display preset; default "locale"
-  recurrence_heatmap_days?: number; // heatmap range (days back from today); 7..365, default 90
+  recurrence_heatmap_days?: number; // Dashboard/Tag heatmap range (days back); 7..365, default 90; key kept for BC
   first_day_of_week?: number; // heatmap week-start weekday; 0=Sun..6=Sat, default 1 (Monday)
   date_format?: DateFormat; // date display preset; default "locale"
   time_format?: TimeFormat; // time display preset; default "locale"

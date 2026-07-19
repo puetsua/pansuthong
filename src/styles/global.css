@@ -2150,14 +2150,13 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   }
 }
 
-/* Recurrence dashboard heatmap (#recurrence-dashboard). */
-.recurrence-picker { margin-bottom: var(--space-4); max-width: 24rem; }
-.recurrence-stats {
+/* Dashboard / Tag heatmap stats (#dashboard). */
+.heatmap-stats {
   display: flex; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-4);
 }
-.recurrence-stat { display: flex; flex-direction: column; gap: var(--space-1); }
-.recurrence-stat-num { font-size: 1.4rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--c-text); }
-.recurrence-stat-label { font-size: 0.75rem; color: var(--c-text-muted); }
+.heatmap-stat { display: flex; flex-direction: column; gap: var(--space-1); }
+.heatmap-stat-num { font-size: 1.4rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--c-text); }
+.heatmap-stat-label { font-size: 0.75rem; color: var(--c-text-muted); }
 
 /* Dashboard: added recurring-tag cards (#dashboard). */
 .dashboard-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }

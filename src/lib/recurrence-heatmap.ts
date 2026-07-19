@@ -17,7 +17,7 @@ export type Heatmap = {
 };
 
 /**
- * Recurrence dashboard heatmap for one recurring template (#recurrence-dashboard).
+ * Heatmap for one recurring template's schedule (used by tests / schedule analytics).
  *
  * For each day in [today - days + 1 .. today] the cell is:
  *   - "done"  : the rule fires that day AND a task (open or completed) starting

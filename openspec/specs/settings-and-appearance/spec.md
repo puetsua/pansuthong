@@ -66,7 +66,7 @@ to the legacy combined `date_time_format`, then to "locale", when unset.
 
 The system SHALL store defaults that other capabilities consume: new-tag color and
 priority, Upcoming horizon, day-start hour, sort order, completion sound, reminder
-interval, attachment size ceiling, and recurrence-heatmap range and week start.
+interval, attachment size ceiling, and Dashboard-heatmap range and week start.
 
 #### Scenario: Bounds are enforced by the UI
 - **WHEN** a bounded setting is edited (e.g. `upcoming_days` 1..=365, `max_attachment_mb` 1..=10240)

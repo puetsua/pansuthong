@@ -69,13 +69,14 @@ pub struct Settings {
     /// so older config.json files predating the setting still load (1 GiB).
     #[serde(default = "default_max_attachment_mb")]
     pub max_attachment_mb: u32,
-    /// How many days back the Recurrence dashboard's heatmap reaches by default
+    /// How many days back the Dashboard heatmap reaches by default
     /// (ending today). Device-local; the UI bounds it to 7..=365 and defaults to
-    /// 90. `#[serde(default …)]` so older config.json files predating the setting
-    /// still load (90 days).
+    /// 90. Field name `recurrence_heatmap_days` is kept for config.json
+    /// compatibility. `#[serde(default …)]` so older config.json files predating
+    /// the setting still load (90 days).
     #[serde(default = "default_recurrence_heatmap_days")]
     pub recurrence_heatmap_days: u32,
-    /// First day of the week for the Recurrence heatmap columns. 0 = Sunday ..
+    /// First day of the week for Dashboard/Tag heatmap columns. 0 = Sunday ..
     /// 6 = Saturday (JS `getDay` convention). Defaults to 1 (Monday, the prior
     /// behavior). `#[serde(default …)]` so older config.json files still load.
     #[serde(default = "default_first_day_of_week")]

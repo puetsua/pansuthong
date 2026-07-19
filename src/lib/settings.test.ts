@@ -3,7 +3,7 @@ import { Settings } from "./tauri";
 import {
   clampDayStartHour,
   clampMaxAttachmentMb,
-  clampRecurrenceHeatmapDays,
+  clampDashboardHeatmapDays,
   clampReminderInterval,
   clampUpcomingDays,
   DATE_FORMAT_DEFAULT,
@@ -27,10 +27,10 @@ import {
   MAX_ATTACHMENT_MB_DEFAULT,
   MAX_ATTACHMENT_MB_MAX,
   MAX_ATTACHMENT_MB_MIN,
-  RECURRENCE_HEATMAP_DAYS_DEFAULT,
-  RECURRENCE_HEATMAP_DAYS_MAX,
-  RECURRENCE_HEATMAP_DAYS_MIN,
-  recurrenceHeatmapDays,
+  DASHBOARD_HEATMAP_DAYS_DEFAULT,
+  DASHBOARD_HEATMAP_DAYS_MAX,
+  DASHBOARD_HEATMAP_DAYS_MIN,
+  dashboardHeatmapDays,
   reminderIntervalMinutes,
   REMINDER_INTERVAL_DEFAULT,
   REMINDER_INTERVAL_MAX,
@@ -262,40 +262,40 @@ describe("timeFormat", () => {
   });
 });
 
-describe("clampRecurrenceHeatmapDays", () => {
+describe("clampDashboardHeatmapDays", () => {
   it("keeps in-range integers", () => {
-    expect(clampRecurrenceHeatmapDays("90")).toBe(90);
-    expect(clampRecurrenceHeatmapDays(180)).toBe(180);
+    expect(clampDashboardHeatmapDays("90")).toBe(90);
+    expect(clampDashboardHeatmapDays(180)).toBe(180);
   });
 
   it("clamps below/above the allowed range", () => {
-    expect(clampRecurrenceHeatmapDays("0")).toBe(RECURRENCE_HEATMAP_DAYS_MIN);
-    expect(clampRecurrenceHeatmapDays(-5)).toBe(RECURRENCE_HEATMAP_DAYS_MIN);
-    expect(clampRecurrenceHeatmapDays("99999")).toBe(RECURRENCE_HEATMAP_DAYS_MAX);
+    expect(clampDashboardHeatmapDays("0")).toBe(DASHBOARD_HEATMAP_DAYS_MIN);
+    expect(clampDashboardHeatmapDays(-5)).toBe(DASHBOARD_HEATMAP_DAYS_MIN);
+    expect(clampDashboardHeatmapDays("99999")).toBe(DASHBOARD_HEATMAP_DAYS_MAX);
   });
 
   it("falls back to the default on non-numeric input", () => {
-    expect(clampRecurrenceHeatmapDays("abc")).toBe(RECURRENCE_HEATMAP_DAYS_DEFAULT);
-    expect(clampRecurrenceHeatmapDays("")).toBe(RECURRENCE_HEATMAP_DAYS_DEFAULT);
+    expect(clampDashboardHeatmapDays("abc")).toBe(DASHBOARD_HEATMAP_DAYS_DEFAULT);
+    expect(clampDashboardHeatmapDays("")).toBe(DASHBOARD_HEATMAP_DAYS_DEFAULT);
   });
 
   it("truncates fractional input", () => {
-    expect(clampRecurrenceHeatmapDays(90.9)).toBe(90);
+    expect(clampDashboardHeatmapDays(90.9)).toBe(90);
   });
 });
 
-describe("recurrenceHeatmapDays", () => {
+describe("dashboardHeatmapDays", () => {
   it("defaults to 90 when unset (older documents)", () => {
-    expect(recurrenceHeatmapDays(settings())).toBe(RECURRENCE_HEATMAP_DAYS_DEFAULT);
-    expect(RECURRENCE_HEATMAP_DAYS_DEFAULT).toBe(90);
+    expect(dashboardHeatmapDays(settings())).toBe(DASHBOARD_HEATMAP_DAYS_DEFAULT);
+    expect(DASHBOARD_HEATMAP_DAYS_DEFAULT).toBe(90);
   });
 
   it("uses the configured value when present", () => {
-    expect(recurrenceHeatmapDays({ ...settings(), recurrence_heatmap_days: 120 })).toBe(120);
+    expect(dashboardHeatmapDays({ ...settings(), recurrence_heatmap_days: 120 })).toBe(120);
   });
 
   it("clamps an out-of-range stored value defensively", () => {
-    expect(recurrenceHeatmapDays({ ...settings(), recurrence_heatmap_days: 99999 })).toBe(RECURRENCE_HEATMAP_DAYS_MAX);
+    expect(dashboardHeatmapDays({ ...settings(), recurrence_heatmap_days: 99999 })).toBe(DASHBOARD_HEATMAP_DAYS_MAX);
   });
 });
 

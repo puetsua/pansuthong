@@ -5,7 +5,8 @@
 - Routes/shell: `src/App.tsx`, `src/shell/`
 - Active views: `src/views/TodayView.tsx`, `InboxView.tsx`, `UpcomingView.tsx`, `TagView.tsx`
 - Archive/history: `src/views/ArchivedView.tsx`, `HistoryView.tsx`
-- Templates/recurrence: `src/views/TemplatesView.tsx`, `src/lib/recurrence.ts`
+- Templates/recurrence schedules: `src/views/TemplatesView.tsx`, `src/lib/recurrence.ts`
+- Dashboard: `src/views/DashboardView.tsx` (route `/dashboard`; `/recurrence` redirects)
 - Capture: `src/components/Composer.tsx` (inline add in Today/Inbox/Tag views; one-line parse + `ComposerPreview.tsx`) opens the full `TaskEditor.tsx` modal
 - Editors: `src/components/TaskEditor.tsx`, `TagEditor.tsx`
 - Rows/lists: `src/components/TaskRow.tsx`, `TaskList.tsx`, `RowList.tsx`, `GhostRow.tsx`

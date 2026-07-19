@@ -18,11 +18,11 @@ across all tasks carrying the tag.
 - **WHEN** a tag is shown on the Dashboard
 - **THEN** its heatmap reflects activity from every task carrying that tag
 
-### Requirement: Recurrence heatmap range
+### Requirement: Dashboard heatmap range
 
-The system SHALL bound the recurrence heatmap by the device-local
-`recurrence_heatmap_days` (7..=365, default 90) and start weeks on the configured
-`first_day_of_week`.
+The system SHALL bound the Dashboard/Tag heatmap by the device-local
+`recurrence_heatmap_days` (7..=365, default 90; key name kept for compatibility)
+and start weeks on the configured `first_day_of_week`.
 
 #### Scenario: Range and week start follow settings
 - **WHEN** `recurrence_heatmap_days` or `first_day_of_week` changes
@@ -30,7 +30,7 @@ The system SHALL bound the recurrence heatmap by the device-local
 
 ### Requirement: Heatmap fits available width
 
-The system SHALL render activity heatmaps (tag and recurrence) so that when the
+The system SHALL render activity heatmaps (tag and Dashboard) so that when the
 configured day range produces more week columns than fit in the available width,
 only as many trailing weeks as fit are shown, always including today, without
 relying on horizontal scrolling as the primary overflow behavior. The device-local

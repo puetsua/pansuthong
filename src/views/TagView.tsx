@@ -13,7 +13,7 @@ import { useHeldCompletions, withHeld } from "../state/heldCompletions";
 import { Document, isDone } from "../lib/tauri";
 import { formatDate } from "../lib/dates";
 import { currentLocale } from "../i18n";
-import { firstDayOfWeek, recurrenceHeatmapDays } from "../lib/settings";
+import { firstDayOfWeek, dashboardHeatmapDays } from "../lib/settings";
 import { formatDurationShort } from "../lib/time";
 import { useIdleAnchor } from "../lib/useIdleAnchor";
 import { recurrenceStreak, type HeatCell, type Heatmap } from "../lib/recurrence-heatmap";
@@ -39,7 +39,7 @@ export function TagView({ doc, indexes }: Props) {
   );
   const analytics = useMemo(
     () => {
-      const days = recurrenceHeatmapDays(doc.settings);
+      const days = dashboardHeatmapDays(doc.settings);
       return computeTagAnalytics(
         taggedTasks,
         indexes.todayIso,
@@ -137,7 +137,7 @@ function TagAnalytics({ heat, totalSpentMs, scheduledDays, completedTasks, openT
   const { t } = useTranslation();
   return (
     <div className="tag-analytics">
-      <div className="recurrence-stats" role="status">
+      <div className="heatmap-stats" role="status">
         <Stat num={formatDurationShort(totalSpentMs)} label={t("tagView.totalSpent")} />
         <Stat num={scheduledDays} label={t("tagView.scheduledDays")} />
         <Stat num={recurrenceStreak(heat.cells)} label={t("tagView.streakLabel")} />
@@ -162,9 +162,9 @@ function TagAnalytics({ heat, totalSpentMs, scheduledDays, completedTasks, openT
 
 function Stat({ num, label }: { num: number | string; label: string }) {
   return (
-    <span className="recurrence-stat">
-      <span className="recurrence-stat-num">{num}</span>
-      <span className="recurrence-stat-label">{label}</span>
+    <span className="heatmap-stat">
+      <span className="heatmap-stat-num">{num}</span>
+      <span className="heatmap-stat-label">{label}</span>
     </span>
   );
 }

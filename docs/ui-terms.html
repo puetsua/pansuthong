@@ -300,6 +300,7 @@
         — chrome/controls first, then domain concepts.
         Prefer these names when talking or writing about the product.
         Centered on <strong>tasks</strong> and <strong>tags</strong>; there are no Projects.
+        zh-TW product name: <strong>辦事通</strong> (<code>nav.appName</code>).
       </p>
       <p class="meta">
         Sources: <code>src/i18n/locales/en.json</code>,
@@ -558,7 +559,7 @@
           <tr>
             <td>Nav vs settings</td>
             <td>Dashboard</td>
-            <td>Settings still say “Recurrence heatmap…”</td>
+            <td>Aligned: Settings “Dashboard heatmap range”</td>
           </tr>
           <tr>
             <td>Done state</td>
@@ -680,7 +681,7 @@
         <p class="meaning">
           Reusable task blueprints stored separately from live tasks. Spawn a fresh task
           from a template; recurring templates can project “ghost” rows into date views.
-          zh-TW: <strong>範本</strong> (not 任務模板).
+          zh-TW: <strong>任務範本</strong>.
         </p>
         <p class="key">nav.templates</p>
         <p class="related">Dashboard / recurrence ghosts; Save as template</p>
@@ -692,11 +693,12 @@
           <span class="where">Sidebar · More menu</span>
         </div>
         <p class="meaning">
-          Activity tracking for selected tags (heatmap or streak). Nav label is “Dashboard”
-          (<code>nav.dashboard</code>); route and some Settings/view keys still say “Recurrence”.
-          zh-TW: <strong>週期</strong> (not 儀表板) — pairs with README「範本與週期」.
+          Activity tracking for selected tags (heatmap or streak). Route
+          <code>/dashboard</code>, i18n <code>dashboard.*</code>, Settings
+          <code>settings.dashboardHeatmapRange</code>.
+          zh-TW: <strong>儀表板</strong>.
         </p>
-        <p class="key">nav.dashboard · recurrence.* · settings.recurrenceHeatmapRange</p>
+        <p class="key">nav.dashboard · dashboard.* · settings.dashboardHeatmapRange</p>
         <p class="related">Recurrence tag on templates; Tag view → Statistic tab</p>
       </article>
 
@@ -708,7 +710,7 @@
         <p class="meaning">
           Recent changes to tasks, tags, and templates (append-only per-device history sidecar,
           concatenated for reading). Not the same as Archived.
-          zh-TW: <strong>歷程</strong>.
+          zh-TW: <strong>修改歷程</strong>.
         </p>
         <p class="key">nav.history</p>
       </article>
@@ -909,12 +911,12 @@
 
       <article class="term">
         <div class="term-head">
-          <span class="term-en">Recurrence heatmap range</span>
+          <span class="term-en">Dashboard heatmap range</span>
           <span class="where">Settings</span>
         </div>
         <p class="meaning">How many days back the Dashboard heatmap reaches (ending today).</p>
-        <p class="key">settings.recurrenceHeatmapRange</p>
-        <p class="related">Nav label “Dashboard”</p>
+        <p class="key">settings.dashboardHeatmapRange</p>
+        <p class="related">Persisted as <code>recurrence_heatmap_days</code> for compatibility</p>
       </article>
 
       <article class="term">
@@ -1155,7 +1157,7 @@
           real task already covers that day for that tag.
         </p>
         <p class="key">taskEditor.recurrenceTag · recursUnder</p>
-        <p class="related">Dashboard (nav); Recurrence heatmap range (settings)</p>
+        <p class="related">Dashboard (nav); Dashboard heatmap range (settings)</p>
       </article>
 
       <article class="term">
@@ -1164,7 +1166,7 @@
           <span class="where">Dashboard · Tag → Statistic</span>
         </div>
         <p class="meaning">Activity visualizations for tracked tags (done / active / none legends).</p>
-        <p class="key">recurrence.view_heatmap · view_streak · tagView.legend*</p>
+        <p class="key">dashboard.view_heatmap · view_streak · tagView.legend*</p>
       </article>
     </section>
 
@@ -1241,11 +1243,6 @@
         Ambiguities spotted while cataloging. Code behavior is clear; naming/copy may still want a call.
       </p>
       <ol class="open-list">
-        <li>
-          <strong>Dashboard vs Recurrence</strong> —
-          Nav: “Dashboard”; Settings: “Recurrence heatmap range”;
-          template field: “Recurrence tag”. One product word for the screen?
-        </li>
         <li>
           <strong>Data file</strong> —
           Section title talks about a “file” while the UI is folder-centric (and Android has two folder concepts).

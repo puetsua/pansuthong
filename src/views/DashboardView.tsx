@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { api, DashboardView, Document, Tag } from "../lib/tauri";
+import { api, DashboardView as DashboardViewKind, Document, Tag } from "../lib/tauri";
 import { Indexes } from "../state/indexes";
-import { recurrenceHeatmapDays, firstDayOfWeek } from "../lib/settings";
+import { dashboardHeatmapDays, firstDayOfWeek } from "../lib/settings";
 import { Heatmap, HeatCell, recurrenceStreak } from "../lib/recurrence-heatmap";
 import { computeTagAnalytics, recurringScheduledDates } from "../lib/tag-analytics";
 import { formatDate } from "../lib/dates";
@@ -12,11 +12,11 @@ import { HeatmapGrid } from "../components/HeatmapGrid";
 
 type Props = { doc: Document; indexes: Indexes };
 
-const DASHBOARD_VIEWS: DashboardView[] = ["heatmap", "streak"];
+const DASHBOARD_VIEWS: DashboardViewKind[] = ["heatmap", "streak"];
 
-export function RecurrenceView({ doc, indexes }: Props) {
+export function DashboardView({ doc, indexes }: Props) {
   const { t } = useTranslation();
-  const days = recurrenceHeatmapDays(doc.settings);
+  const days = dashboardHeatmapDays(doc.settings);
   const fdow = firstDayOfWeek(doc.settings);
   const todayIso = indexes.todayIso;
 
@@ -30,7 +30,7 @@ export function RecurrenceView({ doc, indexes }: Props) {
   const added = tags.filter(tag => tag.dashboard_view);
   const available = tags.filter(tag => !tag.dashboard_view);
 
-  const setTagView = (tag: Tag, view: DashboardView | null) =>
+  const setTagView = (tag: Tag, view: DashboardViewKind | null) =>
     void api.updateTag({ id: tag.id, dashboard_view: view });
 
   return (
@@ -38,16 +38,16 @@ export function RecurrenceView({ doc, indexes }: Props) {
       <header className="view-header dashboard-header">
         <div className="dashboard-header-text">
           <h1>{t("nav.dashboard")}</h1>
-          <p className="view-sub">{t("recurrence.subtitle")}</p>
+          <p className="view-sub">{t("dashboard.subtitle")}</p>
         </div>
         {available.length > 0 && (
           <label className="dashboard-add">
-            <select aria-label={t("recurrence.addTag")} value=""
+            <select aria-label={t("dashboard.addTag")} value=""
                     onChange={e => {
                       const tag = available.find(x => x.id === e.currentTarget.value);
                       if (tag) setTagView(tag, "heatmap");
                     }}>
-              <option value="" disabled>{t("recurrence.addTag")}</option>
+              <option value="" disabled>{t("dashboard.addTag")}</option>
               {available.map(tag => <option key={tag.id} value={tag.id}>#{tag.name}</option>)}
             </select>
           </label>
@@ -55,9 +55,9 @@ export function RecurrenceView({ doc, indexes }: Props) {
       </header>
 
       {tags.length === 0 ? (
-        <p className="view-empty">{t("recurrence.empty")}</p>
+        <p className="view-empty">{t("dashboard.empty")}</p>
       ) : added.length === 0 ? (
-        <p className="view-empty">{t("recurrence.noPins")}</p>
+        <p className="view-empty">{t("dashboard.noPins")}</p>
       ) : (
         <>
           <div className="dashboard-cards">
@@ -90,7 +90,7 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, firstDayOfWeek, on
   todayIso: string;
   days: number;
   firstDayOfWeek: number;
-  onSetView: (view: DashboardView) => void;
+  onSetView: (view: DashboardViewKind) => void;
   onRemove: () => void;
 }) {
   const { t } = useTranslation();
@@ -109,17 +109,17 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, firstDayOfWeek, on
           </span>
         </span>
         <div className="dashboard-card-controls">
-          <div className="te-segmented" role="group" aria-label={t("recurrence.viewLabel")}>
+          <div className="te-segmented" role="group" aria-label={t("dashboard.viewLabel")}>
             {DASHBOARD_VIEWS.map(v => (
               <button key={v} type="button" aria-pressed={view === v}
                       className={view === v ? "active" : ""}
                       onClick={() => onSetView(v)}>
-                {t(`recurrence.view_${v}`)}
+                {t(`dashboard.view_${v}`)}
               </button>
             ))}
           </div>
           <button type="button" className="dashboard-remove"
-                  aria-label={t("recurrence.remove")} title={t("recurrence.remove")}
+                  aria-label={t("dashboard.remove")} title={t("dashboard.remove")}
                   onClick={onRemove}>✕</button>
         </div>
       </div>
@@ -138,17 +138,17 @@ function HeatmapBody({ heat, days, todayIso, firstDayOfWeek }: {
   const completion = heat.scheduled > 0 ? Math.round((heat.done / heat.scheduled) * 100) : 0;
   return (
     <>
-      <div className="recurrence-stats" role="status">
-        <Stat num={heat.done} label={t("recurrence.done")} />
-        <Stat num={heat.skipped} label={t("recurrence.skipped")} />
-        <Stat num={`${completion}%`} label={t("recurrence.completion")} />
-        <Stat num={days} label={t("recurrence.rangeLabel")} />
+      <div className="heatmap-stats" role="status">
+        <Stat num={heat.done} label={t("dashboard.done")} />
+        <Stat num={heat.skipped} label={t("dashboard.skipped")} />
+        <Stat num={`${completion}%`} label={t("dashboard.completion")} />
+        <Stat num={days} label={t("dashboard.rangeLabel")} />
       </div>
       <HeatmapGrid
         cells={heat.cells}
         todayIso={todayIso}
         firstDayOfWeek={firstDayOfWeek}
-        ariaLabel={t("recurrence.heatmapAria")}
+        ariaLabel={t("dashboard.heatmapAria")}
         labelForCell={cell => cellTip(t, cell)}
       />
     </>
@@ -162,7 +162,7 @@ function StreakBody({ heat, todayIso }: { heat: Heatmap; todayIso: string }) {
   const streak = recurrenceStreak(heat.cells);
   return (
     <div className="dashboard-streak">
-      <div className="dashboard-streak-strip" aria-label={t("recurrence.last7")}>
+      <div className="dashboard-streak-strip" aria-label={t("dashboard.last7")}>
         {last7.map((cell, i) => {
           const cls = `heatmap-cell heatmap-${cell.status}${cell.iso === todayIso ? " heatmap-today" : ""}`;
           const label = cellTip(t, cell);
@@ -172,7 +172,7 @@ function StreakBody({ heat, todayIso }: { heat: Heatmap; todayIso: string }) {
       <div className="dashboard-streak-count">
         <span className="dashboard-streak-num">{streak}</span>
         <span className="dashboard-streak-flame" aria-hidden>🔥</span>
-        <span className="dashboard-streak-label">{t("recurrence.streakLabel")}</span>
+        <span className="dashboard-streak-label">{t("dashboard.streakLabel")}</span>
       </div>
     </div>
   );
@@ -180,9 +180,9 @@ function StreakBody({ heat, todayIso }: { heat: Heatmap; todayIso: string }) {
 
 function Stat({ num, label }: { num: number | string; label: string }) {
   return (
-    <span className="recurrence-stat">
-      <span className="recurrence-stat-num">{num}</span>
-      <span className="recurrence-stat-label">{label}</span>
+    <span className="heatmap-stat">
+      <span className="heatmap-stat-num">{num}</span>
+      <span className="heatmap-stat-label">{label}</span>
     </span>
   );
 }
@@ -190,10 +190,10 @@ function Stat({ num, label }: { num: number | string; label: string }) {
 function Legend() {
   const { t } = useTranslation();
   return (
-    <ul className="heatmap-legend" aria-label={t("recurrence.legendAria")}>
-      <li><span className="heatmap-cell heatmap-done" /> {t("recurrence.legendDone")}</li>
-      <li><span className="heatmap-cell heatmap-skip" /> {t("recurrence.legendSkip")}</li>
-      <li><span className="heatmap-cell heatmap-none" /> {t("recurrence.legendNone")}</li>
+    <ul className="heatmap-legend" aria-label={t("dashboard.legendAria")}>
+      <li><span className="heatmap-cell heatmap-done" /> {t("dashboard.legendDone")}</li>
+      <li><span className="heatmap-cell heatmap-skip" /> {t("dashboard.legendSkip")}</li>
+      <li><span className="heatmap-cell heatmap-none" /> {t("dashboard.legendNone")}</li>
     </ul>
   );
 }
@@ -202,7 +202,7 @@ function Legend() {
 function cellTip(t: TFunction, cell: HeatCell): string {
   const d = new Date(`${cell.iso}T00:00:00Z`);
   const date = formatDate(d, "slash_ymd", currentLocale());
-  return t(`recurrence.tip${cap(cell.status)}`, { date });
+  return t(`dashboard.tip${cap(cell.status)}`, { date });
 }
 
 function cap(s: string): string {
