@@ -5,6 +5,7 @@
   After visual changes, regenerate raster icons with:
     npx tauri icon src-tauri/icons/icon.svg
 -->
+
 <svg
    width="1024"
    height="1024"
@@ -12,7 +13,7 @@
    version="1.1"
    id="svg-icon"
    sodipodi:docname="icon.svg"
-   inkscape:version="1.4.2"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
@@ -28,23 +29,38 @@
      inkscape:deskcolor="#d0d0d0"
      inkscape:document-units="px"
      inkscape:zoom="0.5"
-     inkscape:cx="512"
+     inkscape:cx="511"
      inkscape:cy="512"
-     inkscape:current-layer="layer-check"
+     inkscape:current-layer="layer-tag"
      showgrid="false"
-     units="px" />
-  <title id="title">Pansuthong App Icon</title>
-  <desc id="desc">Purple rounded square with a white tag, circular hole, and check mark. Structured for editing in Inkscape.</desc>
-  <defs id="defs">
+     units="px"
+     inkscape:window-width="1771"
+     inkscape:window-height="968"
+     inkscape:window-x="39"
+     inkscape:window-y="9"
+     inkscape:window-maximized="0" />
+  <title
+     id="title">Pansuthong App Icon</title>
+  <desc
+     id="desc">Purple rounded square with a white tag, circular hole, and check mark. Structured for editing in Inkscape.</desc>
+  <defs
+     id="defs">
     <linearGradient
        id="grad-bg"
-       x1="160"
-       y1="120"
-       x2="864"
-       y2="920"
+       x1="522"
+       y1="115.99509"
+       x2="522"
+       y2="932.00488"
        gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#9B4DFF" id="stop-bg-0" />
-      <stop offset="1" stop-color="#4B1AAE" id="stop-bg-1" />
+      <stop
+         offset="0"
+         stop-color="#9B4DFF"
+         id="stop-bg-0" />
+      <stop
+         offset="1"
+         stop-color="#4B1AAE"
+         id="stop-bg-1"
+         style="stop-color:#541dc2;stop-opacity:1;" />
     </linearGradient>
     <linearGradient
        id="grad-tag"
@@ -53,21 +69,28 @@
        x2="664.52"
        y2="748.16"
        gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF" id="stop-tag-0" />
-      <stop offset="1" stop-color="#F1E8FF" id="stop-tag-1" />
+      <stop
+         offset="0"
+         stop-color="#FFFFFF"
+         id="stop-tag-0" />
+      <stop
+         offset="1"
+         stop-color="#F1E8FF"
+         id="stop-tag-1" />
     </linearGradient>
     <!-- Soft blur for the shadow duplicate — Inkscape Filter Editor friendly -->
     <filter
        id="filter-blur"
-       x="-20%"
-       y="-20%"
-       width="140%"
-       height="140%"
+       x="-0.053976286"
+       y="-0.043215191"
+       width="1.1079526"
+       height="1.0864304"
        inkscape:label="Soft blur">
-      <feGaussianBlur stdDeviation="18" />
+      <feGaussianBlur
+         stdDeviation="9.3316"
+         id="feGaussianBlur1" />
     </filter>
   </defs>
-
   <!-- Layer: rounded app-icon background -->
   <g
      inkscape:groupmode="layer"
@@ -80,11 +103,10 @@
        y="64"
        width="896"
        height="896"
-       rx="210"
-       ry="210"
-       fill="url(#grad-bg)" />
+       fill="url(#grad-bg)"
+       style="fill:url(#grad-bg)"
+       ry="200" />
   </g>
-
   <!-- Layer: soft shadow under the tag (offset duplicate — easy to nudge/hide) -->
   <g
      inkscape:groupmode="layer"
@@ -94,12 +116,13 @@
     <path
        id="tag-shadow"
        inkscape:label="Tag shadow"
+       transform="translate(0,22.96)"
        fill="#2B0B62"
        opacity="0.28"
        filter="url(#filter-blur)"
-       d="M 512,275.84 C 533.32,275.84 553.82,284.04 569.4,298.8 L 694.04,423.44 C 710.44,439.84 719.46,462.8 719.46,485.76 V 695.68 C 719.46,749.8 675.18,794.08 621.06,794.08 H 402.94 C 348.82,794.08 304.54,749.8 304.54,695.68 V 485.76 C 304.54,462.8 313.56,439.84 329.96,423.44 L 454.6,298.8 C 470.18,284.04 490.68,275.84 512,275.84 Z" />
+       d="M 512,252.88 C 533.32,252.88 553.82,261.08 569.4,275.84 L 694.04,400.48 C 710.44,416.88 719.46,439.84 719.46,462.8 V 672.72 C 719.46,726.84 675.18,771.12 621.06,771.12 H 402.94 C 348.82,771.12 304.54,726.84 304.54,672.72 V 462.8 C 304.54,439.84 313.56,416.88 329.96,400.48 L 454.6,275.84 C 470.18,261.08 490.68,252.88 512,252.88 Z"
+       style="filter:url(#filter-blur);opacity:0.5;fill:#351c61;fill-opacity:1" />
   </g>
-
   <!-- Layer: white tag body (0.82 center-scale baked into coordinates) -->
   <g
      inkscape:groupmode="layer"
@@ -109,9 +132,9 @@
        id="tag-body"
        inkscape:label="Tag shape"
        fill="url(#grad-tag)"
-       d="M 512,252.88 C 533.32,252.88 553.82,261.08 569.4,275.84 L 694.04,400.48 C 710.44,416.88 719.46,439.84 719.46,462.8 V 672.72 C 719.46,726.84 675.18,771.12 621.06,771.12 H 402.94 C 348.82,771.12 304.54,726.84 304.54,672.72 V 462.8 C 304.54,439.84 313.56,416.88 329.96,400.48 L 454.6,275.84 C 470.18,261.08 490.68,252.88 512,252.88 Z" />
+       d="M 512,252.88 C 533.32,252.88 553.82,261.08 569.4,275.84 L 694.04,400.48 C 710.44,416.88 719.46,439.84 719.46,462.8 V 672.72 C 719.46,726.84 675.18,771.12 621.06,771.12 H 402.94 C 348.82,771.12 304.54,726.84 304.54,672.72 V 462.8 C 304.54,439.84 313.56,416.88 329.96,400.48 L 454.6,275.84 C 470.18,261.08 490.68,252.88 512,252.88 Z"
+       style="fill:#ffffff;fill-opacity:1" />
   </g>
-
   <!-- Layer: tag hole (solid purple approximating cutout; Path > Difference for a true hole) -->
   <g
      inkscape:groupmode="layer"
@@ -123,9 +146,9 @@
        cx="512"
        cy="368.5"
        r="44.28"
-       fill="#5B20BF" />
+       fill="#5B20BF"
+       style="fill:#9a4cfe;fill-opacity:1" />
   </g>
-
   <!-- Layer: check mark as a 3-node stroke (Node tool friendly) -->
   <g
      inkscape:groupmode="layer"
@@ -139,6 +162,7 @@
        stroke-width="57.4"
        stroke-linecap="round"
        stroke-linejoin="round"
-       d="M 416.88,544.8 L 493.14,621.06 L 625.98,488.22" />
+       d="M 416.88,544.8 L 493.14,621.06 L 625.98,488.22"
+       style="stroke:#9b4dff;stroke-opacity:1" />
   </g>
 </svg>
