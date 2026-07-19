@@ -53,6 +53,30 @@ describe("Sidebar — primary nav order", () => {
     expect(search).toBe(upcoming + 1);
     expect(tags).toBeGreaterThan(search);
   });
+
+  it("does not show a numeric count on Inbox (presence is the mobile badge only)", () => {
+    const d: Document = {
+      version: 2,
+      last_modified: undefined,
+      settings: { theme: "auto", sort_order: "priority" },
+      tags: [],
+      tasks: [{
+        id: "k_inbox",
+        title: "loose",
+        notes: "",
+        tag_ids: [],
+        created_at: "2026-01-01T00:00:00+08:00",
+      }],
+      template_tasks: [],
+    };
+    render(
+      <MemoryRouter>
+        <Sidebar doc={d} indexes={buildIndexes(d)} />
+      </MemoryRouter>,
+    );
+    const inbox = screen.getByRole("link", { name: /inbox/i });
+    expect(inbox.textContent?.replace(/\s+/g, " ").trim()).toMatch(/^inbox$/i);
+  });
 });
 
 describe("Sidebar — tag curation (#78)", () => {

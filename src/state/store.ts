@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, startTransition } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, Document } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
@@ -27,14 +27,22 @@ export function useDocument(): DocState {
   useEffect(() => {
     let mounted = true;
 
+    const applyDoc = (d: Document) => {
+      hasDoc.current = true;
+      // Keep the current UI interactive while indexes rebuild — completing a
+      // task or flipping a setting used to feel like a hitch on Android.
+      startTransition(() => {
+        setDoc(d);
+        setError(null);
+        setReloadError(null);
+      });
+    };
+
     const load = async () => {
       try {
         const d = await api.getDocument();
         if (!mounted) return;
-        hasDoc.current = true;
-        setDoc(d);
-        setError(null);
-        setReloadError(null);
+        applyDoc(d);
       } catch (e) {
         if (!mounted) return;
         const msg = errorMessage(e);
@@ -43,12 +51,16 @@ export function useDocument(): DocState {
       }
     };
 
-    const unlistenPromise = listen("store-changed", () => { void load(); });
+    // store-changed = synced document mutated; settings-changed = device-local
+    // config only. Both need a UI reload; only store-changed schedules SAF push.
+    const unlistenStore = listen("store-changed", () => { void load(); });
+    const unlistenSettings = listen("settings-changed", () => { void load(); });
     void load();
 
     return () => {
       mounted = false;
-      void unlistenPromise.then(fn => fn());
+      void unlistenStore.then(fn => fn());
+      void unlistenSettings.then(fn => fn());
     };
   }, []);
 
@@ -77,9 +89,10 @@ export function useDocument(): DocState {
   }, [doc?.settings]);
 
   // Android folder-sync triggers: pull on launch + when returning to the
-  // foreground, and a debounced push after each local change. store-changed
-  // already drives the reload, so these only move bytes to/from the SAF folder.
-  // All `saf*` calls are inert stubs on desktop (#Phase 4B).
+  // foreground, and a debounced push after each local *document* change.
+  // Settings emit settings-changed (not store-changed), so they never push —
+  // device-local config is not in the synced replica. All `saf*` calls are
+  // inert stubs on desktop (#Phase 4B).
   useEffect(() => {
     let active = true;
     let pushTimer: ReturnType<typeof setTimeout> | undefined;

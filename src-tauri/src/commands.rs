@@ -15,9 +15,17 @@ use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 const STORE_CHANGED: &str = "store-changed";
+/// Device-local settings (`config.json`) changed. Frontend reloads the document
+/// view so `settings` stay in sync, but Android must NOT schedule a SAF push —
+/// settings are not synced and a push would only re-hash / re-open the folder.
+const SETTINGS_CHANGED: &str = "settings-changed";
 
 fn emit_changed(app: &AppHandle) {
     let _ = app.emit(STORE_CHANGED, ());
+}
+
+fn emit_settings_changed(app: &AppHandle) {
+    let _ = app.emit(SETTINGS_CHANGED, ());
 }
 
 /// Wire shape the frontend consumes: the synced document (tasks + tags) with the
@@ -2339,7 +2347,7 @@ pub fn update_settings(
         }
         Ok(())
     })?;
-    emit_changed(&app);
+    emit_settings_changed(&app);
     Ok(())
 }
 

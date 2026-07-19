@@ -557,9 +557,15 @@ export function SettingsView({ doc }: Props) {
         <p className="view-sub">
           {t("settings.deviceId")}<code>{loc?.device_id ?? "…"}</code>
         </p>
-        <p className="view-sub">
-          {t("settings.dataFolder")}<code>{loc?.folder_path ?? "…"}</code>
-        </p>
+        {/* Desktop: "Folder:" is the sync directory. Android: "Folder:" is the
+            local app-data path; "Synced folder:" is the SAF mirror. When SAF is
+            linked, hide the local Folder line so the screen matches desktop's
+            one-folder UX without mislabeling SAF as Folder (see docs/ui-terms.html). */}
+        {!(android && sync?.linked) && (
+          <p className="view-sub">
+            {t("settings.dataFolder")}<code>{loc?.folder_path ?? "…"}</code>
+          </p>
+        )}
         {android ? (
           sync?.linked ? (
             <>

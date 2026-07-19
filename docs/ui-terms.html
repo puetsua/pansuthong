@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pansuthong — UI Terms Catalog</title>
+  <style>
+    :root {
+      --bg: #f6f5f2;
+      --surface: #ffffff;
+      --ink: #1c1b19;
+      --muted: #5c5a55;
+      --line: #d8d4cc;
+      --accent: #2f5d50;
+      --accent-soft: #e4efe9;
+      --warn: #8a5a1a;
+      --warn-soft: #f5ecd9;
+      --confused: #6b3a4a;
+      --confused-soft: #f3e8ec;
+      --code: #f0ebe3;
+      --radius: 8px;
+      --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+      --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.55;
+      font-size: 15px;
+    }
+
+    .wrap {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+
+    header.doc-header {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    header.doc-header h1 {
+      margin: 0 0 0.4rem;
+      font-size: 1.75rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    header.doc-header p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 42rem;
+    }
+    .meta {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .meta code {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      background: var(--code);
+      padding: 0.1em 0.35em;
+      border-radius: 4px;
+    }
+
+    nav.toc {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0.9rem 1.1rem;
+      margin-bottom: 1.25rem;
+    }
+    nav.toc h2 {
+      margin: 0 0 0.5rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      font-weight: 650;
+    }
+    nav.toc ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem 0.85rem;
+    }
+    nav.toc a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.95rem;
+    }
+    nav.toc a:hover { text-decoration: underline; }
+
+    .quickfind {
+      background: var(--accent-soft);
+      border: 1px solid #c5ddd2;
+      border-radius: var(--radius);
+      padding: 0.85rem 1.05rem;
+      margin-bottom: 2rem;
+    }
+    .quickfind h2 {
+      margin: 0 0 0.4rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      font-weight: 650;
+    }
+    .quickfind p {
+      margin: 0 0 0.55rem;
+      font-size: 0.95rem;
+    }
+    .quickfind p:last-child { margin-bottom: 0; }
+    .quickfind a {
+      color: var(--accent);
+      font-weight: 650;
+      text-decoration: none;
+    }
+    .quickfind a:hover { text-decoration: underline; }
+    .aliases {
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    section {
+      margin-bottom: 2.25rem;
+    }
+    section > h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1.35rem;
+      font-weight: 650;
+      letter-spacing: -0.015em;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 0.4rem;
+    }
+    section > .section-lead {
+      margin: 0.5rem 0 1rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .callout {
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      padding: 0.75rem 1rem;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 0 0 1.25rem;
+      font-size: 0.95rem;
+    }
+    .callout.warn {
+      background: var(--warn-soft);
+      border-left-color: var(--warn);
+    }
+    .callout strong { color: var(--ink); }
+
+    .term {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0.9rem 1.05rem;
+      margin-bottom: 0.75rem;
+    }
+    .term.highlight {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(47, 93, 80, 0.15);
+    }
+    .term-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.35rem 0.75rem;
+      margin-bottom: 0.35rem;
+    }
+    .term-en {
+      font-size: 1.05rem;
+      font-weight: 650;
+    }
+    .where {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--accent);
+      background: var(--accent-soft);
+      padding: 0.15em 0.5em;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .meaning {
+      margin: 0.35rem 0 0;
+      color: var(--ink);
+    }
+    .key {
+      margin: 0.35rem 0 0;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .aka {
+      margin: 0.35rem 0 0;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+    .aka strong { color: var(--ink); font-weight: 650; }
+    .related {
+      margin: 0.65rem 0 0;
+      padding: 0.55rem 0.7rem;
+      background: var(--confused-soft);
+      border-radius: 6px;
+      font-size: 0.9rem;
+      color: var(--confused);
+    }
+    .related::before {
+      content: "Confused with / related: ";
+      font-weight: 650;
+      color: var(--confused);
+    }
+
+    .pair-grid {
+      display: grid;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    @media (min-width: 700px) {
+      .pair-grid.two { grid-template-columns: 1fr 1fr; }
+    }
+    .pair {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0.9rem 1rem;
+    }
+    .pair h3 {
+      margin: 0 0 0.35rem;
+      font-size: 1rem;
+    }
+    .pair p { margin: 0; font-size: 0.92rem; color: var(--muted); }
+    .pair .label {
+      font-size: 0.75rem;
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+      margin-bottom: 0.25rem;
+    }
+
+    table.compare {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      font-size: 0.92rem;
+      margin-bottom: 1rem;
+    }
+    table.compare th,
+    table.compare td {
+      text-align: left;
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    table.compare th {
+      background: var(--code);
+      font-weight: 650;
+      font-size: 0.8rem;
+    }
+    table.compare tr:last-child td { border-bottom: none; }
+
+    .open-list {
+      margin: 0.5rem 0 0;
+      padding-left: 1.2rem;
+    }
+    .open-list li { margin-bottom: 0.4rem; }
+
+    footer {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="doc-header">
+      <h1>UI Terms Catalog</h1>
+      <p>
+        Product-owner reference for <strong>what to call things on screen</strong>
+        — chrome/controls first, then domain concepts.
+        Prefer these names when talking or writing about the product.
+        Centered on <strong>tasks</strong> and <strong>tags</strong>; there are no Projects.
+      </p>
+      <p class="meta">
+        Sources: <code>src/i18n/locales/en.json</code>,
+        <code>src/shell/MobileHeader.tsx</code>, <code>BottomTabs.tsx</code>, <code>Sidebar.tsx</code>,
+        Settings / data-folder UI, <code>docs/agent/data-model.md</code>.
+      </p>
+    </header>
+
+    <nav class="toc" aria-label="Contents">
+      <h2>Contents</h2>
+      <ul>
+        <li><a href="#chrome">Chrome &amp; controls</a></li>
+        <li><a href="#confusion">Easy to confuse</a></li>
+        <li><a href="#nav">Navigation &amp; views</a></li>
+        <li><a href="#data">Settings · Data &amp; sync</a></li>
+        <li><a href="#prefs">Settings · Preferences</a></li>
+        <li><a href="#tasks">Tasks</a></li>
+        <li><a href="#tags">Tags</a></li>
+        <li><a href="#templates">Templates &amp; Dashboard</a></li>
+        <li><a href="#time">Time tracking</a></li>
+        <li><a href="#conflicts">Sync conflicts</a></li>
+        <li><a href="#open">Needs product decision</a></li>
+      </ul>
+    </nav>
+
+    <aside class="quickfind" aria-label="Quick find">
+      <h2>Looking for the three dots?</h2>
+      <p>
+        Top-right <strong>⋯</strong> on phone / Android → call it the
+        <a href="#more-menu"><strong>More menu</strong></a>.
+      </p>
+      <p class="aliases">
+        Also searchable as: three dots · ⋯ · ellipsis · overflow · top right · top-right menu · More button
+      </p>
+    </aside>
+
+    <!-- ── Chrome & controls ───────────────────────────────── -->
+    <section id="chrome">
+      <h2>Chrome &amp; controls</h2>
+      <p class="section-lead">
+        UI shell pieces — where they sit and what to call them when briefing or filing feedback.
+        Visible label (or aria-label) is listed when the app has one.
+      </p>
+
+      <article class="term highlight" id="more-menu">
+        <div class="term-head">
+          <span class="term-en">More menu</span>
+          <span class="where">Mobile · top right</span>
+        </div>
+        <p class="meaning">
+          The <strong>⋯</strong> (three dots / ellipsis) button in the <strong>top-right</strong> of the
+          mobile header. Opens a dropdown of secondary destinations:
+          Templates, Dashboard, History, Tags, Archived, Settings.
+          Primary destinations (Today / Inbox / Upcoming) stay on the bottom tabs instead.
+        </p>
+        <p class="aka">
+          <strong>Say:</strong> More menu.
+          <strong>Aliases OK:</strong> ⋯ menu, three-dots menu, overflow menu.
+          Prefer “More menu” in product writing — it matches the in-app accessible name.
+        </p>
+        <p class="key">nav.more → “More” · aria-label on button + menu · MobileHeader.tsx</p>
+        <p class="related">Bottom tabs (primary); Sidebar (desktop equivalent of both tabs + More)</p>
+      </article>
+
+      <article class="term" id="search-button">
+        <div class="term-head">
+          <span class="term-en">Search</span>
+          <span class="where">Mobile header · top right · left of ⋯</span>
+        </div>
+        <p class="meaning">
+          Magnifier-style ⌕ control next to the More menu. Opens the Search view
+          (active / non-archived tasks). Also a sidebar link on desktop.
+        </p>
+        <p class="key">nav.search · aria-label on mobile header icon</p>
+      </article>
+
+      <article class="term" id="mobile-header">
+        <div class="term-head">
+          <span class="term-en">Mobile header</span>
+          <span class="where">Phone / Android · top of screen</span>
+        </div>
+        <p class="meaning">
+          Top bar with the current view title (e.g. Today, Inbox) on the left,
+          Search + More menu on the right. No product string for the bar itself —
+          use “mobile header” in docs.
+        </p>
+        <p class="key">.mobile-header · MobileHeader.tsx</p>
+      </article>
+
+      <article class="term" id="bottom-tabs">
+        <div class="term-head">
+          <span class="term-en">Bottom tabs</span>
+          <span class="where">Phone / Android · bottom of screen</span>
+        </div>
+        <p class="meaning">
+          Primary navigation strip with three tabs: <strong>Today</strong>,
+          <strong>Inbox</strong>, <strong>Upcoming</strong>.
+          Tab labels use the same strings as sidebar / nav. Screen-reader name for the strip
+          is hard-coded English “Primary” (not localized).
+          Badges: <strong>Today</strong> shows a red numeric count of remaining open tasks;
+          <strong>Inbox</strong> shows a red <em>dot</em> (no number) when there is at least one
+          open task with no pinned tag — a notice to look, not an unread tally.
+          Upcoming has no badge. Hidden when the corresponding count is zero.
+        </p>
+        <p class="aka">
+          <strong>Aliases:</strong> tab bar, bottom nav.
+        </p>
+        <p class="key">nav.today / inbox / upcoming · BottomTabs.tsx · aria-label=&quot;Primary&quot; · .bottom-tab-badge / .bottom-tab-badge-dot</p>
+        <p class="related">More menu (secondary destinations)</p>
+      </article>
+
+      <article class="term" id="sidebar">
+        <div class="term-head">
+          <span class="term-en">Sidebar</span>
+          <span class="where">Desktop · left column</span>
+        </div>
+        <p class="meaning">
+          Full desktop nav: Today, Inbox, Upcoming, Search; pinned tags; then
+          Tags, Archived, Templates, Dashboard, History, Settings.
+          On phone these split across bottom tabs + More menu — there is no sidebar on mobile.
+          Sidebar counts (muted, not red badges): Today shows remaining open tasks;
+          Inbox and Upcoming show no count (Inbox presence is the mobile red dot only).
+          Pinned tags / Archived / Templates keep inventory counts.
+        </p>
+        <p class="key">sidebar.* · Sidebar.tsx · “Pin to sidebar”</p>
+      </article>
+
+      <article class="term" id="titlebar">
+        <div class="term-head">
+          <span class="term-en">Title bar</span>
+          <span class="where">Windows desktop · window chrome</span>
+        </div>
+        <p class="meaning">
+          Custom window controls: Minimize / Maximize / Restore / Close.
+          Desktop only.
+        </p>
+        <p class="key">titlebar.* · DesktopTitlebar.tsx</p>
+      </article>
+
+      <article class="term" id="composer">
+        <div class="term-head">
+          <span class="term-en">Composer</span>
+          <span class="where">Today / Inbox / Tag views · top of list</span>
+        </div>
+        <p class="meaning">
+          Quick-add field. Placeholder: “What needs doing? …” /
+          aria-label “New task”. Parses tags, dates, and estimates from shorthand.
+          “Add task with more options…” expands into the full task editor.
+        </p>
+        <p class="aka">
+          <strong>Aliases:</strong> quick-add, new-task line. Prefer “composer” in engineering;
+          “quick-add” is fine for users.
+        </p>
+        <p class="key">composer.placeholder · aria · expand</p>
+      </article>
+
+      <article class="term" id="task-row">
+        <div class="term-head">
+          <span class="term-en">Task row</span>
+          <span class="where">Any task list</span>
+        </div>
+        <p class="meaning">
+          One line in a list: checkbox, title, tags/dates, timer controls.
+          Tapping opens the task editor. Ghost rows (from recurring templates) look similar
+          but are not stored tasks until promoted.
+        </p>
+        <p class="key">taskRow.* · ghostRow.* · .task-row</p>
+      </article>
+
+      <article class="term" id="modal">
+        <div class="term-head">
+          <span class="term-en">Modal / editor dialog</span>
+          <span class="where">Overlay over the current view</span>
+        </div>
+        <p class="meaning">
+          Full-screen or centered dialog with backdrop. Main ones:
+          <strong>Task editor</strong> (edit / new task or template),
+          <strong>Tag editor</strong>, theme pickers, confirm prompts, update prompt.
+          No single product word in i18n — say “task editor” or “modal” as needed.
+        </p>
+        <p class="key">taskEditor.* · tagEditor.* · role=&quot;dialog&quot; · .modal-backdrop</p>
+      </article>
+
+      <article class="term" id="idle-bar">
+        <div class="term-head">
+          <span class="term-en">Idle bar</span>
+          <span class="where">Today / Inbox header area</span>
+        </div>
+        <p class="meaning">
+          Shows session idle time (“Idle …”) with Assign / Reset.
+          Session-local — not synced.
+        </p>
+        <p class="key">today.idle · idle.*</p>
+      </article>
+    </section>
+
+    <!-- ── Easy to confuse ─────────────────────────────────── -->
+    <section id="confusion">
+      <h2>Easy to confuse</h2>
+      <p class="section-lead">
+        Start here for folder / sync language and other look-alike terms.
+      </p>
+
+      <div class="pair-grid two">
+        <div class="pair">
+          <div class="label">Desktop (always) · Android (when unlinked)</div>
+          <h3>Folder:</h3>
+          <p>
+            The <strong>local data folder path</strong> this device uses for its
+            <code>tasks_&lt;device&gt;.db</code> (and related files). On desktop this
+            <em>is</em> the sync directory you pointed at. On Android this is typically
+            the app-private path — not the cloud folder. When Android has a SAF link,
+            this line is hidden so only “Synced folder:” remains (one-folder UX).
+          </p>
+        </div>
+        <div class="pair">
+          <div class="label">Android only (when linked)</div>
+          <h3>Synced folder:</h3>
+          <p>
+            The user-picked <strong>SAF</strong> folder (often a cloud-drive directory)
+            that the app mirrors to/from. Separate from the local “Folder:” path.
+            Desktop does not show this label — desktop’s “Folder:” already is the sync folder.
+          </p>
+        </div>
+      </div>
+
+      <table class="compare">
+        <thead>
+          <tr>
+            <th>Term</th>
+            <th>UI label</th>
+            <th>Don’t mix with</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Local path label</td>
+            <td>Folder:</td>
+            <td>Synced folder (Android SAF)</td>
+          </tr>
+          <tr>
+            <td>Android mirror</td>
+            <td>Synced folder:</td>
+            <td>Folder: (local path); Settings themselves (device-local, not synced)</td>
+          </tr>
+          <tr>
+            <td>Section title</td>
+            <td>Data file</td>
+            <td>Shows device ID + folder(s), not a single “file” picker</td>
+          </tr>
+          <tr>
+            <td>Capture bucket</td>
+            <td>Inbox</td>
+            <td>Email inbox</td>
+          </tr>
+          <tr>
+            <td>Nav vs settings</td>
+            <td>Dashboard</td>
+            <td>Settings still say “Recurrence heatmap…”</td>
+          </tr>
+          <tr>
+            <td>Done state</td>
+            <td>Complete / Archived</td>
+            <td>Same underlying flag (<code>completed_at</code>); Archived is the list of completed tasks</td>
+          </tr>
+          <tr>
+            <td>Priority</td>
+            <td>priority / Weight</td>
+            <td>Task priority is derived from tag weights — not a separate task field</td>
+          </tr>
+          <tr>
+            <td>Mobile secondary nav</td>
+            <td>More menu (⋯)</td>
+            <td>Bottom tabs; desktop Sidebar</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>Not synced:</strong> Settings (theme, language, day start, folder choice / SAF link)
+        live in device-local <code>config.json</code>. Only the Document (tasks, tags, templates,
+        attachment metadata) and related files in the data/sync folder travel between devices.
+      </div>
+    </section>
+
+    <!-- ── Navigation ──────────────────────────────────────── -->
+    <section id="nav">
+      <h2>Navigation &amp; views</h2>
+      <p class="section-lead">
+        Destinations in the sidebar (desktop) or bottom tabs + More menu (mobile).
+        Every “view” is a <strong>computed query</strong> over the in-memory document —
+        nothing is stored as a saved view list.
+      </p>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Today</span>
+          <span class="where">Sidebar · bottom tab · header title</span>
+        </div>
+        <p class="meaning">
+          Tasks that belong to the current logical day: start/due coverage for today,
+          overdue due-only tasks, or tasks with time tracked today. Completed tasks stay
+          visible here until the day rolls over (so you can undo). Honors Day start.
+        </p>
+        <p class="key">nav.today</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Inbox</span>
+          <span class="where">Sidebar · bottom tab · header title</span>
+        </div>
+        <p class="meaning">
+          Active tasks that have <strong>no pinned tag</strong> (untagged, or only unpinned tags).
+          Subtitle: “Tasks with no pinned tag”.
+          Not an email-style inbox — it’s the catch-all so those tasks stay reachable from nav.
+        </p>
+        <p class="key">nav.inbox · inbox.subtitle</p>
+        <p class="related">Archived; Tag views</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Upcoming</span>
+          <span class="where">Sidebar · bottom tab · header title</span>
+        </div>
+        <p class="meaning">
+          Forward-looking date view for the next N days (N from Settings → Upcoming range).
+        </p>
+        <p class="key">nav.upcoming · settings.upcomingRange</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Search</span>
+          <span class="where">Sidebar · mobile header icon</span>
+        </div>
+        <p class="meaning">Search across <strong>active</strong> (non-archived) tasks. See also <a href="#search-button">chrome entry</a>.</p>
+        <p class="key">nav.search</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Tags</span>
+          <span class="where">Sidebar · More menu · Tags screen</span>
+        </div>
+        <p class="meaning">
+          Manage all tags (create, pin, weight, color). Individual pinned tags also appear
+          as sidebar shortcuts to a Tag view. Tags are flat — they do not nest or own tasks;
+          tasks reference tags via tag IDs.
+        </p>
+        <p class="key">nav.tags</p>
+        <p class="related">Pin to sidebar; Inbox (no pinned tag); Weight / priority</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Archived</span>
+          <span class="where">Sidebar · More menu</span>
+        </div>
+        <p class="meaning">
+          List of completed tasks (filterable by search / date). Completing a task archives it
+          from active views; Restore / Reopen brings it back.
+        </p>
+        <p class="key">nav.archived</p>
+        <p class="related">Complete; Reopen; Restore — same <code>completed_at</code> flag</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Templates</span>
+          <span class="where">Sidebar · More menu</span>
+        </div>
+        <p class="meaning">
+          Reusable task blueprints stored separately from live tasks. Spawn a fresh task
+          from a template; recurring templates can project “ghost” rows into date views.
+        </p>
+        <p class="key">nav.templates</p>
+        <p class="related">Dashboard / recurrence ghosts; Save as template</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Dashboard</span>
+          <span class="where">Sidebar · More menu</span>
+        </div>
+        <p class="meaning">
+          Activity tracking for selected tags (heatmap or streak). Nav label is “Dashboard”;
+          i18n key and some Settings copy still say “Recurrence”.
+        </p>
+        <p class="key">nav.recurrence · recurrence.* · settings.recurrenceHeatmapRange</p>
+        <p class="related">Recurrence tag on templates; Tag view → Statistic tab</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">History</span>
+          <span class="where">Sidebar · More menu</span>
+        </div>
+        <p class="meaning">
+          Recent changes to tasks, tags, and templates (append-only per-device history sidecar,
+          concatenated for reading). Not the same as Archived.
+        </p>
+        <p class="key">nav.history</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Settings</span>
+          <span class="where">Sidebar · More menu</span>
+        </div>
+        <p class="meaning">Device-local preferences and data-folder / sync linking. Not synced across devices.</p>
+        <p class="key">nav.settings</p>
+      </article>
+    </section>
+
+    <!-- ── Data & sync ─────────────────────────────────────── -->
+    <section id="data">
+      <h2>Settings · Data &amp; sync</h2>
+      <p class="section-lead">
+        Section heading <strong>Data file</strong>. Desktop always shows
+        Device ID + Folder. Android shows Device ID + Folder when unlinked; once SAF
+        is linked it hides Folder and shows Synced folder instead (same one-folder UX
+        as desktop, without renaming SAF as Folder).
+      </p>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Data file</span>
+          <span class="where">Settings section</span>
+        </div>
+        <p class="meaning">
+          Section title for device identity and where this device keeps / mirrors task data.
+          Despite the name, the UI shows a folder path (and on Android a separate synced folder),
+          not a single file picker.
+        </p>
+        <p class="key">settings.dataFile</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Device ID:</span>
+          <span class="where">Settings → Data file</span>
+        </div>
+        <p class="meaning">
+          Stable id for this install. Names on-disk replicas like <code>tasks_&lt;device&gt;.db</code>
+          and <code>attachments_&lt;device&gt;/</code> so peers can merge without clobbering each other.
+        </p>
+        <p class="key">settings.deviceId</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Folder:</span>
+          <span class="where">Settings → Data file</span>
+        </div>
+        <p class="meaning">
+          Path to this device’s data location (<code>folder_path</code>).
+          <strong>Desktop:</strong> the folder you chose to hold replicas (usually a cloud-synced directory).
+          <strong>Android:</strong> local/app path, shown only while SAF is <em>not</em> linked;
+          hidden once a Synced folder is linked so users see one folder line.
+        </p>
+        <p class="key">settings.dataFolder</p>
+        <p class="related">Synced folder: (Android only); Choose folder… / Pick folder…</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Synced folder:</span>
+          <span class="where">Settings → Data file (Android, linked)</span>
+        </div>
+        <p class="meaning">
+          Label + display name of the SAF folder used as a cross-device mirror
+          (e.g. a folder managed by a cloud drive). Push/pull copies this device’s
+          <code>.db</code> and attachments into that folder; local app-private DB remains master on Android.
+        </p>
+        <p class="key">settings.syncedFolder</p>
+        <p class="related">Folder: (local path); (linked); Unlink</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">(linked)</span>
+          <span class="where">Android, when no folder label</span>
+        </div>
+        <p class="meaning">Fallback text when a SAF folder is linked but has no display label.</p>
+        <p class="key">settings.linked</p>
+      </article>
+
+      <div class="pair-grid two">
+        <div class="pair">
+          <div class="label">Desktop buttons</div>
+          <h3>Choose folder… / Use default location</h3>
+          <p>
+            <strong>Choose folder…</strong> — pick a directory (often cloud-synced).
+            May prompt <strong>Change data folder?</strong> with Copy / Move / Cancel.<br />
+            <strong>Use default location</strong> — clear custom folder and return to app default.
+          </p>
+        </div>
+        <div class="pair">
+          <div class="label">Android buttons</div>
+          <h3>Pick folder… / Sync now / Change folder… / Unlink</h3>
+          <p>
+            <strong>Pick folder…</strong> — first-time SAF link.<br />
+            <strong>Sync now</strong> — pull/push now.<br />
+            <strong>Change folder…</strong> — re-pick SAF folder.<br />
+            <strong>Unlink</strong> — drop SAF link (local data remains).
+          </p>
+        </div>
+      </div>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Change data folder?</span>
+          <span class="where">Desktop transfer dialog</span>
+        </div>
+        <p class="meaning">
+          After picking a new desktop folder (or resetting):
+          <strong>Copy</strong> keeps this device’s files in the old folder and places a copy in the new one;
+          <strong>Move</strong> transfers then removes only this device’s files from the old folder.
+          Files from other devices in the folder are never touched.
+        </p>
+        <p class="key">settings.transferTitle · transferCopy · transferMove · transferCancel</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Last synced / Not synced yet</span>
+          <span class="where">Android SAF status</span>
+        </div>
+        <p class="meaning">When the last successful SAF sync happened, or that none has completed yet. May append conflict count or last error.</p>
+        <p class="key">settings.lastSynced · notSyncedYet · conflictCount · syncError</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">access lost, re-pick the folder</span>
+          <span class="where">Android SAF</span>
+        </div>
+        <p class="meaning">SAF permission for the linked folder is no longer valid; user must pick again.</p>
+        <p class="key">settings.accessLost</p>
+      </article>
+
+      <div class="callout warn">
+        <strong>Attachments note:</strong> Settings copy says attachments are “copied into the data folder
+        and synced to your other devices.” That means the shared sync/SAF folder — not Settings themselves.
+      </div>
+    </section>
+
+    <!-- ── Preferences ─────────────────────────────────────── -->
+    <section id="prefs">
+      <h2>Settings · Preferences</h2>
+      <p class="section-lead">All of these are device-local. Highlighting labels that affect how views behave.</p>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Theme / Themes</span>
+          <span class="where">Settings</span>
+        </div>
+        <p class="meaning">
+          Appearance: auto/light/dark mode plus named color presets (Default, Slate, …).
+        </p>
+        <p class="key">settings.theme · themePickerTitle · themePreset*</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Sort order · priority / date</span>
+          <span class="where">Settings</span>
+        </div>
+        <p class="meaning">
+          How task lists are ordered. “Priority” sorts by the highest <strong>weight</strong>
+          among a task’s tags (not a free-form priority field on the task).
+        </p>
+        <p class="key">settings.sortOrder · sortPriority · sortDate</p>
+        <p class="related">Weight; New tag weight</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Upcoming range</span>
+          <span class="where">Settings</span>
+        </div>
+        <p class="meaning">How many days ahead the Upcoming view looks.</p>
+        <p class="key">settings.upcomingRange</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Day start</span>
+          <span class="where">Settings</span>
+        </div>
+        <p class="meaning">
+          When “Today” rolls to the next logical day. Set later than midnight if late-night
+          work should still count as the same day. Also affects how completions and time
+          entries are attributed to a day.
+        </p>
+        <p class="key">settings.dayStart · dayStartsAt · midnight</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Recurrence heatmap range</span>
+          <span class="where">Settings</span>
+        </div>
+        <p class="meaning">How many days back the Dashboard heatmap reaches (ending today).</p>
+        <p class="key">settings.recurrenceHeatmapRange</p>
+        <p class="related">Nav label “Dashboard”</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">First day of the week</span>
+          <span class="where">Settings</span>
+        </div>
+        <p class="meaning">Which weekday calendars and weekly recurrence start on.</p>
+        <p class="key">settings.firstDayOfWeek</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Completion sound</span>
+          <span class="where">Settings</span>
+        </div>
+        <p class="meaning">Short sound when marking a task done (media volume).</p>
+        <p class="key">settings.sound</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Estimate reminder interval</span>
+          <span class="where">Settings</span>
+        </div>
+        <p class="meaning">How often to re-notify while a running task keeps exceeding its time estimate.</p>
+        <p class="key">settings.reminderInterval</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Maximum attachment size</span>
+          <span class="where">Settings</span>
+        </div>
+        <p class="meaning">Largest file attachable to a task. Files are copied into the data folder and mirrored to peers.</p>
+        <p class="key">settings.maxAttachment</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">New tag weight</span>
+          <span class="where">Settings</span>
+        </div>
+        <p class="meaning">Default priority weight pre-filled when creating a new tag.</p>
+        <p class="key">settings.newTagWeight · weight</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Language</span>
+          <span class="where">Settings</span>
+        </div>
+        <p class="meaning">UI language. Auto follows the system language.</p>
+        <p class="key">settings.language · langAuto · langEn · langZhTW</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Date &amp; time format</span>
+          <span class="where">Settings</span>
+        </div>
+        <p class="meaning">How dates and times are displayed app-wide (many calendar systems available).</p>
+        <p class="key">settings.dateTimeFormat</p>
+      </article>
+    </section>
+
+    <!-- ── Tasks ───────────────────────────────────────────── -->
+    <section id="tasks">
+      <h2>Tasks</h2>
+      <p class="section-lead">Core unit of work. Priority comes from tags; done/archived from <code>completed_at</code>.</p>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Task</span>
+          <span class="where">Throughout</span>
+        </div>
+        <p class="meaning">A titled work item with optional dates, tags, notes, estimate, time entries, and attachments.</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Start Date / Due Date</span>
+          <span class="where">Task editor · composer</span>
+        </div>
+        <p class="meaning">
+          Optional schedule. Today/Upcoming membership uses these (plus time tracking).
+          Due before start is rejected.
+        </p>
+        <p class="key">taskEditor.startDate · dueDate · composerPreview.start/due</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Overdue</span>
+          <span class="where">Today · task rows</span>
+        </div>
+        <p class="meaning">Past-due open tasks surfaced in Today (and row badges like −Nd).</p>
+        <p class="key">today.overdue · taskRow.overdue</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Complete / Reopen / Restore</span>
+          <span class="where">Editor · task row · Archived</span>
+        </div>
+        <p class="meaning">
+          <strong>Complete</strong> marks done (sets <code>completed_at</code>) → task leaves active lists
+          (except Today until day rollover) and appears under Archived.
+          <strong>Reopen</strong> / <strong>Restore</strong> clear that state.
+        </p>
+        <p class="key">taskEditor.complete · reopen · taskRow.restore</p>
+        <p class="related">Archived — not a separate archive flag</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Estimated time</span>
+          <span class="where">Task editor · rows</span>
+        </div>
+        <p class="meaning">Optional duration budget (e.g. 1h, 20m). Progress and estimate reminders compare tracked time against this.</p>
+        <p class="key">taskEditor.estimatedSeconds · timeTracking.estLabel</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Notes / Attachments</span>
+          <span class="where">Task editor</span>
+        </div>
+        <p class="meaning">
+          Markdown notes (edit / split / preview). Attachments are files copied into the data folder;
+          metadata syncs with the Document; blobs sync as files under the device attachment dir.
+        </p>
+        <p class="key">taskEditor.notes · attachments</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Duplicate / Save as template / Delete</span>
+          <span class="where">Task editor → Options</span>
+        </div>
+        <p class="meaning">
+          Duplicate creates another task. Save as template copies fields into Templates without changing this task.
+          Delete is permanent (with tombstone for sync).
+        </p>
+        <p class="key">taskEditor.duplicate · saveAsTemplate · delete</p>
+      </article>
+    </section>
+
+    <!-- ── Tags ────────────────────────────────────────────── -->
+    <section id="tags">
+      <h2>Tags</h2>
+      <p class="section-lead">Flat labels with color, weight, and optional sidebar pin. No project hierarchy.</p>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Tag</span>
+          <span class="where">Tags screen · editors · sidebar</span>
+        </div>
+        <p class="meaning">Named label (#name). Tasks hold tag IDs; tags never “contain” tasks.</p>
+        <p class="key">nav.tag · tags.* · tagEditor.*</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Weight</span>
+          <span class="where">Tag editor · Tags list · Settings</span>
+        </div>
+        <p class="meaning">
+          Priority weight on a tag. A task’s sort priority is the <strong>highest weight</strong>
+          among its tags. Shown as “priority weight” in the Tags list tooltip.
+        </p>
+        <p class="key">tagEditor.weight · tags.weightTitle · settings.weight</p>
+        <p class="related">Sort order → priority</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Pin to sidebar</span>
+          <span class="where">Tag editor · Tags list</span>
+        </div>
+        <p class="meaning">
+          Pinned tags appear in the sidebar for one-tap Tag views. Tasks with no pinned tag
+          land in Inbox.
+        </p>
+        <p class="key">tagEditor.pinToSidebar · tags.pin / unpin</p>
+        <p class="related">Inbox</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Task list / Statistic</span>
+          <span class="where">Tag view tabs</span>
+        </div>
+        <p class="meaning">
+          Per-tag screen: list of tagged tasks, or analytics (spent time, streaks, heatmap).
+          EN tab label is “Statistic” (singular).
+        </p>
+        <p class="key">tagView.tabTasks · tabAnalytics</p>
+        <p class="related">Dashboard heatmaps (app-wide tag tracking)</p>
+      </article>
+    </section>
+
+    <!-- ── Templates & Dashboard ───────────────────────────── -->
+    <section id="templates">
+      <h2>Templates &amp; Dashboard</h2>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Template / New task (from template)</span>
+          <span class="where">Templates view · template row</span>
+        </div>
+        <p class="meaning">
+          Templates are not live tasks. “New task” spawns an instance. Date offsets
+          (“Start in / Due in (days)”) apply when spawning.
+        </p>
+        <p class="key">templates.* · templateRow.newTask · taskEditor.startInDays</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Repeat / Recurring</span>
+          <span class="where">Template editor · template row badge</span>
+        </div>
+        <p class="meaning">
+          Schedule on a template (daily / weekly / monthly / yearly). Recurring templates
+          can show computed placeholder rows (“ghosts”) in Today and similar views until promoted.
+        </p>
+        <p class="key">taskEditor.repeat* · templateRow.recurring · ghostRow.*</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Recurrence tag</span>
+          <span class="where">Template editor</span>
+        </div>
+        <p class="meaning">
+          Which tag a recurring template “recurs under.” Used to suppress ghost rows when a
+          real task already covers that day for that tag.
+        </p>
+        <p class="key">taskEditor.recurrenceTag · recursUnder</p>
+        <p class="related">Dashboard (nav); Recurrence heatmap range (settings)</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Heatmap / Streak</span>
+          <span class="where">Dashboard · Tag → Statistic</span>
+        </div>
+        <p class="meaning">Activity visualizations for tracked tags (done / active / none legends).</p>
+        <p class="key">recurrence.view_heatmap · view_streak · tagView.legend*</p>
+      </article>
+    </section>
+
+    <!-- ── Time ────────────────────────────────────────────── -->
+    <section id="time">
+      <h2>Time tracking</h2>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Time tracked · Start / Stop</span>
+          <span class="where">Task editor · task rows · Today</span>
+        </div>
+        <p class="meaning">
+          Running or finished time entries on a task. Concurrent timers allowed.
+          Tracking today can pull a task into the Today view even without dates.
+        </p>
+        <p class="key">timeTracking.* · taskRow.startTimer / stopTimer</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Idle · Assign</span>
+          <span class="where">Today / Inbox header</span>
+        </div>
+        <p class="meaning">
+          Session-local idle timer (not synced). Assign unused time to a task as a time entry.
+          See also <a href="#idle-bar">Idle bar</a> under chrome.
+        </p>
+        <p class="key">today.idle · idle.*</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Task estimate reached</span>
+          <span class="where">Notification</span>
+        </div>
+        <p class="meaning">Reminder when tracked time meets/exceeds the estimate; re-notifies per Settings interval.</p>
+        <p class="key">timeEstimateReminder.*</p>
+      </article>
+    </section>
+
+    <!-- ── Conflicts ───────────────────────────────────────── -->
+    <section id="conflicts">
+      <h2>Sync conflicts</h2>
+      <p class="section-lead">
+        Shown when cloud clients leave conflict copies, or when adopting a divergent replica.
+        Per-entity concurrent edits usually last-write-wins without a conflict file.
+      </p>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Sync conflict / Conflict</span>
+          <span class="where">Banner · Conflicts screen · mobile title</span>
+        </div>
+        <p class="meaning">UI for reviewing divergent conflict files (Yours / Theirs, keep mine/theirs/both, etc.).</p>
+        <p class="key">conflicts.title · nav.conflict · conflictBanner.*</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">Yours / Theirs · Keep mine / Keep theirs / Keep both</span>
+          <span class="where">Conflict resolver</span>
+        </div>
+        <p class="meaning">Choose which side wins for each differing task (or keep both as separate tasks).</p>
+        <p class="key">conflicts.yours · theirs · keepMine · keepTheirs · keepBoth</p>
+      </article>
+    </section>
+
+    <!-- ── Open questions ──────────────────────────────────── -->
+    <section id="open">
+      <h2>Needs product decision</h2>
+      <p class="section-lead">
+        Ambiguities spotted while cataloging. Code behavior is clear; naming/copy may still want a call.
+      </p>
+      <ol class="open-list">
+        <li>
+          <strong>Dashboard vs Recurrence</strong> —
+          Nav: “Dashboard”; Settings: “Recurrence heatmap range”;
+          template field: “Recurrence tag”. One product word for the screen?
+        </li>
+        <li>
+          <strong>Data file</strong> —
+          Section title talks about a “file” while the UI is folder-centric (and Android has two folder concepts).
+          Rename section to “Data” or “Data folder”?
+        </li>
+        <li>
+          <strong>Folder: on Android</strong> —
+          Resolved: when SAF is linked, hide the local “Folder:” line and keep
+          “Synced folder:” only (preserves glossary meanings; one-folder UX like desktop).
+          Unlinked Android still shows Folder: for the app-private path.
+        </li>
+        <li>
+          <strong>Pick folder… vs Choose folder…</strong> —
+          Same idea, different strings for Android vs desktop. Intentional platform tone, or unify?
+        </li>
+        <li>
+          <strong>Statistic</strong> —
+          Tag tab EN is singular “Statistic”. Prefer “Statistics” / “Analytics”?
+        </li>
+        <li>
+          <strong>Complete vs Archived</strong> —
+          Same flag; two UI words. Product language should keep saying completing archives
+          (or pick one verb for user-facing docs).
+        </li>
+      </ol>
+    </section>
+
+    <footer>
+      Pansuthong UI terms · for product explanations · not a substitute for
+      <code>docs/agent/data-model.md</code> or <code>docs/architecture.html</code>.
+      Do not invent Projects or other grouping systems beyond tasks + tags.
+    </footer>
+  </div>
+</body>
+</html>

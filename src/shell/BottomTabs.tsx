@@ -16,7 +16,8 @@ const TABS: { to: string; labelKey: string; Icon: IconComponent }[] = [
 export function BottomTabs({ indexes }: Props) {
   const { t: tr } = useTranslation();
   const todayCount = openCount(indexes.today(indexes.todayIso));
-  const inboxCount = openCount(indexes.inbox);
+  // Inbox badge is a presence indicator only: open uncategorized tasks exist, not a tally.
+  const inboxHasOpen = openCount(indexes.inbox) > 0;
 
   return (
     <nav className="bottom-tabs" role="navigation" aria-label="Primary">
@@ -30,8 +31,12 @@ export function BottomTabs({ indexes }: Props) {
             <Icon size={20} />
           </span>
           <span className="bottom-tab-label">{tr(labelKey)}</span>
-          {to === "/today" && todayCount > 0 && <span className="bottom-tab-badge">{todayCount}</span>}
-          {to === "/inbox" && inboxCount > 0 && <span className="bottom-tab-badge">{inboxCount}</span>}
+          {to === "/today" && todayCount > 0 && (
+            <span className="bottom-tab-badge" data-testid="today-badge">{todayCount}</span>
+          )}
+          {to === "/inbox" && inboxHasOpen && (
+            <span className="bottom-tab-badge bottom-tab-badge-dot" data-testid="inbox-badge" aria-hidden="true" />
+          )}
         </NavLink>
       ))}
     </nav>

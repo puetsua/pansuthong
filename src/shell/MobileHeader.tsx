@@ -20,14 +20,15 @@ const ROUTE_TITLE_KEYS: Record<string, string> = {
 };
 
 // Secondary destinations live in the "More" menu so the header stays two
-// buttons wide on a phone; primary views are the bottom tabs.
+// buttons wide on a phone; primary views are the bottom tabs. Text-only —
+// glyph icons competed with labels on a dense phone menu.
 const MENU_ITEMS = [
-  { to: "/templates",  labelKey: "nav.templates",  icon: "▤" },
-  { to: "/recurrence", labelKey: "nav.recurrence", icon: "▦" },
-  { to: "/history",    labelKey: "nav.history",    icon: "◷" },
-  { to: "/tags",       labelKey: "nav.tags",       icon: "#" },
-  { to: "/archived",   labelKey: "nav.archived",   icon: "▣" },
-  { to: "/settings",   labelKey: "nav.settings",   icon: "⚙" },
+  { to: "/templates",  labelKey: "nav.templates" },
+  { to: "/recurrence", labelKey: "nav.recurrence" },
+  { to: "/history",    labelKey: "nav.history" },
+  { to: "/tags",       labelKey: "nav.tags" },
+  { to: "/archived",   labelKey: "nav.archived" },
+  { to: "/settings",   labelKey: "nav.settings" },
 ] as const;
 
 export function MobileHeader({ indexes }: Props) {
@@ -59,7 +60,6 @@ export function MobileHeader({ indexes }: Props) {
           <nav className="mobile-menu" role="menu" aria-label={t("nav.more")}>
             {MENU_ITEMS.map(item => (
               <Link key={item.to} to={item.to} role="menuitem" className="mobile-menu-item">
-                <span className="mobile-menu-icon" aria-hidden>{item.icon}</span>
                 {t(item.labelKey)}
               </Link>
             ))}

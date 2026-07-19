@@ -2,13 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { Document } from "../lib/tauri";
 
-// Capture the "store-changed" listener so tests can fire a reload, and mock the
-// IPC document fetch so we drive load success/failure deterministically (#42).
+// Capture reload listeners so tests can fire a reload, and mock the IPC
+// document fetch so we drive load success/failure deterministically (#42).
 let storeChangedCb: (() => void) | undefined;
+let settingsChangedCb: (() => void) | undefined;
 const unlistenFn = vi.fn();
 vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn((event: string, cb: () => void) => {
     if (event === "store-changed") storeChangedCb = cb;
+    if (event === "settings-changed") settingsChangedCb = cb;
     return Promise.resolve(unlistenFn);
   }),
 }));
@@ -32,6 +34,7 @@ function makeDoc(theme: "auto" | "light" | "dark" = "auto"): Document {
 
 beforeEach(() => {
   storeChangedCb = undefined;
+  settingsChangedCb = undefined;
   getDocument.mockReset();
 });
 
@@ -58,6 +61,20 @@ describe("useDocument", () => {
 
     getDocument.mockResolvedValue(doc2);
     await act(async () => { storeChangedCb?.(); });
+
+    await waitFor(() => expect(result.current.doc).toBe(doc2));
+  });
+
+  it("reloads when a settings-changed event fires", async () => {
+    const doc1 = makeDoc("auto");
+    const doc2 = makeDoc("light");
+    getDocument.mockResolvedValue(doc1);
+
+    const { result } = renderHook(() => useDocument());
+    await waitFor(() => expect(result.current.doc).toBe(doc1));
+
+    getDocument.mockResolvedValue(doc2);
+    await act(async () => { settingsChangedCb?.(); });
 
     await waitFor(() => expect(result.current.doc).toBe(doc2));
   });

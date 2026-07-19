@@ -1244,6 +1244,15 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   min-width: 14px;
   text-align: center;
 }
+/* Inbox: presence-only notice (open tasks exist), not a numeric unread count. */
+.bottom-tab-badge-dot {
+  top: 6px;
+  right: 28%;
+  width: 8px;
+  height: 8px;
+  min-width: 8px;
+  padding: 0;
+}
 
 /* Touch-friendly tap targets at narrow widths. */
 @media (max-width: 720px) {
@@ -2053,9 +2062,7 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 .mobile-menu-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+  display: block;
   padding: var(--space-3);
   color: var(--c-text);
   text-decoration: none;
@@ -2063,11 +2070,6 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   font-size: 1rem;
 }
 .mobile-menu-item:active { background: var(--c-accent-bg); }
-.mobile-menu-icon {
-  width: 1.4rem;
-  text-align: center;
-  color: var(--c-text-muted);
-}
 
 /* Recurring-task ghost rows (#9): de-emphasised so they read as "not yet real". */
 .ghost-row { opacity: 0.62; }

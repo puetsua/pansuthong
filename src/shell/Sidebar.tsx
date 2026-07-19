@@ -19,7 +19,7 @@ export function Sidebar({ doc, indexes }: Props) {
   const { t } = useTranslation();
   const today = indexes.todayIso;
   const todayCount = openCount(indexes.today(today));
-  const inboxCount = openCount(indexes.inbox);
+  // Inbox is a catch-all view, not a tally — no sidebar count (matches Upcoming).
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -51,7 +51,7 @@ export function Sidebar({ doc, indexes }: Props) {
         <li>
           <NavLink to="/inbox" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
             <InboxIcon className="sidebar-nav-icon" size={16} />
-            {t("nav.inbox")} <span className="sidebar-count">{inboxCount}</span>
+            {t("nav.inbox")}
           </NavLink>
         </li>
         <li>
