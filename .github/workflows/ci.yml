@@ -10,7 +10,7 @@ on:
 jobs:
   frontend:
     name: Frontend (lint · types · tests)
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,7 +24,7 @@ jobs:
 
   rust:
     name: Rust (clippy · tests)
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install Tauri system dependencies
@@ -48,7 +48,7 @@ jobs:
 
   android:
     name: Android (compile check)
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     env:
       # Same NDK pin as release.yml so bundled rusqlite (libsqlite3-sys) can
       # compile its C sources for aarch64-linux-android during `cargo check`.
@@ -90,7 +90,7 @@ jobs:
 
   build:
     name: Build (desktop smoke)
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
