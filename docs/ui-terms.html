@@ -603,6 +603,7 @@
           Tasks that belong to the current logical day: start/due coverage for today,
           overdue due-only tasks, or tasks with time tracked today. Completed tasks stay
           visible here until the day rolls over (so you can undo). Honors Day start.
+          zh-TW: <strong>今日</strong>.
         </p>
         <p class="key">nav.today</p>
       </article>
@@ -616,6 +617,7 @@
           Active tasks that have <strong>no pinned tag</strong> (untagged, or only unpinned tags).
           Subtitle: “Tasks with no pinned tag”.
           Not an email-style inbox — it’s the catch-all so those tasks stay reachable from nav.
+          zh-TW: <strong>未分類</strong> (intentional — not 收件匣).
         </p>
         <p class="key">nav.inbox · inbox.subtitle</p>
         <p class="related">Archived; Tag views</p>
@@ -628,6 +630,7 @@
         </div>
         <p class="meaning">
           Forward-looking date view for the next N days (N from Settings → Upcoming range).
+          zh-TW: <strong>即將到來</strong>.
         </p>
         <p class="key">nav.upcoming · settings.upcomingRange</p>
       </article>
@@ -663,6 +666,7 @@
         <p class="meaning">
           List of completed tasks (filterable by search / date). Completing a task archives it
           from active views; Restore / Reopen brings it back.
+          zh-TW: <strong>已封存</strong>.
         </p>
         <p class="key">nav.archived</p>
         <p class="related">Complete; Reopen; Restore — same <code>completed_at</code> flag</p>
@@ -676,6 +680,7 @@
         <p class="meaning">
           Reusable task blueprints stored separately from live tasks. Spawn a fresh task
           from a template; recurring templates can project “ghost” rows into date views.
+          zh-TW: <strong>範本</strong> (not 任務模板).
         </p>
         <p class="key">nav.templates</p>
         <p class="related">Dashboard / recurrence ghosts; Save as template</p>
@@ -689,6 +694,7 @@
         <p class="meaning">
           Activity tracking for selected tags (heatmap or streak). Nav label is “Dashboard”;
           i18n key and some Settings copy still say “Recurrence”.
+          zh-TW: <strong>週期</strong> (not 儀表板) — pairs with README「範本與週期」.
         </p>
         <p class="key">nav.recurrence · recurrence.* · settings.recurrenceHeatmapRange</p>
         <p class="related">Recurrence tag on templates; Tag view → Statistic tab</p>
@@ -702,6 +708,7 @@
         <p class="meaning">
           Recent changes to tasks, tags, and templates (append-only per-device history sidecar,
           concatenated for reading). Not the same as Archived.
+          zh-TW: <strong>歷程</strong>.
         </p>
         <p class="key">nav.history</p>
       </article>
@@ -711,7 +718,7 @@
           <span class="term-en">Settings</span>
           <span class="where">Sidebar · More menu</span>
         </div>
-        <p class="meaning">Device-local preferences and data-folder / sync linking. Not synced across devices.</p>
+        <p class="meaning">Device-local preferences and data-folder / sync linking. Not synced across devices. zh-TW: <strong>設定</strong>.</p>
         <p class="key">nav.settings</p>
       </article>
     </section>
