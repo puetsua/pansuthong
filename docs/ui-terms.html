@@ -1203,8 +1203,9 @@
     <section id="conflicts">
       <h2>Sync conflicts</h2>
       <p class="section-lead">
-        Shown when cloud clients leave conflict copies, or when adopting a divergent replica.
-        Per-entity concurrent edits usually last-write-wins without a conflict file.
+        Shown when cloud clients leave conflict copies (`*.sync-conflict*` and similar)
+        in the sync folder. Per-entity concurrent edits usually last-write-wins without
+        a conflict file (desktop and Android SAF pull both merge replicas in place).
       </p>
 
       <article class="term">

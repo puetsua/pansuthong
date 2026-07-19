@@ -6,8 +6,10 @@ Pansuthong syncs by placing each device's data file in a shared cloud folder
 (e.g. Google Drive) as a per-device replica (`tasks_<device>.db`). The app never
 writes another device's replica; instead it reads all replicas and computes a
 merged document with entity-level last-write-wins plus tombstones. A filesystem
-watcher and a polling fallback pick up changes pulled in from other devices, and a
-whole-document divergence path preserves the loser as a conflict file.
+watcher and a polling fallback pick up changes pulled in from other devices.
+External cloud conflict copies (`*.sync-conflict*` and similar) are surfaced in
+the Conflicts UI; Android SAF pull merges like desktop and does not stash a
+whole-document `.conflict-local-*` loser.
 
 The shared folder also holds related sidecars that are **not** part of the
 Document merge: per-device history logs (`history_<device>.jsonl`) and attachment
@@ -61,12 +63,18 @@ is guaranteed by these automatic mechanisms alone; there is no user-facing manua
 
 ### Requirement: Whole-document conflict files
 
-The system SHALL preserve a divergent whole-document copy as a recognizable
-conflict file rather than silently discarding it.
+The system SHALL surface external conflict copies left by cloud sync clients
+(e.g. `*.sync-conflict*`) in the Conflicts UI rather than ignoring them.
+Android SAF pull SHALL merge local with remote replicas in place (same LWW as
+desktop) and MUST NOT create a `.conflict-local-*` stash for that case.
 
 #### Scenario: Conflict badge lists divergences
 - **WHEN** conflict copies exist in the data folder
 - **THEN** `list_conflicts` returns them and a conflicts-detected event surfaces the badge
+
+#### Scenario: SAF pull merges instead of conflict-local
+- **WHEN** the phone has unpushed local edits and remote replica(s) differ
+- **THEN** pull merges via `merge_documents([local, …remotes])` and does not write a `.conflict-local-*` file
 
 ### Requirement: Conflict resolution
 

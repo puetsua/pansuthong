@@ -843,8 +843,9 @@ fn apply_attachment_tombstones(attachments: &mut Vec<Attachment>, tombs: &HashMa
 /// entity, the lower-stamped edit is discarded with no conflict file (only time-entry
 /// *additions* survive both sides, since they union by id). Peer-merge reload appends
 /// history for changes that *win* into the live Document (with dedup); discarded LWW
-/// losers are still not surfaced. This differs from the whole-document divergence path
-/// in `store::adopt_synced`, which preserves the loser as a `.sync-conflict` file.
+/// losers are still not surfaced. External cloud conflict copies (`*.sync-conflict*`)
+/// are still mirrored into the conflict UI; Android SAF pull no longer stashes a
+/// whole-document `.conflict-local-*` loser (it merges like desktop instead).
 pub fn merge_documents(replicas: Vec<Document>) -> Document {
     let mut merged = Document::default();
     let mut tasks: HashMap<String, (i64, Task)> = HashMap::new();

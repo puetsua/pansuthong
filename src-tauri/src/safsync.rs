@@ -130,9 +130,7 @@ fn mime_for_name(name: &str) -> Option<&'static str> {
 /// What a first link to a picked folder should do, decided **fail-safe**.
 #[derive(Debug, PartialEq, Eq)]
 pub enum LinkAction {
-    /// The folder already holds a `tasks.json` — adopt it (pull). Diverged local
-    /// in-memory data is preserved as a conflict file to merge, or discarded
-    /// cleanly when it is empty or already matches.
+    /// The folder already holds a tasks replica — pull and merge into local.
     Pull,
     /// The folder is confirmed to have no `tasks.json` — seed it from the local
     /// document (the only case where writing is safe).
@@ -196,9 +194,10 @@ pub struct PullOutcome {
     pub warning: Option<String>,
 }
 
-/// Mirror the folder into app-private: adopt a changed remote replica document
-/// (last-write-wins) and copy any conflict files into the app-private dir for
-/// the existing conflict UI. Never clobbers the shadow with unparseable bytes.
+/// Mirror the folder into app-private: merge a changed remote replica document
+/// with local (last-write-wins, same as desktop) and copy any external conflict
+/// files into the app-private dir for the existing conflict UI. Never clobbers
+/// the shadow with unparseable bytes.
 pub fn pull_in(
     state: &AppState,
     backend: &dyn SafBackend,
@@ -211,11 +210,13 @@ pub fn pull_in(
     let conflict_count = mirror_conflict_files(backend, dir)?;
     let attachments_imported = mirror_remote_attachment_files(backend, dir)?;
 
-    // 2. Adopt a changed, VALID merged remote replica document, preserving any
-    //    diverged local edits as a conflict file (#34). A torn/garbage or
-    //    newer-version remote is reported as a non-fatal warning rather than a
-    //    hard error, so the conflict files and attachments mirrored above this
-    //    pass still surface (and we retry adoption next pull, hash unchanged).
+    // 2. Merge a changed, VALID remote replica document into local (same LWW
+    //    path as desktop peer reload). A torn/garbage or newer-version remote
+    //    is reported as a non-fatal warning rather than a hard error, so the
+    //    conflict files and attachments mirrored above this pass still surface
+    //    (and we retry adoption next pull, hash unchanged).
+    //    last_synced_hash tracks the *remote* merge content hash so an unpushed
+    //    local-only merge does not re-trigger pull every poll.
     let mut new_hash = last_synced_hash;
     let mut imported = false;
     let mut warning = None;
@@ -231,9 +232,9 @@ pub fn pull_in(
             if let Some(remote) = maybe_remote {
                 let h = content_hash(&remote);
                 if Some(h) != last_synced_hash {
-                    match state.adopt_synced(remote, last_synced_hash) {
-                        Ok(hash) => {
-                            new_hash = Some(hash);
+                    match state.adopt_synced(remote) {
+                        Ok(_) => {
+                            new_hash = Some(h);
                             imported = true;
                         }
                         Err(_) => {
@@ -881,9 +882,9 @@ mod tests {
     }
 
     #[test]
-    fn pull_in_preserves_diverged_local_as_conflict() {
+    fn pull_in_merges_diverged_local_with_remote_without_conflict() {
         let (_d, state, path) = temp_state();
-        // Local has un-synced data (a tag) that a naive adopt would discard.
+        // Local has un-synced data that must not be discarded or stashed.
         state
             .write(|d| {
                 d.tags.push(crate::model::Tag {
@@ -899,35 +900,35 @@ mod tests {
             })
             .unwrap();
 
-        // Remote holds a different document (empty, no such tag).
-        let remote_doc = crate::model::Document::default();
+        // Remote holds a different document (a different tag).
+        let mut remote_doc = crate::model::Document::default();
+        remote_doc.tags.push(crate::model::Tag {
+            id: "g_remote".into(),
+            name: "remote".into(),
+            color: "#fff".into(),
+            priority: 0,
+            pinned: false,
+            updated_at: 1,
+            dashboard_view: None,
+        });
         let remote = write_peer_db(&remote_doc);
         let backend = FakeBackend::with(&[("tasks_peer.db", &remote)]);
 
-        // First link (last_synced_hash = None): adopt remote, preserve local.
+        // First link (last_synced_hash = None): merge remote into local.
         let out = pull_in(&state, &backend, &path, None).unwrap();
         assert!(out.imported);
-        assert!(
-            state.read(|d| d.tags.is_empty()),
-            "remote (no tags) was adopted"
+        let mut ids = state.read(|d| d.tags.iter().map(|t| t.id.clone()).collect::<Vec<_>>());
+        ids.sort();
+        assert_eq!(
+            ids,
+            ["g_local", "g_remote"],
+            "local and remote must LWW-merge like desktop"
         );
 
-        // The diverged local doc must survive as a conflict file to reconcile.
-        let conflicts = crate::sync::scan_conflict_files(&path);
-        assert_eq!(
-            conflicts.len(),
-            1,
-            "diverged local data preserved as a conflict file"
-        );
-        let bytes = std::fs::read(&conflicts[0]).unwrap();
-        let preserved: crate::model::Document = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(
-            preserved
-                .tags
-                .iter()
-                .map(|t| t.id.as_str())
-                .collect::<Vec<_>>(),
-            ["g_local"]
+        // No conflict-local file — same policy as desktop peer merge.
+        assert!(
+            crate::sync::scan_conflict_files(&path).is_empty(),
+            "diverged local+remote must not create conflict-local"
         );
     }
 
@@ -974,7 +975,53 @@ mod tests {
         // No spurious conflict file: local was merely behind, not diverged.
         assert!(
             crate::sync::scan_conflict_files(&path).is_empty(),
-            "a device that is only behind must adopt without a conflict file"
+            "a device that is only behind must merge without a conflict file"
+        );
+    }
+
+    #[test]
+    fn pull_in_does_not_reimport_when_only_local_diverged_after_merge() {
+        // After merging local+remote, last_synced tracks the *remote* hash.
+        // A second pull with unchanged remotes must not re-import every poll
+        // just because the local master now differs from the remote-only merge.
+        let (_d, state, path) = temp_state();
+        state
+            .write(|d| {
+                d.tags.push(crate::model::Tag {
+                    id: "g_local".into(),
+                    name: "local".into(),
+                    color: "#fff".into(),
+                    priority: 0,
+                    pinned: false,
+                    updated_at: 1,
+                    dashboard_view: None,
+                });
+                Ok(())
+            })
+            .unwrap();
+
+        let mut remote_doc = crate::model::Document::default();
+        remote_doc.tags.push(crate::model::Tag {
+            id: "g_remote".into(),
+            name: "remote".into(),
+            color: "#fff".into(),
+            priority: 0,
+            pinned: false,
+            updated_at: 1,
+            dashboard_view: None,
+        });
+        let remote = write_peer_db(&remote_doc);
+        let backend = FakeBackend::with(&[("tasks_peer.db", &remote)]);
+
+        let out = pull_in(&state, &backend, &path, None).unwrap();
+        assert!(out.imported);
+        let h = out.new_synced_hash;
+        assert!(h.is_some());
+
+        let out2 = pull_in(&state, &backend, &path, h).unwrap();
+        assert!(
+            !out2.imported,
+            "unchanged remote must not re-trigger import after a local+remote merge"
         );
     }
 
@@ -1076,13 +1123,15 @@ mod tests {
                 path: rel.into(),
                 mime_type: None,
                 size: Some(10),
-                created_at: 1,
+                // Millisecond stamps that stay ordered after iso_secs truncates to
+                // whole seconds on a SQLite round-trip (SAF peer .db path).
+                created_at: 1_700_000_000_000,
             }],
             tag_ids: Vec::new(),
             estimated_seconds: None,
-            created_at: 1,
+            created_at: 1_700_000_000_000,
             completed_at: None,
-            updated_at: 1,
+            updated_at: 1_700_000_000_000,
             time_entries: Vec::new(),
         }
     }
@@ -1145,10 +1194,10 @@ mod tests {
         // Remote: same task, attachment removed + tombstoned, newer edit.
         let mut remote_doc = state.read(|d| d.clone());
         remote_doc.tasks[0].attachments.clear();
-        remote_doc.tasks[0].updated_at = 2;
+        remote_doc.tasks[0].updated_at = 1_700_000_010_000;
         remote_doc.deleted_attachments.push(crate::model::Tombstone {
             id: "a_1".into(),
-            deleted_at: 2,
+            deleted_at: 1_700_000_010_000,
             deleted_by: None,
         });
         let remote = write_peer_db(&remote_doc);

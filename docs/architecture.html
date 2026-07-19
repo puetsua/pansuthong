@@ -509,7 +509,7 @@
         <li>Each replica is a full <code>Document</code>; <code>merge_documents</code> in <code>model.rs</code> picks the latest entity stamp per id.</li>
         <li>Deletes leave tombstones (<code>deleted_tasks</code> / <code>deleted_tags</code> / …) so stale replicas cannot resurrect entities.</li>
         <li>Time entries and attachment metadata on the winning task are unioned by id.</li>
-        <li>Limitation: concurrent edits to the <em>same</em> entity silently drop the loser (no conflict file). Whole-document divergence on adopt can still produce <code>.sync-conflict</code> copies.</li>
+        <li>Limitation: concurrent edits to the <em>same</em> entity silently drop the loser (no conflict file). External cloud clients may still leave <code>*.sync-conflict*</code> copies that the Conflicts UI surfaces.</li>
       </ul>
     </section>
 
@@ -541,8 +541,9 @@
         </p>
         <ul>
           <li>Frontend triggers: pull on launch + foreground; debounced push after local writes (<code>store.ts</code>).</li>
+          <li>On change: content-hash compare → merge peer replicas into the app-private master (same LWW as desktop) → emit <code>store-changed</code>.</li>
           <li>Commands: <code>saf_pick_folder</code>, <code>saf_push</code>, <code>saf_sync_now</code>, <code>saf_status</code>, <code>saf_clear_folder</code>.</li>
-          <li><code>SafBackend</code> trait keeps mirror logic testable off-device.</li>
+          <li><code>SafBackend</code> trait keeps mirror logic testable off-device. External cloud conflict copies are still mirrored for the Conflicts UI.</li>
         </ul>
       </div>
 

@@ -1,45 +1,144 @@
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <title>Tag Tick App Icon</title>
-  <desc>A simple purple app icon with a white tag and purple check mark, designed for clarity at small sizes.</desc>
-
-  <defs>
-    <linearGradient id="bg" x1="160" y1="120" x2="864" y2="920" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#9B4DFF"/>
-      <stop offset="1" stop-color="#4B1AAE"/>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  Pansuthong app icon — Inkscape-editable source.
+  Open in Inkscape; edit layers Background / Shadow / Tag / Hole / Check.
+  After visual changes, regenerate raster icons with:
+    npx tauri icon src-tauri/icons/icon.svg
+-->
+<svg
+   width="1024"
+   height="1024"
+   viewBox="0 0 1024 1024"
+   version="1.1"
+   id="svg-icon"
+   sodipodi:docname="icon.svg"
+   inkscape:version="1.4.2"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     inkscape:showpageshadow="false"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="true"
+     inkscape:deskcolor="#d0d0d0"
+     inkscape:document-units="px"
+     inkscape:zoom="0.5"
+     inkscape:cx="512"
+     inkscape:cy="512"
+     inkscape:current-layer="layer-check"
+     showgrid="false"
+     units="px" />
+  <title id="title">Pansuthong App Icon</title>
+  <desc id="desc">Purple rounded square with a white tag, circular hole, and check mark. Structured for editing in Inkscape.</desc>
+  <defs id="defs">
+    <linearGradient
+       id="grad-bg"
+       x1="160"
+       y1="120"
+       x2="864"
+       y2="920"
+       gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9B4DFF" id="stop-bg-0" />
+      <stop offset="1" stop-color="#4B1AAE" id="stop-bg-1" />
     </linearGradient>
-    <linearGradient id="tag" x1="326" y1="230" x2="698" y2="800" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#F1E8FF"/>
+    <linearGradient
+       id="grad-tag"
+       x1="359.48"
+       y1="280.76"
+       x2="664.52"
+       y2="748.16"
+       gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" id="stop-tag-0" />
+      <stop offset="1" stop-color="#F1E8FF" id="stop-tag-1" />
     </linearGradient>
-    <filter id="shadow" x="238" y="184" width="548" height="680" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="28" stdDeviation="28" flood-color="#2B0B62" flood-opacity="0.28"/>
+    <!-- Soft blur for the shadow duplicate — Inkscape Filter Editor friendly -->
+    <filter
+       id="filter-blur"
+       x="-20%"
+       y="-20%"
+       width="140%"
+       height="140%"
+       inkscape:label="Soft blur">
+      <feGaussianBlur stdDeviation="18" />
     </filter>
   </defs>
 
-  <!-- App icon background -->
-  <rect x="64" y="64" width="896" height="896" rx="210" fill="url(#bg)"/>
+  <!-- Layer: rounded app-icon background -->
+  <g
+     inkscape:groupmode="layer"
+     inkscape:label="Background"
+     id="layer-background">
+    <rect
+       id="background"
+       inkscape:label="Background squircle"
+       x="64"
+       y="64"
+       width="896"
+       height="896"
+       rx="210"
+       ry="210"
+       fill="url(#grad-bg)" />
+  </g>
 
-  <g transform="translate(512 512) scale(0.82) translate(-512 -512)">
-    <!-- Main tag shape -->
-    <g filter="url(#shadow)">
-      <path d="M512 196
-               C538 196 563 206 582 224
-               L734 376
-               C754 396 765 424 765 452
-               V708
-               C765 774 711 828 645 828
-               H379
-               C313 828 259 774 259 708
-               V452
-               C259 424 270 396 290 376
-               L442 224
-               C461 206 486 196 512 196Z" fill="url(#tag)"/>
-    </g>
+  <!-- Layer: soft shadow under the tag (offset duplicate — easy to nudge/hide) -->
+  <g
+     inkscape:groupmode="layer"
+     inkscape:label="Shadow"
+     id="layer-shadow"
+     style="display:inline">
+    <path
+       id="tag-shadow"
+       inkscape:label="Tag shadow"
+       fill="#2B0B62"
+       opacity="0.28"
+       filter="url(#filter-blur)"
+       d="M 512,275.84 C 533.32,275.84 553.82,284.04 569.4,298.8 L 694.04,423.44 C 710.44,439.84 719.46,462.8 719.46,485.76 V 695.68 C 719.46,749.8 675.18,794.08 621.06,794.08 H 402.94 C 348.82,794.08 304.54,749.8 304.54,695.68 V 485.76 C 304.54,462.8 313.56,439.84 329.96,423.44 L 454.6,298.8 C 470.18,284.04 490.68,275.84 512,275.84 Z" />
+  </g>
 
-    <!-- Tag hole -->
-    <circle cx="512" cy="337" r="54" fill="#5B20BF"/>
+  <!-- Layer: white tag body (0.82 center-scale baked into coordinates) -->
+  <g
+     inkscape:groupmode="layer"
+     inkscape:label="Tag"
+     id="layer-tag">
+    <path
+       id="tag-body"
+       inkscape:label="Tag shape"
+       fill="url(#grad-tag)"
+       d="M 512,252.88 C 533.32,252.88 553.82,261.08 569.4,275.84 L 694.04,400.48 C 710.44,416.88 719.46,439.84 719.46,462.8 V 672.72 C 719.46,726.84 675.18,771.12 621.06,771.12 H 402.94 C 348.82,771.12 304.54,726.84 304.54,672.72 V 462.8 C 304.54,439.84 313.56,416.88 329.96,400.48 L 454.6,275.84 C 470.18,261.08 490.68,252.88 512,252.88 Z" />
+  </g>
 
-    <!-- Check mark -->
-    <path d="M396 552 L489 645 L651 483" stroke="#7A35E8" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Layer: tag hole (solid purple approximating cutout; Path > Difference for a true hole) -->
+  <g
+     inkscape:groupmode="layer"
+     inkscape:label="Hole"
+     id="layer-hole">
+    <circle
+       id="tag-hole"
+       inkscape:label="Tag hole"
+       cx="512"
+       cy="368.5"
+       r="44.28"
+       fill="#5B20BF" />
+  </g>
+
+  <!-- Layer: check mark as a 3-node stroke (Node tool friendly) -->
+  <g
+     inkscape:groupmode="layer"
+     inkscape:label="Check"
+     id="layer-check">
+    <path
+       id="check-mark"
+       inkscape:label="Check mark"
+       fill="none"
+       stroke="#7A35E8"
+       stroke-width="57.4"
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       d="M 416.88,544.8 L 493.14,621.06 L 625.98,488.22" />
   </g>
 </svg>

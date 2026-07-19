@@ -2809,9 +2809,9 @@ pub fn saf_sync_now(
     state: State<'_, AppState>,
     saf: State<'_, crate::safsync::SafSync>,
 ) -> crate::safsync::SyncStatus {
-    // Pull first so a remote another device updated is adopted (diverged local
-    // edits are preserved as a conflict file) BEFORE we push — otherwise a cold
-    // start would push this device's stale copy over the newer remote (#Phase 4B).
+    // Pull first so a remote another device updated is merged into local BEFORE
+    // we push — otherwise a cold start would push this device's stale copy over
+    // the newer remote (#Phase 4B).
     // Only push if the pull SUCCEEDED: if the remote couldn't be read, pushing now
     // would overwrite it with this device's copy (the Google Drive data-loss bug).
     let (pull_ok, status) = saf_run_pull(&app, &state, &saf);

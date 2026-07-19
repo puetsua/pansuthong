@@ -253,37 +253,26 @@ impl AppState {
         Ok(())
     }
 
-    /// Adopt an externally-synced document (Android SAF path). Preserves the
-    /// current local document as a conflict file when it holds data, has un-synced
-    /// changes (its content hash differs from `last_synced_hash`), and differs from
-    /// the incoming document — so folder-sync adoption never silently drops local
-    /// edits. Returns the incoming document's content hash.
-    pub fn adopt_synced(
-        &self,
-        doc: Document,
-        last_synced_hash: Option<[u8; 32]>,
-    ) -> Result<[u8; 32]> {
+    /// Merge an externally-synced document into the local master (Android SAF
+    /// pull). Same policy as desktop `reload_replicas_if_changed`: entity-level
+    /// LWW via `merge_documents([local, incoming])` — no conflict-local stash.
+    /// Returns the merged document's content hash.
+    pub fn adopt_synced(&self, doc: Document) -> Result<[u8; 32]> {
         if doc.version > CURRENT_VERSION {
             return Err(AppError::Invalid(format!(
                 "data file version {} is newer than this app supports (max {}); update the app",
                 doc.version, CURRENT_VERSION
             )));
         }
-        let hash = content_hash(&doc);
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        if doc_has_data(&g.doc) {
-            let local_hash = content_hash(&g.doc);
-            let local_diverged = Some(local_hash) != last_synced_hash;
-            if local_diverged && local_hash != hash {
-                let local_bytes = serde_json::to_vec_pretty(&g.doc)?;
-                write_local_conflict(&g.path, &local_bytes)?;
-            }
-        }
-        // Mirror `reload_replicas_if_changed`: peer-visible changes adopted from
+        let before = g.doc.clone();
+        let merged = merge_documents(vec![before.clone(), doc]);
+        let hash = content_hash(&merged);
+        // Mirror `reload_replicas_if_changed`: peer-visible changes merged from
         // the synced folder must land in History too — without this, the Android
         // SAF pull path never surfaced other devices' edits in the History view.
         let ts = crate::model::now_ms();
-        let history = crate::history::entries_for_change(&g.doc, &doc, ts);
+        let history = crate::history::entries_for_change(&before, &merged, ts);
         match crate::history::filter_unseen_entries(&g.path, history) {
             Ok(mut filtered) => {
                 crate::history::stamp_device(&mut filtered, &g.device_id, &g.device_name);
@@ -294,7 +283,7 @@ impl AppState {
             Err(e) => eprintln!("warning: failed to dedup adopt history: {e}"),
         }
         let inner = &mut *g;
-        inner.doc = doc;
+        inner.doc = merged;
         crate::db::write_document(&mut inner.conn, &inner.doc)?;
         g.own_hash = content_hash(&g.doc);
         g.peers_hash = peers_content_hash(&g.path);
@@ -461,19 +450,6 @@ fn peers_content_hash(path: &Path) -> [u8; 32] {
     h.finalize().into()
 }
 
-/// Save `local_bytes` beside `target_path` as a JSON conflict file the conflict UI
-/// surfaces, so adopting a folder that already has data never silently discards the
-/// local document (#34).
-fn write_local_conflict(target_path: &Path, local_bytes: &[u8]) -> Result<()> {
-    let parent = target_path.parent().unwrap_or_else(|| Path::new("."));
-    let stem = target_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("tasks");
-    let name = format!("{stem}.conflict-local-{}.json", crate::model::now_ms());
-    atomic_write(&parent.join(name), local_bytes)
-}
-
 fn sha256(bytes: &[u8]) -> [u8; 32] {
     let mut h = Sha256::new();
     h.update(bytes);
@@ -556,6 +532,31 @@ mod tests {
     }
 
     #[test]
+    fn adopt_synced_merges_local_with_incoming_without_conflict_file() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path.clone()).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_local"));
+                Ok(())
+            })
+            .unwrap();
+
+        let mut remote = Document::default();
+        remote.tasks.push(sample_task("k_remote"));
+        state.adopt_synced(remote).unwrap();
+
+        let mut ids = state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>());
+        ids.sort();
+        assert_eq!(ids, ["k_local", "k_remote"]);
+        assert!(
+            crate::sync::scan_conflict_files(&path).is_empty(),
+            "SAF adopt must merge like desktop, not stash conflict-local"
+        );
+    }
+
+    #[test]
     fn adopt_synced_appends_history_for_incoming_changes() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("tasks_dev.db");
@@ -565,7 +566,7 @@ mod tests {
         // (the Android SAF pull path). The change must land in History.
         let mut remote = Document::default();
         remote.tasks.push(sample_task("k_remote"));
-        state.adopt_synced(remote, None).unwrap();
+        state.adopt_synced(remote).unwrap();
 
         let entries = crate::history::read_all_history(&path).unwrap();
         assert!(
@@ -577,7 +578,7 @@ mod tests {
 
         // Re-adopting the same content must not duplicate the entry (dedup key).
         let again = state.read(|d| d.clone());
-        state.adopt_synced(again, None).unwrap();
+        state.adopt_synced(again).unwrap();
         let entries = crate::history::read_all_history(&path).unwrap();
         assert_eq!(
             entries
