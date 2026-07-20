@@ -171,6 +171,7 @@
     "loading": "正在載入衝突…",
     "noDiffs": "任務沒有差異。（標籤差異在 v1 會略過。）",
     "discard": "捨棄衝突檔",
+    "remaining_other": "還有 {{count}} 個任務尚未選擇，選完才能套用。",
     "apply": "套用",
     "applying": "套用中…",
     "dismissConfirm": "不合併，直接捨棄這個衝突檔？",

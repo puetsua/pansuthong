@@ -36,7 +36,8 @@ export function ConflictsView() {
     setChosen(s => ({ ...s, [id]: action }));
   };
 
-  const allDecided = diffs.every(d => chosen[d.id] !== undefined);
+  const undecided  = diffs.filter(d => chosen[d.id] === undefined).length;
+  const allDecided = undecided === 0;
   const fileLabel  = path.split(/[\\/]/).pop() ?? path;
 
   // After resolving/dismissing, go to the next outstanding conflict (if any).
@@ -101,6 +102,14 @@ export function ConflictsView() {
         ))
       }
 
+      {/* Apply stays disabled until every row is decided. Without this hint the
+          greyed-out button reads as "broken" — especially on a phone, where the
+          undecided row can be scrolled far away from the button (#conflict-ux). */}
+      {!allDecided && (
+        <p className="conflict-remaining" role="status">
+          {t("conflicts.remaining", { count: undecided })}
+        </p>
+      )}
       <div className="conflict-actions">
         <button onClick={dismiss} className="link-button danger">{t("conflicts.discard")}</button>
         <button onClick={submit} disabled={!allDecided || busy}>

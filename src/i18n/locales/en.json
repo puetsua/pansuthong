@@ -175,6 +175,8 @@
     "loading": "Loading conflict…",
     "noDiffs": "No task differences. (Tag differences are ignored in v1.)",
     "discard": "Discard conflict file",
+    "remaining_one": "Choose an option for {{count}} more task to enable Apply.",
+    "remaining_other": "Choose an option for {{count}} more tasks to enable Apply.",
     "apply": "Apply",
     "applying": "Applying…",
     "dismissConfirm": "Discard this conflict file without merging?",

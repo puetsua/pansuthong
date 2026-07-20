@@ -2034,6 +2034,13 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .sidebar-section-link:hover { color: var(--c-text); text-decoration: none; }
 .sidebar-section-link.active { color: var(--c-accent); }
 
+/* Why Apply is disabled, shown just above the conflict action buttons. */
+.conflict-remaining {
+  margin: var(--space-3) 0 var(--space-1);
+  color: var(--c-text-muted);
+  font-size: 0.85rem;
+}
+
 /* Group the mobile header's actions (Search + More) on the right. */
 .mobile-header-actions { display: flex; align-items: center; gap: var(--space-1); }
 .mobile-header-more {

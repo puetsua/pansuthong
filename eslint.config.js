@@ -7,7 +7,8 @@ import tseslint from "typescript-eslint";
 // Flat ESLint config. The Rust side (src-tauri) is linted by clippy, not ESLint.
 export default tseslint.config(
   {
-    ignores: ["dist", "coverage", "src-tauri", "node_modules"],
+    // `tmp` matches .gitignore: local scratch / agent temp artifacts, not source.
+    ignores: ["dist", "coverage", "src-tauri", "node_modules", "tmp"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
