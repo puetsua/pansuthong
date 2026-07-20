@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ClipboardEvent, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -580,6 +580,20 @@ export function TaskEditor(props: Props) {
     },
   }), [openImage, attachmentPaths, t]);
 
+  // Split mode re-parsed the whole note through remark on every keystroke, which
+  // dominated editor input cost on Android: measured on-device, edit-only mode
+  // stays flat at ~1.1ms/keystroke from 500–6000 chars, while split mode rose
+  // 6.2 → 10.2 → 20.3ms over the same range (i.e. all of the growth was the
+  // preview). Deferring lets React drop intermediate values while the user types
+  // and parse once they pause; memoizing keeps unrelated form edits (title,
+  // dates, tags) from re-parsing the note at all.
+  const deferredNotes = useDeferredValue(form.notes);
+  const notesPreview = useMemo(() => (
+    <ReactMarkdown allowedElements={markdownElements} components={markdownComponents}>
+      {deferredNotes}
+    </ReactMarkdown>
+  ), [deferredNotes, markdownComponents]);
+
   const heading = creating
     ? (isTemplate ? t("taskEditor.newTemplate") : t("taskEditor.newTask"))
     : isTemplate ? t("taskEditor.editTemplate") : t("taskEditor.editTask");
@@ -848,11 +862,7 @@ export function TaskEditor(props: Props) {
             )}
             {notesMode !== "edit" && (
               <div className="te-notes-preview" aria-label={t("taskEditor.notesPreview")}>
-                {form.notes.trim() ? (
-                  <ReactMarkdown allowedElements={markdownElements} components={markdownComponents}>
-                    {form.notes}
-                  </ReactMarkdown>
-                ) : (
+                {deferredNotes.trim() ? notesPreview : (
                   <p className="te-notes-empty">{t("taskEditor.notesPreviewEmpty")}</p>
                 )}
               </div>
