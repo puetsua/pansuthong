@@ -416,7 +416,7 @@ fn replica_paths(path: &Path) -> Vec<PathBuf> {
 fn collect_peer_docs(path: &Path) -> Vec<Document> {
     let mut docs = Vec::new();
     for replica in replica_paths(path) {
-        if replica == *path {
+        if is_own_replica(&replica, path) {
             continue;
         }
         if let Ok(doc) = decode_replica(&replica) {
@@ -432,7 +432,7 @@ fn collect_peer_docs(path: &Path) -> Vec<Document> {
 fn peers_content_hash(path: &Path) -> [u8; 32] {
     let mut h = Sha256::new();
     for replica in replica_paths(path) {
-        if replica == *path {
+        if is_own_replica(&replica, path) {
             continue;
         }
         let name = replica
@@ -448,6 +448,18 @@ fn peers_content_hash(path: &Path) -> [u8; 32] {
         }
     }
     h.finalize().into()
+}
+
+/// True when `replica` is this device's owned file. Compare by case-insensitive
+/// file name (not full `Path` equality): on Windows, `read_dir` vs a configured
+/// path can differ in drive-letter case or separators, and a false mismatch used
+/// to open our own DB as a "peer" while the writer connection still held it —
+/// producing intermittent `database is locked` on update.
+fn is_own_replica(replica: &Path, own: &Path) -> bool {
+    match (replica.file_name(), own.file_name()) {
+        (Some(a), Some(b)) => a.eq_ignore_ascii_case(b),
+        _ => replica == own,
+    }
 }
 
 fn sha256(bytes: &[u8]) -> [u8; 32] {
@@ -1247,5 +1259,19 @@ mod tests {
             state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
             ["k_after"]
         );
+    }
+
+    #[test]
+    fn own_replica_match_is_case_insensitive_on_filename() {
+        // Windows Drive folder paths often differ only by drive-letter / name case
+        // between config and read_dir; Path equality would wrongly treat own as peer.
+        assert!(is_own_replica(
+            Path::new(r"D:\Sync\tasks_dev.db"),
+            Path::new(r"d:\sync\tasks_DEV.db"),
+        ));
+        assert!(!is_own_replica(
+            Path::new(r"D:\Sync\tasks_peer.db"),
+            Path::new(r"D:\Sync\tasks_dev.db"),
+        ));
     }
 }

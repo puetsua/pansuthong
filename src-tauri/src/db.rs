@@ -16,10 +16,17 @@ use crate::error::{AppError, Result};
 use crate::model::{Document, Tombstone, CURRENT_VERSION};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use std::path::Path;
+use std::time::Duration;
 
 const TASKS: &str = "tasks";
 const TAGS: &str = "tags";
 const TEMPLATES: &str = "template_tasks";
+
+/// How long writers wait for a lock held by a cloud-sync client (or a brief peer
+/// open) before surfacing `database is locked`. Default SQLite busy timeout is 0
+/// (fail immediately), which turns transient Drive/OneDrive contention into hard
+/// update failures.
+const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Open (or create) the database at `path` and ensure the schema. Uses rollback
 /// (`DELETE`) journal mode with `synchronous=FULL` so exactly one file exists at
@@ -29,18 +36,59 @@ const TEMPLATES: &str = "template_tasks";
 /// mid-commit read with `PRAGMA quick_check` (see `load_from_file`).
 pub fn open(path: &Path) -> Result<Connection> {
     let conn = Connection::open(path)?;
+    conn.busy_timeout(BUSY_TIMEOUT)?;
     conn.pragma_update(None, "journal_mode", "DELETE")?;
     conn.pragma_update(None, "synchronous", "FULL")?;
     init(&conn)?;
     Ok(conn)
 }
 
-/// Open a peer replica read-only and immutable (it lives in the synced folder and
-/// may be mid-upload). Does not initialize schema — a peer DB is never written.
+/// Open a staged replica read-only. Prefer [`load_from_file`], which copies first
+/// so SQLite never locks a live cloud-synced peer path. Direct opens still use
+/// URI `immutable=1` so no lock is taken even if called on a shared path.
 pub fn open_readonly(path: &Path) -> Result<Connection> {
-    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    let conn = Connection::open_with_flags(path, flags)?;
+    let uri = sqlite_immutable_uri(path)?;
+    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY
+        | OpenFlags::SQLITE_OPEN_URI
+        | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    let conn = Connection::open_with_flags(&uri, flags)?;
     Ok(conn)
+}
+
+/// Build a `file:` URI with `mode=ro&immutable=1` so SQLite does not acquire a
+/// shared lock (critical when the file lives in a cloud-sync folder, and so a
+/// mistaken second open of our own replica cannot block the writer).
+fn sqlite_immutable_uri(path: &Path) -> Result<String> {
+    let abs = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map_err(AppError::Io)?
+            .join(path)
+    };
+    let raw = abs.to_string_lossy();
+    // SQLite URI paths use forward slashes; percent-encode characters that would
+    // break the query string (`?`, `#`) or the path (`%`, space, non-ASCII).
+    let mut encoded = String::with_capacity(raw.len() + 16);
+    for b in raw.bytes() {
+        match b {
+            b'\\' => encoded.push('/'),
+            b'%' => encoded.push_str("%25"),
+            b'?' => encoded.push_str("%3F"),
+            b'#' => encoded.push_str("%23"),
+            b' ' => encoded.push_str("%20"),
+            // Printable ASCII except the specials matched above.
+            0x21..=0x7E => encoded.push(b as char),
+            _ => encoded.push_str(&format!("%{b:02X}")),
+        }
+    }
+    // Windows `C:/…` needs the `file:///C:/…` form; Unix paths already start with `/`.
+    let body = if encoded.starts_with('/') {
+        encoded
+    } else {
+        format!("/{encoded}")
+    };
+    Ok(format!("file://{body}?mode=ro&immutable=1"))
 }
 
 fn init(conn: &Connection) -> Result<()> {
@@ -191,17 +239,13 @@ fn read_tombstones(conn: &Connection, kind: &str) -> Result<Vec<Tombstone>> {
     Ok(out)
 }
 
-/// Load a `Document` from a replica `.db` file, opened read-only/immutable (it may
-/// live in the synced folder and be mid-upload). Applies the version gate.
+/// Load a `Document` from a replica `.db` file. Bytes are staged to a temp file
+/// before SQLite opens them so we never take a lock on a live cloud-synced path
+/// (Drive/OneDrive mid-upload, or our own writer connection). Applies the version
+/// gate and `quick_check` integrity pre-check.
 pub fn load_from_file(path: &Path) -> Result<Document> {
-    let conn = open_readonly(path)?;
-    // A partially-synced file may fail an integrity check; surface it as an error
-    // so the caller can skip this replica for now.
-    let ok: String = conn.query_row("PRAGMA quick_check", [], |r| r.get(0))?;
-    if ok != "ok" {
-        return Err(AppError::Invalid(format!("replica failed integrity check: {ok}")));
-    }
-    read_document(&conn)
+    let bytes = std::fs::read(path)?;
+    load_from_bytes(&bytes)
 }
 
 /// Decode a `Document` from raw `.db` file bytes (e.g. a replica pulled over SAF).
@@ -216,7 +260,18 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Document> {
         COUNTER.fetch_add(1, Ordering::Relaxed)
     ));
     std::fs::write(&tmp, bytes)?;
-    let result = load_from_file(&tmp);
+    let result = (|| {
+        let conn = open_readonly(&tmp)?;
+        // A partially-synced file may fail an integrity check; surface it as an
+        // error so the caller can skip this replica for now.
+        let ok: String = conn.query_row("PRAGMA quick_check", [], |r| r.get(0))?;
+        if ok != "ok" {
+            return Err(AppError::Invalid(format!(
+                "replica failed integrity check: {ok}"
+            )));
+        }
+        read_document(&conn)
+    })();
     let _ = std::fs::remove_file(&tmp);
     result
 }
@@ -332,5 +387,57 @@ mod tests {
         let back = read_document(&conn).unwrap();
         let ids: Vec<_> = back.tasks.iter().map(|t| t.id.as_str()).collect();
         assert_eq!(ids, ["k_b"], "a rewrite fully replaces the prior document");
+    }
+
+    #[test]
+    fn load_from_file_does_not_block_live_writer() {
+        use std::sync::{Arc, Barrier};
+        use std::thread;
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let mut conn = open(&path).unwrap();
+        let mut doc = Document::default();
+        doc.tasks.push(sample_task("k_a", 1));
+        write_document(&mut conn, &doc).unwrap();
+
+        // Concurrent peer-style loads must not take a lock on the live file, or
+        // the writer's next transaction fails with "database is locked".
+        let barrier = Arc::new(Barrier::new(2));
+        let path_bg = path.clone();
+        let barrier_bg = Arc::clone(&barrier);
+        let loader = thread::spawn(move || {
+            barrier_bg.wait();
+            for _ in 0..20 {
+                load_from_file(&path_bg).unwrap();
+            }
+        });
+
+        barrier.wait();
+        for i in 0..20 {
+            doc.tasks[0].updated_at = i;
+            write_document(&mut conn, &doc).expect("writer must not see database is locked");
+        }
+        loader.join().unwrap();
+    }
+
+    #[test]
+    fn immutable_uri_opens_windows_style_paths() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let mut conn = open(&path).unwrap();
+        write_document(&mut conn, &Document::default()).unwrap();
+        drop(conn);
+
+        let uri = sqlite_immutable_uri(&path).unwrap();
+        assert!(uri.starts_with("file://"), "uri={uri}");
+        assert!(uri.contains("mode=ro&immutable=1"), "uri={uri}");
+        assert!(!uri.contains('\\'), "uri must use forward slashes: {uri}");
+
+        let back = load_from_file(&path).unwrap();
+        assert_eq!(back.version, CURRENT_VERSION);
     }
 }
