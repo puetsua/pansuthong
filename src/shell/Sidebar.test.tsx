@@ -54,6 +54,14 @@ describe("Sidebar — primary nav order", () => {
     expect(tags).toBeGreaterThan(search);
   });
 
+  it("keeps primary nav text-only (icons belong on mobile bottom tabs)", () => {
+    renderSidebar([]);
+    for (const name of [/today/i, /inbox/i, /upcoming/i]) {
+      const link = screen.getByRole("link", { name });
+      expect(link.querySelector("svg")).toBeNull();
+    }
+  });
+
   it("does not show a numeric count on Inbox (presence is the mobile badge only)", () => {
     const d: Document = {
       version: 2,

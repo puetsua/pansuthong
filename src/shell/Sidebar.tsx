@@ -6,7 +6,6 @@ import { Document, Tag } from "../lib/tauri";
 import { appVersion } from "../lib/platform";
 import { Indexes, openCount } from "../state/indexes";
 import { TagEditor } from "../components/TagEditor";
-import { InboxIcon, TodayIcon, UpcomingIcon } from "../components/NavIcons";
 
 const RELEASES_BASE = "https://github.com/puetsua/pansuthong/releases/tag/";
 
@@ -44,19 +43,16 @@ export function Sidebar({ doc, indexes }: Props) {
       <ul className="sidebar-list">
         <li>
           <NavLink to="/today" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-            <TodayIcon className="sidebar-nav-icon" size={16} />
             {t("nav.today")} <span className="sidebar-count">{todayCount}</span>
           </NavLink>
         </li>
         <li>
           <NavLink to="/inbox" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-            <InboxIcon className="sidebar-nav-icon" size={16} />
             {t("nav.inbox")}
           </NavLink>
         </li>
         <li>
           <NavLink to="/upcoming" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-            <UpcomingIcon className="sidebar-nav-icon" size={16} />
             {t("nav.upcoming")}
           </NavLink>
         </li>
