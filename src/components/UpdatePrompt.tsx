@@ -34,6 +34,12 @@ export function UpdatePrompt() {
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const open = phase != null;
 
+  // Capture the pre-dialog focus during render (before autoFocus commits), same
+  // timing as TaskEditor — an effect would already see the autofocused button.
+  if (open && restoreFocusRef.current === null && typeof document !== "undefined") {
+    restoreFocusRef.current = document.activeElement as HTMLElement | null;
+  }
+
   useEffect(() => {
     let active = true;
     void checkForUpdate().then(update => {
@@ -48,15 +54,13 @@ export function UpdatePrompt() {
   // Depends on `open` (not `phase`) so download progress does not rebind.
   useEffect(() => {
     if (!open) return;
-    if (restoreFocusRef.current === null) {
-      restoreFocusRef.current = document.activeElement as HTMLElement | null;
-    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        // Capture + stop so an editor open underneath does not also dismiss.
-        if (phaseRef.current?.kind === "downloading") return;
+        // Always own Escape while open so a stacked editor does not also close,
+        // including mid-download (dismiss is skipped; propagation still stops).
         e.preventDefault();
         e.stopPropagation();
+        if (phaseRef.current?.kind === "downloading") return;
         setPhase(null);
         return;
       }
@@ -81,8 +85,14 @@ export function UpdatePrompt() {
     const opener = restoreFocusRef.current;
     return () => {
       window.removeEventListener("keydown", onKey, true);
-      appRoot?.removeAttribute("inert");
-      appRoot?.removeAttribute("aria-hidden");
+      // Another editor may still be open underneath (async check raced a click).
+      // Leave inert alone if any other dialog remains.
+      const others = [...document.querySelectorAll<HTMLElement>('.task-editor[role="dialog"]')]
+        .filter(el => el !== dialogRef.current);
+      if (others.length === 0) {
+        appRoot?.removeAttribute("inert");
+        appRoot?.removeAttribute("aria-hidden");
+      }
       opener?.focus?.();
       restoreFocusRef.current = null;
     };

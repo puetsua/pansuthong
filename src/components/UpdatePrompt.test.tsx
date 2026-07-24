@@ -76,7 +76,12 @@ describe("UpdatePrompt", () => {
     fireEvent.click(await screen.findByText("Update now"));
     await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
     expect((screen.getByRole("button", { name: "Close" }) as HTMLButtonElement).disabled).toBe(true);
+    const bubble = vi.fn();
+    window.addEventListener("keydown", bubble);
     fireEvent.keyDown(window, { key: "Escape" });
+    window.removeEventListener("keydown", bubble);
     expect(screen.getByRole("dialog")).toBeTruthy();
+    // Capture handler must stopPropagation so stacked editors do not also close.
+    expect(bubble).not.toHaveBeenCalled();
   });
 });
