@@ -91,6 +91,13 @@ export function UpdatePrompt() {
     };
   }, [open]);
 
+  // While downloading, actions unmount and Close is disabled — park focus on the
+  // status region so Tab cannot leak into the app behind an undismissable prompt.
+  useEffect(() => {
+    if (phase?.kind !== "downloading") return;
+    dialogRef.current?.querySelector<HTMLElement>(".upd-progress")?.focus();
+  }, [phase?.kind]);
+
   if (!phase) return null;
 
   const { update } = phase;
@@ -150,7 +157,7 @@ export function UpdatePrompt() {
         )}
 
         {downloading ? (
-          <div className="upd-progress" role="status">
+          <div className="upd-progress" role="status" tabIndex={0}>
             <div className="upd-progress-track">
               <div
                 className="upd-progress-bar"

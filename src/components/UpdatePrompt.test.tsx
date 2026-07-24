@@ -83,5 +83,7 @@ describe("UpdatePrompt", () => {
     expect(screen.getByRole("dialog")).toBeTruthy();
     // Capture handler must stopPropagation so stacked editors do not also close.
     expect(bubble).not.toHaveBeenCalled();
+    // Status region is the download focus landing (tabIndex=0) for the Tab trap.
+    expect(screen.getByRole("status").tabIndex).toBe(0);
   });
 });
