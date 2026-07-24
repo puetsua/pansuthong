@@ -1,4 +1,4 @@
-package net.puetsua.pansutong
+package net.puetsua.pansuthong.dev
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge

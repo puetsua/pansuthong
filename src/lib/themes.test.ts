@@ -113,21 +113,21 @@ describe("theme JSON import/export", () => {
     expect(() => parseThemeJson("not json")).toThrow();
   });
 
-  it("rejects JSON that isn't a pansutong theme", () => {
+  it("rejects JSON that isn't a pansuthong theme", () => {
     expect(() => parseThemeJson(JSON.stringify({ hello: 1 }))).toThrow();
   });
 
   it("returns an empty name when none is provided (caller prompts for one)", () => {
-    const parsed = parseThemeJson(JSON.stringify({ pansutong_theme: 1, light: { "--c-accent": "#fff" }, dark: {} }));
+    const parsed = parseThemeJson(JSON.stringify({ pansuthong_theme: 1, light: { "--c-accent": "#fff" }, dark: {} }));
     expect(parsed.name).toBe("");
   });
 
   it("rejects a theme with no usable colors", () => {
-    expect(() => parseThemeJson(JSON.stringify({ pansutong_theme: 1, name: "x", light: {}, dark: {} }))).toThrow();
+    expect(() => parseThemeJson(JSON.stringify({ pansuthong_theme: 1, name: "x", light: {}, dark: {} }))).toThrow();
   });
 
   it("drops unknown keys and bad values on import", () => {
-    const json = JSON.stringify({ pansutong_theme: 1, name: "x", light: { "--c-accent": "#fff", "--c-evil": "#000" }, dark: {} });
+    const json = JSON.stringify({ pansuthong_theme: 1, name: "x", light: { "--c-accent": "#fff", "--c-evil": "#000" }, dark: {} });
     const parsed = parseThemeJson(json);
     expect(parsed.light).toEqual({ "--c-accent": "#fff" });
   });

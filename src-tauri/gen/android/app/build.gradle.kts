@@ -13,14 +13,14 @@ val tauriProperties = Properties().apply {
     }
 }
 
-// One Gradle project, two Tauri identifiers: production `net.puetsua.pansutong`
-// (CI release) and `net.puetsua.pansutong.dev` (local testing via
+// One Gradle project, two Tauri identifiers: production `net.puetsua.pansuthong`
+// (CI release) and `net.puetsua.pansuthong.dev` (local testing via
 // tauri.android-dev.conf.json). The Tauri CLI writes the merged config into
 // assets before invoking Gradle and generates TauriActivity under the ACTIVE
 // identifier's package, so the two MainActivity variants can never compile in
 // the same build — the inactive package tree is excluded below. Defaults to
 // production when the CLI hasn't run (e.g. a bare Android Studio sync).
-val prodAppId = "net.puetsua.pansutong"
+val prodAppId = "net.puetsua.pansuthong"
 val devAppId = "$prodAppId.dev"
 val mergedTauriConf = file("src/main/assets/tauri.conf.json")
 val isDevId = mergedTauriConf.exists() &&
@@ -32,9 +32,9 @@ val tauriAppLabel = if (isDevId) "Pansuthong Dev" else "Pansuthong"
 // CLI-generated tree from a previous build of the other identifier — those
 // classes reference a TauriActivity that doesn't exist in this build.
 val inactiveIdSources = if (isDevId) {
-    listOf("net/puetsua/pansutong/MainActivity.kt", "net/puetsua/pansutong/generated/**")
+    listOf("net/puetsua/pansuthong/MainActivity.kt", "net/puetsua/pansuthong/generated/**")
 } else {
-    listOf("net/puetsua/pansutong/dev/**")
+    listOf("net/puetsua/pansuthong/dev/**")
 }
 
 // Release signing. CI writes keystore.properties + the keystore from secrets

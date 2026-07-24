@@ -23,7 +23,7 @@ const finalArgs = config && !hasConfig ? [...args, "--config", config] : args;
 // into the active tree.
 if (args[0] === "android" && (args[1] === "dev" || args[1] === "build")) {
   const devActive = finalArgs.some((a) => a.includes("tauri.android-dev.conf.json"));
-  const base = "src-tauri/gen/android/app/src/main/java/net/puetsua/pansutong";
+  const base = "src-tauri/gen/android/app/src/main/java/net/puetsua/pansuthong";
   rmSync(devActive ? `${base}/generated` : `${base}/dev/generated`, {
     recursive: true,
     force: true,

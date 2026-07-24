@@ -95,8 +95,8 @@ describe("SettingsView data location", () => {
     getDataLocation.mockResolvedValue({
       folder: null,
       device_id: "device-abc",
-      folder_path: "/data/user/0/net.puetsua.pansutong.dev/files",
-      effective_path: "/data/user/0/net.puetsua.pansutong.dev/files/tasks_device-abc.db",
+      folder_path: "/data/user/0/net.puetsua.pansuthong.dev/files",
+      effective_path: "/data/user/0/net.puetsua.pansuthong.dev/files/tasks_device-abc.db",
     });
 
     render(<SettingsView doc={doc} />);
@@ -104,7 +104,7 @@ describe("SettingsView data location", () => {
     await waitFor(() => expect(screen.getByText("Drive/Pansuthong")).toBeTruthy());
     expect(screen.getByText(/Synced folder:/i)).toBeTruthy();
     // Local app-data path must not appear once SAF is linked (one-folder UX).
-    expect(screen.queryByText("/data/user/0/net.puetsua.pansutong.dev/files")).toBeNull();
+    expect(screen.queryByText("/data/user/0/net.puetsua.pansuthong.dev/files")).toBeNull();
     expect(screen.getByRole("button", { name: /sync now/i })).toBeTruthy();
   });
 

@@ -77,12 +77,12 @@ For a USB device: enable Developer Options + USB debugging, then `adb devices` s
 
 ## Common failures
 
-- **"Project directory …\java\net\puetsua\pansutong\dev does not exist"** — the dev
+- **"Project directory …\java\net\puetsua\pansuthong\dev does not exist"** — the dev
   identifier (`tauri.android-dev.conf.json`) and the production identifier share the one
   committed `gen/android` project. `app/build.gradle.kts` detects the active identifier
   from the CLI-generated `src/main/assets/tauri.conf.json` and switches applicationId,
   namespace, the manifest activity, and Kotlin source exclusions; both `MainActivity.kt`
-  variants (`…/pansutong/` and `…/pansutong/dev/`) must exist. Do NOT follow the CLI's
+  variants (`…/pansuthong/` and `…/pansuthong/dev/`) must exist. Do NOT follow the CLI's
   advice to delete `gen/android` and re-init — that regenerates for one identifier only
   and breaks the other (CI release builds use the production identifier from this same
   tree).
@@ -90,7 +90,7 @@ For a USB device: enable Developer Options + USB debugging, then `adb devices` s
   script only regenerates the per-identifier Kotlin when its cargo fingerprint
   invalidates. `scripts/tauri.mjs` handles this by deleting the inactive identifier's
   `generated/` tree before Android builds; if you bypassed the wrapper with a bare
-  `tauri` CLI, delete `…/java/net/puetsua/pansutong[/dev]/generated` yourself and
+  `tauri` CLI, delete `…/java/net/puetsua/pansuthong[/dev]/generated` yourself and
   rebuild via `npm run tauri`.
 
 - **"NDK not found"** — `NDK_HOME` is pointing at the parent `ndk\` dir instead of a versioned subdir.

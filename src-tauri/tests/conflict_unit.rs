@@ -1,5 +1,5 @@
-use pansutong_lib::conflict::{apply_decisions, diff_tasks, Decision, TaskDiff};
-use pansutong_lib::model::{Document, Task};
+use pansuthong_lib::conflict::{apply_decisions, diff_tasks, Decision, TaskDiff};
+use pansuthong_lib::model::{Document, Task};
 
 fn mk(id: &str, title: &str, done: bool) -> Task {
     Task {
