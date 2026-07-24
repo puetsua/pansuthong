@@ -35,6 +35,7 @@
     "title": "Version {{version}} is available",
     "now": "Update now",
     "later": "Later",
+    "close": "Close",
     "retry": "Retry",
     "downloading": "Downloading and installing…",
     "failed": "Update failed: {{error}}"

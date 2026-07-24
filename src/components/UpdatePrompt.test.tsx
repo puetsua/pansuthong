@@ -34,15 +34,27 @@ describe("UpdatePrompt", () => {
   it("shows the version and release notes when an update is available", async () => {
     checkMock.mockResolvedValue(fakeUpdate());
     render(<UpdatePrompt />);
-    expect(await screen.findByRole("dialog")).toBeTruthy();
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.classList.contains("task-editor")).toBe(true);
+    expect(dialog.classList.contains("upd-prompt")).toBe(true);
     expect(screen.getByText(/0\.2\.0/)).toBeTruthy();
     expect(screen.getByText("A bug")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
   });
 
   it("dismisses on 'Later' without installing", async () => {
     checkMock.mockResolvedValue(fakeUpdate());
     render(<UpdatePrompt />);
     fireEvent.click(await screen.findByText("Later"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(installMock).not.toHaveBeenCalled();
+  });
+
+  it("dismisses on Escape without installing", async () => {
+    checkMock.mockResolvedValue(fakeUpdate());
+    render(<UpdatePrompt />);
+    await screen.findByRole("dialog");
+    fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(installMock).not.toHaveBeenCalled();
   });
@@ -55,5 +67,23 @@ describe("UpdatePrompt", () => {
     render(<UpdatePrompt />);
     fireEvent.click(await screen.findByText("Update now"));
     await waitFor(() => expect(installMock).toHaveBeenCalledWith(update, expect.any(Function)));
+  });
+
+  it("blocks Escape and Close while downloading", async () => {
+    checkMock.mockResolvedValue(fakeUpdate());
+    installMock.mockReturnValue(new Promise(() => {}));
+    render(<UpdatePrompt />);
+    fireEvent.click(await screen.findByText("Update now"));
+    await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
+    expect((screen.getByRole("button", { name: "Close" }) as HTMLButtonElement).disabled).toBe(true);
+    const bubble = vi.fn();
+    window.addEventListener("keydown", bubble);
+    fireEvent.keyDown(window, { key: "Escape" });
+    window.removeEventListener("keydown", bubble);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    // Capture handler must stopPropagation so stacked editors do not also close.
+    expect(bubble).not.toHaveBeenCalled();
+    // Status region is the download focus landing (tabIndex=0) for the Tab trap.
+    expect(screen.getByRole("status").tabIndex).toBe(0);
   });
 });
