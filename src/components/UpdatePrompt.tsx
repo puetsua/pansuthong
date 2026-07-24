@@ -22,8 +22,9 @@ const FOCUSABLE =
  *
  * Shell matches other editors: `.task-editor` card, `.te-header` + close, and
  * `.te-actions` / `.te-save` for the footer (not a one-off `.upd-dialog`).
- * Keyboard/focus matches TaskEditor: Tab cycle, Escape (capture, so a stacked
- * editor underneath does not also close), `#root` inert, restore focus on close.
+ * Keyboard/focus matches other modals: Tab cycle, Escape (capture, so a stacked
+ * editor underneath does not also close), restore focus on close. `#root` inert
+ * stays TaskEditor-only — toggling it here races other dialogs.
  */
 export function UpdatePrompt() {
   const { t } = useTranslation();
@@ -50,7 +51,9 @@ export function UpdatePrompt() {
     };
   }, []);
 
-  // Mount-only-while-open: Escape/Tab + inert background, like TaskEditor.
+  // Mount-only-while-open: Escape/Tab like TaskEditor. Do not toggle `#root`
+  // inert — only TaskEditor owns that, and clearing it here would either strip
+  // an open editor's inert or leave TagEditor/theme modals stuck non-interactive.
   // Depends on `open` (not `phase`) so download progress does not rebind.
   useEffect(() => {
     if (!open) return;
@@ -79,22 +82,12 @@ export function UpdatePrompt() {
       }
     };
     window.addEventListener("keydown", onKey, true);
-    const appRoot = document.getElementById("root");
-    appRoot?.setAttribute("inert", "");
-    appRoot?.setAttribute("aria-hidden", "true");
     const opener = restoreFocusRef.current;
     return () => {
       window.removeEventListener("keydown", onKey, true);
-      // Another editor may still be open underneath (async check raced a click).
-      // Leave inert alone if any other dialog remains.
-      const others = [...document.querySelectorAll<HTMLElement>('.task-editor[role="dialog"]')]
-        .filter(el => el !== dialogRef.current);
-      if (others.length === 0) {
-        appRoot?.removeAttribute("inert");
-        appRoot?.removeAttribute("aria-hidden");
-      }
+      // Keep restoreFocusRef (TaskEditor pattern) so StrictMode remount still
+      // restores the pre-dialog control on real dismiss.
       opener?.focus?.();
-      restoreFocusRef.current = null;
     };
   }, [open]);
 
