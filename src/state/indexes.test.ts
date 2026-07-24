@@ -409,8 +409,9 @@ describe("time-tracked tasks appear in Today independent of dates", () => {
   });
 
   it("a track-only task completed today lingers until day rollover (#142)", () => {
-    // Undated task: open membership was via today's tracking alone. Completing it
-    // must not drop it from Today mid-day — same linger rule as date-scheduled work.
+    // Undated task: open membership was via today's tracking alone. Completing
+    // stops any running timer and closes the entry; lingering must still use
+    // trackedToday so the row does not vanish mid-day — same rule as date-scheduled work.
     const done = mk("k_track_done", [
       { start: "2026-05-28T09:00:00+00:00", end: "2026-05-28T09:30:00+00:00" },
     ]);
@@ -418,17 +419,6 @@ describe("time-tracked tasks appear in Today independent of dates", () => {
     const ix = buildIndexes(withTasks([done]));
     expect(ix.today(TODAY_ISO).map(t => t.id)).toEqual(["k_track_done"]);
     expect(ix.archived.map(t => t.id)).toEqual(["k_track_done"]);
-  });
-
-  it("a running-timer task completed today still lingers (#142)", () => {
-    // Completing stops the timer and closes the entry; lingering must still use
-    // trackedToday so the row does not vanish the instant the checkbox is hit.
-    const done = mk("k_was_running", [
-      { start: "2026-05-28T09:00:00+00:00", end: "2026-05-28T09:15:00+00:00" },
-    ]);
-    done.completed_at = "2026-05-28T09:15:00+00:00";
-    expect(buildIndexes(withTasks([done])).today(TODAY_ISO).map(t => t.id))
-      .toEqual(["k_was_running"]);
   });
 });
 
