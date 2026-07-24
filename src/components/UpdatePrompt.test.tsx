@@ -68,4 +68,15 @@ describe("UpdatePrompt", () => {
     fireEvent.click(await screen.findByText("Update now"));
     await waitFor(() => expect(installMock).toHaveBeenCalledWith(update, expect.any(Function)));
   });
+
+  it("blocks Escape and Close while downloading", async () => {
+    checkMock.mockResolvedValue(fakeUpdate());
+    installMock.mockReturnValue(new Promise(() => {}));
+    render(<UpdatePrompt />);
+    fireEvent.click(await screen.findByText("Update now"));
+    await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
+    expect((screen.getByRole("button", { name: "Close" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
 });
