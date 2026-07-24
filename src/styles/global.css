@@ -313,11 +313,6 @@ button {
 .sidebar-link:hover { background: var(--c-surface); text-decoration: none; }
 .sidebar-link.active { background: var(--c-accent-bg); color: var(--c-accent); font-weight: 600; }
 .sidebar-count { margin-left: auto; font-size: 0.72rem; color: var(--c-text-subtle); }
-.sidebar-nav-icon {
-  flex-shrink: 0;
-  color: var(--c-text-muted);
-}
-.sidebar-link.active .sidebar-nav-icon { color: var(--c-accent); }
 .sidebar-hash { font-weight: 700; line-height: 1; }
 .sidebar-version {
   align-self: flex-start;
