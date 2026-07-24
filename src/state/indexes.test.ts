@@ -407,6 +407,19 @@ describe("time-tracked tasks appear in Today independent of dates", () => {
     expect(ix.today(TODAY_ISO).map(t => t.id)).toEqual([]);
     expect(ix.archived.map(t => t.id)).toEqual(["k_done"]);
   });
+
+  it("a track-only task completed today lingers until day rollover (#142)", () => {
+    // Undated task: open membership was via today's tracking alone. Completing
+    // stops any running timer and closes the entry; lingering must still use
+    // trackedToday so the row does not vanish mid-day — same rule as date-scheduled work.
+    const done = mk("k_track_done", [
+      { start: "2026-05-28T09:00:00+00:00", end: "2026-05-28T09:30:00+00:00" },
+    ]);
+    done.completed_at = "2026-05-28T09:30:00+00:00";
+    const ix = buildIndexes(withTasks([done]));
+    expect(ix.today(TODAY_ISO).map(t => t.id)).toEqual(["k_track_done"]);
+    expect(ix.archived.map(t => t.id)).toEqual(["k_track_done"]);
+  });
 });
 
 function doc(over: Partial<Document>): Document {

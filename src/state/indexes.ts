@@ -238,11 +238,10 @@ export function buildIndexes(doc: Document): Indexes {
     );
 
   const inToday = (t: Task, todayIso: string): boolean => {
-    if (isDone(t)) {
-      if (logicalDayOf(t.completed_at ?? "", dsh) !== todayIso) return false;
-      // Only keep it if it belonged to Today's list while it was open.
-      return coversToday(t, todayIso);
-    }
+    // Done tasks linger only on the logical day they were completed; older
+    // completions drop out. Membership itself matches the open rule: date
+    // coverage or today's tracking (#142 — track-only completes used to vanish).
+    if (isDone(t) && logicalDayOf(t.completed_at ?? "", dsh) !== todayIso) return false;
     return coversToday(t, todayIso) || trackedToday(t, todayIso);
   };
 
