@@ -255,7 +255,7 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Document> {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let mut tmp = std::env::temp_dir();
     tmp.push(format!(
-        "pansutong-replica-{}-{}.db",
+        "pansuthong-replica-{}-{}.db",
         crate::model::now_ms(),
         COUNTER.fetch_add(1, Ordering::Relaxed)
     ));

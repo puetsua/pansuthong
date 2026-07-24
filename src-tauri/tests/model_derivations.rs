@@ -1,5 +1,5 @@
 use chrono::NaiveDate;
-use pansutong_lib::model::Document;
+use pansuthong_lib::model::Document;
 use std::fs;
 
 fn load(name: &str) -> Document {

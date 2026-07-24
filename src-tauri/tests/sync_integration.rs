@@ -1,4 +1,4 @@
-use pansutong_lib::sync::scan_conflict_files;
+use pansuthong_lib::sync::scan_conflict_files;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::tempdir;

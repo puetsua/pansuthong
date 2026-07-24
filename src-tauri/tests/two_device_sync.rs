@@ -5,9 +5,9 @@
 //! the documents converge, produce no conflict files, and then go quiet (no sync
 //! loop from the byte-non-deterministic `.db` snapshots).
 
-use pansutong_lib::model::Task;
-use pansutong_lib::store::AppState;
-use pansutong_lib::sync::scan_conflict_files;
+use pansuthong_lib::model::Task;
+use pansuthong_lib::store::AppState;
+use pansuthong_lib::sync::scan_conflict_files;
 
 fn task(id: &str) -> Task {
     Task {
@@ -106,9 +106,9 @@ fn a_deletion_on_one_device_tombstones_across_the_folder() {
 
     // B deletes k1 (recording a tombstone), A must not resurrect it on merge.
     b.write(|d| {
-        let ts = pansutong_lib::model::now_ms();
+        let ts = pansuthong_lib::model::now_ms();
         d.tasks.retain(|t| t.id != "k1");
-        d.deleted_tasks.push(pansutong_lib::model::Tombstone {
+        d.deleted_tasks.push(pansuthong_lib::model::Tombstone {
             id: "k1".into(),
             deleted_at: ts,
             deleted_by: None,

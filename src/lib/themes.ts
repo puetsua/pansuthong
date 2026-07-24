@@ -253,7 +253,7 @@ export function applyThemeToRoot(el: HTMLElement, settings: Settings, variant: T
 
 /** Serialize a theme to the shareable JSON envelope (copy/paste import-export). */
 export function serializeThemeJson(name: string, light: ThemeTokens, dark: ThemeTokens): string {
-  return JSON.stringify({ pansutong_theme: THEME_JSON_VERSION, name, light, dark }, null, 2);
+  return JSON.stringify({ pansuthong_theme: THEME_JSON_VERSION, name, light, dark }, null, 2);
 }
 
 /** Parse a pasted theme JSON envelope into a sanitized name + token maps. Throws an
@@ -265,7 +265,7 @@ export function parseThemeJson(text: string): { name: string; light: ThemeTokens
   } catch {
     throw new Error("settings.themeImportInvalidJson");
   }
-  if (!data || typeof data !== "object" || (data as { pansutong_theme?: unknown }).pansutong_theme !== THEME_JSON_VERSION) {
+  if (!data || typeof data !== "object" || (data as { pansuthong_theme?: unknown }).pansuthong_theme !== THEME_JSON_VERSION) {
     throw new Error("settings.themeImportNotATheme");
   }
   const obj = data as { name?: unknown; light?: Record<string, string>; dark?: Record<string, string> };

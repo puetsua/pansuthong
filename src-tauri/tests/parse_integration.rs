@@ -1,5 +1,5 @@
 use chrono::NaiveDate;
-use pansutong_lib::parse::{parse, ParsedInput};
+use pansuthong_lib::parse::{parse, ParsedInput};
 
 fn today() -> NaiveDate {
     NaiveDate::from_ymd_opt(2026, 5, 28).unwrap()

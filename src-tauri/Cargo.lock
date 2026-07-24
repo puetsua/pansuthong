@@ -2922,7 +2922,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pansutong"
+name = "pansuthong"
 version = "0.1.0"
 dependencies = [
  "chrono",

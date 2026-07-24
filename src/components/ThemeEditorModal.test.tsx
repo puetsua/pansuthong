@@ -81,7 +81,7 @@ describe("ThemeEditorModal", () => {
     fireEvent.change(screen.getByLabelText("Accent"), { target: { value: "#abcdef" } });
     const ta = screen.getByLabelText("Theme JSON") as HTMLTextAreaElement;
     const parsed = JSON.parse(ta.value);
-    expect(parsed.pansutong_theme).toBe(1);
+    expect(parsed.pansuthong_theme).toBe(1);
     expect(parsed.name).toBe("Mine");
     expect(parsed.light["--c-accent"]).toBe("#abcdef");
   });
