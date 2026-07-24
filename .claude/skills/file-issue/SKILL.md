@@ -38,7 +38,13 @@ gh issue create --repo puetsua/pansuthong \
   --body "<body from template>"
 ```
 
-Always **identify the filer** in the issue body so a human reading the tracker knows it was filed by an automated agent, not hand-written. Append the attribution footer (see template) naming the app (Claude Code) and the model. Use the model ID from your environment context.
+Always **identify the filer** in the issue body so a human reading the tracker knows it was filed by an automated agent, not hand-written. Append the attribution footer (see template) naming the **host app** and the model. Use the model ID from your environment context (e.g. system / communication identity), not a hardcoded product name.
+
+Host app for the footer:
+- Cursor (Agent / Composer) when running inside Cursor — e.g. `CURSOR_AGENT` is set, or identity is Cursor Grok / Composer
+- Claude Code when running inside Claude Code
+
+Do **not** default to "Claude Code" just because this skill lives under `.claude/skills/`.
 
 After it's created, report the issue number and URL back to the user.
 
@@ -68,8 +74,10 @@ Desktop (Windows)  <!-- or Android -->
 <relevant code references, tasks.json state, or anything that helps whoever fixes it. Omit if none.>
 
 ---
-🤖 Filed by Claude Code (model: <model-id, e.g. claude-opus-4-8>) on behalf of @<github-user>.
+🤖 Filed by <host-app> (model: <model-id>) on behalf of @<github-user>.
 ```
+
+Examples: `Filed by Cursor (model: cursor-grok-4.5)`, `Filed by Claude Code (model: claude-opus-4-8)`.
 
 ## Don't
 
