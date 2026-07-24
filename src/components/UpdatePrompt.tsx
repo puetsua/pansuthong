@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
@@ -14,12 +14,17 @@ type Phase =
  * Auto-checks for a newer release once on mount (desktop only — see
  * {@link checkForUpdate}) and, if one exists, shows a modal with the version and
  * release notes. "Update now" downloads/installs with a progress bar and
- * relaunches; "Later" dismisses until the next launch. Renders nothing when no
- * update is pending, so it's safe to mount unconditionally.
+ * relaunches; "Later" / ✕ / Escape dismisses until the next launch. Renders
+ * nothing when no update is pending, so it's safe to mount unconditionally.
+ *
+ * Shell matches other editors: `.task-editor` card, `.te-header` + close, and
+ * `.te-actions` / `.te-save` for the footer (not a one-off `.upd-dialog`).
  */
 export function UpdatePrompt() {
   const { t } = useTranslation();
   const [phase, setPhase] = useState<Phase | null>(null);
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
 
   useEffect(() => {
     let active = true;
@@ -30,6 +35,19 @@ export function UpdatePrompt() {
       active = false;
     };
   }, []);
+
+  // Escape dismisses like TaskEditor / TagEditor, but not mid-download.
+  useEffect(() => {
+    if (!phase) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (phaseRef.current?.kind === "downloading") return;
+      e.preventDefault();
+      setPhase(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase]);
 
   if (!phase) return null;
 
@@ -48,20 +66,44 @@ export function UpdatePrompt() {
     }
   }
 
+  const dismiss = () => {
+    if (!downloading) setPhase(null);
+  };
+
   return createPortal(
     <div className="modal-backdrop">
-      <div className="upd-dialog" role="dialog" aria-modal="true" aria-labelledby="upd-title">
-        <h2 id="upd-title" className="upd-title">
-          {t("update.title", { version: update.version })}
-        </h2>
+      <div
+        className="task-editor upd-prompt"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="upd-title"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="te-header">
+          <div className="te-title-actions">
+            <h2 id="upd-title">{t("update.title", { version: update.version })}</h2>
+          </div>
+          <button
+            type="button"
+            className="te-close"
+            aria-label={t("titlebar.close")}
+            onClick={dismiss}
+            disabled={downloading}
+          >
+            ✕
+          </button>
+        </div>
+
         {update.body && (
-          <div className="upd-notes">
+          <div className="te-notes-preview upd-notes">
             <ReactMarkdown>{update.body}</ReactMarkdown>
           </div>
         )}
 
         {phase.kind === "error" && (
-          <p className="composer-error">{t("update.failed", { error: phase.message })}</p>
+          <p className="composer-error" role="alert">
+            {t("update.failed", { error: phase.message })}
+          </p>
         )}
 
         {downloading ? (
@@ -75,8 +117,9 @@ export function UpdatePrompt() {
             <span>{t("update.downloading")}</span>
           </div>
         ) : (
-          <div className="upd-actions">
-            <button type="button" onClick={() => setPhase(null)}>
+          <div className="te-actions">
+            <span className="te-spacer" />
+            <button type="button" onClick={dismiss}>
               {t("update.later")}
             </button>
             <button type="button" className="te-save" onClick={() => void install()}>

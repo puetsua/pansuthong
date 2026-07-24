@@ -34,15 +34,27 @@ describe("UpdatePrompt", () => {
   it("shows the version and release notes when an update is available", async () => {
     checkMock.mockResolvedValue(fakeUpdate());
     render(<UpdatePrompt />);
-    expect(await screen.findByRole("dialog")).toBeTruthy();
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.classList.contains("task-editor")).toBe(true);
+    expect(dialog.classList.contains("upd-prompt")).toBe(true);
     expect(screen.getByText(/0\.2\.0/)).toBeTruthy();
     expect(screen.getByText("A bug")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
   });
 
   it("dismisses on 'Later' without installing", async () => {
     checkMock.mockResolvedValue(fakeUpdate());
     render(<UpdatePrompt />);
     fireEvent.click(await screen.findByText("Later"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(installMock).not.toHaveBeenCalled();
+  });
+
+  it("dismisses on Escape without installing", async () => {
+    checkMock.mockResolvedValue(fakeUpdate());
+    render(<UpdatePrompt />);
+    await screen.findByRole("dialog");
+    fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(installMock).not.toHaveBeenCalled();
   });
