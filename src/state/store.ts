@@ -4,6 +4,8 @@ import { api, Document } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { isAndroid } from "../lib/platform";
 import { activeVariant, applyThemeToRoot } from "../lib/themes";
+import { DAY_START_HOUR_DEFAULT, dayStartHour } from "../lib/settings";
+import { useLogicalDay } from "../lib/useLogicalDay";
 import { buildIndexes, Indexes } from "./indexes";
 
 type DocState = {
@@ -119,7 +121,16 @@ export function useDocument(): DocState {
     };
   }, []);
 
-  const indexes = useMemo(() => (doc ? buildIndexes(doc) : null), [doc]);
+  // The logical day is a live input, not a snapshot taken when the document last
+  // loaded: an app left open across the day-start hour must roll Today over on its
+  // own (#148). Tracking it here rather than per-view keeps one "today" for the whole
+  // app, so every consumer of `indexes.todayIso` advances together.
+  const dsh = doc ? dayStartHour(doc.settings) : DAY_START_HOUR_DEFAULT;
+  const currentDay = useLogicalDay(dsh);
+  const indexes = useMemo(
+    () => (doc ? buildIndexes(doc, currentDay) : null),
+    [doc, currentDay],
+  );
   return {
     doc,
     indexes,

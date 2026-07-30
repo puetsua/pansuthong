@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { Document } from "../lib/tauri";
 
@@ -30,6 +30,12 @@ function makeDoc(theme: "auto" | "light" | "dark" = "auto"): Document {
     tasks: [],
     template_tasks: [],
   };
+}
+
+/** Doc whose logical day rolls over at `hour` instead of midnight. */
+function makeDocWithDayStart(hour: number): Document {
+  const doc = makeDoc();
+  return { ...doc, settings: { ...doc.settings, day_start_hour: hour } };
 }
 
 beforeEach(() => {
@@ -105,5 +111,86 @@ describe("useDocument", () => {
 
     act(() => result.current.dismissReloadError());
     await waitFor(() => expect(result.current.reloadError).toBeNull());
+  });
+});
+
+// The logical day used to be baked into the indexes when they were built, so nothing
+// re-derived it while the app sat idle: the Today view kept showing yesterday's list
+// after the day-start hour passed, until some unrelated mutation rebuilt the indexes
+// (#148).
+describe("useDocument day rollover", () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  /** Mount and let the initial `getDocument` resolve, all inside `act`. */
+  async function mountSettled() {
+    const rendered = renderHook(() => useDocument());
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(rendered.result.current.indexes).not.toBeNull();
+    return rendered;
+  }
+
+  it("advances indexes.todayIso when the clock crosses the day-start hour", async () => {
+    vi.setSystemTime(new Date(2026, 6, 30, 3, 59, 30)); // 03:59:30, day starts at 04:00
+    getDocument.mockResolvedValue(makeDocWithDayStart(4));
+
+    const { result } = await mountSettled();
+    expect(result.current.indexes?.todayIso).toBe("2026-07-29"); // still the previous logical day
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); }); // now 04:00:30
+
+    expect(result.current.indexes?.todayIso).toBe("2026-07-30");
+  });
+
+  it("advances indexes.todayIso across plain midnight (default day start)", async () => {
+    vi.setSystemTime(new Date(2026, 6, 30, 23, 59, 30));
+    getDocument.mockResolvedValue(makeDoc());
+
+    const { result } = await mountSettled();
+    expect(result.current.indexes?.todayIso).toBe("2026-07-30");
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); }); // now 00:00:30
+
+    expect(result.current.indexes?.todayIso).toBe("2026-07-31");
+  });
+
+  // Timers are throttled or suspended while the machine sleeps, so the interval alone
+  // would leave a laptop opened in the morning showing the previous day.
+  it("advances on resume when the boundary was crossed with timers suspended", async () => {
+    vi.setSystemTime(new Date(2026, 6, 30, 23, 0, 0));
+    getDocument.mockResolvedValue(makeDoc());
+
+    const { result } = await mountSettled();
+    expect(result.current.indexes?.todayIso).toBe("2026-07-30");
+
+    // Jump the clock without running the pending interval, standing in for sleep.
+    vi.setSystemTime(new Date(2026, 6, 31, 9, 0, 0));
+    await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
+
+    expect(result.current.indexes?.todayIso).toBe("2026-07-31");
+  });
+
+  // The document loads a moment after the first render, so `day_start_hour` arrives
+  // late. If the day were held in state and corrected by an effect, the first
+  // committed frame would show the day computed with the default hour.
+  it("uses the document's day-start hour on the first frame that has the document", async () => {
+    vi.setSystemTime(new Date(2026, 6, 30, 2, 0, 0)); // 02:00, before a 4am start
+    getDocument.mockResolvedValue(makeDocWithDayStart(4));
+
+    const { result } = await mountSettled();
+
+    expect(result.current.indexes?.todayIso).toBe("2026-07-29");
+  });
+
+  it("does not rebuild the indexes on a tick that stays within the same day", async () => {
+    vi.setSystemTime(new Date(2026, 6, 30, 12, 0, 0));
+    getDocument.mockResolvedValue(makeDoc());
+
+    const { result } = await mountSettled();
+    const before = result.current.indexes;
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000 * 5); });
+
+    expect(result.current.indexes).toBe(before); // same reference: no needless rebuild
   });
 });
