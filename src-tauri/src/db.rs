@@ -16,7 +16,7 @@ use crate::error::{AppError, Result};
 use crate::model::{Document, Tombstone, CURRENT_VERSION};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const TASKS: &str = "tasks";
 const TAGS: &str = "tags";
@@ -27,6 +27,37 @@ const TEMPLATES: &str = "template_tasks";
 /// (fail immediately), which turns transient Drive/OneDrive contention into hard
 /// update failures.
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Total wall-clock budget for riding out a lock held by another process before a
+/// write gives up. `BUSY_TIMEOUT` alone is not enough: measured against a stand-in
+/// sync client holding an exclusive lock, a 6s hold was ridden out but a 12s hold
+/// failed, and real clients routinely hold one that long while uploading. The budget
+/// is the trade-off between surviving an upload and appearing to hang — past this,
+/// reporting back beats blocking the UI further, and the failure is now clean.
+pub(crate) const LOCK_RETRY_BUDGET: Duration = Duration::from_secs(15);
+
+/// Pause between attempts. Contention here is with a foreign process on a timescale of
+/// seconds, and each attempt already blocks for up to `BUSY_TIMEOUT` inside SQLite, so
+/// a short fixed pause is enough — exponential backoff would buy nothing.
+const LOCK_RETRY_PAUSE: Duration = Duration::from_millis(250);
+
+/// Shown to the user when the budget is exhausted. Names the likely cause and states
+/// plainly that nothing was saved, so "try again" is understood as the next step.
+const LOCKED_MESSAGE: &str = "The data file is locked by another program \
+    (usually a cloud-sync client finishing an upload). Your change was not saved — \
+    please try again in a moment.";
+
+/// True for the SQLite codes that mean "someone else holds the file", the only ones
+/// worth retrying. A constraint violation or a corrupt database will not improve with
+/// time, so those must surface immediately.
+fn is_lock_contention(e: &AppError) -> bool {
+    matches!(
+        e,
+        AppError::Db(rusqlite::Error::SqliteFailure(inner, _))
+            if inner.code == rusqlite::ErrorCode::DatabaseBusy
+                || inner.code == rusqlite::ErrorCode::DatabaseLocked
+    )
+}
 
 /// Open (or create) the database at `path` and ensure the schema. Uses rollback
 /// (`DELETE`) journal mode with `synchronous=FULL` so exactly one file exists at
@@ -142,9 +173,41 @@ fn set_user_version(conn: &Connection, v: u32) -> Result<()> {
     Ok(())
 }
 
-/// Persist the whole `Document` in a single transaction. A crash mid-write leaves
-/// either the fully committed state or the prior state, never a partial row.
+/// Persist the whole `Document`, retrying while another process holds the file.
+///
+/// The replica lives in a folder a cloud-sync client also writes, so losing the race
+/// is routine rather than exceptional. Each attempt is a complete DELETE-then-INSERT
+/// transaction, so re-running one is idempotent — a retry cannot leave a half-applied
+/// document. Only lock contention is retried; every other error returns at once.
 pub fn write_document(conn: &mut Connection, doc: &Document) -> Result<()> {
+    write_document_within(conn, doc, LOCK_RETRY_BUDGET)
+}
+
+/// [`write_document`] with an explicit budget, so tests can exercise exhaustion
+/// without sleeping for the production budget.
+pub(crate) fn write_document_within(
+    conn: &mut Connection,
+    doc: &Document,
+    budget: Duration,
+) -> Result<()> {
+    let deadline = Instant::now() + budget;
+    loop {
+        match write_document_once(conn, doc) {
+            Err(e) if is_lock_contention(&e) => {
+                if Instant::now() >= deadline {
+                    return Err(AppError::Busy(LOCKED_MESSAGE.to_string()));
+                }
+                std::thread::sleep(LOCK_RETRY_PAUSE);
+            }
+            other => return other,
+        }
+    }
+}
+
+/// One attempt at persisting the whole `Document` in a single transaction. A crash
+/// mid-write leaves either the fully committed state or the prior state, never a
+/// partial row.
+fn write_document_once(conn: &mut Connection, doc: &Document) -> Result<()> {
     let tx = conn.transaction()?;
     tx.execute("DELETE FROM tasks", [])?;
     tx.execute("DELETE FROM tags", [])?;
@@ -420,6 +483,81 @@ mod tests {
             write_document(&mut conn, &doc).expect("writer must not see database is locked");
         }
         loader.join().unwrap();
+    }
+
+    /// Hold an exclusive lock on `path` for `hold`, standing in for a sync client
+    /// mid-upload. Returns once the lock is actually taken; join the handle to wait
+    /// for the release.
+    fn hold_exclusive_lock(path: &Path, hold: Duration) -> std::thread::JoinHandle<()> {
+        use std::sync::mpsc;
+
+        let (taken_tx, taken_rx) = mpsc::channel();
+        let path = path.to_path_buf();
+        let handle = std::thread::spawn(move || {
+            let conn = open(&path).unwrap();
+            conn.execute_batch("BEGIN EXCLUSIVE").unwrap();
+            taken_tx.send(()).unwrap();
+            std::thread::sleep(hold);
+            conn.execute_batch("COMMIT").unwrap();
+        });
+        taken_rx.recv().unwrap();
+        handle
+    }
+
+    #[test]
+    fn exhausted_budget_reports_busy_not_a_raw_sqlite_error() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let mut conn = open(&path).unwrap();
+        // Shrink SQLite's own wait so budget exhaustion is reached in test time; the
+        // retry contract under test is the outer loop, not the inner timeout.
+        conn.busy_timeout(Duration::from_millis(50)).unwrap();
+
+        let holder = hold_exclusive_lock(&path, Duration::from_secs(2));
+        let result = write_document_within(&mut conn, &Document::default(), Duration::from_millis(300));
+        holder.join().unwrap();
+
+        match result {
+            Err(AppError::Busy(msg)) => {
+                assert!(
+                    msg.contains("not saved"),
+                    "the message must say the change was not saved: {msg}",
+                );
+                assert!(
+                    !msg.contains("database is locked"),
+                    "the raw SQLite string must not reach the user: {msg}",
+                );
+            }
+            other => panic!("expected AppError::Busy, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_non_lock_error_is_not_retried() {
+        let mut conn = in_memory();
+        // A document one version ahead is refused by the version gate on read; here we
+        // force a write failure that is not contention by dropping a table the write
+        // depends on. It must return immediately rather than burn the budget.
+        conn.execute_batch("DROP TABLE tasks").unwrap();
+
+        let started = Instant::now();
+        let result = write_document_within(
+            &mut conn,
+            &Document::default(),
+            Duration::from_secs(30),
+        );
+
+        assert!(result.is_err(), "a missing table must fail the write");
+        assert!(
+            !matches!(result, Err(AppError::Busy(_))),
+            "a non-lock failure must not be reported as contention",
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "a non-lock failure must not consume the retry budget",
+        );
     }
 
     #[test]

@@ -8,6 +8,11 @@ pub enum AppError {
     NotFound(String),
     Invalid(String),
     Db(rusqlite::Error),
+    /// The data file is locked by another process (typically the cloud-sync client
+    /// uploading it) and stayed locked past our retry budget. Distinct from `Db` so
+    /// the retry loop can match on it and the user sees a written explanation rather
+    /// than rusqlite's `database is locked`.
+    Busy(String),
 }
 
 impl std::fmt::Display for AppError {
@@ -18,6 +23,7 @@ impl std::fmt::Display for AppError {
             AppError::NotFound(s) => write!(f, "not found: {s}"),
             AppError::Invalid(s) => write!(f, "invalid: {s}"),
             AppError::Db(e) => write!(f, "db: {e}"),
+            AppError::Busy(s) => write!(f, "{s}"),
         }
     }
 }
