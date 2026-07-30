@@ -170,6 +170,18 @@ describe("useDocument day rollover", () => {
     expect(result.current.indexes?.todayIso).toBe("2026-07-31");
   });
 
+  // The document loads a moment after the first render, so `day_start_hour` arrives
+  // late. If the day were held in state and corrected by an effect, the first
+  // committed frame would show the day computed with the default hour.
+  it("uses the document's day-start hour on the first frame that has the document", async () => {
+    vi.setSystemTime(new Date(2026, 6, 30, 2, 0, 0)); // 02:00, before a 4am start
+    getDocument.mockResolvedValue(makeDocWithDayStart(4));
+
+    const { result } = await mountSettled();
+
+    expect(result.current.indexes?.todayIso).toBe("2026-07-29");
+  });
+
   it("does not rebuild the indexes on a tick that stays within the same day", async () => {
     vi.setSystemTime(new Date(2026, 6, 30, 12, 0, 0));
     getDocument.mockResolvedValue(makeDoc());

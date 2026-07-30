@@ -1,7 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import sample from "../tests/fixtures/sample.json";
 import { Document, SortOrder, Task, TemplateTask } from "../lib/tauri";
-import { todayIso } from "../lib/dates";
 import { buildIndexes, effectivePriority, openCount } from "./indexes";
 
 const TODAY = "2026-05-28";
@@ -86,8 +85,15 @@ describe("buildIndexes currentDay", () => {
   });
 
   it("falls back to the clock when no day is supplied", () => {
-    const d = doc({ tags: [], tasks: [] });
-    expect(buildIndexes(d).todayIso).toBe(todayIso(new Date(), 0));
+    // Pinned rather than compared against a second `new Date()`: the two reads could
+    // straddle midnight and flake.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 30, 12, 0, 0));
+    try {
+      expect(buildIndexes(doc({ tags: [], tasks: [] })).todayIso).toBe("2026-07-30");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
