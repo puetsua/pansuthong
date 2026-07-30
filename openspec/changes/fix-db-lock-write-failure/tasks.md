@@ -22,3 +22,9 @@
 - [x] 4.3 Add a test asserting no history entry is appended for a write that failed
 - [x] 4.4 Add a test asserting a failed peer re-merge leaves the pre-merge document in place
 - [x] 4.5 Run `cargo test --manifest-path src-tauri/Cargo.toml -j 1` and `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings` clean
+
+## 5. Review follow-up
+
+- [x] 5.1 Append merge history only after the merged document is durable, matching `write`
+- [x] 5.2 Apply the same rollback to `adopt_synced` (Android SAF pull) and `load_replacing_local` (data-source switch), which also assigned before persisting
+- [x] 5.3 Cover both paths with tests, including that a failed adopt records no history

@@ -16,6 +16,9 @@ neither. A write that ultimately fails SHALL leave the in-memory document byte-f
 as it was before the mutation, SHALL leave the document's `last_modified` unchanged,
 and SHALL NOT append a history entry for the change that did not happen.
 
+This SHALL hold for every path that replaces the in-memory document: a local edit, a
+desktop peer re-merge, an Android SAF pull, and a data-source switch.
+
 The system SHALL report lock contention as a distinct error kind carrying a message
 that names the likely cause and the fact that the edit was not saved, rather than
 surfacing the underlying SQLite error text.
@@ -44,3 +47,12 @@ surfacing the underlying SQLite error text.
 #### Scenario: A retried merge does not double-record history
 - **WHEN** a merge that failed to persist succeeds on a later poll
 - **THEN** its history entries are recorded exactly once
+
+#### Scenario: A failed SAF pull does not adopt the incoming document
+- **WHEN** an Android SAF pull merges an incoming document that cannot be persisted
+- **THEN** the in-memory document remains the pre-merge document
+- **AND** no history entry is recorded for the pull
+
+#### Scenario: A failed data-source switch keeps the previous document
+- **WHEN** the user switches data source and the incoming document cannot be persisted
+- **THEN** the in-memory document remains the previous one

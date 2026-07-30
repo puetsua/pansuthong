@@ -286,11 +286,21 @@ impl AppState {
         let before = g.doc.clone();
         let merged = merge_documents(vec![before.clone(), doc]);
         let hash = content_hash(&merged);
+        let inner = &mut *g;
+        inner.doc = merged;
+        // Same atomicity rule as `write`: a merge that cannot be persisted must not
+        // stay adopted in memory, or the Android pull path reports data it never wrote.
+        if let Err(e) = crate::db::write_document(&mut inner.conn, &inner.doc) {
+            g.doc = before;
+            return Err(e);
+        }
         // Mirror `reload_replicas_if_changed`: peer-visible changes merged from
         // the synced folder must land in History too — without this, the Android
         // SAF pull path never surfaced other devices' edits in the History view.
+        // Appended only after the merge is durable, so a failed pull records nothing;
+        // `filter_unseen_entries` keeps a later retry from double-recording it.
         let ts = crate::model::now_ms();
-        let history = crate::history::entries_for_change(&before, &merged, ts);
+        let history = crate::history::entries_for_change(&before, &g.doc, ts);
         match crate::history::filter_unseen_entries(&g.path, history) {
             Ok(mut filtered) => {
                 crate::history::stamp_device(&mut filtered, &g.device_id, &g.device_name);
@@ -300,9 +310,6 @@ impl AppState {
             }
             Err(e) => eprintln!("warning: failed to dedup adopt history: {e}"),
         }
-        let inner = &mut *g;
-        inner.doc = merged;
-        crate::db::write_document(&mut inner.conn, &inner.doc)?;
         g.own_hash = content_hash(&g.doc);
         g.peers_hash = peers_content_hash(&g.path);
         Ok(hash)
@@ -320,9 +327,16 @@ impl AppState {
         }
         let hash = content_hash(&doc);
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let before = g.doc.clone();
         let inner = &mut *g;
         inner.doc = doc;
-        crate::db::write_document(&mut inner.conn, &inner.doc)?;
+        // Same atomicity rule as `write`: if the incoming document cannot be persisted,
+        // the old one must stay in memory rather than the app switching to a source it
+        // failed to write.
+        if let Err(e) = crate::db::write_document(&mut inner.conn, &inner.doc) {
+            g.doc = before;
+            return Err(e);
+        }
         g.own_hash = content_hash(&g.doc);
         g.peers_hash = peers_content_hash(&g.path);
         Ok(hash)
@@ -1435,6 +1449,68 @@ mod tests {
             crate::history::read_history(&path, usize::MAX).unwrap().len(),
             history_before,
             "History must not record a peer merge that was never persisted",
+        );
+    }
+
+    /// The Android SAF pull path assigns the merged document before persisting it, so
+    /// it had the same divergence exposure as `write`.
+    #[test]
+    fn a_failed_adopt_keeps_the_pre_merge_document() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path.clone()).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_local"));
+                Ok(())
+            })
+            .unwrap();
+        let history_before = crate::history::read_history(&path, usize::MAX).unwrap().len();
+
+        let mut incoming = Document::default();
+        incoming.tasks.push(sample_task("k_incoming"));
+        break_replica(&path);
+
+        let result = state.adopt_synced(incoming);
+
+        assert!(result.is_err(), "the adopt write must fail once the replica is broken");
+        assert_eq!(
+            state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["k_local"],
+            "an adopted merge that did not reach disk must not stay in memory",
+        );
+        assert_eq!(
+            crate::history::read_history(&path, usize::MAX).unwrap().len(),
+            history_before,
+            "History must not record an adopt that was never persisted",
+        );
+    }
+
+    /// Switching data source replaces the document wholesale; a failed write must not
+    /// leave the app showing a source it could not persist.
+    #[test]
+    fn a_failed_replace_keeps_the_previous_document() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path.clone()).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_local"));
+                Ok(())
+            })
+            .unwrap();
+
+        let mut incoming = Document::default();
+        incoming.tasks.push(sample_task("k_incoming"));
+        break_replica(&path);
+
+        let result = state.load_replacing_local(incoming);
+
+        assert!(result.is_err(), "the replace must fail once the replica is broken");
+        assert_eq!(
+            state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["k_local"],
+            "a replacement that did not reach disk must not stay in memory",
         );
     }
 
