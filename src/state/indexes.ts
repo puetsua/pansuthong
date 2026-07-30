@@ -163,7 +163,13 @@ function sortRowsByWeight(rows: Row[], tagsById: Map<string, Tag>): Row[] {
   return rows;
 }
 
-export function buildIndexes(doc: Document): Indexes {
+/**
+ * Derive every view from `doc`. `currentDay` is the logical day (YYYY-MM-DD) all
+ * date-based views are computed against; the caller supplies it so the day can
+ * advance while the document is unchanged (#148) — see `useLogicalDay`. It defaults
+ * to the clock for callers that only need a one-shot snapshot (tests, ad-hoc reads).
+ */
+export function buildIndexes(doc: Document, currentDay?: string): Indexes {
   const tagsById = new Map(doc.tags.map(t => [t.id, t]));
   const order: SortOrder = doc.settings.sort_order === "date" ? "date" : "priority";
 
@@ -249,7 +255,9 @@ export function buildIndexes(doc: Document): Indexes {
     sortTasks(doc.tasks.filter(t => inToday(t, todayIso)), order, tagsById);
 
   // One logical "today" for the whole app, rolling over at the configured hour.
-  const todayIso = computeTodayIso(new Date(), dsh);
+  // Supplied by the caller so it can advance without the document changing; falling
+  // back to the clock keeps this a one-shot snapshot for callers that don't track it.
+  const todayIso = currentDay ?? computeTodayIso(new Date(), dsh);
 
   // Recurring templates project ghost rows into the date-based views (#9). Each
   // recurring template designates one `recurrence_tag_id`; a ghost is suppressed

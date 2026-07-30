@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import sample from "../tests/fixtures/sample.json";
 import { Document, SortOrder, Task, TemplateTask } from "../lib/tauri";
+import { todayIso } from "../lib/dates";
 import { buildIndexes, effectivePriority, openCount } from "./indexes";
 
 const TODAY = "2026-05-28";
@@ -56,6 +57,37 @@ describe("buildIndexes", () => {
     expect(ix.tasks.map(t => t.id)).toEqual([
       "k_overdue1", "k_today1", "k_today2", "k_reno1", "k_future1"
     ]);
+  });
+});
+
+// The logical day is a caller-supplied input so it can advance while the document is
+// unchanged (#148). Pinning it here also keeps these assertions off the ambient clock.
+describe("buildIndexes currentDay", () => {
+  it("uses the supplied day for todayIso and today() membership", () => {
+    const d = doc({
+      tags: [],
+      tasks: [
+        { id: "k_29", title: "k_29", notes: "", tag_ids: [], created_at: "1970-01-01T00:00:00Z",
+          due_date: "2026-07-29" },
+        { id: "k_30", title: "k_30", notes: "", tag_ids: [], created_at: "1970-01-01T00:00:00Z",
+          due_date: "2026-07-30" },
+      ],
+    });
+
+    const before = buildIndexes(d, "2026-07-29");
+    expect(before.todayIso).toBe("2026-07-29");
+    expect(before.today(before.todayIso).map(t => t.id)).toEqual(["k_29"]);
+
+    // Same document, next logical day: the later task joins and the earlier one
+    // stays on as overdue.
+    const after = buildIndexes(d, "2026-07-30");
+    expect(after.todayIso).toBe("2026-07-30");
+    expect(after.today(after.todayIso).map(t => t.id).sort()).toEqual(["k_29", "k_30"]);
+  });
+
+  it("falls back to the clock when no day is supplied", () => {
+    const d = doc({ tags: [], tasks: [] });
+    expect(buildIndexes(d).todayIso).toBe(todayIso(new Date(), 0));
   });
 });
 
