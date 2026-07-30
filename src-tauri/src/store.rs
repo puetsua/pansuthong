@@ -117,7 +117,14 @@ impl AppState {
         g.doc.last_modified = ts;
         g.doc.version = CURRENT_VERSION;
         let inner = &mut *g;
-        crate::db::write_document(&mut inner.conn, &inner.doc)?;
+        // The mutation is already applied in memory, so a failed persist would leave
+        // the app reporting a change that never reached disk — and the next successful
+        // write would bake that phantom state in. Restore the pre-mutation document
+        // (which also restores `last_modified`/`version`) so the two never disagree.
+        if let Err(e) = crate::db::write_document(&mut inner.conn, &inner.doc) {
+            g.doc = before;
+            return Err(e);
+        }
         if let Err(e) = crate::history::append_history(&inner.path, &history) {
             eprintln!("warning: failed to append history: {e}");
         }
@@ -147,9 +154,23 @@ impl AppState {
         let mut docs = collect_peer_docs(&g.path);
         docs.push(before.clone());
         let merged = merge_documents(docs);
-        if content_hash(&before) != content_hash(&merged) {
+        let merge_changed_something = content_hash(&before) != content_hash(&merged);
+        let inner = &mut *g;
+        inner.doc = merged;
+        // Same atomicity rule as `write`: if the merged document cannot be persisted,
+        // keep the pre-merge one in memory. Leaving `peers_hash` un-refreshed means the
+        // peer still reads as changed, so a later poll retries the merge on its own.
+        if let Err(e) = crate::db::write_document(&mut inner.conn, &inner.doc) {
+            g.doc = before;
+            return Err(e);
+        }
+        // History is appended only once the merge is durable, matching `write`: a
+        // change that never reached disk must not show up in History. The retry on a
+        // later poll re-derives the same entries, and `filter_unseen_entries` keeps
+        // that from double-recording them.
+        if merge_changed_something {
             let ts = crate::model::now_ms();
-            let history = crate::history::entries_for_change(&before, &merged, ts);
+            let history = crate::history::entries_for_change(&before, &g.doc, ts);
             match crate::history::filter_unseen_entries(&g.path, history) {
                 Ok(mut filtered) => {
                     crate::history::stamp_device(&mut filtered, &g.device_id, &g.device_name);
@@ -160,9 +181,6 @@ impl AppState {
                 Err(e) => eprintln!("warning: failed to dedup merge history: {e}"),
             }
         }
-        let inner = &mut *g;
-        inner.doc = merged;
-        crate::db::write_document(&mut inner.conn, &inner.doc)?;
         g.own_hash = content_hash(&g.doc);
         g.peers_hash = peers_content_hash(&g.path);
         drop(g);
@@ -268,11 +286,21 @@ impl AppState {
         let before = g.doc.clone();
         let merged = merge_documents(vec![before.clone(), doc]);
         let hash = content_hash(&merged);
+        let inner = &mut *g;
+        inner.doc = merged;
+        // Same atomicity rule as `write`: a merge that cannot be persisted must not
+        // stay adopted in memory, or the Android pull path reports data it never wrote.
+        if let Err(e) = crate::db::write_document(&mut inner.conn, &inner.doc) {
+            g.doc = before;
+            return Err(e);
+        }
         // Mirror `reload_replicas_if_changed`: peer-visible changes merged from
         // the synced folder must land in History too — without this, the Android
         // SAF pull path never surfaced other devices' edits in the History view.
+        // Appended only after the merge is durable, so a failed pull records nothing;
+        // `filter_unseen_entries` keeps a later retry from double-recording it.
         let ts = crate::model::now_ms();
-        let history = crate::history::entries_for_change(&before, &merged, ts);
+        let history = crate::history::entries_for_change(&before, &g.doc, ts);
         match crate::history::filter_unseen_entries(&g.path, history) {
             Ok(mut filtered) => {
                 crate::history::stamp_device(&mut filtered, &g.device_id, &g.device_name);
@@ -282,9 +310,6 @@ impl AppState {
             }
             Err(e) => eprintln!("warning: failed to dedup adopt history: {e}"),
         }
-        let inner = &mut *g;
-        inner.doc = merged;
-        crate::db::write_document(&mut inner.conn, &inner.doc)?;
         g.own_hash = content_hash(&g.doc);
         g.peers_hash = peers_content_hash(&g.path);
         Ok(hash)
@@ -302,9 +327,16 @@ impl AppState {
         }
         let hash = content_hash(&doc);
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let before = g.doc.clone();
         let inner = &mut *g;
         inner.doc = doc;
-        crate::db::write_document(&mut inner.conn, &inner.doc)?;
+        // Same atomicity rule as `write`: if the incoming document cannot be persisted,
+        // the old one must stay in memory rather than the app switching to a source it
+        // failed to write.
+        if let Err(e) = crate::db::write_document(&mut inner.conn, &inner.doc) {
+            g.doc = before;
+            return Err(e);
+        }
         g.own_hash = content_hash(&g.doc);
         g.peers_hash = peers_content_hash(&g.path);
         Ok(hash)
@@ -1258,6 +1290,227 @@ mod tests {
         assert_eq!(
             state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
             ["k_after"]
+        );
+    }
+
+    /// A cloud-sync client (OneDrive/Drive/Dropbox) holds a write lock on the replica
+    /// while it uploads. Our write must ride that out instead of failing the user's
+    /// edit with a raw `database is locked` — the completion the user just ticked
+    /// would be lost, and the only recovery would be to click again and hope.
+    ///
+    /// Deliberately slow: the hold is sized past the point where the bare
+    /// `busy_timeout` gives up (measured: 6s survived, 12s did not) but inside the
+    /// retry budget, so this fails unless the write genuinely retries.
+    #[test]
+    fn write_survives_a_transient_external_lock() {
+        use std::time::Duration;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path.clone()).unwrap();
+
+        let hold = crate::db::LOCK_RETRY_BUDGET - Duration::from_secs(3);
+        let holder = hold_exclusive_lock(&path, hold);
+
+        let result = state.write(|d| {
+            d.tasks.push(sample_task("k_during_lock"));
+            Ok(())
+        });
+        holder.join().unwrap();
+
+        assert!(
+            result.is_ok(),
+            "a transient sync-client lock must not fail the user's edit: {:?}",
+            result.err(),
+        );
+        assert_eq!(
+            state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["k_during_lock"],
+            "the edit made during the lock must be persisted, not dropped",
+        );
+    }
+
+    /// Hold an exclusive lock on the replica for `hold`, returning once it is taken.
+    fn hold_exclusive_lock(
+        path: &Path,
+        hold: std::time::Duration,
+    ) -> std::thread::JoinHandle<()> {
+        use std::sync::mpsc;
+
+        let (taken_tx, taken_rx) = mpsc::channel();
+        let path = path.to_path_buf();
+        let handle = std::thread::spawn(move || {
+            let conn = crate::db::open(&path).unwrap();
+            conn.execute_batch("BEGIN EXCLUSIVE").unwrap();
+            taken_tx.send(()).unwrap();
+            std::thread::sleep(hold);
+            conn.execute_batch("COMMIT").unwrap();
+        });
+        taken_rx.recv().unwrap();
+        handle
+    }
+
+    /// Break the replica so the next write fails for a reason that is *not* lock
+    /// contention — exercising the rollback path without waiting out a retry budget.
+    fn break_replica(path: &Path) {
+        let conn = crate::db::open(path).unwrap();
+        conn.execute_batch("DROP TABLE tasks").unwrap();
+    }
+
+    /// The mutation is applied to the in-memory document before it is persisted. If a
+    /// failed persist leaves it applied, the app reports a change that never reached
+    /// disk and the next successful write bakes that phantom state in.
+    #[test]
+    fn a_failed_write_leaves_the_in_memory_document_untouched() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path.clone()).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_saved"));
+                Ok(())
+            })
+            .unwrap();
+        let last_modified_before = state.read(|d| d.last_modified);
+
+        break_replica(&path);
+        let result = state.write(|d| {
+            d.tasks.push(sample_task("k_lost"));
+            Ok(())
+        });
+
+        assert!(result.is_err(), "the write must fail once the replica is broken");
+        assert_eq!(
+            state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["k_saved"],
+            "a change that did not reach disk must not remain in memory",
+        );
+        assert_eq!(
+            state.read(|d| d.last_modified),
+            last_modified_before,
+            "last_modified must not advance for a change that was not persisted",
+        );
+    }
+
+    #[test]
+    fn a_failed_write_appends_no_history() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path.clone()).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_saved"));
+                Ok(())
+            })
+            .unwrap();
+        let history_after_success = crate::history::read_history(&path, usize::MAX).unwrap().len();
+
+        break_replica(&path);
+        let _ = state.write(|d| {
+            d.tasks.push(sample_task("k_lost"));
+            Ok(())
+        });
+
+        assert_eq!(
+            crate::history::read_history(&path, usize::MAX).unwrap().len(),
+            history_after_success,
+            "history must not record a change that was never persisted",
+        );
+    }
+
+    /// Same atomicity rule on the peer-merge path: adopting a merged document that
+    /// could not be persisted would diverge memory from disk just as badly.
+    #[test]
+    fn a_failed_peer_merge_keeps_the_pre_merge_document() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path.clone()).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_local"));
+                Ok(())
+            })
+            .unwrap();
+
+        // A peer shows up with a task we do not have, so the poll will try to merge.
+        write_json_replica(&dir.path().join("tasks_peer.json"), "k_peer");
+        let history_before = crate::history::read_history(&path, usize::MAX).unwrap().len();
+        break_replica(&path);
+
+        let result = state.reload_replicas_if_changed();
+
+        assert!(result.is_err(), "the merge write must fail once the replica is broken");
+        assert_eq!(
+            state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["k_local"],
+            "a merge that did not reach disk must not be adopted in memory",
+        );
+        assert_eq!(
+            crate::history::read_history(&path, usize::MAX).unwrap().len(),
+            history_before,
+            "History must not record a peer merge that was never persisted",
+        );
+    }
+
+    /// The Android SAF pull path assigns the merged document before persisting it, so
+    /// it had the same divergence exposure as `write`.
+    #[test]
+    fn a_failed_adopt_keeps_the_pre_merge_document() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path.clone()).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_local"));
+                Ok(())
+            })
+            .unwrap();
+        let history_before = crate::history::read_history(&path, usize::MAX).unwrap().len();
+
+        let mut incoming = Document::default();
+        incoming.tasks.push(sample_task("k_incoming"));
+        break_replica(&path);
+
+        let result = state.adopt_synced(incoming);
+
+        assert!(result.is_err(), "the adopt write must fail once the replica is broken");
+        assert_eq!(
+            state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["k_local"],
+            "an adopted merge that did not reach disk must not stay in memory",
+        );
+        assert_eq!(
+            crate::history::read_history(&path, usize::MAX).unwrap().len(),
+            history_before,
+            "History must not record an adopt that was never persisted",
+        );
+    }
+
+    /// Switching data source replaces the document wholesale; a failed write must not
+    /// leave the app showing a source it could not persist.
+    #[test]
+    fn a_failed_replace_keeps_the_previous_document() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path.clone()).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_local"));
+                Ok(())
+            })
+            .unwrap();
+
+        let mut incoming = Document::default();
+        incoming.tasks.push(sample_task("k_incoming"));
+        break_replica(&path);
+
+        let result = state.load_replacing_local(incoming);
+
+        assert!(result.is_err(), "the replace must fail once the replica is broken");
+        assert_eq!(
+            state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["k_local"],
+            "a replacement that did not reach disk must not stay in memory",
         );
     }
 
