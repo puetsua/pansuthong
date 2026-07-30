@@ -38,4 +38,9 @@ surfacing the underlying SQLite error text.
 #### Scenario: A failed peer re-merge does not adopt the merged document
 - **WHEN** a peer change is detected and the merged document cannot be persisted
 - **THEN** the in-memory document remains the pre-merge document
+- **AND** no history entry is recorded for the merge
 - **AND** the peer bookkeeping hashes are left so the merge is retried on a later poll
+
+#### Scenario: A retried merge does not double-record history
+- **WHEN** a merge that failed to persist succeeds on a later poll
+- **THEN** its history entries are recorded exactly once

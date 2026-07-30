@@ -154,9 +154,23 @@ impl AppState {
         let mut docs = collect_peer_docs(&g.path);
         docs.push(before.clone());
         let merged = merge_documents(docs);
-        if content_hash(&before) != content_hash(&merged) {
+        let merge_changed_something = content_hash(&before) != content_hash(&merged);
+        let inner = &mut *g;
+        inner.doc = merged;
+        // Same atomicity rule as `write`: if the merged document cannot be persisted,
+        // keep the pre-merge one in memory. Leaving `peers_hash` un-refreshed means the
+        // peer still reads as changed, so a later poll retries the merge on its own.
+        if let Err(e) = crate::db::write_document(&mut inner.conn, &inner.doc) {
+            g.doc = before;
+            return Err(e);
+        }
+        // History is appended only once the merge is durable, matching `write`: a
+        // change that never reached disk must not show up in History. The retry on a
+        // later poll re-derives the same entries, and `filter_unseen_entries` keeps
+        // that from double-recording them.
+        if merge_changed_something {
             let ts = crate::model::now_ms();
-            let history = crate::history::entries_for_change(&before, &merged, ts);
+            let history = crate::history::entries_for_change(&before, &g.doc, ts);
             match crate::history::filter_unseen_entries(&g.path, history) {
                 Ok(mut filtered) => {
                     crate::history::stamp_device(&mut filtered, &g.device_id, &g.device_name);
@@ -166,15 +180,6 @@ impl AppState {
                 }
                 Err(e) => eprintln!("warning: failed to dedup merge history: {e}"),
             }
-        }
-        let inner = &mut *g;
-        inner.doc = merged;
-        // Same atomicity rule as `write`: if the merged document cannot be persisted,
-        // keep the pre-merge one in memory. Leaving `peers_hash` un-refreshed means the
-        // peer still reads as changed, so a later poll retries the merge on its own.
-        if let Err(e) = crate::db::write_document(&mut inner.conn, &inner.doc) {
-            g.doc = before;
-            return Err(e);
         }
         g.own_hash = content_hash(&g.doc);
         g.peers_hash = peers_content_hash(&g.path);
@@ -1415,6 +1420,7 @@ mod tests {
 
         // A peer shows up with a task we do not have, so the poll will try to merge.
         write_json_replica(&dir.path().join("tasks_peer.json"), "k_peer");
+        let history_before = crate::history::read_history(&path, usize::MAX).unwrap().len();
         break_replica(&path);
 
         let result = state.reload_replicas_if_changed();
@@ -1424,6 +1430,11 @@ mod tests {
             state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
             ["k_local"],
             "a merge that did not reach disk must not be adopted in memory",
+        );
+        assert_eq!(
+            crate::history::read_history(&path, usize::MAX).unwrap().len(),
+            history_before,
+            "History must not record a peer merge that was never persisted",
         );
     }
 
