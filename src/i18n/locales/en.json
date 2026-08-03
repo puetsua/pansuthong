@@ -33,7 +33,7 @@
   },
   "update": {
     "title": "Version {{version}} is available",
-    "now": "Update now",
+    "now": "Update",
     "later": "Later",
     "close": "Close",
     "retry": "Retry",
@@ -61,7 +61,9 @@
     "noPinnedTags": "No pinned tags.",
     "manageTags": "Manage tags",
     "editTag": "Edit #{{name}}",
-    "releaseNotes": "Release notes for v{{version}}"
+    "releaseNotes": "Release notes for v{{version}}",
+    "update": "Update",
+    "updateTo": "Update to v{{version}}"
   },
   "today": {
     "empty": "No tasks starting or due today.",

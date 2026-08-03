@@ -32,7 +32,7 @@
   },
   "update": {
     "title": "有新版本 {{version}}",
-    "now": "立即更新",
+    "now": "更新",
     "later": "稍後",
     "close": "關閉",
     "retry": "重試",
@@ -60,7 +60,9 @@
     "noPinnedTags": "還沒有釘選的標籤。",
     "manageTags": "管理標籤",
     "editTag": "編輯 #{{name}}",
-    "releaseNotes": "查看 v{{version}} 版本資訊"
+    "releaseNotes": "查看 v{{version}} 版本資訊",
+    "update": "更新",
+    "updateTo": "更新至 v{{version}}"
   },
   "today": {
     "empty": "今天沒有要開始或到期的任務。",
