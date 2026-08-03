@@ -67,8 +67,13 @@ describe("UpdatePrompt", () => {
     checkMock.mockResolvedValue(fakeUpdate());
     render(<UpdatePrompt />);
     await screen.findByRole("dialog");
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.queryByRole("dialog")).toBeNull();
+    // findByRole can resolve on the DOM mutation before React flushes the passive
+    // effect that installs the keydown listener, so the dismiss needs waitFor
+    // rather than a synchronous assert (this raced ~1-in-8 full-suite runs).
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
     expect(installMock).not.toHaveBeenCalled();
   });
 
@@ -110,6 +115,32 @@ describe("UpdatePrompt pending update", () => {
     render(<UpdatePrompt />);
     await screen.findByRole("dialog");
     expect(getPendingUpdate()).toBe(update);
+  });
+
+  it("does not publish an update that resolves after unmount", async () => {
+    // The `active` guard in the mount effect is the only thing stopping a late
+    // check from publishing into a torn-down app (and, in tests, past the reset).
+    let resolve!: (u: Update | null) => void;
+    checkMock.mockReturnValue(new Promise(r => { resolve = r; }));
+    const { unmount } = render(<UpdatePrompt />);
+    await waitFor(() => expect(checkMock).toHaveBeenCalled());
+
+    unmount();
+    await act(async () => { resolve(fakeUpdate()); });
+    expect(getPendingUpdate()).toBeNull();
+  });
+
+  it("shows the failure and offers Retry when the install rejects", async () => {
+    checkMock.mockResolvedValue(fakeUpdate());
+    installMock.mockRejectedValue(new Error("disk full"));
+    render(<UpdatePrompt />);
+    fireEvent.click(await screen.findByText("Update"));
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.getByText(/disk full/)).toBeTruthy();
+    expect(screen.getByText("Retry")).toBeTruthy();
+    // The update stays pending so the sidebar button still leads back here.
+    expect(getPendingUpdate()).not.toBeNull();
   });
 
   it("publishes nothing when there is no update", async () => {
