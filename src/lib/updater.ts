@@ -29,7 +29,13 @@ export function getPendingUpdate(): Update | null {
   return pendingUpdate;
 }
 
-/** Publish the startup check's result to {@link subscribeToPendingUpdate}. */
+/**
+ * Publish an update to every subscriber. Called by `UpdatePrompt` with the
+ * startup check's result (and by tests directly). Nothing in production ever
+ * resets it to `null` — a found update stays offered for the process lifetime,
+ * since the only ways out are installing it or quitting. The guard is reference
+ * identity, so re-publishing an equal-but-distinct `Update` still notifies.
+ */
 export function setPendingUpdate(update: Update | null): void {
   if (pendingUpdate === update) return;
   pendingUpdate = update;
@@ -38,19 +44,24 @@ export function setPendingUpdate(update: Update | null): void {
 
 /**
  * Subscribe to {@link getPendingUpdate} changes; returns the unsubscribe
- * function. Shaped for `useSyncExternalStore`.
+ * function. Shaped for `useSyncExternalStore` — `getPendingUpdate` hands back
+ * the module variable itself, so the snapshot is reference-stable.
  */
 export function subscribeToPendingUpdate(listener: () => void): () => void {
   pendingListeners.add(listener);
-  return () => pendingListeners.delete(listener);
+  return () => {
+    pendingListeners.delete(listener);
+  };
 }
 
 const SHOW_EVENT = "pansutong:show-update-prompt";
 
 /**
- * Ask the mounted `UpdatePrompt` to reopen for the pending update — the sidebar's
- * Update button, which exists so "Later" is not a one-way door until relaunch.
- * A window event because the trigger and the dialog are in different subtrees.
+ * Ask the mounted `UpdatePrompt` to reopen for the pending update. Fired by the
+ * sidebar's Update button, which exists so "Later" is not a one-way door until
+ * relaunch. A window event because the trigger and the dialog are in different
+ * subtrees. Silently does nothing when no update is pending or the prompt is
+ * already on screen — callers get no signal either way.
  */
 export function requestUpdatePrompt(): void {
   window.dispatchEvent(new Event(SHOW_EVENT));

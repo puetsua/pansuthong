@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 
 // Drive the prompt through its module seam rather than the raw plugins. The
-// pending-update store and its request event stay real so the sidebar-button
-// path is exercised end to end.
+// pending-update store and its request event stay real, so the request path runs
+// against the real store; the Sidebar half is covered in `Sidebar.test.tsx`.
 vi.mock("../lib/updater", async importOriginal => {
   const actual = await importOriginal<typeof import("../lib/updater")>();
   return {
@@ -138,6 +138,24 @@ describe("UpdatePrompt pending update", () => {
 
     act(() => requestUpdatePrompt());
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("restores focus to the reopening trigger, not the first opener", async () => {
+    // Each open must re-capture its own opener; otherwise dismissing a reopened
+    // dialog throws focus back to whatever was active during the startup check.
+    checkMock.mockResolvedValue(fakeUpdate());
+    render(<UpdatePrompt />);
+    fireEvent.click(await screen.findByText("Later"));
+
+    const trigger = document.createElement("button");
+    document.body.appendChild(trigger);
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+
+    act(() => requestUpdatePrompt());
+    fireEvent.click(screen.getByText("Later"));
+    expect(document.activeElement).toBe(trigger);
+    trigger.remove();
   });
 
   it("does not reopen over an already-visible prompt", async () => {

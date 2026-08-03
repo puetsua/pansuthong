@@ -118,13 +118,17 @@ export function Sidebar({ doc, indexes }: Props) {
             </NavLink>
           </li>
         </ul>
-        {version && (
+        {/* Either half can be missing: `appVersion()` returns null on any
+            failure, and that must not take the update entry point down with it. */}
+        {(version || pending) && (
           <div className="sidebar-version-row">
-            <button type="button" className="sidebar-version"
-                    title={t("sidebar.releaseNotes", { version })}
-                    onClick={() => void openUrl(RELEASES_BASE + version)}>
-              v{version}
-            </button>
+            {version && (
+              <button type="button" className="sidebar-version"
+                      title={t("sidebar.releaseNotes", { version })}
+                      onClick={() => void openUrl(RELEASES_BASE + version)}>
+                v{version}
+              </button>
+            )}
             {/* Only while an update is pending: reopens the prompt after it was
                 dismissed. UpdatePrompt (mounted in App) owns the dialog. */}
             {pending && (

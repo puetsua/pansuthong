@@ -22,13 +22,14 @@ const FOCUSABLE =
 /**
  * Auto-checks for a newer release once on mount (desktop only — see
  * {@link checkForUpdate}) and, if one exists, shows a modal with the version and
- * release notes. "Update now" downloads/installs with a progress bar and
- * relaunches; "Later" / ✕ / Escape dismisses until the next launch. Renders
- * nothing when no update is pending, so it's safe to mount unconditionally.
+ * release notes. "Update" downloads/installs with a progress bar and relaunches;
+ * "Later" / ✕ / Escape dismisses. Renders nothing when no update is pending, so
+ * it's safe to mount unconditionally.
  *
  * A found update is also published via {@link setPendingUpdate} so the sidebar
- * can show an Update button, and {@link requestUpdatePrompt} (that button)
- * reopens this dialog — no re-check, since the answer is already in hand.
+ * can show an Update button; that button's `requestUpdatePrompt()` reopens this
+ * dialog — no re-check, since the answer is already in hand. So a dismissal is
+ * recoverable, and each open re-captures its own focus-restore target.
  *
  * Shell matches other editors: `.task-editor` card, `.te-header` + close, and
  * `.te-actions` / `.te-save` for the footer (not a one-off `.upd-dialog`).
@@ -90,6 +91,7 @@ export function UpdatePrompt() {
         e.preventDefault();
         e.stopPropagation();
         if (phaseRef.current?.kind === "downloading") return;
+        restoreFocusRef.current = null; // same reopen re-capture as `dismiss`
         setPhase(null);
         return;
       }
@@ -142,7 +144,12 @@ export function UpdatePrompt() {
   }
 
   const dismiss = () => {
-    if (!downloading) setPhase(null);
+    if (downloading) return;
+    // Clear on a real dismiss so a reopen (sidebar Update button) re-captures its
+    // own opener. Deliberately not cleared in the `open` effect's cleanup, which
+    // also runs on a StrictMode remount — that path must keep the original.
+    restoreFocusRef.current = null;
+    setPhase(null);
   };
 
   return createPortal(
