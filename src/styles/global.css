@@ -314,14 +314,32 @@ button {
 .sidebar-link.active { background: var(--c-accent-bg); color: var(--c-accent); font-weight: 600; }
 .sidebar-count { margin-left: auto; font-size: 0.72rem; color: var(--c-text-subtle); }
 .sidebar-hash { font-weight: 700; line-height: 1; }
-.sidebar-version {
-  align-self: flex-start;
+/* Footer line: running version, with the reopen-the-pending-update button
+   beside it. Either half can be absent. */
+.sidebar-version-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   margin: var(--space-2) 0 0 var(--space-2);
+}
+.sidebar-version {
   font-size: 0.72rem;
   color: var(--c-text-subtle);
   font-variant-numeric: tabular-nums;
 }
 .sidebar-version:hover { color: var(--c-accent); text-decoration: underline; }
+/* Only rendered while an update is pending, so it can carry accent weight. */
+.sidebar-version-update {
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--c-accent);
+}
+.sidebar-version-update:hover { filter: brightness(1.08); }
+.sidebar-version-update:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
 
 .desktop-main {
   padding: var(--space-5) var(--space-6);
@@ -1314,13 +1332,32 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
 /* In-app updater prompt (desktop). Same `.task-editor` / `.te-header` /
-   `.te-actions` shell as TaskEditor & friends; only the width + progress bar
-   are updater-specific. Release notes reuse `.te-notes-preview` markdown chrome. */
+   `.te-actions` shell as TaskEditor & friends; only the width, the progress bar
+   and the primary-button fill are updater-specific. Release notes reuse
+   `.te-notes-preview` markdown chrome. */
 .task-editor.upd-prompt {
   max-width: min(520px, calc(100vw - (var(--space-3) * 2)));
 }
 .upd-notes {
   max-height: 40vh;
+}
+/* Solid primary action. Bare `.te-save` (0,1,0) loses to `.te-actions > button`
+   (0,1,1), so its fill, border and font-weight are all currently dead — not just
+   here but in every dialog (TaskEditor, TagEditor, the theme modals, Settings).
+   Compounding `button.te-save` is what wins; `.upd-prompt` only scopes it. Fixing
+   `.te-save` globally is the right change, but out of scope for this one — the
+   other dialogs are flat by accident, not by design. */
+.upd-prompt .te-actions > button.te-save {
+  color: #fff;
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  font-weight: 700;
+}
+.upd-prompt .te-actions > button.te-save:hover:not(:disabled) {
+  color: #fff;
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  filter: brightness(1.06);
 }
 .upd-progress {
   display: flex;

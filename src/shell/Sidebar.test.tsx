@@ -1,13 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { buildIndexes } from "../state/indexes";
 import { Document, Tag } from "../lib/tauri";
 import { appVersion } from "../lib/platform";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { onUpdatePromptRequested, setPendingUpdate } from "../lib/updater";
+import type { Update } from "@tauri-apps/plugin-updater";
 
 // The footer version label reads the app version and opens the release page.
+// This mock also stands in front of the `isAndroid` that `lib/updater` imports
+// from the same module, and does not provide it — fine only because Sidebar
+// never calls `checkForUpdate`; add it here if that ever changes.
 vi.mock("../lib/platform", () => ({ appVersion: vi.fn() }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 
@@ -18,6 +23,7 @@ beforeEach(() => {
   appVersionMock.mockReset();
   appVersionMock.mockResolvedValue(null); // hidden by default; tag-curation tests don't care
   openUrlMock.mockReset();
+  setPendingUpdate(null); // module-level store; must not leak between tests
 });
 
 const tag = (over: Partial<Tag>): Tag => ({
@@ -128,5 +134,56 @@ describe("Sidebar — version label", () => {
 
     await waitFor(() => expect(appVersionMock).toHaveBeenCalled());
     expect(screen.queryByText(/^v\d/)).toBeNull();
+  });
+});
+
+// The Update button beside the version: only present while an update is pending.
+// UpdatePrompt is not mounted here, so these assert that the request fires; the
+// reopen it causes is covered in `UpdatePrompt.test.tsx`.
+describe("Sidebar — update button", () => {
+  it("stays hidden when no update is pending", async () => {
+    appVersionMock.mockResolvedValue("0.5.0");
+    renderSidebar([]);
+
+    await screen.findByText("v0.5.0");
+    expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
+  });
+
+  it("appears once an update is published and requests the prompt on click", async () => {
+    appVersionMock.mockResolvedValue("0.5.0");
+    renderSidebar([]);
+    await screen.findByText("v0.5.0");
+
+    const requested = vi.fn();
+    const off = onUpdatePromptRequested(requested);
+    act(() => setPendingUpdate({ version: "0.6.0" } as Update));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Update" }));
+    off();
+    expect(requested).toHaveBeenCalledOnce();
+  });
+
+  it("still shows when the version label is unavailable", async () => {
+    // appVersion() swallows its errors and returns null; that must not take the
+    // update entry point down with it.
+    appVersionMock.mockResolvedValue(null);
+    renderSidebar([]);
+    await waitFor(() => expect(appVersionMock).toHaveBeenCalled());
+
+    act(() => setPendingUpdate({ version: "0.6.0" } as Update));
+    expect(screen.getByRole("button", { name: "Update" })).toBeTruthy();
+    expect(screen.queryByText(/^v\d/)).toBeNull(); // label still absent
+  });
+
+  it("hides itself again when the pending update is cleared", async () => {
+    appVersionMock.mockResolvedValue("0.5.0");
+    renderSidebar([]);
+    await screen.findByText("v0.5.0");
+
+    act(() => setPendingUpdate({ version: "0.6.0" } as Update));
+    await screen.findByRole("button", { name: "Update" });
+
+    act(() => setPendingUpdate(null));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Update" })).toBeNull());
   });
 });

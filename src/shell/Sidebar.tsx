@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Document, Tag } from "../lib/tauri";
 import { appVersion } from "../lib/platform";
+import { getPendingUpdate, requestUpdatePrompt, subscribeToPendingUpdate } from "../lib/updater";
 import { Indexes, openCount } from "../state/indexes";
 import { TagEditor } from "../components/TagEditor";
 
@@ -23,6 +24,9 @@ export function Sidebar({ doc, indexes }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const [editor, setEditor] = useState<EditorState>(null);
+
+  // Set by UpdatePrompt's startup check; null until (and unless) one is found.
+  const pending = useSyncExternalStore(subscribeToPendingUpdate, getPendingUpdate);
 
   // Show the running version in the footer; null (e.g. in tests) hides the label.
   const [version, setVersion] = useState<string | null>(null);
@@ -114,12 +118,27 @@ export function Sidebar({ doc, indexes }: Props) {
             </NavLink>
           </li>
         </ul>
-        {version && (
-          <button type="button" className="sidebar-version"
-                  title={t("sidebar.releaseNotes", { version })}
-                  onClick={() => void openUrl(RELEASES_BASE + version)}>
-            v{version}
-          </button>
+        {/* Either half can be missing: `appVersion()` returns null on any
+            failure, and that must not take the update entry point down with it. */}
+        {(version || pending) && (
+          <div className="sidebar-version-row">
+            {version && (
+              <button type="button" className="sidebar-version"
+                      title={t("sidebar.releaseNotes", { version })}
+                      onClick={() => void openUrl(RELEASES_BASE + version)}>
+                v{version}
+              </button>
+            )}
+            {/* Only while an update is pending: reopens the prompt after it was
+                dismissed. UpdatePrompt (mounted in App) owns the dialog. */}
+            {pending && (
+              <button type="button" className="sidebar-version-update"
+                      title={t("sidebar.updateTo", { version: pending.version })}
+                      onClick={requestUpdatePrompt}>
+                {t("sidebar.update")}
+              </button>
+            )}
+          </div>
         )}
       </div>
 

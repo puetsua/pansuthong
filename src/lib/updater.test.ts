@@ -9,7 +9,15 @@ vi.mock("./platform", () => ({ isAndroid: vi.fn() }));
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { isAndroid } from "./platform";
-import { checkForUpdate, installUpdate } from "./updater";
+import {
+  checkForUpdate,
+  getPendingUpdate,
+  installUpdate,
+  onUpdatePromptRequested,
+  requestUpdatePrompt,
+  setPendingUpdate,
+  subscribeToPendingUpdate,
+} from "./updater";
 
 const checkMock = vi.mocked(check);
 const relaunchMock = vi.mocked(relaunch);
@@ -21,6 +29,7 @@ beforeEach(() => {
   relaunchMock.mockResolvedValue(undefined as never);
   isAndroidMock.mockReset();
   isAndroidMock.mockResolvedValue(false);
+  setPendingUpdate(null); // module-level store; must not leak between tests
 });
 
 describe("checkForUpdate", () => {
@@ -44,6 +53,57 @@ describe("checkForUpdate", () => {
     const update = { version: "0.2.0" } as Update;
     checkMock.mockResolvedValue(update);
     expect(await checkForUpdate()).toBe(update);
+  });
+});
+
+// The store backing the sidebar's Update button. Both unsubscribe paths matter:
+// a leaked listener would outlive its component and set state after unmount.
+describe("pending update store", () => {
+  const update = (v: string) => ({ version: v }) as Update;
+
+  it("notifies subscribers on change and stops after unsubscribe", () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeToPendingUpdate(listener);
+
+    setPendingUpdate(update("0.2.0"));
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(getPendingUpdate()?.version).toBe("0.2.0");
+
+    unsubscribe();
+    setPendingUpdate(update("0.3.0"));
+    expect(listener).toHaveBeenCalledTimes(1); // no longer notified
+    expect(getPendingUpdate()?.version).toBe("0.3.0"); // value still updates
+  });
+
+  it("does not notify when the same reference is republished", () => {
+    const same = update("0.2.0");
+    setPendingUpdate(same);
+    const listener = vi.fn();
+    subscribeToPendingUpdate(listener)();
+
+    const listener2 = vi.fn();
+    const off = subscribeToPendingUpdate(listener2);
+    setPendingUpdate(same);
+    off();
+    expect(listener2).not.toHaveBeenCalled();
+  });
+
+  it("returns a stable snapshot (safe for useSyncExternalStore)", () => {
+    const same = update("0.2.0");
+    setPendingUpdate(same);
+    expect(getPendingUpdate()).toBe(getPendingUpdate());
+    expect(getPendingUpdate()).toBe(same);
+  });
+
+  it("stops delivering prompt requests after unsubscribe", () => {
+    const handler = vi.fn();
+    const off = onUpdatePromptRequested(handler);
+    requestUpdatePrompt();
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    off();
+    requestUpdatePrompt();
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 });
 
