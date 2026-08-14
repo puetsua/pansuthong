@@ -60,8 +60,31 @@ fn document_view(state: &AppState, config: &ConfigState) -> DocumentView {
 }
 
 #[tauri::command]
-pub fn get_document(state: State<'_, AppState>, config: State<'_, ConfigState>) -> DocumentView {
-    document_view(&state, &config)
+pub fn get_document(state: State<'_, AppState>, config: State<'_, ConfigState>) -> Result<DocumentView> {
+    if state.is_pending() {
+        return Err(AppError::NotFound("data folder not available yet".into()));
+    }
+    Ok(document_view(&state, &config))
+}
+
+/// Try to open the real data store at the configured path. Returns `true` when
+/// the store is now ready (either it just opened, or it was already open). The
+/// frontend calls this on a timer while showing a loading screen.
+#[tauri::command]
+pub fn try_open_data(
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<bool> {
+    if !state.is_pending() {
+        return Ok(true);
+    }
+    if state.retry_open()? {
+        // The real store is now open. Emit store-changed so the frontend reloads.
+        let _ = app.emit(STORE_CHANGED, ());
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 
 /// Reveal the initially hidden main window only after the frontend has painted

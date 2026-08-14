@@ -28,7 +28,7 @@ import { TimeEstimateReminder } from "./components/TimeEstimateReminder";
 
 export default function App() {
   const { t } = useTranslation();
-  const { doc, indexes, error, reloadError, dismissReloadError } = useDocument();
+  const { doc, indexes, error, reloadError, dismissReloadError, waitingForData } = useDocument();
   const isMobile = useIsMobile();
   const didShowWindow = useRef(false);
 
@@ -62,10 +62,10 @@ export default function App() {
 
   // The native window starts hidden so persisted position/size and WebView2 can
   // settle off-screen. This effect follows the theme effect in useDocument; two
-  // animation frames ensure the first themed success or error UI has painted
-  // before revealing the window.
+  // animation frames ensure the first themed success, waiting, or error UI has
+  // painted before revealing the window.
   useEffect(() => {
-    if (didShowWindow.current || (!error && (!doc || !indexes))) return;
+    if (didShowWindow.current || (!error && !waitingForData && (!doc || !indexes))) return;
 
     let cancelled = false;
     let secondFrame: number | undefined;
@@ -91,9 +91,17 @@ export default function App() {
       if (secondFrame != null) cancelAnimationFrame(secondFrame);
       if (retryTimer != null) clearTimeout(retryTimer);
     };
-  }, [doc, indexes, error]);
+  }, [doc, indexes, error, waitingForData]);
 
   if (error) return <p className="app-error">{t("app.loadFailed", { error })}</p>;
+  if (waitingForData) {
+    return (
+      <p className="app-loading">
+        {t("app.waitingForData")}
+        <span className="app-loading-dots" aria-hidden="true" />
+      </p>
+    );
+  }
   if (!doc || !indexes) return <p className="app-loading">{t("app.loading")}</p>;
 
   const Shell = isMobile ? MobileShell : DesktopShell;

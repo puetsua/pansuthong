@@ -8,6 +8,12 @@ import { DAY_START_HOUR_DEFAULT, dayStartHour } from "../lib/settings";
 import { useLogicalDay } from "../lib/useLogicalDay";
 import { buildIndexes, Indexes } from "./indexes";
 
+/** True when the error message indicates the data folder isn't available yet
+ *  (e.g. Google Drive not mounted at boot). */
+function isDataFolderPending(msg: string): boolean {
+  return msg.includes("data folder not available yet");
+}
+
 type DocState = {
   doc: Document | null;
   indexes: Indexes | null;
@@ -16,6 +22,9 @@ type DocState = {
   /** Non-fatal: a background refresh failed; the last-good doc is still shown. */
   reloadError: string | null;
   dismissReloadError: () => void;
+  /** True when the data folder isn't available yet (e.g. Google Drive not mounted
+   *  at boot) and we're retrying in the background. */
+  waitingForData: boolean;
 };
 
 export function useDocument(): DocState {
@@ -25,12 +34,19 @@ export function useDocument(): DocState {
   // Whether a good doc has ever loaded. A later reload failure then degrades to
   // a dismissible banner instead of wiping the mounted UI to the error screen.
   const hasDoc = useRef(false);
+  // Retry state for when the data folder isn't available yet (e.g. Google Drive
+  // not mounted at boot).
+  const retryCount = useRef(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [waitingForData, setWaitingForData] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
     const applyDoc = (d: Document) => {
       hasDoc.current = true;
+      retryCount.current = 0;
+      setWaitingForData(false);
       // Keep the current UI interactive while indexes rebuild — completing a
       // task or flipping a setting used to feel like a hitch on Android.
       startTransition(() => {
@@ -48,9 +64,43 @@ export function useDocument(): DocState {
       } catch (e) {
         if (!mounted) return;
         const msg = errorMessage(e);
-        if (hasDoc.current) setReloadError(msg); // keep last-good doc on screen
-        else setError(msg);                      // nothing loaded yet: fatal
+        if (hasDoc.current) {
+          setReloadError(msg); // keep last-good doc on screen
+        } else if (isDataFolderPending(msg)) {
+          // Data folder not available yet (e.g. Google Drive not mounted).
+          // Show a loading screen and retry with backoff.
+          setWaitingForData(true);
+          scheduleRetry();
+        } else {
+          setError(msg); // nothing loaded yet: fatal
+        }
       }
+    };
+
+    /** Retry opening the data store with exponential backoff. */
+    const scheduleRetry = () => {
+      if (!mounted) return;
+      const attempt = retryCount.current;
+      // Cap backoff: 1s, 2s, 4s, 8s, 16s, 30s, 30s, ...
+      const delay = Math.min(1000 * Math.pow(2, attempt), 30_000);
+      retryTimer.current = setTimeout(async () => {
+        if (!mounted) return;
+        retryCount.current = attempt + 1;
+        try {
+          const ok = await api.tryOpenData();
+          if (!mounted) return;
+          if (ok) {
+            // The real store opened — reload the document.
+            void load();
+          } else {
+            // Still not available — retry.
+            scheduleRetry();
+          }
+        } catch {
+          // tryOpenData itself failed — retry.
+          if (mounted) scheduleRetry();
+        }
+      }, delay);
     };
 
     // store-changed = synced document mutated; settings-changed = device-local
@@ -61,6 +111,7 @@ export function useDocument(): DocState {
 
     return () => {
       mounted = false;
+      if (retryTimer.current != null) clearTimeout(retryTimer.current);
       void unlistenStore.then(fn => fn());
       void unlistenSettings.then(fn => fn());
     };
@@ -137,5 +188,6 @@ export function useDocument(): DocState {
     error,
     reloadError,
     dismissReloadError: () => setReloadError(null),
+    waitingForData,
   };
 }

@@ -50,6 +50,9 @@ struct Inner {
     /// This device's id (from the replica filename) and readable name for history.
     device_id: String,
     device_name: String,
+    /// True when the store is a temporary stand-in because the real data folder
+    /// isn't available yet (e.g. Google Drive not mounted at boot).
+    pending: bool,
 }
 
 impl AppState {
@@ -88,6 +91,7 @@ impl AppState {
                 peers_hash,
                 device_id,
                 device_name,
+                pending: false,
             }),
         })
     }
@@ -98,6 +102,65 @@ impl AppState {
     {
         let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         f(&g.doc)
+    }
+
+    /// True when the store is a temporary stand-in because the real data folder
+    /// isn't available yet (e.g. Google Drive not mounted at boot). The frontend
+    /// should show a loading screen and call `retry_open`.
+    pub fn is_pending(&self) -> bool {
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).pending
+    }
+
+    /// Create a temporary in-memory store used when the real data folder isn't
+    /// available yet (e.g. Google Drive not mounted at boot). The frontend shows a
+    /// loading screen and calls `retry_open` to switch to the real store once the
+    /// folder becomes available.
+    pub fn open_in_memory(device_id: &str, intended_path: PathBuf) -> Result<Self> {
+        let device_name = crate::config::resolve_device_name(device_id);
+        let conn = crate::db::open_in_memory()?;
+        let doc = Document::default();
+        let own_hash = content_hash(&doc);
+        let peers_hash = [0; 32];
+        Ok(Self {
+            inner: Mutex::new(Inner {
+                conn,
+                doc,
+                path: intended_path,
+                own_hash,
+                peers_hash,
+                device_id: device_id.to_string(),
+                device_name,
+                pending: true,
+            }),
+        })
+    }
+
+    /// Try to open the real data store at the path stored when this pending store
+    /// was created. If successful, replaces the in-memory stand-in with the real
+    /// store (merging peers, migrating legacy data, etc.). Returns `true` when the
+    /// store was opened successfully.
+    pub fn retry_open(&self) -> Result<bool> {
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if !g.pending {
+            return Ok(true); // already open
+        }
+        let intended = g.path.clone();
+        // Try to open the real store. If the folder still isn't available, return
+        // false so the frontend can retry later.
+        let real = match Self::open(intended) {
+            Ok(s) => s,
+            Err(_) => return Ok(false),
+        };
+        let real_inner = real.inner.into_inner().unwrap();
+        g.conn = real_inner.conn;
+        g.doc = real_inner.doc;
+        g.path = real_inner.path;
+        g.own_hash = real_inner.own_hash;
+        g.peers_hash = real_inner.peers_hash;
+        g.device_id = real_inner.device_id;
+        g.device_name = real_inner.device_name;
+        g.pending = false;
+        Ok(true)
     }
 
     /// Mutate then persist in a single transaction. Bumps `last_modified` and

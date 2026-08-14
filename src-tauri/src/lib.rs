@@ -95,10 +95,29 @@ pub fn run() {
             // Effective path honours a device-local custom folder, if set.
             let path =
                 crate::config::resolve_data_path(&default_dir, &config.folder, &config.device_id);
+            // When a custom folder is configured but not available (e.g. Google
+            // Drive not yet mounted at boot), use a temporary in-memory store so
+            // the app can show a loading screen and retry. The frontend calls
+            // `try_open_data` to switch to the real store once the folder appears.
+            let state = match AppState::open(path.clone()) {
+                Ok(s) => s,
+                Err(e) => {
+                    let folder_unavailable = config.folder.as_ref()
+                        .is_some_and(|f| !std::path::Path::new(f).is_dir());
+                    if folder_unavailable {
+                        eprintln!(
+                            "warning: configured data folder not available ({e}); using temp store"
+                        );
+                        AppState::open_in_memory(&config.device_id, path.clone())
+                            .expect("in-memory store")
+                    } else {
+                        panic!("failed to open data store: {e}");
+                    }
+                }
+            };
             if let Some(parent) = path.parent() {
                 let _ = std::fs::create_dir_all(parent);
             }
-            let state = AppState::open(path.clone()).expect("open store");
             // Relocate any pre-subdir flat attachment blobs into this device's
             // attachments_<device>/ folder before the UI can reference them.
             commands::migrate_attachments_to_subdir(&state, &config.device_id);
@@ -196,6 +215,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_document,
+            commands::try_open_data,
             commands::show_main_window,
             commands::list_history,
             commands::attach_task_files,

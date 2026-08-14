@@ -20,6 +20,7 @@
   "app": {
     "loadFailed": "載入失敗：{{error}}",
     "loading": "載入中…",
+    "waitingForData": "等待資料資料夾…",
     "reloadError": "無法重新整理，改顯示上次載入的資料。{{error}}",
     "dismiss": "關閉",
     "notBuilt": "尚未完成 — 會在第 2 階段推出。"

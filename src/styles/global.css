@@ -460,8 +460,29 @@ button {
   justify-content: center;
   height: 100%;
   color: var(--c-text-muted);
+  font-size: var(--text-lg);
 }
 .app-error { color: var(--c-danger); }
+
+/* Pulsing dots for the "waiting for data" loading screen. */
+.app-loading-dots {
+  display: inline-flex;
+  width: 1.2em;
+  text-align: left;
+}
+.app-loading-dots::after {
+  content: "...";
+  animation: loadingDots 1.5s infinite;
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+@keyframes loadingDots {
+  0%   { width: 0; }
+  33%  { width: 0.4em; }
+  66%  { width: 0.8em; }
+  100% { width: 1.2em; }
+}
 
 .composer-preview {
   display: flex; flex-wrap: wrap; gap: var(--space-1);
