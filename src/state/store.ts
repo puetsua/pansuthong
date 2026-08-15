@@ -29,7 +29,9 @@ type DocState = {
   retryCount: number;
   /** Seconds until the next retry attempt (countdown for the UI). */
   nextRetryIn: number;
-  /** True when retries are exhausted and the user can close or use default. */
+  /** True from the 4th attempt onward, when fallback buttons are offered. */
+  showFallback: boolean;
+  /** True after all 10 attempts have failed. */
   gaveUp: boolean;
   /** Abandon waiting, clear the folder config, and open at the default location. */
   createNewData: () => Promise<void>;
@@ -47,14 +49,16 @@ export function useDocument(): DocState {
   const retryCountRef = useRef(0);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startTimeRef = useRef(0);
   const [waitingForData, setWaitingForData] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [nextRetryIn, setNextRetryIn] = useState(0);
+  const [showFallback, setShowFallback] = useState(false);
   const [gaveUp, setGaveUp] = useState(false);
 
-  /// Give up after this much total retry time.
-  const MAX_RETRY_MS = 5 * 60 * 1000; // 5 minutes
+  /// First getDocument plus later tryOpenData retries.
+  const MAX_ATTEMPTS = 10;
+  /// Offer Close / Use default location from this attempt onward.
+  const SHOW_FALLBACK_FROM = 4;
 
   useEffect(() => {
     let mounted = true;
@@ -62,8 +66,8 @@ export function useDocument(): DocState {
     const applyDoc = (d: Document) => {
       hasDoc.current = true;
       retryCountRef.current = 0;
-      startTimeRef.current = 0;
       setWaitingForData(false);
+      setShowFallback(false);
       setGaveUp(false);
       setRetryCount(0);
       setNextRetryIn(0);
@@ -89,7 +93,14 @@ export function useDocument(): DocState {
         } else if (isDataFolderPending(msg)) {
           // Data folder not available yet (e.g. Google Drive not mounted).
           // Show a loading screen and retry with backoff.
+          retryCountRef.current = 1;
+          setRetryCount(1);
           setWaitingForData(true);
+          if (1 >= SHOW_FALLBACK_FROM) setShowFallback(true);
+          if (1 >= MAX_ATTEMPTS) {
+            setGaveUp(true);
+            return;
+          }
           scheduleRetry();
         } else {
           setError(msg); // nothing loaded yet: fatal
@@ -100,20 +111,12 @@ export function useDocument(): DocState {
     /** Retry opening the data store with exponential backoff. */
     const scheduleRetry = () => {
       if (!mounted) return;
-      const attempt = retryCountRef.current;
+      const completed = retryCountRef.current;
+      if (completed >= MAX_ATTEMPTS) return;
 
-      // Give up after MAX_RETRY_MS of total retry time.
-      if (startTimeRef.current === 0) startTimeRef.current = Date.now();
-      if (Date.now() - startTimeRef.current > MAX_RETRY_MS) {
-        setGaveUp(true);
-        setWaitingForData(false);
-        return;
-      }
-
-      // Cap backoff: 1s, 2s, 4s, 8s, 16s, 30s, 30s, ...
-      const delay = Math.min(1000 * Math.pow(2, attempt), 30_000);
+      // Cap backoff: 1s, 2s, 4s, 8s after the 1st..4th completed attempt.
+      const delay = Math.min(1000 * Math.pow(2, completed - 1), 30_000);
       const delaySec = Math.ceil(delay / 1000);
-      setRetryCount(attempt + 1);
       setNextRetryIn(delaySec);
 
       // Countdown timer for the UI.
@@ -126,7 +129,8 @@ export function useDocument(): DocState {
       retryTimer.current = setTimeout(async () => {
         if (!mounted) return;
         if (countdownTimer.current != null) clearInterval(countdownTimer.current);
-        retryCountRef.current = attempt + 1;
+        retryCountRef.current = completed + 1;
+        setRetryCount(completed + 1);
         try {
           const ok = await api.tryOpenData();
           if (!mounted) return;
@@ -134,12 +138,15 @@ export function useDocument(): DocState {
             // The real store opened — reload the document.
             void load();
           } else {
-            // Still not available — retry.
-            scheduleRetry();
+            if (completed + 1 >= SHOW_FALLBACK_FROM) setShowFallback(true);
+            if (completed + 1 >= MAX_ATTEMPTS) setGaveUp(true);
+            else scheduleRetry();
           }
         } catch {
-          // tryOpenData itself failed — retry.
-          if (mounted) scheduleRetry();
+          if (!mounted) return;
+          if (completed + 1 >= SHOW_FALLBACK_FROM) setShowFallback(true);
+          if (completed + 1 >= MAX_ATTEMPTS) setGaveUp(true);
+          else scheduleRetry();
         }
       }, delay);
     };
@@ -233,6 +240,7 @@ export function useDocument(): DocState {
     waitingForData,
     retryCount,
     nextRetryIn,
+    showFallback,
     gaveUp,
     createNewData: async () => {
       try {

@@ -223,16 +223,33 @@ describe("useDocument cloud-folder pending retries", () => {
     expect(result.current.nextRetryIn).toBe(2);
   });
 
-  it("gives up after the retry budget so the user can pick a fallback", async () => {
+  it("shows fallback actions after the 4th attempt", async () => {
     getDocument.mockRejectedValue("not found: data folder not available yet");
     tryOpenData.mockResolvedValue(false);
 
     const { result } = renderHook(() => useDocument());
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(result.current.retryCount).toBe(1);
+    expect(result.current.gaveUp).toBe(false);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(result.current.retryCount).toBe(2);
+    expect(result.current.gaveUp).toBe(false);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(result.current.retryCount).toBe(3);
+    expect(result.current.gaveUp).toBe(false);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    expect(result.current.retryCount).toBe(4);
+    expect(result.current.showFallback).toBe(true);
+    expect(result.current.gaveUp).toBe(false);
     expect(result.current.waitingForData).toBe(true);
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1000); });
-    expect(result.current.gaveUp).toBe(true);
-    expect(result.current.waitingForData).toBe(false);
+    await act(async () => { await vi.advanceTimersByTimeAsync(8000); });
+    expect(result.current.retryCount).toBe(5);
+    expect(result.current.showFallback).toBe(true);
+    expect(result.current.gaveUp).toBe(false);
+    expect(result.current.waitingForData).toBe(true);
   });
 });

@@ -465,6 +465,8 @@ button {
   align-items: center;
   justify-content: center;
   height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   color: var(--c-text-muted);
   font-size: var(--text-lg);
@@ -505,25 +507,20 @@ button {
   color: var(--c-text);
 }
 
-/* Pulsing dots for the "waiting for data" loading screen. */
-.app-loading-dots {
-  display: inline-flex;
-  width: 1.2em;
-  overflow: hidden;
-  text-align: left;
+.app-loading-spinner {
+  width: 28px;
+  height: 28px;
+  margin-bottom: var(--space-3);
+  border: 3px solid var(--c-border);
+  border-top-color: var(--c-accent);
+  border-radius: 50%;
+  animation: loadingSpin 0.8s linear infinite;
 }
-.app-loading-dots::after {
-  content: "...";
-  animation: loadingDots 1.5s infinite;
-  display: inline-block;
-  overflow: hidden;
-  vertical-align: bottom;
+@keyframes loadingSpin {
+  to { transform: rotate(360deg); }
 }
-@keyframes loadingDots {
-  0%   { width: 0; }
-  33%  { width: 0.4em; }
-  66%  { width: 0.8em; }
-  100% { width: 1.2em; }
+@media (prefers-reduced-motion: reduce) {
+  .app-loading-spinner { animation: none; }
 }
 
 .composer-preview {
