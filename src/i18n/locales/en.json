@@ -21,7 +21,13 @@
   "app": {
     "loadFailed": "Failed to load: {{error}}",
     "loading": "Loading…",
-    "reloadError": "Couldn’t refresh — showing the last loaded data. {{error}}",
+    "waitingForData": "Waiting for data folder…",
+    "retryStatus": "Attempt {{count}} of {{total}} · retrying in {{seconds}}s",
+    "retryFinished": "Attempt {{count}} of {{total}}",
+    "dataFolderGiveUp": "Couldn't reach the data folder after several attempts.",
+    "useDefaultLocation": "Use default location",
+    "close": "Close",
+    "reloadError": "Couldn't refresh — showing the last loaded data. {{error}}",
     "dismiss": "Dismiss",
     "notBuilt": "Not built yet — comes in Phase 2."
   },

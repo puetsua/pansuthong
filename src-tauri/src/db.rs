@@ -74,6 +74,15 @@ pub fn open(path: &Path) -> Result<Connection> {
     Ok(conn)
 }
 
+/// Open an in-memory database with the same schema. Used as a temporary stand-in
+/// when the real data folder isn't available yet (e.g. Google Drive not mounted at
+/// boot). The in-memory store is discarded once the real store opens.
+pub fn open_in_memory() -> Result<Connection> {
+    let conn = Connection::open_in_memory()?;
+    init(&conn)?;
+    Ok(conn)
+}
+
 /// Open a staged replica read-only. Prefer [`load_from_file`], which copies first
 /// so SQLite never locks a live cloud-synced peer path. Direct opens still use
 /// URI `immutable=1` so no lock is taken even if called on a shared path.

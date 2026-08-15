@@ -50,6 +50,9 @@ struct Inner {
     /// This device's id (from the replica filename) and readable name for history.
     device_id: String,
     device_name: String,
+    /// True when the store is a temporary stand-in because the real data folder
+    /// isn't available yet (e.g. Google Drive not mounted at boot).
+    pending: bool,
 }
 
 impl AppState {
@@ -88,6 +91,7 @@ impl AppState {
                 peers_hash,
                 device_id,
                 device_name,
+                pending: false,
             }),
         })
     }
@@ -98,6 +102,97 @@ impl AppState {
     {
         let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         f(&g.doc)
+    }
+
+    /// True when the store is a temporary stand-in because the real data folder
+    /// isn't available yet (e.g. Google Drive not mounted at boot). The frontend
+    /// should show a loading screen and call `retry_open`.
+    pub fn is_pending(&self) -> bool {
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).pending
+    }
+
+    /// Create a temporary in-memory store used when the real data folder isn't
+    /// available yet (e.g. Google Drive not mounted at boot). The frontend shows a
+    /// loading screen and calls `retry_open` to switch to the real store once the
+    /// folder becomes available.
+    pub fn open_in_memory(device_id: &str, intended_path: PathBuf) -> Result<Self> {
+        let device_name = crate::config::resolve_device_name(device_id);
+        let conn = crate::db::open_in_memory()?;
+        let doc = Document::default();
+        let own_hash = content_hash(&doc);
+        let peers_hash = [0; 32];
+        Ok(Self {
+            inner: Mutex::new(Inner {
+                conn,
+                doc,
+                path: intended_path,
+                own_hash,
+                peers_hash,
+                device_id: device_id.to_string(),
+                device_name,
+                pending: true,
+            }),
+        })
+    }
+
+    /// Try to open the real data store at the path stored when this pending store
+    /// was created. If successful, replaces the in-memory stand-in with the real
+    /// store (merging peers, migrating legacy data, etc.). Returns `true` when the
+    /// store was opened successfully.
+    ///
+    /// Only attempts the open when the configured folder already exists (is
+    /// mounted/available). `AppState::open` calls `ensure_parent` →
+    /// `create_dir_all`, which would *create* a missing folder and open an empty
+    /// database there — masking the "folder not available" state and silently
+    /// showing empty data instead of the loading screen. Checking `is_dir` first
+    /// ensures we only open when the cloud-sync client has actually mounted the
+    /// folder.
+    pub fn retry_open(&self) -> Result<bool> {
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if !g.pending {
+            return Ok(true); // already open
+        }
+        let intended = g.path.clone();
+        // The parent directory is the configured data folder. It only exists when
+        // the cloud-sync client (e.g. Google Drive) has mounted/synced it. Don't
+        // create it — that would mask the "folder not available" state.
+        let parent_ready = intended.parent().is_none_or(|p| p.is_dir());
+        if !parent_ready {
+            return Ok(false);
+        }
+        // The folder is available — open the real store (merging peers, etc.).
+        let real = match Self::open(intended) {
+            Ok(s) => s,
+            Err(_) => return Ok(false),
+        };
+        let real_inner = real.inner.into_inner().unwrap();
+        g.conn = real_inner.conn;
+        g.doc = real_inner.doc;
+        g.path = real_inner.path;
+        g.own_hash = real_inner.own_hash;
+        g.peers_hash = real_inner.peers_hash;
+        g.device_id = real_inner.device_id;
+        g.device_name = real_inner.device_name;
+        g.pending = false;
+        Ok(true)
+    }
+
+    /// Abandon the pending in-memory store and open a real one at `path` (e.g.
+    /// the default app-data directory). Used when the user gives up waiting for
+    /// the configured cloud folder and chooses to use the default location instead.
+    pub fn open_at(&self, path: PathBuf) -> Result<()> {
+        let real = Self::open(path)?;
+        let real_inner = real.inner.into_inner().unwrap();
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        g.conn = real_inner.conn;
+        g.doc = real_inner.doc;
+        g.path = real_inner.path;
+        g.own_hash = real_inner.own_hash;
+        g.peers_hash = real_inner.peers_hash;
+        g.device_id = real_inner.device_id;
+        g.device_name = real_inner.device_name;
+        g.pending = false;
+        Ok(())
     }
 
     /// Mutate then persist in a single transaction. Bumps `last_modified` and
@@ -573,6 +668,88 @@ mod tests {
         let mut doc = Document::default();
         doc.tasks.push(sample_task(task_id));
         fs::write(path, serde_json::to_vec_pretty(&doc).unwrap()).unwrap();
+    }
+
+    /// Simulates the Google Drive scenario: the configured data folder doesn't
+    /// exist at boot (cloud-sync client not yet mounted), so the app starts with
+    /// a pending in-memory store and shows a loading screen. The frontend retries
+    /// periodically; while the folder is missing, retries return false. Once the
+    /// folder appears (Drive mounts), the next retry opens the real store and the
+    /// loading screen clears.
+    #[test]
+    fn pending_store_retries_until_cloud_folder_appears() {
+        let dir = tempdir().unwrap();
+        // The cloud folder doesn't exist yet -- simulates Google Drive not mounted.
+        let cloud_folder = dir.path().join("cloud_drive").join("PansuthongData");
+        let data_path = cloud_folder.join("tasks_testdev.db");
+        assert!(!cloud_folder.exists(), "cloud folder should not exist yet");
+
+        // 1. Boot: app starts with a pending in-memory store (loading screen shows).
+        let state = AppState::open_in_memory("testdev", data_path.clone()).unwrap();
+        assert!(state.is_pending(), "store should be pending -- loading screen visible");
+
+        // 2. Frontend retry #1: folder still missing, stays pending.
+        let opened = state.retry_open().unwrap();
+        assert!(!opened, "retry must fail while the cloud folder is missing");
+        assert!(state.is_pending(), "store must still be pending");
+        // The folder must NOT have been created by the retry.
+        assert!(!cloud_folder.exists(), "retry must not create the missing folder");
+
+        // 3. Frontend retry #2: still missing, still pending.
+        let opened = state.retry_open().unwrap();
+        assert!(!opened, "second retry must also fail");
+        assert!(state.is_pending(), "store must still be pending after second retry");
+
+        // 4. Google Drive mounts: the cloud folder appears (with existing data).
+        std::fs::create_dir_all(&cloud_folder).unwrap();
+        // Seed a task in the real database so we can confirm the real store loaded.
+        {
+            let mut conn = crate::db::open(&data_path).unwrap();
+            let mut doc = Document::default();
+            doc.tasks.push(sample_task("k_from_cloud"));
+            crate::db::write_document(&mut conn, &doc).unwrap();
+        }
+
+        // 5. Frontend retry #3: folder now exists, opens the real store.
+        let opened = state.retry_open().unwrap();
+        assert!(opened, "retry must succeed once the cloud folder is available");
+        assert!(!state.is_pending(), "store must no longer be pending -- loading screen clears");
+
+        // 6. The real data is now visible.
+        let ids: Vec<_> = state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect());
+        assert_eq!(ids, ["k_from_cloud"], "real data from the cloud folder must be loaded");
+    }
+
+    /// While pending, the store holds an empty document. The frontend's
+    /// `get_document` command checks `is_pending()` and returns an error,
+    /// so the UI shows the loading screen, not an empty task list. Once the
+    /// folder appears and retry succeeds, real data is loaded.
+    #[test]
+    fn pending_store_has_no_data_until_retry_succeeds() {
+        let dir = tempdir().unwrap();
+        let cloud_folder = dir.path().join("not_mounted_yet");
+        let data_path = cloud_folder.join("tasks_dev.db");
+
+        let state = AppState::open_in_memory("dev", data_path.clone()).unwrap();
+        assert!(state.is_pending());
+
+        // While pending, the store holds an empty document.
+        let task_count = state.read(|d| d.tasks.len());
+        assert_eq!(task_count, 0, "pending store has no real data");
+
+        // Folder appears, retry succeeds.
+        std::fs::create_dir_all(&cloud_folder).unwrap();
+        {
+            let mut conn = crate::db::open(&data_path).unwrap();
+            let mut doc = Document::default();
+            doc.tasks.push(sample_task("real_task"));
+            crate::db::write_document(&mut conn, &doc).unwrap();
+        }
+        assert!(state.retry_open().unwrap());
+        assert!(!state.is_pending());
+
+        let ids: Vec<_> = state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect());
+        assert_eq!(ids, ["real_task"], "real data loaded after retry");
     }
 
     #[test]

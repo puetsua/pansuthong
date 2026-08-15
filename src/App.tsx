@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { exit } from "@tauri-apps/plugin-process";
 import { applyLanguage, resolveLanguage } from "./i18n";
 import { osLocale } from "./lib/platform";
 import { DesktopShell } from "./shell/DesktopShell";
+import { DesktopTitlebar } from "./shell/DesktopTitlebar";
 import { MobileShell } from "./shell/MobileShell";
 import { useIsMobile } from "./lib/viewport";
 import { TodayView } from "./views/TodayView";
@@ -28,7 +30,7 @@ import { TimeEstimateReminder } from "./components/TimeEstimateReminder";
 
 export default function App() {
   const { t } = useTranslation();
-  const { doc, indexes, error, reloadError, dismissReloadError } = useDocument();
+  const { doc, indexes, error, reloadError, dismissReloadError, waitingForData, retryCount, nextRetryIn, showFallback, gaveUp, createNewData } = useDocument();
   const isMobile = useIsMobile();
   const didShowWindow = useRef(false);
 
@@ -62,10 +64,10 @@ export default function App() {
 
   // The native window starts hidden so persisted position/size and WebView2 can
   // settle off-screen. This effect follows the theme effect in useDocument; two
-  // animation frames ensure the first themed success or error UI has painted
-  // before revealing the window.
+  // animation frames ensure the first themed success, waiting, give-up, or error
+  // UI has painted before revealing the window.
   useEffect(() => {
-    if (didShowWindow.current || (!error && (!doc || !indexes))) return;
+    if (didShowWindow.current || (!error && !waitingForData && !showFallback && !gaveUp && (!doc || !indexes))) return;
 
     let cancelled = false;
     let secondFrame: number | undefined;
@@ -91,10 +93,46 @@ export default function App() {
       if (secondFrame != null) cancelAnimationFrame(secondFrame);
       if (retryTimer != null) clearTimeout(retryTimer);
     };
-  }, [doc, indexes, error]);
+  }, [doc, indexes, error, waitingForData, showFallback, gaveUp]);
 
-  if (error) return <p className="app-error">{t("app.loadFailed", { error })}</p>;
-  if (!doc || !indexes) return <p className="app-loading">{t("app.loading")}</p>;
+  const bootScreen = (body: React.ReactNode) => isMobile ? body : (
+    <div className="desktop-shell">
+      <DesktopTitlebar />
+      {body}
+    </div>
+  );
+
+  if (error) return bootScreen(<p className="app-error">{t("app.loadFailed", { error })}</p>);
+  if (waitingForData || showFallback || gaveUp) {
+    return bootScreen(
+      <div className={`app-loading${showFallback ? " app-loading-with-actions" : ""}`}>
+        {!gaveUp && <span className="app-loading-spinner" aria-hidden="true" />}
+        <p className="app-loading-title">
+          {gaveUp ? t("app.dataFolderGiveUp") : t("app.waitingForData")}
+        </p>
+        {retryCount >= 2 && (
+          <p className="app-loading-retry">
+            {gaveUp
+              ? t("app.retryFinished", { count: retryCount, total: 10 })
+              : t("app.retryStatus", { count: retryCount, total: 10, seconds: nextRetryIn })}
+          </p>
+        )}
+        {showFallback && (
+          <div className="app-loading-actions">
+            <button type="button" className="app-loading-btn" onClick={() => { void createNewData(); }}>
+              {t("app.useDefaultLocation")}
+            </button>
+            {!isMobile && (
+              <button type="button" className="app-loading-btn app-loading-btn-secondary" onClick={() => { void exit(); }}>
+                {t("app.close")}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (!doc || !indexes) return bootScreen(<p className="app-loading">{t("app.loading")}</p>);
 
   const Shell = isMobile ? MobileShell : DesktopShell;
 

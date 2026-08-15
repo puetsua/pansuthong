@@ -231,6 +231,8 @@ export type SyncStatus = {
 
 export const api = {
   getDocument:   ()                          => invoke<Document>("get_document"),
+  tryOpenData:   ()                          => invoke<boolean>("try_open_data"),
+  openDefaultStore: ()                       => invoke<void>("open_default_store"),
   showMainWindow: ()                         => invoke<void>("show_main_window"),
   listHistory:   ()                          => invoke<HistoryEntry[]>("list_history"),
   addTask:       (input: Partial<Task> & { title: string }) => invoke<Task>("add_task", { input }),

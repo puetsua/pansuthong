@@ -5,6 +5,11 @@ html, body, #root {
   height: 100%;
   overflow-x: hidden;
 }
+html:has(.app-loading),
+body:has(.app-loading),
+#root:has(.app-loading) {
+  overflow: hidden;
+}
 
 body {
   font-family: var(--font-body);
@@ -456,12 +461,67 @@ button {
 
 .app-loading, .app-error {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   color: var(--c-text-muted);
+  font-size: var(--text-lg);
+  text-align: center;
+  padding: var(--space-4);
+  box-sizing: border-box;
 }
 .app-error { color: var(--c-danger); }
+.app-loading-title {
+  margin: 0;
+  overflow: hidden;
+}
+.app-loading-retry {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--c-text-subtle);
+}
+.app-loading-with-actions { gap: var(--space-4); }
+.app-loading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+}
+.app-loading-btn {
+  appearance: none;
+  border: 1px solid var(--c-border);
+  background: var(--c-accent);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+.app-loading-btn:hover { filter: brightness(1.05); }
+.app-loading-btn-secondary {
+  background: var(--c-surface-2);
+  color: var(--c-text);
+}
+
+.app-loading-spinner {
+  width: 28px;
+  height: 28px;
+  margin-bottom: var(--space-3);
+  border: 3px solid var(--c-border);
+  border-top-color: var(--c-accent);
+  border-radius: 50%;
+  animation: loadingSpin 0.8s linear infinite;
+}
+@keyframes loadingSpin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-loading-spinner { animation: none; }
+}
 
 .composer-preview {
   display: flex; flex-wrap: wrap; gap: var(--space-1);
