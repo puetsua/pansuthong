@@ -177,6 +177,24 @@ impl AppState {
         Ok(true)
     }
 
+    /// Abandon the pending in-memory store and open a real one at `path` (e.g.
+    /// the default app-data directory). Used when the user gives up waiting for
+    /// the configured cloud folder and chooses to use the default location instead.
+    pub fn open_at(&self, path: PathBuf) -> Result<()> {
+        let real = Self::open(path)?;
+        let real_inner = real.inner.into_inner().unwrap();
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        g.conn = real_inner.conn;
+        g.doc = real_inner.doc;
+        g.path = real_inner.path;
+        g.own_hash = real_inner.own_hash;
+        g.peers_hash = real_inner.peers_hash;
+        g.device_id = real_inner.device_id;
+        g.device_name = real_inner.device_name;
+        g.pending = false;
+        Ok(())
+    }
+
     /// Mutate then persist in a single transaction. Bumps `last_modified` and
     /// stamps the current schema `version`, then appends the change to the history
     /// sidecar. The content hashes are refreshed so the poll won't treat our own

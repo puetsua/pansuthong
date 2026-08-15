@@ -14,12 +14,16 @@ vi.mock("@tauri-apps/api/event", () => ({
     return Promise.resolve(unlistenFn);
   }),
 }));
-vi.mock("../lib/tauri", () => ({ api: { getDocument: vi.fn() } }));
+vi.mock("../lib/tauri", () => ({
+  api: { getDocument: vi.fn(), tryOpenData: vi.fn(), openDefaultStore: vi.fn() },
+}));
 
 import { api } from "../lib/tauri";
 import { useDocument } from "./store";
 
 const getDocument = vi.mocked(api.getDocument);
+const tryOpenData = vi.mocked(api.tryOpenData);
+const openDefaultStore = vi.mocked(api.openDefaultStore);
 
 function makeDoc(theme: "auto" | "light" | "dark" = "auto"): Document {
   return {
@@ -42,6 +46,8 @@ beforeEach(() => {
   storeChangedCb = undefined;
   settingsChangedCb = undefined;
   getDocument.mockReset();
+  tryOpenData.mockReset();
+  openDefaultStore.mockReset();
 });
 
 describe("useDocument", () => {
@@ -192,5 +198,41 @@ describe("useDocument day rollover", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000 * 5); });
 
     expect(result.current.indexes).toBe(before); // same reference: no needless rebuild
+  });
+});
+
+describe("useDocument cloud-folder pending retries", () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("retries a missing data folder and exposes attempt count + countdown", async () => {
+    getDocument.mockRejectedValue("not found: data folder not available yet");
+    tryOpenData.mockResolvedValue(false);
+
+    const { result } = renderHook(() => useDocument());
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+    expect(result.current.waitingForData).toBe(true);
+    expect(result.current.gaveUp).toBe(false);
+    expect(result.current.retryCount).toBe(1);
+    expect(result.current.nextRetryIn).toBe(1);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(tryOpenData).toHaveBeenCalled();
+    expect(result.current.retryCount).toBe(2);
+    expect(result.current.nextRetryIn).toBe(2);
+  });
+
+  it("gives up after the retry budget so the user can pick a fallback", async () => {
+    getDocument.mockRejectedValue("not found: data folder not available yet");
+    tryOpenData.mockResolvedValue(false);
+
+    const { result } = renderHook(() => useDocument());
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(result.current.waitingForData).toBe(true);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1000); });
+    expect(result.current.gaveUp).toBe(true);
+    expect(result.current.waitingForData).toBe(false);
   });
 });

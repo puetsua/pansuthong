@@ -96,6 +96,33 @@ pub fn show_main_window(window: tauri::WebviewWindow) -> std::result::Result<(),
     window.set_focus().map_err(|e| e.to_string())
 }
 
+/// Abandon the pending in-memory store and open a real one at the default
+/// app-data directory. Used when the user gives up waiting for the configured
+/// cloud folder (e.g. Google Drive never mounts) and chooses to use the default
+/// location instead. Clears the folder config so the next boot also uses the
+/// default directory.
+#[tauri::command]
+pub fn open_default_store(
+    state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
+    app: AppHandle,
+) -> Result<()> {
+    if !state.is_pending() {
+        return Ok(()); // already open, nothing to do
+    }
+    // Clear the folder config so the next boot uses the default directory.
+    config.set_folder(None)?;
+    // Open the store at the default app-data path.
+    let default_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Invalid(e.to_string()))?;
+    let path = crate::config::resolve_data_path(&default_dir, &None, &config.device_id());
+    state.open_at(path)?;
+    let _ = app.emit(STORE_CHANGED, ());
+    Ok(())
+}
+
 #[tauri::command]
 pub fn list_history(state: State<'_, AppState>) -> Result<Vec<HistoryEntry>> {
     crate::history::read_all_history(&state.path())

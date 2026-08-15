@@ -25,6 +25,16 @@ describe("api IPC wrappers — command names & arg keys", () => {
     expect(invokeMock).toHaveBeenCalledWith("get_document");
   });
 
+  it("tryOpenData → try_open_data (no args)", async () => {
+    await api.tryOpenData();
+    expect(invokeMock).toHaveBeenCalledWith("try_open_data");
+  });
+
+  it("openDefaultStore → open_default_store (no args)", async () => {
+    await api.openDefaultStore();
+    expect(invokeMock).toHaveBeenCalledWith("open_default_store");
+  });
+
   it("addTask wraps the payload under `input`", async () => {
     await api.addTask({ title: "Buy milk" });
     expect(invokeMock).toHaveBeenCalledWith("add_task", { input: { title: "Buy milk" } });

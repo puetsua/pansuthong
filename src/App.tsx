@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { exit } from "@tauri-apps/plugin-process";
 import { applyLanguage, resolveLanguage } from "./i18n";
 import { osLocale } from "./lib/platform";
 import { DesktopShell } from "./shell/DesktopShell";
@@ -28,7 +29,7 @@ import { TimeEstimateReminder } from "./components/TimeEstimateReminder";
 
 export default function App() {
   const { t } = useTranslation();
-  const { doc, indexes, error, reloadError, dismissReloadError, waitingForData } = useDocument();
+  const { doc, indexes, error, reloadError, dismissReloadError, waitingForData, retryCount, nextRetryIn, gaveUp, createNewData } = useDocument();
   const isMobile = useIsMobile();
   const didShowWindow = useRef(false);
 
@@ -62,10 +63,10 @@ export default function App() {
 
   // The native window starts hidden so persisted position/size and WebView2 can
   // settle off-screen. This effect follows the theme effect in useDocument; two
-  // animation frames ensure the first themed success, waiting, or error UI has
-  // painted before revealing the window.
+  // animation frames ensure the first themed success, waiting, give-up, or error
+  // UI has painted before revealing the window.
   useEffect(() => {
-    if (didShowWindow.current || (!error && !waitingForData && (!doc || !indexes))) return;
+    if (didShowWindow.current || (!error && !waitingForData && !gaveUp && (!doc || !indexes))) return;
 
     let cancelled = false;
     let secondFrame: number | undefined;
@@ -91,15 +92,37 @@ export default function App() {
       if (secondFrame != null) cancelAnimationFrame(secondFrame);
       if (retryTimer != null) clearTimeout(retryTimer);
     };
-  }, [doc, indexes, error, waitingForData]);
+  }, [doc, indexes, error, waitingForData, gaveUp]);
 
   if (error) return <p className="app-error">{t("app.loadFailed", { error })}</p>;
+  if (gaveUp) {
+    return (
+      <div className="app-loading app-loading-giveup">
+        <p className="app-loading-title">{t("app.dataFolderGiveUp")}</p>
+        <div className="app-loading-actions">
+          <button type="button" className="app-loading-btn" onClick={() => { void createNewData(); }}>
+            {t("app.useDefaultLocation")}
+          </button>
+          {!isMobile && (
+            <button type="button" className="app-loading-btn app-loading-btn-secondary" onClick={() => { void exit(); }}>
+              {t("app.close")}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
   if (waitingForData) {
     return (
-      <p className="app-loading">
-        {t("app.waitingForData")}
-        <span className="app-loading-dots" aria-hidden="true" />
-      </p>
+      <div className="app-loading">
+        <p className="app-loading-title">
+          {t("app.waitingForData")}
+          <span className="app-loading-dots" aria-hidden="true" />
+        </p>
+        {retryCount > 0 && (
+          <p className="app-loading-retry">{t("app.retryStatus", { count: retryCount, seconds: nextRetryIn })}</p>
+        )}
+      </div>
     );
   }
   if (!doc || !indexes) return <p className="app-loading">{t("app.loading")}</p>;

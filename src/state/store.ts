@@ -25,6 +25,14 @@ type DocState = {
   /** True when the data folder isn't available yet (e.g. Google Drive not mounted
    *  at boot) and we're retrying in the background. */
   waitingForData: boolean;
+  /** How many times we've retried opening the data folder. */
+  retryCount: number;
+  /** Seconds until the next retry attempt (countdown for the UI). */
+  nextRetryIn: number;
+  /** True when retries are exhausted and the user can close or use default. */
+  gaveUp: boolean;
+  /** Abandon waiting, clear the folder config, and open at the default location. */
+  createNewData: () => Promise<void>;
 };
 
 export function useDocument(): DocState {
@@ -36,17 +44,29 @@ export function useDocument(): DocState {
   const hasDoc = useRef(false);
   // Retry state for when the data folder isn't available yet (e.g. Google Drive
   // not mounted at boot).
-  const retryCount = useRef(0);
+  const retryCountRef = useRef(0);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef(0);
   const [waitingForData, setWaitingForData] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [nextRetryIn, setNextRetryIn] = useState(0);
+  const [gaveUp, setGaveUp] = useState(false);
+
+  /// Give up after this much total retry time.
+  const MAX_RETRY_MS = 5 * 60 * 1000; // 5 minutes
 
   useEffect(() => {
     let mounted = true;
 
     const applyDoc = (d: Document) => {
       hasDoc.current = true;
-      retryCount.current = 0;
+      retryCountRef.current = 0;
+      startTimeRef.current = 0;
       setWaitingForData(false);
+      setGaveUp(false);
+      setRetryCount(0);
+      setNextRetryIn(0);
       // Keep the current UI interactive while indexes rebuild — completing a
       // task or flipping a setting used to feel like a hitch on Android.
       startTransition(() => {
@@ -80,12 +100,33 @@ export function useDocument(): DocState {
     /** Retry opening the data store with exponential backoff. */
     const scheduleRetry = () => {
       if (!mounted) return;
-      const attempt = retryCount.current;
+      const attempt = retryCountRef.current;
+
+      // Give up after MAX_RETRY_MS of total retry time.
+      if (startTimeRef.current === 0) startTimeRef.current = Date.now();
+      if (Date.now() - startTimeRef.current > MAX_RETRY_MS) {
+        setGaveUp(true);
+        setWaitingForData(false);
+        return;
+      }
+
       // Cap backoff: 1s, 2s, 4s, 8s, 16s, 30s, 30s, ...
       const delay = Math.min(1000 * Math.pow(2, attempt), 30_000);
+      const delaySec = Math.ceil(delay / 1000);
+      setRetryCount(attempt + 1);
+      setNextRetryIn(delaySec);
+
+      // Countdown timer for the UI.
+      if (countdownTimer.current != null) clearInterval(countdownTimer.current);
+      countdownTimer.current = setInterval(() => {
+        if (!mounted) return;
+        setNextRetryIn(prev => Math.max(0, prev - 1));
+      }, 1000);
+
       retryTimer.current = setTimeout(async () => {
         if (!mounted) return;
-        retryCount.current = attempt + 1;
+        if (countdownTimer.current != null) clearInterval(countdownTimer.current);
+        retryCountRef.current = attempt + 1;
         try {
           const ok = await api.tryOpenData();
           if (!mounted) return;
@@ -112,6 +153,7 @@ export function useDocument(): DocState {
     return () => {
       mounted = false;
       if (retryTimer.current != null) clearTimeout(retryTimer.current);
+      if (countdownTimer.current != null) clearInterval(countdownTimer.current);
       void unlistenStore.then(fn => fn());
       void unlistenSettings.then(fn => fn());
     };
@@ -189,5 +231,16 @@ export function useDocument(): DocState {
     reloadError,
     dismissReloadError: () => setReloadError(null),
     waitingForData,
+    retryCount,
+    nextRetryIn,
+    gaveUp,
+    createNewData: async () => {
+      try {
+        await api.openDefaultStore();
+        // store-changed event will trigger load()
+      } catch {
+        // If it fails, stay on the give-up screen.
+      }
+    },
   };
 }

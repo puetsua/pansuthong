@@ -220,6 +220,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_document,
             commands::try_open_data,
+            commands::open_default_store,
             commands::show_main_window,
             commands::list_history,
             commands::attach_task_files,

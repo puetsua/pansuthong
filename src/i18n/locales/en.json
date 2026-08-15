@@ -22,6 +22,10 @@
     "loadFailed": "Failed to load: {{error}}",
     "loading": "Loading…",
     "waitingForData": "Waiting for data folder…",
+    "retryStatus": "Attempt {{count}} · retrying in {{seconds}}s",
+    "dataFolderGiveUp": "Couldn't reach the data folder after several attempts.",
+    "useDefaultLocation": "Use default location",
+    "close": "Close",
     "reloadError": "Couldn't refresh — showing the last loaded data. {{error}}",
     "dismiss": "Dismiss",
     "notBuilt": "Not built yet — comes in Phase 2."
