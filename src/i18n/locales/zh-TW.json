@@ -20,10 +20,10 @@
   "app": {
     "loadFailed": "載入失敗：{{error}}",
     "loading": "載入中…",
-    "waitingForData": "等待資料資料夾…",
+    "waitingForData": "等待資料夾…",
     "retryStatus": "第 {{count}} / {{total}} 次嘗試 · {{seconds}} 秒後重試",
     "retryFinished": "第 {{count}} / {{total}} 次嘗試",
-    "dataFolderGiveUp": "幾次嘗試後仍無法連上資料資料夾。",
+    "dataFolderGiveUp": "幾次嘗試後仍無法連上資料夾。",
     "useDefaultLocation": "改用預設位置",
     "close": "關閉",
     "reloadError": "無法重新整理，改顯示上次載入的資料。{{error}}",

@@ -105,7 +105,7 @@ export default function App() {
   if (error) return bootScreen(<p className="app-error">{t("app.loadFailed", { error })}</p>);
   if (waitingForData || showFallback || gaveUp) {
     return bootScreen(
-      <div className={`app-loading${showFallback ? " app-loading-giveup" : ""}`}>
+      <div className={`app-loading${showFallback ? " app-loading-with-actions" : ""}`}>
         {!gaveUp && <span className="app-loading-spinner" aria-hidden="true" />}
         <p className="app-loading-title">
           {gaveUp ? t("app.dataFolderGiveUp") : t("app.waitingForData")}

@@ -252,4 +252,29 @@ describe("useDocument cloud-folder pending retries", () => {
     expect(result.current.gaveUp).toBe(false);
     expect(result.current.waitingForData).toBe(true);
   });
+
+  it("createNewData opens the default store and leaves the waiting screen", async () => {
+    getDocument.mockRejectedValue("not found: data folder not available yet");
+    tryOpenData.mockResolvedValue(false);
+    openDefaultStore.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useDocument());
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    for (const delay of [1000, 2000, 4000]) {
+      await act(async () => { await vi.advanceTimersByTimeAsync(delay); });
+    }
+    expect(result.current.retryCount).toBe(4);
+    expect(result.current.showFallback).toBe(true);
+
+    const recovered = makeDoc("dark");
+    getDocument.mockResolvedValue(recovered);
+    await act(async () => { await result.current.createNewData(); });
+    expect(openDefaultStore).toHaveBeenCalled();
+    await act(async () => { storeChangedCb?.(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(result.current.doc).toBe(recovered);
+    expect(result.current.waitingForData).toBe(false);
+    expect(result.current.showFallback).toBe(false);
+    expect(result.current.gaveUp).toBe(false);
+  });
 });

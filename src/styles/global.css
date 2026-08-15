@@ -484,7 +484,7 @@ button {
   font-size: var(--text-sm);
   color: var(--c-text-subtle);
 }
-.app-loading-giveup { gap: var(--space-4); }
+.app-loading-with-actions { gap: var(--space-4); }
 .app-loading-actions {
   display: flex;
   flex-wrap: wrap;

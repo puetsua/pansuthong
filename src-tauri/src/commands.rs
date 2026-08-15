@@ -73,13 +73,15 @@ pub fn get_document(state: State<'_, AppState>, config: State<'_, ConfigState>) 
 #[tauri::command]
 pub fn try_open_data(
     state: State<'_, AppState>,
+    watcher: State<'_, crate::sync::WatcherHandle>,
     app: AppHandle,
 ) -> Result<bool> {
     if !state.is_pending() {
         return Ok(true);
     }
     if state.retry_open()? {
-        // The real store is now open. Emit store-changed so the frontend reloads.
+        // Boot started with no watcher because the cloud folder was missing.
+        crate::sync::restart(&watcher, &app, state.path());
         let _ = app.emit(STORE_CHANGED, ());
         Ok(true)
     } else {
@@ -105,20 +107,21 @@ pub fn show_main_window(window: tauri::WebviewWindow) -> std::result::Result<(),
 pub fn open_default_store(
     state: State<'_, AppState>,
     config: State<'_, ConfigState>,
+    watcher: State<'_, crate::sync::WatcherHandle>,
     app: AppHandle,
 ) -> Result<()> {
     if !state.is_pending() {
         return Ok(()); // already open, nothing to do
     }
-    // Clear the folder config so the next boot uses the default directory.
-    config.set_folder(None)?;
-    // Open the store at the default app-data path.
     let default_dir = app
         .path()
         .app_data_dir()
         .map_err(|e| AppError::Invalid(e.to_string()))?;
     let path = crate::config::resolve_data_path(&default_dir, &None, &config.device_id());
-    state.open_at(path)?;
+    // Open first so a failed default-dir open leaves the cloud-folder preference intact.
+    state.open_at(path.clone())?;
+    config.set_folder(None)?;
+    crate::sync::restart(&watcher, &app, path);
     let _ = app.emit(STORE_CHANGED, ());
     Ok(())
 }
