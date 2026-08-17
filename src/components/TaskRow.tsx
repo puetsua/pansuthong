@@ -101,7 +101,9 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
       <div className="task-row" data-done={isDone(task)} data-timing={running}>
         <button type="button" className="task-main" onClick={open}
                 aria-label={t("taskRow.edit", { title: task.title })}>
-          <span className="task-title">{task.title}</span>
+          <span className="task-heading">
+            <span className="task-title">{task.title}</span>
+          </span>
           {taskTags.map(t => (
             <span key={t.id} className="task-tag" style={{ background: t.color, color: readableTextColor(t.color) }}>
               {t.name}
