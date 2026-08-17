@@ -1,9 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildAddTaskPayload,
+  buildAddTemplatePayload,
   buildTaskUpdate,
   buildTemplateUpdate,
   dueBeforeStart,
   EditorForm,
+  editorFormFrom,
   estimatedSecondsFormError,
   formatEstimatedSecondsInput,
   isEditorDirty,
@@ -14,6 +17,7 @@ import {
   sameTagSet,
   startOffsetDisabled,
 } from "./taskUpdate";
+import type { Task, TemplateTask } from "../lib/tauri";
 
 const base: EditorForm = {
   title: "Write report",
@@ -349,5 +353,65 @@ describe("recurrenceFormError", () => {
   });
   it("is null when repeat is none", () => {
     expect(recurrenceFormError(recurBase)).toBeNull();
+  });
+});
+
+describe("editorFormFrom", () => {
+  const task: Task = {
+    id: "k_1", title: "Write report", notes: "n", tag_ids: ["t_a"],
+    start_date: "2026-06-01", start_time: "09:00",
+    due_date: "2026-06-02", estimated_seconds: 1800,
+    created_at: "2026-01-01T00:00:00Z",
+  };
+  const template: TemplateTask = {
+    id: "tmpl_1", title: "Weekly", notes: "", tag_ids: ["t_a"],
+    created_at: "2026-01-01T00:00:00Z",
+    due_offset_days: 2, start_offset_days: 0,
+    recurrence: { kind: "weekly", weekdays: [1, 3] },
+    recurrence_tag_id: "t_a", recurrence_start_date: "2026-05-01",
+  };
+
+  it("seeds a task's absolute dates and estimate shorthand", () => {
+    const form = editorFormFrom({ isTemplate: false, task, todayIso: "2026-06-10" });
+    expect(form.title).toBe("Write report");
+    expect(form.start_date).toBe("2026-06-01");
+    expect(form.start_time).toBe("09:00");
+    expect(form.due_date).toBe("2026-06-02");
+    expect(form.estimated_seconds).toBe("30m");
+    expect(form.repeat).toBe("none");
+    expect(form.recurrence_start_date).toBe("2026-06-10");
+  });
+
+  it("seeds a template's offsets and recurrence, keeping a configured start date", () => {
+    const form = editorFormFrom({ isTemplate: true, template, todayIso: "2026-06-10" });
+    expect(form.is_template).toBe(true);
+    expect(form.due_offset_days).toBe("2");
+    expect(form.start_offset_days).toBe("0");
+    expect(form.repeat).toBe("weekly");
+    expect(form.repeat_weekdays).toEqual([1, 3]);
+    expect(form.recurrence_tag_id).toBe("t_a");
+    expect(form.recurrence_start_date).toBe("2026-05-01");
+  });
+});
+
+describe("buildAddTaskPayload / buildAddTemplatePayload", () => {
+  it("omits empty dates on create and sends times only with a date", () => {
+    const p = buildAddTaskPayload({ ...base, title: "  hi  ", start_date: "2026-06-01", start_time: "09:00" }, ["t_a"]);
+    expect(p.title).toBe("hi");
+    expect(p.start_date).toBe("2026-06-01");
+    expect(p.start_time).toBe("09:00");
+    expect(p.due_date).toBeUndefined();
+    expect(p.tag_ids).toEqual(["t_a"]);
+  });
+
+  it("clears the start offset when a recurrence tag locks it", () => {
+    const form: EditorForm = {
+      ...base, is_template: true, repeat: "daily",
+      recurrence_tag_id: "t_a", start_offset_days: "3", due_offset_days: "5",
+    };
+    const locked = buildAddTemplatePayload(form, ["t_a"], true);
+    expect(locked.start_offset_days).toBeUndefined();
+    expect(locked.due_offset_days).toBe(5);
+    expect(locked.recurrence).toEqual({ kind: "daily" });
   });
 });

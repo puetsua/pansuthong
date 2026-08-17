@@ -1,3 +1,4 @@
+import { pad2 } from "./dates";
 import { MS_PER_SECOND, SECONDS_PER_HOUR, SECONDS_PER_MINUTE } from "./duration";
 import { Task, TimeEntry } from "./tauri";
 
@@ -72,15 +73,13 @@ export function elapsedMs(task: Task, nowMs: number): number {
   return (task.time_entries ?? []).reduce((sum, e) => sum + entryMs(e, nowMs), 0);
 }
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
 /** A live clock: `M:SS` under an hour, `H:MM:SS` from an hour up (#81). */
 export function formatClock(ms: number): string {
   const total = Math.max(0, Math.floor(ms / MS_PER_SECOND));
   const s = total % SECONDS_PER_MINUTE;
   const m = Math.floor(total / SECONDS_PER_MINUTE) % SECONDS_PER_MINUTE;
   const h = Math.floor(total / SECONDS_PER_HOUR);
-  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+  return h > 0 ? `${h}:${pad2(m)}:${pad2(s)}` : `${m}:${pad2(s)}`;
 }
 
 /** A compact total for at-a-glance display: `45s`, `1m`, `1h 23m` (#81). */

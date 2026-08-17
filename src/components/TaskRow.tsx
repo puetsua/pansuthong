@@ -9,7 +9,8 @@ import { elapsedMs, formatClock, formatDurationShort, isTiming } from "../lib/ti
 import { useNow } from "../lib/useNow";
 import { playCompletionSound } from "../lib/sound";
 import { TaskEditor } from "./TaskEditor";
-import { currentDateFormat, currentTimeFormat, daysBetweenIso, formatIsoDate, formatTimeOfDay } from "../lib/dates";
+import { currentDateFormat, currentTimeFormat, daysBetweenIso, formatIsoDate, formatTimeOfDay, isOverdue } from "../lib/dates";
+import { MS_PER_SECOND } from "../lib/duration";
 import { currentLocale } from "../i18n";
 
 type Props = {
@@ -34,7 +35,7 @@ function whenLabel(task: Task, today: string, t: TFunction): { text: string; lat
   const schedT = task.start_time ? ` ${formatTimeOfDay(task.start_time, timeFmt, locale)}` : "";
   if (task.due_date) {
     if (task.due_date === today)       return { text: t("taskRow.dueToday", { time: dueT }), late: false };
-    if (task.due_date < today && !isDone(task)) return { text: t("taskRow.overdue", { days: daysBetweenIso(task.due_date, today) }), late: true };
+    if (isOverdue(task.due_date, today, isDone(task))) return { text: t("taskRow.overdue", { days: daysBetweenIso(task.due_date, today) }), late: true };
     return { text: t("taskRow.due", { date: formatIsoDate(task.due_date, dateFmt, locale), time: dueT }), late: false };
   }
   if (task.start_date === today) return { text: t("taskRow.today", { time: schedT }), late: false };
@@ -83,7 +84,7 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
   const now = useNow(running);
   const total = elapsedMs(task, now);
   // Estimate progress (#81): a thin bar along the row when an estimate is set.
-  const estimateMs = task.estimated_seconds != null ? task.estimated_seconds * 1_000 : 0;
+  const estimateMs = task.estimated_seconds != null ? task.estimated_seconds * MS_PER_SECOND : 0;
   const progressPct = estimateMs > 0 ? Math.round((total / estimateMs) * 100) : 0;
   // Red only signals an active overrun (running past the estimate); a stopped task
   // sitting over its estimate shows a full accent bar, not a red one (#81).

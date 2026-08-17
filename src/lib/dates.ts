@@ -127,7 +127,8 @@ function dateFromValue(value: string | number | Date | undefined | null): Date |
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function pad2(n: number): string {
+/** Two-digit zero-padded integer (clock and ISO date parts). */
+export function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
