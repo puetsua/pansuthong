@@ -56,10 +56,12 @@ export function TemplateRow({ template, tags, todayIso }: Props) {
       <div className="task-row">
         <button type="button" className="task-main" onClick={() => setEditing(true)}
                 aria-label={t("templateRow.edit", { title: template.title })}>
-          {template.recurrence_tag_id && (
-            <span className="task-recurring" title={t("templateRow.recurring")} aria-label={t("templateRow.recurring")}>↻</span>
-          )}
-          <span className="task-title">{template.title}</span>
+          <span className="task-heading">
+            {template.recurrence_tag_id && (
+              <span className="task-recurring" title={t("templateRow.recurring")} aria-label={t("templateRow.recurring")}>↻</span>
+            )}
+            <span className="task-title">{template.title}</span>
+          </span>
           {tmplTags.map(t => (
             <span key={t.id} className="task-tag" style={{ background: t.color, color: readableTextColor(t.color) }}>
               {t.name}
