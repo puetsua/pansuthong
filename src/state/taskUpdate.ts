@@ -1,3 +1,5 @@
+import { dateTimeKey } from "../lib/dates";
+import { SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE } from "../lib/duration";
 import { Attachment, Recurrence, TaskUpdate, TemplateUpdate, YearlyDate } from "../lib/tauri";
 import i18n from "../i18n";
 
@@ -45,16 +47,16 @@ export function startOffsetDisabled(form: Pick<EditorForm, "repeat" | "recurrenc
   return form.repeat !== "none" && form.recurrence_tag_id.trim() !== "";
 }
 
-export const ESTIMATED_SECONDS_MAX = 100_000 * 60;
+export const ESTIMATED_SECONDS_MAX = 100_000 * SECONDS_PER_MINUTE;
 
 function parseIsoDurationSeconds(raw: string): number | null {
   const match = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/i.exec(raw);
   if (!match) return null;
   const [, days, hours, minutes, seconds] = match;
   if (days == null && hours == null && minutes == null && seconds == null) return null;
-  return (Number(days ?? 0) * 86_400)
-    + (Number(hours ?? 0) * 3_600)
-    + (Number(minutes ?? 0) * 60)
+  return (Number(days ?? 0) * SECONDS_PER_DAY)
+    + (Number(hours ?? 0) * SECONDS_PER_HOUR)
+    + (Number(minutes ?? 0) * SECONDS_PER_MINUTE)
     + Number(seconds ?? 0);
 }
 
@@ -67,9 +69,9 @@ function parseUnitDurationSeconds(raw: string): number | null {
     if (gap !== "") return null;
     const n = Number(match[1]);
     const unit = match[2].toLowerCase();
-    total += unit === "d" ? n * 86_400
-      : unit === "h" ? n * 3_600
-      : unit === "m" ? n * 60
+    total += unit === "d" ? n * SECONDS_PER_DAY
+      : unit === "h" ? n * SECONDS_PER_HOUR
+      : unit === "m" ? n * SECONDS_PER_MINUTE
       : n;
     lastIndex = (match.index ?? 0) + match[0].length;
   }
@@ -80,7 +82,7 @@ function parseUnitDurationSeconds(raw: string): number | null {
 export function parseEstimatedSeconds(s: string): number | null {
   const t = s.trim();
   if (t === "") return null;
-  if (/^\d+$/.test(t)) return Number(t) * 60; // bare numbers preserve the old minutes input.
+  if (/^\d+$/.test(t)) return Number(t) * SECONDS_PER_MINUTE; // bare numbers preserve the old minutes input.
   if (/^P/i.test(t)) return parseIsoDurationSeconds(t);
   return parseUnitDurationSeconds(t);
 }
@@ -88,9 +90,9 @@ export function parseEstimatedSeconds(s: string): number | null {
 export function formatEstimatedSecondsInput(seconds: number | undefined): string {
   if (seconds == null) return "";
   const units = [
-    ["d", 86_400],
-    ["h", 3_600],
-    ["m", 60],
+    ["d", SECONDS_PER_DAY],
+    ["h", SECONDS_PER_HOUR],
+    ["m", SECONDS_PER_MINUTE],
     ["s", 1],
   ] as const;
   let remaining = seconds;
@@ -113,6 +115,11 @@ function estimatedSecondsOrNull(s: string): number | null {
 /** "" => undefined for create payloads; otherwise the parsed integer. */
 export function estimatedSecondsOrUndefined(s: string): number | undefined {
   return estimatedSecondsOrNull(s) ?? undefined;
+}
+
+/** "" => undefined for create payloads; otherwise the parsed integer offset. */
+export function offsetDaysOrUndefined(s: string): number | undefined {
+  return offsetOrNull(s) ?? undefined;
 }
 
 /**
@@ -202,11 +209,6 @@ export function estimatedSecondsFormError(
   return null;
 }
 
-/** A comparable "date[Ttime]" moment; a missing time counts as start-of-day (#93). */
-function moment(date: string, time: string): string {
-  return `${date}T${time || "00:00"}`;
-}
-
 /**
  * True when both dates are set and the due moment precedes the start moment
  * (#51). Compares to the minute when times are present, and stays equivalent to
@@ -216,7 +218,9 @@ export function dueBeforeStart(
   form: Pick<EditorForm, "start_date" | "start_time" | "due_date" | "due_time">,
 ): boolean {
   if (!form.start_date || !form.due_date) return false;
-  return moment(form.due_date, form.due_time) < moment(form.start_date, form.start_time);
+  const due = dateTimeKey(form.due_date, form.due_time);
+  const start = dateTimeKey(form.start_date, form.start_time);
+  return due != null && start != null && due < start;
 }
 
 /** Upper bound for a template's relative date offset; mirrors the Rust

@@ -7,7 +7,7 @@ import type { Components } from "react-markdown";
 import { api, Attachment, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { isAndroid } from "../lib/platform";
-import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, estimatedSecondsFormError, estimatedSecondsOrUndefined, formatEstimatedSecondsInput, isEditorDirty, maxDayForMonth, offsetFormError, recurrenceFormError, recurrenceFromForm, startOffsetDisabled } from "../state/taskUpdate";
+import { buildTaskUpdate, buildTemplateUpdate, dueBeforeStart, EditorForm, estimatedSecondsFormError, estimatedSecondsOrUndefined, formatEstimatedSecondsInput, isEditorDirty, maxDayForMonth, offsetDaysOrUndefined, offsetFormError, recurrenceFormError, recurrenceFromForm, startOffsetDisabled } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
 import { readableTextColor } from "../lib/tags";
@@ -243,12 +243,6 @@ export function TaskEditor(props: Props) {
     return [...form.tag_ids, ...newIds.filter(id => !form.tag_ids.includes(id))];
   };
 
-  /** "" => undefined (no offset); otherwise the parsed integer. */
-  const offsetNum = (s: string): number | undefined => {
-    const n = parseInt(s.trim(), 10);
-    return Number.isNaN(n) ? undefined : n;
-  };
-
   const save = async () => {
     if (!form.title.trim()) { setError(t("taskEditor.titleEmpty")); return; }
     if (dateError) { setError(dateError); return; }
@@ -265,8 +259,8 @@ export function TaskEditor(props: Props) {
             notes: form.notes,
             attachments: form.attachments,
             tag_ids: tagIds,
-            start_offset_days: isStartOffsetDisabled ? undefined : offsetNum(form.start_offset_days),
-            due_offset_days: offsetNum(form.due_offset_days),
+            start_offset_days: isStartOffsetDisabled ? undefined : offsetDaysOrUndefined(form.start_offset_days),
+            due_offset_days: offsetDaysOrUndefined(form.due_offset_days),
             estimated_seconds: estimatedSecondsOrUndefined(form.estimated_seconds),
             recurrence: recurrenceFromForm(form),
             recurrence_tag_id: form.repeat !== "none" ? (form.recurrence_tag_id || null) : null,

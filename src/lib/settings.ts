@@ -12,6 +12,12 @@ import {
   TimeFormat,
 } from "./dates";
 
+function clampInt(raw: string | number, min: number, max: number, fallback: number): number {
+  const n = typeof raw === "number" ? Math.trunc(raw) : parseInt(raw, 10);
+  if (Number.isNaN(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
 /** Default Upcoming horizon (days ahead) when a document doesn't specify one. */
 export const UPCOMING_DAYS_DEFAULT = 14;
 /** Inclusive bounds for the configurable Upcoming horizon (mirrors the Rust check). */
@@ -25,9 +31,7 @@ export function upcomingDays(settings: Settings): number {
 
 /** Parse a free-typed day count to an integer clamped to the allowed range. */
 export function clampUpcomingDays(raw: string | number): number {
-  const n = typeof raw === "number" ? Math.trunc(raw) : parseInt(raw, 10);
-  if (Number.isNaN(n)) return UPCOMING_DAYS_DEFAULT;
-  return Math.max(UPCOMING_DAYS_MIN, Math.min(UPCOMING_DAYS_MAX, n));
+  return clampInt(raw, UPCOMING_DAYS_MIN, UPCOMING_DAYS_MAX, UPCOMING_DAYS_DEFAULT);
 }
 
 /** Default hour the logical day rolls over at (0 = midnight, current behavior). */
@@ -43,9 +47,7 @@ export function dayStartHour(settings: Settings): number {
 
 /** Parse a free-typed hour to an integer clamped to 0..23. */
 export function clampDayStartHour(raw: string | number): number {
-  const n = typeof raw === "number" ? Math.trunc(raw) : parseInt(raw, 10);
-  if (Number.isNaN(n)) return DAY_START_HOUR_DEFAULT;
-  return Math.max(DAY_START_HOUR_MIN, Math.min(DAY_START_HOUR_MAX, n));
+  return clampInt(raw, DAY_START_HOUR_MIN, DAY_START_HOUR_MAX, DAY_START_HOUR_DEFAULT);
 }
 
 /** Color a new tag starts with when the user hasn't set a preference (#79). */
@@ -101,9 +103,7 @@ export function reminderIntervalMinutes(settings: Settings): number {
 
 /** Parse a free-typed minute count to an integer clamped to the allowed range. */
 export function clampReminderInterval(raw: string | number): number {
-  const n = typeof raw === "number" ? Math.trunc(raw) : parseInt(raw, 10);
-  if (Number.isNaN(n)) return REMINDER_INTERVAL_DEFAULT;
-  return Math.max(REMINDER_INTERVAL_MIN, Math.min(REMINDER_INTERVAL_MAX, n));
+  return clampInt(raw, REMINDER_INTERVAL_MIN, REMINDER_INTERVAL_MAX, REMINDER_INTERVAL_DEFAULT);
 }
 
 /** Default largest attachment size (MiB) when a document doesn't specify one. */
@@ -121,9 +121,7 @@ export function maxAttachmentMb(settings: Settings): number {
 
 /** Parse a free-typed MiB count to an integer clamped to the allowed range. */
 export function clampMaxAttachmentMb(raw: string | number): number {
-  const n = typeof raw === "number" ? Math.trunc(raw) : parseInt(raw, 10);
-  if (Number.isNaN(n)) return MAX_ATTACHMENT_MB_DEFAULT;
-  return Math.max(MAX_ATTACHMENT_MB_MIN, Math.min(MAX_ATTACHMENT_MB_MAX, n));
+  return clampInt(raw, MAX_ATTACHMENT_MB_MIN, MAX_ATTACHMENT_MB_MAX, MAX_ATTACHMENT_MB_DEFAULT);
 }
 
 /** Default Dashboard heatmap range (days back from today). */
@@ -140,9 +138,7 @@ export function dashboardHeatmapDays(settings: Settings): number {
 
 /** Parse a free-typed day count to an integer clamped to the allowed range. */
 export function clampDashboardHeatmapDays(raw: string | number): number {
-  const n = typeof raw === "number" ? Math.trunc(raw) : parseInt(raw, 10);
-  if (Number.isNaN(n)) return DASHBOARD_HEATMAP_DAYS_DEFAULT;
-  return Math.max(DASHBOARD_HEATMAP_DAYS_MIN, Math.min(DASHBOARD_HEATMAP_DAYS_MAX, n));
+  return clampInt(raw, DASHBOARD_HEATMAP_DAYS_MIN, DASHBOARD_HEATMAP_DAYS_MAX, DASHBOARD_HEATMAP_DAYS_DEFAULT);
 }
 
 /** Default first day of the week for the heatmap (1 = Monday, the prior behavior). */
@@ -158,7 +154,5 @@ export function firstDayOfWeek(settings: Settings): number {
 
 /** Parse a free-typed weekday index to an integer clamped to 0..6. */
 export function clampFirstDayOfWeek(raw: string | number): number {
-  const n = typeof raw === "number" ? Math.trunc(raw) : parseInt(raw, 10);
-  if (Number.isNaN(n)) return FIRST_DAY_OF_WEEK_DEFAULT;
-  return Math.max(FIRST_DAY_OF_WEEK_MIN, Math.min(FIRST_DAY_OF_WEEK_MAX, n));
+  return clampInt(raw, FIRST_DAY_OF_WEEK_MIN, FIRST_DAY_OF_WEEK_MAX, FIRST_DAY_OF_WEEK_DEFAULT);
 }

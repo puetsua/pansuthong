@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addDaysIso, daysBetweenIso, formatDate, formatDateTime, formatIsoDate, formatIsoLocal, formatIsoLocalShort, formatTime, formatTimeOfDay, logicalDayOf, todayIso,
+  addDaysIso, dateTimeKey, daysBetweenIso, earliestDateTimeKey, formatDate, formatDateTime, formatDatetimeLocalValue, formatIsoDate, formatIsoLocal, formatIsoLocalShort, formatTime, formatTimeOfDay, isOverdue, logicalDayOf, todayIso,
 } from "./dates";
 
 describe("todayIso (day-start hour)", () => {
@@ -142,8 +142,8 @@ describe("formatDateTime", () => {
   });
 
   it("uses the supplied locale for the locale preset", () => {
-    const en = formatDateTime(instant, "locale", "en");
-    const zh = formatDateTime(instant, "locale", "zh-TW");
+    const en = formatDateTime(instant, "locale", "locale", "en");
+    const zh = formatDateTime(instant, "locale", "locale", "zh-TW");
     expect(en).toContain("2026");
     expect(zh).toContain("2026");
     // The two locales should produce visibly different strings.
@@ -227,5 +227,35 @@ describe("formatDate / formatTime", () => {
 
   it("formats HH:MM local task time fields", () => {
     expect(formatTimeOfDay("09:30", "twenty_four", "en-GB")).toBe("09:30:00");
+  });
+});
+
+describe("dateTimeKey / earliestDateTimeKey", () => {
+  it("treats a missing time as start-of-day and a missing date as undefined", () => {
+    expect(dateTimeKey("2026-06-01", "09:30")).toBe("2026-06-01T09:30");
+    expect(dateTimeKey("2026-06-01", "")).toBe("2026-06-01T00:00");
+    expect(dateTimeKey(undefined, "09:30")).toBeUndefined();
+  });
+
+  it("picks the earliest populated date+time pair", () => {
+    expect(earliestDateTimeKey("2026-06-02", "", "2026-06-01", "18:00")).toBe("2026-06-01T18:00");
+    expect(earliestDateTimeKey("2026-06-02", "08:00", undefined, undefined)).toBe("2026-06-02T08:00");
+    expect(earliestDateTimeKey(undefined, undefined, undefined, undefined)).toBeUndefined();
+  });
+});
+
+describe("isOverdue", () => {
+  it("is true only for an open task whose due date is before today", () => {
+    expect(isOverdue("2026-06-01", "2026-06-02", false)).toBe(true);
+    expect(isOverdue("2026-06-02", "2026-06-02", false)).toBe(false);
+    expect(isOverdue("2026-06-01", "2026-06-02", true)).toBe(false);
+    expect(isOverdue(undefined, "2026-06-02", false)).toBe(false);
+  });
+});
+
+describe("formatDatetimeLocalValue", () => {
+  it("formats local wall time for a datetime-local input", () => {
+    const ms = new Date(2026, 5, 12, 8, 9, 10).getTime();
+    expect(formatDatetimeLocalValue(ms)).toBe("2026-06-12T08:09:10");
   });
 });

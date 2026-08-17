@@ -6,7 +6,8 @@ import { elapsedMs, formatClock, formatDurationShort, isTiming, overlapsExisting
 import { estimatedSecondsOrUndefined, formatEstimatedSecondsInput } from "../state/taskUpdate";
 import { useNow } from "../lib/useNow";
 import { currentLocale } from "../i18n";
-import { currentDateFormat, currentTimeFormat, formatDateTime } from "../lib/dates";
+import { currentDateFormat, currentTimeFormat, formatDateTime, formatDatetimeLocalValue } from "../lib/dates";
+import { MS_PER_MINUTE, MS_PER_SECOND } from "../lib/duration";
 
 type Props = {
   task: Task;
@@ -21,12 +22,7 @@ type Props = {
 
 /** "YYYY-MM-DDTHH:MM:SS" in local time for a second-precision datetime-local input.
  *  Seconds are included so the timer's second-level resolution survives a manual edit. */
-function toLocalInput(ms: number): string {
-  const d = new Date(ms);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T` +
-         `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
+const toLocalInput = formatDatetimeLocalValue;
 const fromLocalInput = (s: string): number => new Date(s).getTime();
 const entryMs = (s: string): number => Date.parse(s);
 /** A finished entry's duration, or 0 while it's still running. */
@@ -38,7 +34,7 @@ const fmtMoment = (ms: number): string => formatDateTime(ms, currentDateFormat()
 function durationOfRange(start: string, end: string): string {
   const s = fromLocalInput(start), e = fromLocalInput(end);
   if (Number.isNaN(s) || Number.isNaN(e) || e <= s) return "";
-  return formatEstimatedSecondsInput(Math.round((e - s) / 1_000));
+  return formatEstimatedSecondsInput(Math.round((e - s) / MS_PER_SECOND));
 }
 
 // start/end are the stored source of truth; `duration` is a synced convenience
@@ -68,7 +64,7 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
     const s = fromLocalInput(d.start);
     // Only move `end` once the typed duration parses to a positive length.
     return secs != null && secs > 0 && !Number.isNaN(s)
-      ? { ...d, duration: v, end: toLocalInput(s + secs * 1_000) }
+      ? { ...d, duration: v, end: toLocalInput(s + secs * MS_PER_SECOND) }
       : { ...d, duration: v };
   });
 
@@ -79,7 +75,7 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
   // edits before Save; fall back to the saved task's value otherwise.
   const estimateValue = estimateInput ?? formatEstimatedSecondsInput(task.estimated_seconds);
   const estimateSeconds = estimatedSecondsOrUndefined(estimateValue);
-  const estimateMs = estimateSeconds != null ? estimateSeconds * 1_000 : 0;
+  const estimateMs = estimateSeconds != null ? estimateSeconds * MS_PER_SECOND : 0;
   // Red signals an *active* overrun: only while the timer is running past the
   // estimate. A stopped task that happens to be over its estimate isn't flagged.
   const over = running && estimateMs > 0 && total >= estimateMs;
@@ -96,7 +92,7 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
     // Sample the clock now: `now` only ticks while a timer runs, so it can be stale.
     // Default to a one-minute slot starting now, which the user then adjusts.
     const t = Date.now();
-    const start = toLocalInput(t), end = toLocalInput(t + 60_000);
+    const start = toLocalInput(t), end = toLocalInput(t + MS_PER_MINUTE);
     setDraft({ start, end, duration: durationOfRange(start, end) });
     setAdding(true);
   };

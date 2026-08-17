@@ -1,3 +1,4 @@
+import { MS_PER_SECOND, SECONDS_PER_HOUR, SECONDS_PER_MINUTE } from "./duration";
 import { Task, TimeEntry } from "./tauri";
 
 /** The running time entry (the open interval with no `end`), if any (#81). */
@@ -75,19 +76,19 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 /** A live clock: `M:SS` under an hour, `H:MM:SS` from an hour up (#81). */
 export function formatClock(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const s = total % 60;
-  const m = Math.floor(total / 60) % 60;
-  const h = Math.floor(total / 3600);
+  const total = Math.max(0, Math.floor(ms / MS_PER_SECOND));
+  const s = total % SECONDS_PER_MINUTE;
+  const m = Math.floor(total / SECONDS_PER_MINUTE) % SECONDS_PER_MINUTE;
+  const h = Math.floor(total / SECONDS_PER_HOUR);
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
 /** A compact total for at-a-glance display: `45s`, `1m`, `1h 23m` (#81). */
 export function formatDurationShort(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  if (total < 60) return `${total}s`;
-  const m = Math.floor(total / 60) % 60;
-  const h = Math.floor(total / 3600);
+  const total = Math.max(0, Math.floor(ms / MS_PER_SECOND));
+  if (total < SECONDS_PER_MINUTE) return `${total}s`;
+  const m = Math.floor(total / SECONDS_PER_MINUTE) % SECONDS_PER_MINUTE;
+  const h = Math.floor(total / SECONDS_PER_HOUR);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 

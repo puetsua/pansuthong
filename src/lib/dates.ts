@@ -1,3 +1,5 @@
+import { MS_PER_DAY, MS_PER_HOUR } from "./duration";
+
 export type DateFormat =
   | "locale"
   | "locale_short"
@@ -129,6 +131,44 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+/** YYYY-MM-DD in the date's local calendar. */
+function formatLocalYmd(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/** HH:MM:SS in the date's local clock. */
+function formatLocalHms(d: Date): string {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
+function formatChineseYmd(yearLabel: string, d: Date): string {
+  return `${yearLabel}年${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+/** Comparable `date[Ttime]` key; a missing time is start-of-day. Undefined when date is missing. */
+export function dateTimeKey(date?: string, time?: string): string | undefined {
+  return date ? `${date}T${time || "00:00"}` : undefined;
+}
+
+/** Earliest of two optional date+time pairs, using `dateTimeKey` comparison. */
+export function earliestDateTimeKey(
+  aDate?: string,
+  aTime?: string,
+  bDate?: string,
+  bTime?: string,
+): string | undefined {
+  const a = dateTimeKey(aDate, aTime);
+  const b = dateTimeKey(bDate, bTime);
+  if (a && b) return a < b ? a : b;
+  return a ?? b;
+}
+
+/** `YYYY-MM-DDTHH:MM:SS` in local time for a `datetime-local` input. */
+export function formatDatetimeLocalValue(ms: number): string {
+  const d = new Date(ms);
+  return `${formatLocalYmd(d)}T${formatLocalHms(d)}`;
+}
+
 /** Format a date value according to the chosen preset. Returns an em dash for missing/invalid input. */
 export function formatDate(
   value: string | number | Date | undefined | null,
@@ -148,7 +188,7 @@ export function formatDate(
     case "locale_full":
       return d.toLocaleDateString(locale, { dateStyle: "full" });
     case "iso":
-      return formatIsoDateParts(d);
+      return formatLocalYmd(d);
     case "slash_ymd":
       return `${y}/${m}/${day}`;
     case "dot_ymd":
@@ -172,13 +212,13 @@ export function formatDate(
     case "chinese":
       return d.toLocaleDateString("zh-TW", { dateStyle: "long" });
     case "xiyuan_zh":
-      return `西元${y}年${d.getMonth() + 1}月${d.getDate()}日`;
+      return formatChineseYmd(`西元${y}`, d);
     case "gongyuan_zh":
-      return `公元${y}年${d.getMonth() + 1}月${d.getDate()}日`;
+      return formatChineseYmd(`公元${y}`, d);
     case "roc":
       return d.toLocaleDateString("zh-TW-u-ca-roc", { dateStyle: "long" });
     case "minguo_zh":
-      return `${formatMinguoYear(y)}年${d.getMonth() + 1}月${d.getDate()}日`;
+      return formatChineseYmd(formatMinguoYear(y), d);
     case "buddhist_thai":
       return d.toLocaleDateString("th-TH-u-ca-buddhist", { dateStyle: "long" });
     case "hebrew":
@@ -204,6 +244,18 @@ function formatMinguoYear(gregorianYear: number): string {
   return year > 0 ? `民國${year}` : `民國前${Math.abs(year) + 1}`;
 }
 
+const DAY_PERIOD_LOCALES = {
+  chinese_day_period: "zh-TW",
+  japanese_day_period: "ja-JP",
+  korean_day_period: "ko-KR",
+  thai_day_period: "th-TH",
+  arabic_day_period: "ar",
+} as const;
+
+function formatHour12(d: Date, locale: string): string {
+  return d.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
+}
+
 /** Format a time value according to the chosen preset. Returns an em dash for missing/invalid input. */
 export function formatTime(
   value: string | number | Date | undefined | null,
@@ -214,19 +266,15 @@ export function formatTime(
   if (!d) return "—";
   switch (format) {
     case "twenty_four":
-      return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+      return formatLocalHms(d);
     case "twelve_hour":
-      return d.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
+      return formatHour12(d, locale);
     case "chinese_day_period":
-      return d.toLocaleTimeString("zh-TW", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
     case "japanese_day_period":
-      return d.toLocaleTimeString("ja-JP", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
     case "korean_day_period":
-      return d.toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
     case "thai_day_period":
-      return d.toLocaleTimeString("th-TH", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
     case "arabic_day_period":
-      return d.toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
+      return formatHour12(d, DAY_PERIOD_LOCALES[format]);
     case "locale":
     default:
       return d.toLocaleTimeString(locale, { timeStyle: "medium" });
@@ -252,22 +300,12 @@ export function formatIsoDate(iso: string | undefined, format: DateFormat, local
 export function formatDateTime(
   value: string | number | Date | undefined | null,
   dateFormat: DateFormat,
-  timeFormatOrLocale: TimeFormat | string = DEFAULT_TIME_FORMAT,
+  timeFormat: TimeFormat = DEFAULT_TIME_FORMAT,
   locale = "en",
 ): string {
   const d = dateFromValue(value);
   if (!d) return "—";
-  const timeFormat = (TIME_FORMATS as readonly string[]).includes(timeFormatOrLocale)
-    ? timeFormatOrLocale as TimeFormat
-    : DEFAULT_TIME_FORMAT;
-  const effectiveLocale = (TIME_FORMATS as readonly string[]).includes(timeFormatOrLocale)
-    ? locale
-    : timeFormatOrLocale;
-  return `${formatDate(d, dateFormat, effectiveLocale)} ${formatTime(d, timeFormat, effectiveLocale)}`;
-}
-
-function formatIsoDateParts(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  return `${formatDate(d, dateFormat, locale)} ${formatTime(d, timeFormat, locale)}`;
 }
 
 /**
@@ -280,16 +318,11 @@ function formatIsoDateParts(d: Date): string {
 export function formatIsoLocal(ts: string | number | undefined | null): string {
   if (!ts) return "—";
   const d = new Date(ts);
-  const pad = (n: number) => String(n).padStart(2, "0");
   const offMin = -d.getTimezoneOffset(); // minutes east of UTC
   const sign = offMin >= 0 ? "+" : "-";
-  const offH = pad(Math.floor(Math.abs(offMin) / 60));
-  const offM = pad(Math.abs(offMin) % 60);
-  return (
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
-    `${sign}${offH}:${offM}`
-  );
+  const offH = pad2(Math.floor(Math.abs(offMin) / 60));
+  const offM = pad2(Math.abs(offMin) % 60);
+  return `${formatLocalYmd(d)}T${formatLocalHms(d)}${sign}${offH}:${offM}`;
 }
 
 /**
@@ -306,9 +339,8 @@ export function formatIsoLocalShort(
   if (!ts) return "—";
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return "—";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  const md = `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const hm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const md = `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   if (d.getFullYear() !== now.getFullYear()) return `${d.getFullYear()}-${md} ${hm}`;
   const sameDay = d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
   return sameDay ? hm : `${md} ${hm}`;
@@ -322,11 +354,8 @@ export function formatIsoLocalShort(
  * midnight rollover, identical to a normal calendar date.
  */
 export function todayIso(now: Date = new Date(), dayStartHour = 0): string {
-  const at = dayStartHour ? new Date(now.getTime() - dayStartHour * 3_600_000) : now;
-  const y = at.getFullYear();
-  const m = String(at.getMonth() + 1).padStart(2, "0");
-  const d = String(at.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  const at = dayStartHour ? new Date(now.getTime() - dayStartHour * MS_PER_HOUR) : now;
+  return formatLocalYmd(at);
 }
 
 /**
@@ -353,14 +382,13 @@ export function addDaysIso(baseIso: string, days: number): string {
   const [y, m, d] = baseIso.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   dt.setUTCDate(dt.getUTCDate() + days);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
 }
 
 /** Whole days from `fromIso` to `toIso` (negative when `toIso` is earlier). */
 export function daysBetweenIso(fromIso: string, toIso: string): number {
   const utc = (s: string) => { const [y, m, d] = s.split("-").map(Number); return Date.UTC(y, m - 1, d); };
-  return Math.round((utc(toIso) - utc(fromIso)) / 86_400_000);
+  return Math.round((utc(toIso) - utc(fromIso)) / MS_PER_DAY);
 }
 
 /** True if a task with this due date is overdue relative to today. */
