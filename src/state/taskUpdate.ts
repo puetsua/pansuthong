@@ -1,6 +1,6 @@
 import { dateTimeKey } from "../lib/dates";
 import { SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE } from "../lib/duration";
-import { Attachment, Recurrence, TaskUpdate, TemplateUpdate, YearlyDate } from "../lib/tauri";
+import { Attachment, NewTemplate, Recurrence, Task, TaskUpdate, TemplateTask, TemplateUpdate, YearlyDate } from "../lib/tauri";
 import i18n from "../i18n";
 
 export type EditorForm = {
@@ -120,6 +120,72 @@ export function estimatedSecondsOrUndefined(s: string): number | undefined {
 /** "" => undefined for create payloads; otherwise the parsed integer offset. */
 export function offsetDaysOrUndefined(s: string): number | undefined {
   return offsetOrNull(s) ?? undefined;
+}
+
+/** Seed the editor form from a task or template. Recurrence start defaults to `todayIso`. */
+export function editorFormFrom(input: {
+  isTemplate: boolean;
+  task?: Task | null;
+  template?: TemplateTask | null;
+  todayIso: string;
+}): EditorForm {
+  const { isTemplate, todayIso } = input;
+  const taskEntity = input.task ?? null;
+  const tmplEntity = input.template ?? null;
+  const entity = tmplEntity ?? taskEntity;
+  if (!entity) throw new Error("editorFormFrom requires a task or template");
+  return {
+    title: entity.title,
+    start_date: taskEntity?.start_date ?? "",
+    start_time: taskEntity?.start_time ?? "",
+    due_date: taskEntity?.due_date ?? "",
+    due_time: taskEntity?.due_time ?? "",
+    notes: entity.notes ?? "",
+    attachments: entity.attachments ?? [],
+    tag_ids: entity.tag_ids,
+    estimated_seconds: formatEstimatedSecondsInput(taskEntity?.estimated_seconds ?? tmplEntity?.estimated_seconds),
+    new_tag_names: [],
+    is_template: isTemplate,
+    due_offset_days: tmplEntity?.due_offset_days != null ? String(tmplEntity.due_offset_days) : "",
+    start_offset_days: tmplEntity?.start_offset_days != null ? String(tmplEntity.start_offset_days) : "",
+    repeat: tmplEntity?.recurrence?.kind ?? "none",
+    repeat_weekdays: tmplEntity?.recurrence?.kind === "weekly" ? tmplEntity.recurrence.weekdays : [],
+    repeat_days: tmplEntity?.recurrence?.kind === "monthly" ? tmplEntity.recurrence.days.join(", ") : "",
+    repeat_dates: tmplEntity?.recurrence?.kind === "yearly" ? tmplEntity.recurrence.dates : [],
+    recurrence_tag_id: tmplEntity?.recurrence_tag_id ?? "",
+    recurrence_start_date: tmplEntity?.recurrence_start_date ?? todayIso,
+  };
+}
+
+/** Create-task payload (undefined = omit optional field). */
+export function buildAddTaskPayload(form: EditorForm, tagIds: string[]): Partial<Task> & { title: string } {
+  return {
+    title: form.title.trim(),
+    start_date: form.start_date || undefined,
+    start_time: form.start_date && form.start_time ? form.start_time : undefined,
+    due_date: form.due_date || undefined,
+    due_time: form.due_date && form.due_time ? form.due_time : undefined,
+    notes: form.notes,
+    attachments: form.attachments,
+    tag_ids: tagIds,
+    estimated_seconds: estimatedSecondsOrUndefined(form.estimated_seconds),
+  };
+}
+
+/** Create-template payload. `startLocked` clears the start offset (recurrence tag set). */
+export function buildAddTemplatePayload(form: EditorForm, tagIds: string[], startLocked = false): NewTemplate {
+  return {
+    title: form.title.trim(),
+    notes: form.notes,
+    attachments: form.attachments,
+    tag_ids: tagIds,
+    start_offset_days: startLocked ? undefined : offsetDaysOrUndefined(form.start_offset_days),
+    due_offset_days: offsetDaysOrUndefined(form.due_offset_days),
+    estimated_seconds: estimatedSecondsOrUndefined(form.estimated_seconds),
+    recurrence: recurrenceFromForm(form),
+    recurrence_tag_id: form.repeat !== "none" ? (form.recurrence_tag_id || null) : null,
+    recurrence_start_date: form.repeat !== "none" ? (form.recurrence_start_date || null) : null,
+  };
 }
 
 /**
