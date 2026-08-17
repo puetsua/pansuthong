@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { MS_PER_SECOND } from "./duration";
 
 /**
  * Current epoch-ms, re-rendering once a second **only while `active`** so a running
@@ -10,7 +11,7 @@ export function useNow(active: boolean): number {
   useEffect(() => {
     if (!active) return;
     setNow(Date.now()); // resync immediately when timing starts
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    const id = setInterval(() => setNow(Date.now()), MS_PER_SECOND);
     return () => clearInterval(id);
   }, [active]);
   return now;

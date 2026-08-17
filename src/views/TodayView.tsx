@@ -5,19 +5,14 @@ import { Composer } from "../components/Composer";
 import { IdleStatus } from "../components/IdleStatus";
 import { RowList } from "../components/RowList";
 import { TaskList } from "../components/TaskList";
-import { Document, Task, isDone } from "../lib/tauri";
-import { formatIsoDate, isoLt } from "../lib/dates";
+import { Document, isDone } from "../lib/tauri";
+import { formatIsoDate, isOverdue } from "../lib/dates";
 import { currentLocale } from "../i18n";
 import { dateFormat } from "../lib/settings";
 import { useIdleAnchor } from "../lib/useIdleAnchor";
 import { Indexes, openCount } from "../state/indexes";
 
 type Props = { doc: Document; indexes: Indexes };
-
-/** Still-open and due before today; these get their own section below Today's list. */
-function isOverdue(task: Task, todayIso: string): boolean {
-  return !isDone(task) && task.due_date != null && isoLt(task.due_date, todayIso);
-}
 
 export function TodayView({ doc, indexes }: Props) {
   const { t } = useTranslation();
@@ -28,8 +23,8 @@ export function TodayView({ doc, indexes }: Props) {
   // `indexes.today` already sorts the combined list; partitioning preserves that order
   // within each group. Overdue tasks render in their own section below today's tasks.
   const all = indexes.today(today);
-  const overdue = all.filter(task => isOverdue(task, today));
-  const todays = all.filter(task => !isOverdue(task, today));
+  const overdue = all.filter(task => isOverdue(task.due_date, today, isDone(task)));
+  const todays = all.filter(task => !isOverdue(task.due_date, today, isDone(task)));
   // Recurring ghosts for today are merged into the same sorted sequence as today's
   // tasks, so a ghost sits where its promoted task would (#9) — promoting it no
   // longer jumps it out of a separate block at the top.

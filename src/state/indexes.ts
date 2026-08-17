@@ -1,5 +1,5 @@
 import { Document, SortOrder, Tag, Task, TemplateTask, isArchived, isDone } from "../lib/tauri";
-import { addDaysIso, isoLt, logicalDayOf, todayIso as computeTodayIso } from "../lib/dates";
+import { addDaysIso, earliestDateTimeKey, isoLt, logicalDayOf, todayIso as computeTodayIso } from "../lib/dates";
 import { dayStartHour } from "../lib/settings";
 import { GhostTask, occursOn } from "../lib/recurrence";
 
@@ -51,17 +51,9 @@ export function effectivePriority(task: Task, tagsById: Map<string, Tag>): numbe
   return priorityOfTags(task.tag_ids, tagsById);
 }
 
-/** "date[Ttime]" so same-day tasks order by time; missing time = start-of-day (#93). */
-function moment(date?: string, time?: string): string | undefined {
-  return date ? `${date}T${time || "00:00"}` : undefined;
-}
-
 /** Earliest of start/due as a comparable moment; undefined when the task has neither. */
 function sortDate(task: Task): string | undefined {
-  const s = moment(task.start_date, task.start_time);
-  const d = moment(task.due_date, task.due_time);
-  if (s && d) return s < d ? s : d;
-  return s ?? d;
+  return earliestDateTimeKey(task.start_date, task.start_time, task.due_date, task.due_time);
 }
 
 function byDateAsc(a: Task, b: Task): number {
@@ -113,18 +105,22 @@ type RowKey = { tagIds: string[]; date?: string; done: boolean };
 function rowKey(row: Row): RowKey {
   if (row.kind === "task") {
     const t = row.task;
-    const s = moment(t.start_date, t.start_time);
-    const d = moment(t.due_date, t.due_time);
-    return { tagIds: t.tag_ids, date: s && d ? (s < d ? s : d) : (s ?? d), done: isDone(t) };
+    return {
+      tagIds: t.tag_ids,
+      date: earliestDateTimeKey(t.start_date, t.start_time, t.due_date, t.due_time),
+      done: isDone(t),
+    };
   }
   const g = row.ghost;
   // Mirror the task branch exactly: a promoted ghost becomes a task with
   // start_date = occurrenceDate and due_date = g.due_date, so key it on the
   // earliest of the two. (occurrenceDate is always set, so the previous
-  // `?? moment(g.due_date)` fallback was dead code.)
-  const s = moment(g.occurrenceDate);
-  const d = moment(g.due_date);
-  return { tagIds: g.tag_ids, date: s && d ? (s < d ? s : d) : (s ?? d), done: false };
+  // due-only fallback was dead code.)
+  return {
+    tagIds: g.tag_ids,
+    date: earliestDateTimeKey(g.occurrenceDate, undefined, g.due_date, undefined),
+    done: false,
+  };
 }
 
 function rowOpenFirst(a: RowKey, b: RowKey): number {
