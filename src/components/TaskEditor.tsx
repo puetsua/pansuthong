@@ -13,6 +13,7 @@ import {
 } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
+import { playCompletionSound } from "../lib/sound";
 import { TagInput } from "./TagInput";
 import { TimeTracking } from "./TimeTracking";
 import { defaultPastedName, isManagedAttachmentPath, markdownRefFor } from "./task-editor/attachmentRefs";
@@ -32,6 +33,11 @@ type Props = {
   allTags: Map<string, Tag>;
   onClose: () => void;
   creating?: boolean;
+  // So the parent view can hold a just-completed task in the list (#161).
+  // Without this the row unmounts on store refresh and takes the editor with it.
+  // Do not notify onReopened here: dropping the hold before the store shows the
+  // task as open unmounts the row and closes the editor.
+  onCompleted?: (id: string) => void;
 } & (
   | { kind?: "task"; task: Task }
   | { kind: "template"; template: TemplateTask }
@@ -44,7 +50,7 @@ const markdownElements = [
 
 export function TaskEditor(props: Props) {
   const { t } = useTranslation();
-  const { allTags, onClose, creating = false } = props;
+  const { allTags, onClose, creating = false, onCompleted } = props;
   const isTemplate = props.kind === "template";
   const taskEntity = props.kind === "template" ? null : props.task;
   const tmplEntity = props.kind === "template" ? props.template : null;
@@ -241,10 +247,18 @@ export function TaskEditor(props: Props) {
     try {
       if (isDirty()) {
         const tagIds = await resolveTags();
-        await api.updateTask(buildTaskUpdate(entity.id, { ...form, tag_ids: tagIds }));
+        const saved = { ...form, tag_ids: tagIds, new_tag_names: [] };
+        await api.updateTask(buildTaskUpdate(entity.id, saved));
+        initialRef.current = saved;
+        setForm(saved);
       }
-      await api.setTaskDone(entity.id, !isDoneTask);
-      onClose();
+      const nextDone = !isDoneTask;
+      await api.setTaskDone(entity.id, nextDone);
+      if (nextDone) {
+        playCompletionSound();
+        onCompleted?.(entity.id);
+      }
+      setBusy(false);
     } catch (err) {
       setError(errorMessage(err));
       setBusy(false);
@@ -460,9 +474,9 @@ export function TaskEditor(props: Props) {
           <div className="te-title-actions">
             <h2>{heading}</h2>
             {canComplete && (
-              <button type="button" className="te-complete" onClick={toggleComplete} disabled={busy}>
-                {isDoneTask ? t("taskEditor.reopen") : t("taskEditor.complete")}
-              </button>
+              <input type="checkbox" className="te-complete-check" checked={isDoneTask}
+                     onChange={toggleComplete} disabled={busy}
+                     aria-label={t("taskEditor.toggle", { title: entity.title })} />
             )}
           </div>
           <button type="button" className="te-close" aria-label={t("taskEditor.close")}
