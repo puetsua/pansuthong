@@ -10,6 +10,7 @@ import { formatIsoDate, isOverdue } from "../lib/dates";
 import { currentLocale } from "../i18n";
 import { dateFormat } from "../lib/settings";
 import { useIdleAnchor } from "../lib/useIdleAnchor";
+import { useHeldCompletions, withHeld } from "../state/heldCompletions";
 import { Indexes, openCount } from "../state/indexes";
 
 type Props = { doc: Document; indexes: Indexes };
@@ -20,9 +21,12 @@ export function TodayView({ doc, indexes }: Props) {
   const { idleAnchorMs, resetIdleAnchor } = useIdleAnchor();
   const today = indexes.todayIso;
   const todayLabel = formatIsoDate(today, dateFormat(doc.settings), currentLocale());
+  // Date-based linger keeps completed-today tasks until rollover; also hold until
+  // this view unmounts so an editor checkbox cannot drop the row (and the modal).
+  const { held, onCompleted, onReopened } = useHeldCompletions(doc.tasks);
   // `indexes.today` already sorts the combined list; partitioning preserves that order
   // within each group. Overdue tasks render in their own section below today's tasks.
-  const all = indexes.today(today);
+  const all = withHeld(indexes.today(today), held);
   const overdue = all.filter(task => isOverdue(task.due_date, today, isDone(task)));
   const todays = all.filter(task => !isOverdue(task.due_date, today, isDone(task)));
   // Recurring ghosts for today are merged into the same sorted sequence as today's
@@ -49,11 +53,13 @@ export function TodayView({ doc, indexes }: Props) {
         <Composer startDate={today} todayIso={today} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} />
       )}
       <RowList rows={todayRows} tags={indexes.tagsById} todayIso={today}
-               emptyText={t("today.empty")} onTimerStarted={() => setAssigning(false)} />
+               emptyText={t("today.empty")} onCompleted={onCompleted} onReopened={onReopened}
+               onTimerStarted={() => setAssigning(false)} />
       {overdue.length > 0 && (
         <div className="overdue-group">
           <h3 className="overdue-heading">{t("today.overdue")} · {t("common.taskCount", { count: overdue.length })}</h3>
           <TaskList tasks={overdue} tags={indexes.tagsById} todayIso={today}
+                    onCompleted={onCompleted} onReopened={onReopened}
                     onTimerStarted={() => setAssigning(false)} />
         </div>
       )}

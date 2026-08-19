@@ -33,6 +33,10 @@ type Props = {
   allTags: Map<string, Tag>;
   onClose: () => void;
   creating?: boolean;
+  // So the parent view can hold a just-completed task in the list (#161).
+  // Without this the row unmounts on store refresh and takes the editor with it.
+  onCompleted?: (id: string) => void;
+  onReopened?: (id: string) => void;
 } & (
   | { kind?: "task"; task: Task }
   | { kind: "template"; template: TemplateTask }
@@ -45,7 +49,7 @@ const markdownElements = [
 
 export function TaskEditor(props: Props) {
   const { t } = useTranslation();
-  const { allTags, onClose, creating = false } = props;
+  const { allTags, onClose, creating = false, onCompleted, onReopened } = props;
   const isTemplate = props.kind === "template";
   const taskEntity = props.kind === "template" ? null : props.task;
   const tmplEntity = props.kind === "template" ? props.template : null;
@@ -249,7 +253,12 @@ export function TaskEditor(props: Props) {
       }
       const nextDone = !isDoneTask;
       await api.setTaskDone(entity.id, nextDone);
-      if (nextDone) playCompletionSound();
+      if (nextDone) {
+        playCompletionSound();
+        onCompleted?.(entity.id);
+      } else {
+        onReopened?.(entity.id);
+      }
       setBusy(false);
     } catch (err) {
       setError(errorMessage(err));

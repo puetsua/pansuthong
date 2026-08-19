@@ -19,6 +19,11 @@ The task editor SHALL expose completion as a checkbox that matches the list-row 
 - **WHEN** the user checks the editor completion checkbox
 - **THEN** the task is marked done and the editor stays open with the checkbox checked
 
+#### Scenario: Completed task lingers until the view is left
+
+- **WHEN** the user checks the editor completion checkbox on a list view
+- **THEN** the task stays in that view (de-emphasised) until the user navigates away, and the editor remains open
+
 #### Scenario: Unchecking the box reopens the task
 
 - **WHEN** the user unchecks the editor completion checkbox

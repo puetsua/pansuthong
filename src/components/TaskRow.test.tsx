@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { Tag, Task } from "../lib/tauri";
 import { TaskRow } from "./TaskRow";
 import { setDateFormat, setTimeFormat, DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT } from "../lib/dates";
@@ -54,6 +54,15 @@ describe("TaskRow active mode", () => {
   it("does not show duplicate as a row action", () => {
     render(<TaskRow task={baseTask} tags={tags} todayIso="2026-05-31" />);
     expect(screen.queryByRole("button", { name: /duplicate/i })).toBeNull();
+  });
+
+  it("holds the completion when the editor checkbox is used", async () => {
+    const onCompleted = vi.fn();
+    render(<TaskRow task={baseTask} tags={tags} todayIso="2026-05-31" onCompleted={onCompleted} />);
+    fireEvent.click(screen.getByRole("button", { name: /edit write report/i }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("checkbox", { name: /toggle/i }));
+    await waitFor(() => expect(onCompleted).toHaveBeenCalledWith("k_1"));
+    expect(screen.getByRole("dialog")).toBeTruthy();
   });
 });
 

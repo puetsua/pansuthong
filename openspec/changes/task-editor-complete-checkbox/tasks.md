@@ -14,3 +14,8 @@
 - [x] 3.1 Rewrite `TaskEditor complete button` tests to the checkbox role: unchecked/checked, complete/reopen, save-before-toggle, no close, hidden for create/template.
 - [x] 3.2 Run `npm test -- TaskEditor` and `npm run lint`.
 - [x] 3.3 `openspec validate task-editor-complete-checkbox --strict` passes.
+
+## 4. Linger until the view is left
+
+- [x] 4.1 Forward `onCompleted` / `onReopened` from `TaskRow` into `TaskEditor` and call them after `setTaskDone`.
+- [x] 4.2 Hold completions on Today the same way as Inbox so the row (and modal) stay mounted.

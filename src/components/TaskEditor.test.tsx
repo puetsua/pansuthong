@@ -738,12 +738,16 @@ describe("TaskEditor complete checkbox", () => {
 
   it("marks an active task done and stays open", async () => {
     const onClose = vi.fn();
-    const { rerender } = render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+    const onCompleted = vi.fn();
+    const { rerender } = render(
+      <TaskEditor task={baseTask} allTags={tags} onClose={onClose} onCompleted={onCompleted} />,
+    );
 
     fireEvent.click(completeBox());
 
     await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", true));
     expect(onClose).not.toHaveBeenCalled();
+    expect(onCompleted).toHaveBeenCalledWith("k_1");
     expect(playCompletionSound).toHaveBeenCalled();
 
     rerender(<TaskEditor task={{ ...baseTask, completed_at: "2026-06-01T10:00:00+08:00" }} allTags={tags} onClose={onClose} />);
@@ -764,12 +768,14 @@ describe("TaskEditor complete checkbox", () => {
 
   it("reopens a done task without a redundant save", async () => {
     const doneTask: Task = { ...baseTask, completed_at: "2026-06-01T10:00:00+08:00" };
-    render(<TaskEditor task={doneTask} allTags={tags} onClose={vi.fn()} />);
+    const onReopened = vi.fn();
+    render(<TaskEditor task={doneTask} allTags={tags} onClose={vi.fn()} onReopened={onReopened} />);
 
     fireEvent.click(completeBox());
 
     await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", false));
     expect(api.updateTask).not.toHaveBeenCalled();
+    expect(onReopened).toHaveBeenCalledWith("k_1");
     expect(playCompletionSound).not.toHaveBeenCalled();
   });
 
