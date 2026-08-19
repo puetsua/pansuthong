@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -106,13 +106,15 @@ export function TaskEditor(props: Props) {
       if (e.key !== "Tab") return;
       const root = dialogRef.current;
       if (!root) return;
-      const f = root.querySelectorAll<HTMLElement>(
+      const focusable = root.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       );
-      if (f.length === 0) return;
-      const first = f[0], last = f[f.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      if (focusable.length === 0) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      // tabIndex=-1 is omitted from the list; treat the parked dialog as a cycle edge (#160).
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === root)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (active === last || active === root)) { e.preventDefault(); first.focus(); }
     };
     window.addEventListener("keydown", onKey);
     const opener = restoreFocusRef.current;
@@ -122,12 +124,10 @@ export function TaskEditor(props: Props) {
     };
   }, []);
 
-  // Existing tasks: park focus on the dialog so opening to read/complete does
-  // not raise the Android keyboard on the title (#160). Creating still uses
-  // the title input's autoFocus.
-  useEffect(() => {
-    if (creating) return;
-    dialogRef.current?.focus();
+  // Park on the dialog when not creating: a focused input raises the Android
+  // IME (#160), and #root is inert so the opener cannot keep focus.
+  useLayoutEffect(() => {
+    if (!creating) dialogRef.current?.focus();
   }, [creating]);
 
   useEffect(() => {

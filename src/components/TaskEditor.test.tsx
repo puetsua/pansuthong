@@ -789,22 +789,58 @@ describe("TaskEditor complete checkbox", () => {
 });
 
 describe("TaskEditor title focus (#160)", () => {
-  it("does not autofocus the title when opening an existing task", () => {
-    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
-    const title = screen.getByLabelText("Title");
-    expect(document.activeElement).not.toBe(title);
+  // React autoFocus calls focus() and does not set the HTML attribute. Spy so a
+  // later dialog.focus() cannot hide a title autoFocus via activeElement.
+  function titleReceivedFocus(renderEditor: () => void): boolean {
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    try {
+      renderEditor();
+      return focus.mock.instances.includes(screen.getByLabelText("Title"));
+    } finally {
+      focus.mockRestore();
+    }
+  }
+
+  it("does not focus the title when opening an existing task", () => {
+    expect(titleReceivedFocus(() => {
+      render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+    })).toBe(false);
     expect(document.activeElement).toBe(screen.getByRole("dialog"));
   });
 
-  it("does not autofocus the title when opening an existing template", () => {
-    render(<TaskEditor kind="template" template={templateTask} allTags={tags} onClose={vi.fn()} />);
-    expect(document.activeElement).not.toBe(screen.getByLabelText("Title"));
+  it("does not focus the title when opening an existing template", () => {
+    expect(titleReceivedFocus(() => {
+      render(<TaskEditor kind="template" template={templateTask} allTags={tags} onClose={vi.fn()} />);
+    })).toBe(false);
     expect(document.activeElement).toBe(screen.getByRole("dialog"));
   });
 
   it("autofocuses the title when creating", () => {
-    render(<TaskEditor task={{ ...baseTask, id: "", title: "" }} allTags={tags} creating onClose={vi.fn()} />);
+    expect(titleReceivedFocus(() => {
+      render(<TaskEditor task={{ ...baseTask, id: "", title: "" }} allTags={tags} creating onClose={vi.fn()} />);
+    })).toBe(true);
     expect(document.activeElement).toBe(screen.getByLabelText("Title"));
+  });
+
+  it("autofocuses the title when creating from a filled draft", () => {
+    expect(titleReceivedFocus(() => {
+      render(<TaskEditor task={{ ...baseTask, id: "", title: "From template" }} allTags={tags} creating onClose={vi.fn()} />);
+    })).toBe(true);
+    expect(document.activeElement).toBe(screen.getByLabelText("Title"));
+  });
+
+  it("autofocuses the title when creating a template", () => {
+    expect(titleReceivedFocus(() => {
+      render(<TaskEditor kind="template" template={{ ...templateTask, id: "", title: "" }} allTags={tags} creating onClose={vi.fn()} />);
+    })).toBe(true);
+    expect(document.activeElement).toBe(screen.getByLabelText("Title"));
+  });
+
+  it("wraps Shift+Tab from the parked dialog to the last control", () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+    expect(document.activeElement).toBe(screen.getByRole("dialog"));
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /^save$/i }));
   });
 });
 
