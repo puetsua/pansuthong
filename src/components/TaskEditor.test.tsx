@@ -788,6 +788,26 @@ describe("TaskEditor complete checkbox", () => {
   });
 });
 
+describe("TaskEditor title focus (#160)", () => {
+  it("does not autofocus the title when opening an existing task", () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+    const title = screen.getByLabelText("Title");
+    expect(document.activeElement).not.toBe(title);
+    expect(document.activeElement).toBe(screen.getByRole("dialog"));
+  });
+
+  it("does not autofocus the title when opening an existing template", () => {
+    render(<TaskEditor kind="template" template={templateTask} allTags={tags} onClose={vi.fn()} />);
+    expect(document.activeElement).not.toBe(screen.getByLabelText("Title"));
+    expect(document.activeElement).toBe(screen.getByRole("dialog"));
+  });
+
+  it("autofocuses the title when creating", () => {
+    render(<TaskEditor task={{ ...baseTask, id: "", title: "" }} allTags={tags} creating onClose={vi.fn()} />);
+    expect(document.activeElement).toBe(screen.getByLabelText("Title"));
+  });
+});
+
 describe("TaskEditor inert background (#43)", () => {
   it("marks #root inert + aria-hidden while open and clears it on close", () => {
     const root = document.createElement("div");

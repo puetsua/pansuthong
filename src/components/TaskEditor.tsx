@@ -122,6 +122,14 @@ export function TaskEditor(props: Props) {
     };
   }, []);
 
+  // Existing tasks: park focus on the dialog so opening to read/complete does
+  // not raise the Android keyboard on the title (#160). Creating still uses
+  // the title input's autoFocus.
+  useEffect(() => {
+    if (creating) return;
+    dialogRef.current?.focus();
+  }, [creating]);
+
   useEffect(() => {
     const root = document.getElementById("root");
     if (!root) return;
@@ -468,7 +476,7 @@ export function TaskEditor(props: Props) {
   return createPortal(
     <div className="modal-backdrop">
       <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true"
-           aria-label={heading}
+           aria-label={heading} tabIndex={-1}
            onClick={e => e.stopPropagation()}>
         <div className="te-header">
           <div className="te-title-actions">
@@ -484,7 +492,7 @@ export function TaskEditor(props: Props) {
         </div>
         <label className="te-field">
           <span>{t("taskEditor.title")}</span>
-          <input value={form.title} autoFocus
+          <input value={form.title} autoFocus={creating}
                  onChange={e => set("title", e.currentTarget.value)} />
         </label>
 
