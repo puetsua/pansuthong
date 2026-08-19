@@ -766,16 +766,16 @@ describe("TaskEditor complete checkbox", () => {
     await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", true));
   });
 
-  it("reopens a done task without a redundant save", async () => {
+  it("reopens a done task without a redundant save and stays open", async () => {
     const doneTask: Task = { ...baseTask, completed_at: "2026-06-01T10:00:00+08:00" };
-    const onReopened = vi.fn();
-    render(<TaskEditor task={doneTask} allTags={tags} onClose={vi.fn()} onReopened={onReopened} />);
+    const onClose = vi.fn();
+    render(<TaskEditor task={doneTask} allTags={tags} onClose={onClose} />);
 
     fireEvent.click(completeBox());
 
     await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", false));
     expect(api.updateTask).not.toHaveBeenCalled();
-    expect(onReopened).toHaveBeenCalledWith("k_1");
+    expect(onClose).not.toHaveBeenCalled();
     expect(playCompletionSound).not.toHaveBeenCalled();
   });
 

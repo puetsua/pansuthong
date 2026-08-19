@@ -142,7 +142,7 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
       </div>
       {error && <p className="composer-error" role="alert">{t("taskRow.updateError", { error })}</p>}
       {editing && <TaskEditor task={task} allTags={tags} onClose={() => setEditing(false)}
-                              onCompleted={onCompleted} onReopened={onReopened} />}
+                              onCompleted={onCompleted} />}
     </>
   );
 }

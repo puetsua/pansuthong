@@ -27,7 +27,7 @@ The task editor SHALL expose completion as a checkbox that matches the list-row 
 #### Scenario: Unchecking the box reopens the task
 
 - **WHEN** the user unchecks the editor completion checkbox
-- **THEN** the task is reopened and the checkbox is unchecked
+- **THEN** the task is reopened, the editor stays open, and the checkbox is unchecked
 
 #### Scenario: Hidden when creating or editing a template
 

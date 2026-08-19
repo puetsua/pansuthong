@@ -64,6 +64,17 @@ describe("TaskRow active mode", () => {
     await waitFor(() => expect(onCompleted).toHaveBeenCalledWith("k_1"));
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
+
+  it("keeps the editor open when the editor checkbox reopens a done task", async () => {
+    const done: Task = { ...baseTask, completed_at: "2026-05-31T10:00:00Z" };
+    const onReopened = vi.fn();
+    render(<TaskRow task={done} tags={tags} todayIso="2026-05-31" onReopened={onReopened} />);
+    fireEvent.click(screen.getByRole("button", { name: /edit write report/i }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("checkbox", { name: /toggle/i }));
+    await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", false));
+    expect(onReopened).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
 });
 
 describe("TaskRow time tracking (#81)", () => {
