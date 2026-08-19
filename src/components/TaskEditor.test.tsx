@@ -795,7 +795,7 @@ describe("TaskEditor title focus (#160)", () => {
     const focus = vi.spyOn(HTMLElement.prototype, "focus");
     try {
       renderEditor();
-      return focus.mock.instances.includes(screen.getByLabelText("Title"));
+      return focus.mock.contexts.includes(screen.getByLabelText("Title"));
     } finally {
       focus.mockRestore();
     }
@@ -834,6 +834,13 @@ describe("TaskEditor title focus (#160)", () => {
       render(<TaskEditor kind="template" template={{ ...templateTask, id: "", title: "" }} allTags={tags} creating onClose={vi.fn()} />);
     })).toBe(true);
     expect(document.activeElement).toBe(screen.getByLabelText("Title"));
+  });
+
+  it("wraps Tab from the parked dialog to the first control", () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+    expect(document.activeElement).toBe(screen.getByRole("dialog"));
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(document.activeElement).toBe(screen.getByRole("checkbox", { name: /toggle write report/i }));
   });
 
   it("wraps Shift+Tab from the parked dialog to the last control", () => {
