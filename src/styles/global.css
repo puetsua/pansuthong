@@ -1404,6 +1404,8 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   gap: var(--space-3);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
+/* Parked dialog focus must not ring the card (#160). */
+.task-editor:focus { outline: none; }
 /* In-app updater prompt (desktop). Same `.task-editor` / `.te-header` /
    `.te-actions` shell as TaskEditor & friends; only the width, the progress bar
    and the primary-button fill are updater-specific. Release notes reuse

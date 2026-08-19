@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -106,13 +106,15 @@ export function TaskEditor(props: Props) {
       if (e.key !== "Tab") return;
       const root = dialogRef.current;
       if (!root) return;
-      const f = root.querySelectorAll<HTMLElement>(
+      const focusable = root.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       );
-      if (f.length === 0) return;
-      const first = f[0], last = f[f.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      if (focusable.length === 0) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      // tabIndex=-1 is omitted from the list; treat the parked dialog as a cycle edge (#160).
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === root)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (active === last || active === root)) { e.preventDefault(); first.focus(); }
     };
     window.addEventListener("keydown", onKey);
     const opener = restoreFocusRef.current;
@@ -121,6 +123,12 @@ export function TaskEditor(props: Props) {
       opener?.focus?.();
     };
   }, []);
+
+  // Park on the dialog when not creating: a focused input raises the Android
+  // IME (#160), and #root is inert so the opener cannot keep focus.
+  useLayoutEffect(() => {
+    if (!creating) dialogRef.current?.focus();
+  }, [creating]);
 
   useEffect(() => {
     const root = document.getElementById("root");
@@ -468,7 +476,7 @@ export function TaskEditor(props: Props) {
   return createPortal(
     <div className="modal-backdrop">
       <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true"
-           aria-label={heading}
+           aria-label={heading} tabIndex={-1}
            onClick={e => e.stopPropagation()}>
         <div className="te-header">
           <div className="te-title-actions">
@@ -484,7 +492,7 @@ export function TaskEditor(props: Props) {
         </div>
         <label className="te-field">
           <span>{t("taskEditor.title")}</span>
-          <input value={form.title} autoFocus
+          <input value={form.title} autoFocus={creating}
                  onChange={e => set("title", e.currentTarget.value)} />
         </label>
 
