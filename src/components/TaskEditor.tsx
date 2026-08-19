@@ -13,6 +13,7 @@ import {
 } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
+import { playCompletionSound } from "../lib/sound";
 import { TagInput } from "./TagInput";
 import { TimeTracking } from "./TimeTracking";
 import { defaultPastedName, isManagedAttachmentPath, markdownRefFor } from "./task-editor/attachmentRefs";
@@ -241,10 +242,15 @@ export function TaskEditor(props: Props) {
     try {
       if (isDirty()) {
         const tagIds = await resolveTags();
-        await api.updateTask(buildTaskUpdate(entity.id, { ...form, tag_ids: tagIds }));
+        const saved = { ...form, tag_ids: tagIds, new_tag_names: [] };
+        await api.updateTask(buildTaskUpdate(entity.id, saved));
+        initialRef.current = saved;
+        setForm(saved);
       }
-      await api.setTaskDone(entity.id, !isDoneTask);
-      onClose();
+      const nextDone = !isDoneTask;
+      await api.setTaskDone(entity.id, nextDone);
+      if (nextDone) playCompletionSound();
+      setBusy(false);
     } catch (err) {
       setError(errorMessage(err));
       setBusy(false);
@@ -460,9 +466,9 @@ export function TaskEditor(props: Props) {
           <div className="te-title-actions">
             <h2>{heading}</h2>
             {canComplete && (
-              <button type="button" className="te-complete" onClick={toggleComplete} disabled={busy}>
-                {isDoneTask ? t("taskEditor.reopen") : t("taskEditor.complete")}
-              </button>
+              <input type="checkbox" className="te-complete-check" checked={isDoneTask}
+                     onChange={toggleComplete} disabled={busy}
+                     aria-label={t("taskEditor.toggle", { title: entity.title })} />
             )}
           </div>
           <button type="button" className="te-close" aria-label={t("taskEditor.close")}

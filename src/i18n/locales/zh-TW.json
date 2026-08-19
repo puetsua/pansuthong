@@ -417,6 +417,7 @@
     "delete": "刪除",
     "complete": "完成",
     "reopen": "重新開啟",
+    "toggle": "切換 {{title}}",
     "cancel": "取消",
     "addTask": "新增任務",
     "addTemplate": "新增任務範本",

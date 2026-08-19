@@ -423,6 +423,7 @@
     "delete": "Delete",
     "complete": "Complete",
     "reopen": "Reopen",
+    "toggle": "Toggle {{title}}",
     "cancel": "Cancel",
     "addTask": "Add task",
     "addTemplate": "Add template",

@@ -32,6 +32,11 @@ vi.mock("../lib/tauri", async (importOriginal) => {
 });
 
 import { api } from "../lib/tauri";
+import { playCompletionSound } from "../lib/sound";
+
+vi.mock("../lib/sound", () => ({
+  playCompletionSound: vi.fn(),
+}));
 
 const baseTask: Task = {
   id: "k_1", title: "Write report",
@@ -715,22 +720,41 @@ describe("TaskEditor create mode (#71)", () => {
   });
 });
 
-describe("TaskEditor complete button", () => {
-  it("marks an active task done and closes", async () => {
-    const onClose = vi.fn();
-    render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+describe("TaskEditor complete checkbox", () => {
+  const completeBox = () => screen.getByRole("checkbox", { name: /toggle write report/i }) as HTMLInputElement;
 
-    fireEvent.click(button(/^complete$/i));
+  it("shows an unchecked checkbox for an open task", () => {
+    render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
+    expect(completeBox().checked).toBe(false);
+    expect(screen.queryByRole("button", { name: /^complete$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^reopen$/i })).toBeNull();
+  });
+
+  it("shows a checked checkbox for a done task", () => {
+    const doneTask: Task = { ...baseTask, completed_at: "2026-06-01T10:00:00+08:00" };
+    render(<TaskEditor task={doneTask} allTags={tags} onClose={vi.fn()} />);
+    expect(completeBox().checked).toBe(true);
+  });
+
+  it("marks an active task done and stays open", async () => {
+    const onClose = vi.fn();
+    const { rerender } = render(<TaskEditor task={baseTask} allTags={tags} onClose={onClose} />);
+
+    fireEvent.click(completeBox());
 
     await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", true));
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(onClose).not.toHaveBeenCalled();
+    expect(playCompletionSound).toHaveBeenCalled();
+
+    rerender(<TaskEditor task={{ ...baseTask, completed_at: "2026-06-01T10:00:00+08:00" }} allTags={tags} onClose={onClose} />);
+    expect(completeBox().checked).toBe(true);
   });
 
   it("saves pending edits before completing", async () => {
     render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
 
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Edited" } });
-    fireEvent.click(button(/^complete$/i));
+    fireEvent.click(completeBox());
 
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(expect.objectContaining({ id: "k_1", title: "Edited" })),
@@ -738,23 +762,23 @@ describe("TaskEditor complete button", () => {
     await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", true));
   });
 
-  it("shows Reopen for a done task and reopens it (no redundant save)", async () => {
+  it("reopens a done task without a redundant save", async () => {
     const doneTask: Task = { ...baseTask, completed_at: "2026-06-01T10:00:00+08:00" };
     render(<TaskEditor task={doneTask} allTags={tags} onClose={vi.fn()} />);
 
-    expect(screen.queryByRole("button", { name: /^complete$/i })).toBeNull();
-    fireEvent.click(button(/^reopen$/i));
+    fireEvent.click(completeBox());
 
     await waitFor(() => expect(api.setTaskDone).toHaveBeenCalledWith("k_1", false));
     expect(api.updateTask).not.toHaveBeenCalled();
+    expect(playCompletionSound).not.toHaveBeenCalled();
   });
 
-  it("has no Complete button when creating or editing a template", () => {
+  it("has no completion checkbox when creating or editing a template", () => {
     const { unmount } = render(<TaskEditor task={{ ...baseTask, id: "" }} allTags={tags} creating onClose={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: /complete|reopen/i })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: /toggle/i })).toBeNull();
     unmount();
     render(<TaskEditor kind="template" template={templateTask} allTags={tags} onClose={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: /complete|reopen/i })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: /toggle/i })).toBeNull();
   });
 });
 

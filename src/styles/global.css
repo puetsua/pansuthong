@@ -1343,7 +1343,8 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
     gap: var(--space-3);
     font-size: 1rem;
   }
-  .task-row input[type="checkbox"] {
+  .task-row input[type="checkbox"],
+  .te-complete-check {
     width: 22px;
     height: 22px;
   }
@@ -2045,17 +2046,12 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   color: #fff;
   filter: brightness(1.06);
 }
-/* Mark-complete / reopen action in the task modal. */
-.te-complete {
-  min-height: 1.9rem;
-  padding: 3px 12px;
-  border: 1px solid var(--c-accent);
-  border-radius: var(--radius-sm);
-  color: var(--c-accent);
-  font-size: 0.82rem;
-  font-weight: 600;
+/* Completion checkbox in the task modal header — same native control as the row. */
+.te-complete-check {
+  flex-shrink: 0;
+  cursor: pointer;
 }
-.te-complete:hover:not(:disabled) { background: var(--c-accent-bg); }
+.te-complete-check:disabled { cursor: not-allowed; }
 /* Keep the weight field compact inside the tag editor (the .settings-row width
    rule is scoped to settings, so the modal needs its own). */
 .te-field input.weight-input { width: 5.5rem; }
