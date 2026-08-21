@@ -25,8 +25,8 @@ The main window starts `visible: false` until the frontend paints and calls `sho
 
 ### 1. Use `tauri-plugin-single-instance` (desktop only)
 
-- **Choice:** Add `tauri-plugin-single-instance = "2"` under the existing desktop-only target deps (`cfg(not(any(target_os = "android", target_os = "ios")))`). Register it as the **first** plugin on the desktop builder, matching Tauri's docs. Callback restores the `"main"` webview: `unminimize`, `show`, `set_focus`.
-- **Why:** Official Tauri 2 plugin; mutex / WM_COPYDATA (Windows) and DBus (Linux) already keyed by bundle identifier, so prod vs Dev isolation is free. Second-instance `SendMessage` runs the callback while the launching process is still foreground, which is what Windows needs for `SetForegroundWindow` to succeed. `unminimize` is required because `set_focus` alone does not restore a minimized window.
+- **Choice:** Add `tauri-plugin-single-instance = "2"` under the existing desktop-only target deps (`cfg(not(any(target_os = "android", target_os = "ios")))`). Register it as the **first** plugin on the desktop builder, matching Tauri's docs. Callback restores the `"main"` webview: `unminimize`, `show`, `set_focus`, then on Windows a brief `always_on_top` flip.
+- **Why:** Official Tauri 2 plugin; the lock is keyed by bundle identifier, so prod vs Dev isolation is free. The plugin notifies the existing process (Windows: `WM_COPYDATA` via `SendMessageW`); the callback runs in that existing process, which is usually not foreground, so `SetForegroundWindow` is often denied — hence the always-on-top z-order flip. `unminimize` is required because `set_focus` alone does not restore a minimized window.
 - **Alternatives:** Hand-rolled named mutex — more code, same OS work. Gate on `not(debug_assertions)` — would leave `Pansuthong Dev` (debug builds) opening duplicate windows, which is the app we test.
 
 ### 2. No capabilities / no JS API
@@ -44,7 +44,7 @@ The main window starts `visible: false` until the frontend paints and calls `sho
 
 - **[Risk] `tauri dev` rebuild races the mutex** — if the old process has not released the lock when the new binary starts, the new process exits. → Accept; kill the leftover `Pansuthong Dev` process and relaunch. Same identifier isolation still lets prod and Dev coexist.
 - **[Risk] Second launch during the initial `visible: false` paint** — `show()` may reveal the window a moment before the frontend's `show_main_window`. → Brief; better than a second window.
-- **[Risk] Windows focus steal fails when the second process is not foreground** — `SetForegroundWindow` is denied unless the caller is already foreground (a second launch from a shortcut is; a launch from another process often is not). → After `unminimize`/`show`/`set_focus`, briefly flip `always_on_top` on Windows so z-order still raises the window.
+- **[Risk] Windows focus steal fails** — `set_focus` / `SetForegroundWindow` runs in the **existing** process, which is usually not foreground even when the user just launched a second copy. → After `unminimize`/`show`/`set_focus`, briefly flip `always_on_top` on Windows so z-order still raises the window. The app is never always-on-top otherwise.
 
 ## Migration Plan
 

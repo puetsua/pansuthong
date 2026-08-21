@@ -1,7 +1,7 @@
 ## 1. Desktop plugin
 
 - [x] 1.1 Add `tauri-plugin-single-instance = "2"` to the desktop-only target deps in `src-tauri/Cargo.toml` (not Android)
-- [x] 1.2 Register the plugin as the first plugin on the desktop `tauri::Builder`, with a callback that `unminimize`s, `show`s, and `set_focus`es the `"main"` webview
+- [x] 1.2 Register the plugin as the first plugin on the desktop `tauri::Builder`, with a callback that `unminimize`s, `show`s, and `set_focus`es the `"main"` webview (on Windows, briefly `set_always_on_top(true/false)` after that sequence)
 
 ## 2. Verify
 
