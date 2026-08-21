@@ -48,6 +48,9 @@ tauri-plugin-window-state = "2"
 # shared Android ACL build).
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+# Crate has no Android/iOS support. Second launch of the same identifier
+# exits and focuses the existing main window.
+tauri-plugin-single-instance = "2"
 
 [target.'cfg(target_os = "android")'.dependencies]
 tauri-plugin-android-fs = "28"
