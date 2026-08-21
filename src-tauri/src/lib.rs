@@ -23,9 +23,40 @@ const MAIN_MIN_WIDTH: f64 = 400.0;
 #[cfg(desktop)]
 const MAIN_MIN_HEIGHT: f64 = 500.0;
 
+/// Restore and focus the existing main window when a second launch is blocked.
+#[cfg(desktop)]
+fn focus_existing_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+        // Windows often denies SetForegroundWindow to a background process.
+        // A brief always-on-top flip raises z-order so the window comes forward.
+        #[cfg(target_os = "windows")]
+        {
+            let _ = window.set_always_on_top(true);
+            let _ = window.set_focus();
+            let _ = window.set_always_on_top(false);
+        }
+    } else {
+        eprintln!("warning: main window missing when focusing existing instance");
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default()
+    // Single-instance must be the first plugin so a second launch is caught
+    // before other plugins start work. Desktop only — Android has no extra
+    // process to guard.
+    #[cfg(desktop)]
+    let builder =
+        tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            focus_existing_main_window(app);
+        }));
+    #[cfg(not(desktop))]
+    let builder = tauri::Builder::default();
+
+    let builder = builder
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init());
