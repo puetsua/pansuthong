@@ -66,6 +66,11 @@ export default function App() {
   // settle off-screen. This effect follows the theme effect in useDocument; two
   // animation frames ensure the first themed success, waiting, give-up, or error
   // UI has painted before revealing the window.
+  //
+  // WebKitGTK may never fire rAF while the window is unmapped (#167), so Linux
+  // also maps the window from Rust. A long timeout is a frontend fallback in
+  // case timers run but frames do not; it is well after a healthy Windows paint
+  // so it does not reintroduce a WebView2 flash.
   useEffect(() => {
     if (didShowWindow.current || (!error && !waitingForData && !showFallback && !gaveUp && (!doc || !indexes))) return;
 
@@ -86,12 +91,14 @@ export default function App() {
         reveal();
       });
     });
+    const fallbackTimer = setTimeout(reveal, 1000);
 
     return () => {
       cancelled = true;
       cancelAnimationFrame(firstFrame);
       if (secondFrame != null) cancelAnimationFrame(secondFrame);
       if (retryTimer != null) clearTimeout(retryTimer);
+      clearTimeout(fallbackTimer);
     };
   }, [doc, indexes, error, waitingForData, showFallback, gaveUp]);
 

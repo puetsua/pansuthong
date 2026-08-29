@@ -22,6 +22,11 @@ const LEGACY_WINDOW_STATE_FILENAME: &str = ".window-state.json";
 const MAIN_MIN_WIDTH: f64 = 400.0;
 #[cfg(desktop)]
 const MAIN_MIN_HEIGHT: f64 = 500.0;
+/// Config default; used when an unmapped window reports 0x0 (#167).
+#[cfg(desktop)]
+const MAIN_DEFAULT_WIDTH: f64 = 900.0;
+#[cfg(desktop)]
+const MAIN_DEFAULT_HEIGHT: f64 = 700.0;
 
 /// Restore and focus the existing main window when a second launch is blocked.
 /// `unminimize` + `show` are required: `set_focus` alone does not restore a
@@ -96,8 +101,10 @@ pub fn run() {
     // Persist size/position/maximized — but never decorations or visibility.
     // Restoring a previously decorated state would override `decorations: false`
     // and bring back the OS titlebar (tauri-apps/plugins-workspace#1970 / #2203).
-    // The window stays hidden until the frontend's first rendered frame, so saved
-    // geometry can settle without a visible move/resize flash.
+    // On Windows the window stays hidden until the frontend's first rendered
+    // frame so saved geometry can settle without a visible move/resize flash.
+    // On Linux, WebKitGTK will not run JS on an unmapped window, so Rust maps
+    // it after chrome is applied (#167).
     #[cfg(desktop)]
     let builder = builder.plugin(
         tauri_plugin_window_state::Builder::default()
@@ -188,6 +195,17 @@ pub fn run() {
                     if let (Ok(size), Ok(scale)) = (win.inner_size(), win.scale_factor()) {
                         let logical_w = size.width as f64 / scale;
                         let logical_h = size.height as f64 / scale;
+                        // Unmapped GTK windows report 0x0. A min clamp would lock in
+                        // 400x500 instead of the 900x700 config size (#167).
+                        if logical_w < 1.0 || logical_h < 1.0 {
+                            if let Err(e) = win.set_size(Size::Logical(LogicalSize::new(
+                                MAIN_DEFAULT_WIDTH,
+                                MAIN_DEFAULT_HEIGHT,
+                            ))) {
+                                eprintln!("warning: set default window size failed: {e}");
+                            }
+                            return;
+                        }
                         if logical_w + 0.5 < MAIN_MIN_WIDTH || logical_h + 0.5 < MAIN_MIN_HEIGHT {
                             if let Err(e) = win.set_size(Size::Logical(LogicalSize::new(
                                 logical_w.max(MAIN_MIN_WIDTH),
@@ -217,13 +235,34 @@ pub fn run() {
                         eprintln!("warning: main window missing when enforcing desktop chrome");
                     }
                 }
+                // WebKitGTK does not run JS (or rAF) on an unmapped webview, so the
+                // frontend's show_main_window path never fires (#167). Map it from
+                // Rust on Linux. Windows still uses hide-then-show to avoid a
+                // WebView2 flash.
+                #[cfg(target_os = "linux")]
+                fn show_linux_main(app: &tauri::AppHandle) {
+                    if let Some(win) = app.get_webview_window("main") {
+                        if let Err(e) = win.show() {
+                            eprintln!("warning: show linux main window failed: {e}");
+                        }
+                        if let Err(e) = win.set_focus() {
+                            eprintln!("warning: focus linux main window failed: {e}");
+                        }
+                    }
+                }
                 enforce_desktop_chrome(app.handle());
+                #[cfg(target_os = "linux")]
+                show_linux_main(app.handle());
                 let handle = app.handle().clone();
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_millis(50));
                     enforce_desktop_chrome(&handle);
+                    #[cfg(target_os = "linux")]
+                    show_linux_main(&handle);
                     std::thread::sleep(std::time::Duration::from_millis(250));
                     enforce_desktop_chrome(&handle);
+                    #[cfg(target_os = "linux")]
+                    show_linux_main(&handle);
                 });
             }
 
