@@ -2,12 +2,12 @@
 
 [![CI](https://github.com/puetsua/pansuthong/workflows/CI/badge.svg)](https://github.com/puetsua/pansuthong/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/puetsua/pansuthong)](https://github.com/puetsua/pansuthong/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-lightgrey)](https://github.com/puetsua/pansuthong/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Android-lightgrey)](https://github.com/puetsua/pansuthong/releases/latest)
 [![License: FSL-1.1-MIT](https://img.shields.io/badge/license-FSL--1.1--MIT-blue)](./LICENSE)
 
 **繁體中文:** [README.md](./README.md)
 
-A personal task tracker for **Windows** and **Android**. Organize work with **tasks** and **tags**—no project hierarchy to maintain—so you can see what to do today, what’s in the inbox, and how a tag is going over time.
+A personal task tracker for **Windows**, **Linux**, and **Android**. Organize work with **tasks** and **tags**—no project hierarchy to maintain—so you can see what to do today, what’s in the inbox, and how a tag is going over time.
 
 Built for people who want a focused daily list plus light life-tracking (time spent, streaks, heatmaps), with the same app on desktop and phone.
 
@@ -30,13 +30,15 @@ Download the latest build from [Releases](https://github.com/puetsua/pansuthong/
 | Platform | File | Notes |
 | --- | --- | --- |
 | **Windows** | `Pansuthong_<version>_x64-setup.exe` | Per-user installer; no admin required. |
+| **Linux** | `Pansuthong_<version>_amd64.AppImage` | Portable. `chmod +x` after download, then run. Some distros need FUSE. |
+| **Linux (Debian/Ubuntu)** | `Pansuthong_<version>_amd64.deb` | Requires WebKitGTK 4.1. |
 | **Android** | `Pansuthong_<version>_universal.apk` | Sideload (allow unknown sources). Signed for install/update; not on Play Store yet. |
 
 ## Develop
 
 ```bash
 npm install
-npm run tauri dev          # Windows desktop (Pansuthong Dev)
+npm run tauri dev          # desktop (Windows / Linux, Pansuthong Dev)
 npm run tauri android dev  # Android emulator or USB device
 ```
 

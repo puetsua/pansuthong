@@ -40,15 +40,12 @@ fn focus_existing_main_window(app: &tauri::AppHandle) {
     warn("unminimize", window.unminimize());
     warn("show", window.show());
     warn("set_focus", window.set_focus());
-    // Existing process is usually not foreground, so Windows may deny
-    // SetForegroundWindow. A brief always-on-top flip raises z-order;
-    // the app is never left always-on-top.
-    #[cfg(target_os = "windows")]
-    {
-        warn("set_always_on_top(true)", window.set_always_on_top(true));
-        warn("set_focus", window.set_focus());
-        warn("set_always_on_top(false)", window.set_always_on_top(false));
-    }
+    // Existing process is usually not foreground, so the OS may deny focus
+    // (Windows SetForegroundWindow; some X11 WMs). A brief always-on-top flip
+    // raises z-order; the app is never left always-on-top. Wayland may ignore it.
+    warn("set_always_on_top(true)", window.set_always_on_top(true));
+    warn("set_focus", window.set_focus());
+    warn("set_always_on_top(false)", window.set_always_on_top(false));
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

@@ -2,12 +2,12 @@
 
 [![CI](https://github.com/puetsua/pansuthong/workflows/CI/badge.svg)](https://github.com/puetsua/pansuthong/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/puetsua/pansuthong)](https://github.com/puetsua/pansuthong/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-lightgrey)](https://github.com/puetsua/pansuthong/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Android-lightgrey)](https://github.com/puetsua/pansuthong/releases/latest)
 [![License: FSL-1.1-MIT](https://img.shields.io/badge/license-FSL--1.1--MIT-blue)](./LICENSE)
 
 **English:** [README.en.md](./README.en.md)
 
-個人用任務追蹤器，跑在 **Windows** 與 **Android**。用**任務**和**標籤**整理事情就好，不用另外建專案階層。今天該做什麼、未分類還剩什麼、某個標籤長期狀況如何，一眼就能看清楚。
+個人用任務追蹤器，跑在 **Windows**、**Linux** 與 **Android**。用**任務**和**標籤**整理事情就好，不用另外建專案階層。今天該做什麼、未分類還剩什麼、某個標籤長期狀況如何，一眼就能看清楚。
 
 適合想要「專心處理今天這份清單」，又想順便記一點花費時間、連續天數、熱圖的人。電腦跟手機用的是同一個 App。
 
@@ -30,13 +30,15 @@
 | 平台 | 檔案 | 說明 |
 | --- | --- | --- |
 | **Windows** | `Pansuthong_<version>_x64-setup.exe` | 每位使用者安裝；不需要系統管理員權限。 |
+| **Linux** | `Pansuthong_<version>_amd64.AppImage` | 可攜執行檔。下載後 `chmod +x` 再執行。部分發行版需要 FUSE。 |
+| **Linux (Debian/Ubuntu)** | `Pansuthong_<version>_amd64.deb` | 需要 WebKitGTK 4.1。 |
 | **Android** | `Pansuthong_<version>_universal.apk` | 自行安裝（需允許未知來源）。已簽署，可正常安裝／更新；尚未上架 Play 商店。 |
 
 ## 開發
 
 ```bash
 npm install
-npm run tauri dev          # Windows 桌面（Pansuthong Dev）
+npm run tauri dev          # 桌面（Windows / Linux，Pansuthong Dev）
 npm run tauri android dev  # Android 模擬器或 USB 裝置
 ```
 

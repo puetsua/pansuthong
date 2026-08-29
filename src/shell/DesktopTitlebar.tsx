@@ -35,23 +35,36 @@ export function DesktopTitlebar() {
     };
   }, []);
 
-  const onDragMouseDown = (e: MouseEvent<HTMLDivElement>) => {
+  const toggleMaximize = () => {
+    const win = getCurrentWindow();
+    void win.toggleMaximize().then(async () => {
+      try { setMaximized(await win.isMaximized()); } catch { /* ignore */ }
+    }).catch(() => { /* non-Tauri */ });
+  };
+
+  const onDragMouseDown = (e: MouseEvent<HTMLElement>) => {
     if (e.button !== 0) return;
     // Ignore presses that started on a control button (event can bubble).
     if ((e.target as HTMLElement).closest("button")) return;
-    const win = getCurrentWindow();
-    if (e.detail === 2) {
-      void win.toggleMaximize().then(async () => {
-        try { setMaximized(await win.isMaximized()); } catch { /* ignore */ }
-      }).catch(() => { /* non-Tauri */ });
-    } else {
-      void win.startDragging().catch(() => { /* non-Tauri */ });
-    }
+    // Second click of a double-click: don't start a drag; onDoubleClick maximizes.
+    // Splitting this from mousedown detail===2 avoids a double-toggle when both
+    // fire, and WebKitGTK CSS app-region may swallow the second mousedown.
+    if (e.detail > 1) return;
+    void getCurrentWindow().startDragging().catch(() => { /* non-Tauri */ });
+  };
+
+  const onDragDoubleClick = (e: MouseEvent<HTMLElement>) => {
+    if ((e.target as HTMLElement).closest("button")) return;
+    toggleMaximize();
   };
 
   return (
-    <header className="desktop-titlebar" onMouseDown={onDragMouseDown}>
-      <div className="desktop-titlebar-drag">
+    <header
+      className="desktop-titlebar"
+      onMouseDown={onDragMouseDown}
+      onDoubleClick={onDragDoubleClick}
+    >
+      <div className="desktop-titlebar-drag" data-tauri-drag-region>
         <img
           className="desktop-titlebar-icon"
           src="/app-icon.png"
