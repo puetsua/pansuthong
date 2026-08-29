@@ -34,6 +34,8 @@
 | **Linux (Debian/Ubuntu)** | `Pansuthong_<version>_amd64.deb` | 需要 WebKitGTK 4.1。 |
 | **Android** | `Pansuthong_<version>_universal.apk` | 自行安裝（需允許未知來源）。已簽署，可正常安裝／更新；尚未上架 Play 商店。 |
 
+Linux 的 App 內更新只會抓 AppImage（`*.AppImage.tar.gz`），用 `.deb` 安裝的話不會原地升級。
+
 ## 開發
 
 ```bash

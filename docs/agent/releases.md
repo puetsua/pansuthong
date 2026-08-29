@@ -4,6 +4,7 @@
 - Release tags are plain semver, no `v` prefix.
 - `.github/workflows/release.yml` builds Windows NSIS, Linux AppImage + .deb, and Android APK.
 - Desktop updater uses signed `latest.json` with windows-x86_64 and linux-x86_64 platform entries.
+- Linux updater artifact is `*.AppImage.tar.gz` (not the `.deb`); a deb install will not in-app update in place.
 - Required secrets: `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 - Keep the updater private key backup safe; losing it prevents verifiable updates.
 - Installer/update taskbar-pin behavior depends on `src-tauri/windows/hooks.nsh`; verify with a real Windows install if touching installer config.
