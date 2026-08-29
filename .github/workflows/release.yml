@@ -181,7 +181,7 @@ jobs:
           path: updater-linux-x86_64.json
           if-no-files-found: error
 
-      - name: Publish AppImage, updater tarball, and deb
+      - name: Publish AppImage and deb
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
@@ -189,7 +189,6 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             src-tauri/target/release/bundle/appimage/*.AppImage
-            src-tauri/target/release/bundle/appimage/*.AppImage.tar.gz
             src-tauri/target/release/bundle/deb/*.deb
 
   updater-manifest:
