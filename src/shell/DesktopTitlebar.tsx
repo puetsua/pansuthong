@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
@@ -35,23 +35,24 @@ export function DesktopTitlebar() {
     };
   }, []);
 
-  const onDragMouseDown = (e: MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    // Ignore presses that started on a control button (event can bubble).
-    if ((e.target as HTMLElement).closest("button")) return;
+  const toggleMaximize = () => {
     const win = getCurrentWindow();
-    if (e.detail === 2) {
-      void win.toggleMaximize().then(async () => {
-        try { setMaximized(await win.isMaximized()); } catch { /* ignore */ }
-      }).catch(() => { /* non-Tauri */ });
-    } else {
-      void win.startDragging().catch(() => { /* non-Tauri */ });
-    }
+    void win.toggleMaximize().then(async () => {
+      try { setMaximized(await win.isMaximized()); } catch { /* ignore */ }
+    }).catch(() => { /* non-Tauri */ });
   };
 
   return (
-    <header className="desktop-titlebar" onMouseDown={onDragMouseDown}>
-      <div className="desktop-titlebar-drag">
+    <header className="desktop-titlebar">
+      {/*
+        Single drag/maximize path: Tauri injects drag.js on
+        data-tauri-drag-region (mousedown drag; second mousedown toggles
+        maximize on Windows + Linux). Do not also attach startDragging /
+        onDoubleClick or CSS app-region — those stack with the injected
+        listener and double-toggle maximize. Controls are siblings, not
+        inside the drag region.
+      */}
+      <div className="desktop-titlebar-drag" data-tauri-drag-region>
         <img
           className="desktop-titlebar-icon"
           src="/app-icon.png"
@@ -79,12 +80,7 @@ export function DesktopTitlebar() {
           className="desktop-titlebar-btn"
           title={maximized ? t("titlebar.restore") : t("titlebar.maximize")}
           aria-label={maximized ? t("titlebar.restore") : t("titlebar.maximize")}
-          onClick={() => {
-            const win = getCurrentWindow();
-            void win.toggleMaximize().then(async () => {
-              try { setMaximized(await win.isMaximized()); } catch { /* ignore */ }
-            }).catch(() => {});
-          }}
+          onClick={toggleMaximize}
         >
           {maximized ? <RestoreIcon /> : <MaximizeIcon />}
         </button>

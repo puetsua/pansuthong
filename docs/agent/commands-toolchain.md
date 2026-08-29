@@ -2,7 +2,7 @@
 
 ## Commands
 
-- `npm run tauri dev` - desktop `Pansuthong Dev` on port 1420; safe testing target
+- `npm run tauri dev` - desktop `Pansuthong Dev` on port 1420 (Windows / Linux); safe testing target
 - `npm run tauri android dev` - Android dev id `net.puetsua.pansuthong.dev`; safe testing target
 - `npm run tauri build` - desktop build
 - `npm run tauri android build` - Android build
@@ -26,6 +26,12 @@ both `MainActivity.kt` variants. Always build through `npm run tauri`, not a bar
 `tauri` CLI, or the generated-tree cleanup is skipped.
 
 Do not touch the production app (`Pansuthong`, `net.puetsua.pansuthong`) during testing. Use only `Pansuthong Dev` / `PansuthongDev` (`net.puetsua.pansuthong.dev`) unless the user explicitly asks for production work.
+
+## Linux desktop deps
+
+WebKitGTK 4.1 for Debian/Ubuntu: libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev libxdo-dev patchelf build-essential pkg-config.
+
+Release artifacts: AppImage (updater payload) and .deb.
 
 ## Machine Toolchain
 

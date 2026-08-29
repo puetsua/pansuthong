@@ -4,7 +4,7 @@ Small entrypoint for future coding agents. Load only the topic docs needed for t
 
 ## Project
 
-Pansuthong is a Tauri 2 task tracker for Windows desktop and Android.
+Pansuthong is a Tauri 2 task tracker for Windows desktop, Linux desktop, and Android.
 
 - Frontend: React 19 + TypeScript + Vite in `src/`
 - Backend: Rust/Tauri in `src-tauri/`
@@ -19,6 +19,7 @@ When the user asks to "show", "open", "run", "test", or "demonstrate" something 
 Before touching any Pansuthong process, locate the **production** app's process ID(s) and executable path so you can avoid them:
 
 - Windows: `tasklist /FI "IMAGENAME eq Pansuthong.exe"` (prod) vs `tasklist /FI "IMAGENAME eq Pansuthong Dev.exe"` (dev), then `wmic process where "name='Pansuthong.exe'" get ProcessId,ExecutablePath` for the path.
+- Linux: `pgrep -a pansuthong` then `readlink /proc/<pid>/exe`. Dev uses identifier `net.puetsua.pansuthong.dev` (window title "Pansuthong Dev"); production is `net.puetsua.pansuthong`. Data dirs: `~/.local/share/net.puetsua.pansuthong.dev` vs `~/.local/share/net.puetsua.pansuthong`. Never touch production.
 - Confirm the process name and path before attaching, killing, or driving it via automation (e.g. `agent_browser` / Electron / `taskkill`). If a process matches the production executable path, leave it alone.
 
 Production data and windows are off-limits. If you are unsure whether a window/process is dev or production, ask the user before proceeding.

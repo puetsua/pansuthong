@@ -37,6 +37,7 @@
     "active": true,
     "createUpdaterArtifacts": true,
     "targets": "all",
+    "category": "Productivity",
     "windows": {
       "nsis": {
         "installerHooks": "./windows/hooks.nsh",
