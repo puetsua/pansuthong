@@ -34,7 +34,7 @@ Download the latest build from [Releases](https://github.com/puetsua/pansuthong/
 | **Linux (Debian/Ubuntu)** | `Pansuthong_<version>_amd64.deb` | Requires WebKitGTK 4.1. |
 | **Android** | `Pansuthong_<version>_universal.apk` | Sideload (allow unknown sources). Signed for install/update; not on Play Store yet. |
 
-In-app updates on Linux fetch the AppImage (`*.AppImage.tar.gz`), not the `.deb`.
+In-app updates on Linux fetch the signed AppImage, not the `.deb`.
 
 ## Develop
 
