@@ -22,7 +22,7 @@ const LEGACY_WINDOW_STATE_FILENAME: &str = ".window-state.json";
 const MAIN_MIN_WIDTH: f64 = 400.0;
 #[cfg(desktop)]
 const MAIN_MIN_HEIGHT: f64 = 500.0;
-/// Config default; used when an unmapped window reports 0x0 (#167).
+/// Config default; last resort if a mapped window still reports 0x0 (#167).
 #[cfg(desktop)]
 const MAIN_DEFAULT_WIDTH: f64 = 900.0;
 #[cfg(desktop)]
@@ -195,14 +195,19 @@ pub fn run() {
                     if let (Ok(size), Ok(scale)) = (win.inner_size(), win.scale_factor()) {
                         let logical_w = size.width as f64 / scale;
                         let logical_h = size.height as f64 / scale;
-                        // Unmapped GTK windows report 0x0. A min clamp would lock in
-                        // 400x500 instead of the 900x700 config size (#167).
+                        // Unmapped GTK reports 0x0 even after window-state restore.
+                        // set_size here would overwrite the saved size and can
+                        // unmaximize. Skip while unmapped; later chrome ticks
+                        // after Linux show() can clamp a real inner size. Only
+                        // force 900x700 if already mapped and still 0x0 (#167).
                         if logical_w < 1.0 || logical_h < 1.0 {
-                            if let Err(e) = win.set_size(Size::Logical(LogicalSize::new(
-                                MAIN_DEFAULT_WIDTH,
-                                MAIN_DEFAULT_HEIGHT,
-                            ))) {
-                                eprintln!("warning: set default window size failed: {e}");
+                            if win.is_visible().unwrap_or(false) {
+                                if let Err(e) = win.set_size(Size::Logical(LogicalSize::new(
+                                    MAIN_DEFAULT_WIDTH,
+                                    MAIN_DEFAULT_HEIGHT,
+                                ))) {
+                                    eprintln!("warning: set default window size failed: {e}");
+                                }
                             }
                             return;
                         }
@@ -242,6 +247,9 @@ pub fn run() {
                 #[cfg(target_os = "linux")]
                 fn show_linux_main(app: &tauri::AppHandle) {
                     if let Some(win) = app.get_webview_window("main") {
+                        if win.is_visible().unwrap_or(false) {
+                            return;
+                        }
                         if let Err(e) = win.show() {
                             eprintln!("warning: show linux main window failed: {e}");
                         }

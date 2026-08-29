@@ -77,7 +77,9 @@ export default function App() {
     let cancelled = false;
     let secondFrame: number | undefined;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    const reveal = () => {
+    function reveal() {
+      if (didShowWindow.current || cancelled) return;
+      clearTimeout(fallbackTimer);
       void api.showMainWindow()
         .then(() => {
           if (!cancelled) didShowWindow.current = true;
@@ -85,7 +87,7 @@ export default function App() {
         .catch(() => {
           if (!cancelled) retryTimer = setTimeout(reveal, 250);
         });
-    };
+    }
     const firstFrame = requestAnimationFrame(() => {
       secondFrame = requestAnimationFrame(() => {
         reveal();
