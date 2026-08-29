@@ -1,7 +1,7 @@
 name: Release
 
 # Push a plain semver tag (e.g. `0.0.0`, `0.1.0`, or a `0.0.0-beta.1` prerelease)
-# to build the Windows desktop installer and the Android APK and publish them to
+# to build the Windows NSIS installer, Linux AppImage + deb, and the Android APK and publish them to
 # a GitHub Release for that tag.
 on:
   push:
@@ -92,17 +92,22 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri build -- --bundles nsis --target x86_64-pc-windows-gnu
 
-      # Assemble the updater manifest (latest.json) from the signed installer +
-      # its .sig, pointing at the stable per-tag download URL. The in-app updater
-      # polls .../releases/latest/download/latest.json (see tauri.conf.json).
-      - name: Generate latest.json
+      # Fragment for the merge job that writes latest.json (Windows + Linux).
+      - name: Generate updater fragment
         env:
           VERSION: ${{ github.ref_name }}
-          NOTES: ${{ needs.release-notes.outputs.notes }}
           TAURI_TARGET: x86_64-pc-windows-gnu
-        run: node .github/scripts/make-latest-json.mjs "$VERSION"
+          TAURI_BUNDLE: nsis
+        run: node .github/scripts/make-latest-json.mjs "$VERSION" --fragment updater-windows-x86_64.json
 
-      - name: Publish installer + latest.json to the release
+      - name: Upload updater fragment
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-fragment-windows
+          path: updater-windows-x86_64.json
+          if-no-files-found: error
+
+      - name: Publish installer to the release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
@@ -110,7 +115,98 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             src-tauri/target/x86_64-pc-windows-gnu/release/bundle/nsis/*-setup.exe
-            latest.json
+
+  linux-desktop:
+    name: Linux desktop (AppImage + .deb)
+    needs: release-notes
+    runs-on: ubuntu-latest
+    env:
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # WebKitGTK 4.1 plus AppImage tooling (patchelf, libfuse2).
+      - name: Install Tauri system dependencies
+        run: sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev libxdo-dev patchelf libfuse2 file
+
+      - run: npm ci
+
+      # The tag is the source of truth for the version; stamp it into the
+      # configs so the installer is named correctly. Build-time only.
+      - name: Sync version from tag
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: node .github/scripts/set-version.mjs "$VERSION"
+
+      # Sign updater artifacts so the in-app updater accepts them
+      - name: Build signed AppImage and deb
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri build -- --bundles appimage,deb
+
+      # Fragment for the merge job that writes latest.json (Windows + Linux).
+      - name: Generate updater fragment
+        env:
+          VERSION: ${{ github.ref_name }}
+          TAURI_BUNDLE: appimage
+        run: node .github/scripts/make-latest-json.mjs "$VERSION" --fragment updater-linux-x86_64.json
+
+      - name: Upload updater fragment
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-fragment-linux
+          path: updater-linux-x86_64.json
+          if-no-files-found: error
+
+      - name: Publish AppImage, updater tarball, and deb
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
+          files: |
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/appimage/*.AppImage.tar.gz
+            src-tauri/target/release/bundle/deb/*.deb
+
+  updater-manifest:
+    name: Updater manifest (latest.json)
+    needs: [release-notes, windows-desktop, linux-desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: updater-fragment-*
+          merge-multiple: true
+          path: updater-fragments
+
+      - name: Merge latest.json
+        env:
+          VERSION: ${{ github.ref_name }}
+          NOTES: ${{ needs.release-notes.outputs.notes }}
+        run: node .github/scripts/make-latest-json.mjs "$VERSION" --merge updater-fragments
+
+      - name: Publish latest.json to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
+          files: latest.json
 
   android:
     name: Android (unsigned APK)

@@ -89,7 +89,7 @@ jobs:
       - run: cargo check --manifest-path src-tauri/Cargo.toml --lib --target aarch64-linux-android
 
   build:
-    name: Build (desktop smoke)
+    name: Linux desktop (compile smoke)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
