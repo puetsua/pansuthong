@@ -50,17 +50,15 @@ export function AfkWhileTracking({ tasks, thresholdMs = AFK_THRESHOLD_MS }: Prop
 
   useEffect(() => {
     const handler = async (taskId: string) => {
-      if (promptRef.current) {
-        if (promptRef.current.stopTaskId !== taskId) {
-          showPrompt({ ...promptRef.current, stopTaskId: taskId });
-        }
+      const attachStop = (open: Prompt) => {
+        if (open.stopTaskId !== taskId) showPrompt({ ...open, stopTaskId: taskId });
         return true;
-      }
+      };
+      const existing = promptRef.current;
+      if (existing) return attachStop(existing);
       const idle = await api.sessionIdleMs().catch(() => null);
-      if (promptRef.current) {
-        showPrompt({ ...promptRef.current, stopTaskId: taskId });
-        return true;
-      }
+      const afterIdle = promptRef.current;
+      if (afterIdle) return attachStop(afterIdle);
       const now = Date.now();
       const since = afkSinceForStop(idle, now, thresholdMs, afkSinceRef.current, lastIdleRef.current);
       if (since == null) return false;

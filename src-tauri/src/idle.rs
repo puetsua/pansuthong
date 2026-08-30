@@ -68,24 +68,20 @@ mod linux {
         display: *mut Display,
     }
 
-    enum Conn {
-        Failed,
-        Ready(X11),
-    }
-
     // Queries are serialized through `CONN`; Xlib is not used off this mutex.
     unsafe impl Send for X11 {}
 
-    static CONN: Mutex<Option<Conn>> = Mutex::new(None);
+    static CONN: Mutex<Option<X11>> = Mutex::new(None);
+    static OPENED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
     pub fn session_idle_ms() -> Option<u64> {
+        use std::sync::atomic::Ordering::Relaxed;
         let mut g = CONN.lock().ok()?;
-        if g.is_none() {
-            *g = Some(open().map(Conn::Ready).unwrap_or(Conn::Failed));
+        if !OPENED.load(Relaxed) {
+            *g = open();
+            OPENED.store(true, Relaxed);
         }
-        let Conn::Ready(x11) = g.as_ref()? else {
-            return None;
-        };
+        let x11 = g.as_ref()?;
         // SAFETY: `display` was opened with this `xlib` and is only used under `CONN`.
         unsafe { query_idle(&x11.xlib, &x11.xss, x11.display) }
     }
@@ -121,7 +117,7 @@ mod linux {
         let root = (xlib.XDefaultRootWindow)(display);
         let status = (xss.XScreenSaverQueryInfo)(display, root as xlib::Drawable, info);
         let idle = if status != 0 {
-            Some((*info).idle as u64)
+            u64::try_from((*info).idle).ok()
         } else {
             None
         };
