@@ -117,7 +117,7 @@ mod linux {
         let root = (xlib.XDefaultRootWindow)(display);
         let status = (xss.XScreenSaverQueryInfo)(display, root as xlib::Drawable, info);
         let idle = if status != 0 {
-            u64::try_from((*info).idle).ok()
+            Some((*info).idle)
         } else {
             None
         };
