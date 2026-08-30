@@ -57,6 +57,10 @@ export function AfkWhileTracking({ tasks, thresholdMs = AFK_THRESHOLD_MS }: Prop
         return true;
       }
       const idle = await api.sessionIdleMs().catch(() => null);
+      if (promptRef.current) {
+        showPrompt({ ...promptRef.current, stopTaskId: taskId });
+        return true;
+      }
       const now = Date.now();
       const since = afkSinceForStop(idle, now, thresholdMs, afkSinceRef.current, lastIdleRef.current);
       if (since == null) return false;
@@ -80,7 +84,7 @@ export function AfkWhileTracking({ tasks, thresholdMs = AFK_THRESHOLD_MS }: Prop
       inFlightRef.current = true;
       try {
         const idle = await api.sessionIdleMs().catch(() => null);
-        if (cancelled) return;
+        if (cancelled || promptRef.current) return;
         if (idle == null) {
           if (idleAvailableRef.current == null) idleAvailableRef.current = false;
           return;

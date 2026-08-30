@@ -127,6 +127,23 @@ describe("AfkWhileTracking (#170)", () => {
     expect(stopMock).not.toHaveBeenCalled();
   });
 
+  it("Stop while the return prompt is open then Keep stops that task", async () => {
+    idleMock.mockResolvedValue(THRESHOLD + 60_000);
+    render(<AfkWhileTracking tasks={[running("k_1", "2026-06-08T10:00:00+08:00")]} />);
+    await flush();
+    idleMock.mockResolvedValue(0);
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    await act(async () => { await requestStopTimer("k_1"); });
+    fireEvent.click(screen.getByRole("button", { name: "Keep" }));
+    await waitFor(() => expect(stopMock).toHaveBeenCalledWith("k_1"));
+    expect(discardMock).not.toHaveBeenCalled();
+  });
+
   it("keeps the dialog and shows an error if Discard fails", async () => {
     idleMock.mockResolvedValue(THRESHOLD);
     discardMock.mockRejectedValueOnce("disk full");
