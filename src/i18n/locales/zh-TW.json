@@ -315,6 +315,13 @@
     "title": "已達預估時間",
     "body": "「{{title}}」已追蹤 {{tracked}}。預估：{{estimate}}。"
   },
+  "afkTracking": {
+    "title": "離開鍵盤",
+    "body": "你離開了 {{duration}}。要保留這段時間在進行中的計時，還是捨棄並停止計時？",
+    "bodyMany": "你離開了 {{duration}}。要保留這段時間在 {{count}} 個進行中的計時，還是捨棄並停止計時？",
+    "keep": "保留",
+    "discard": "捨棄"
+  },
   "tagEditor": {
     "name": "名稱",
     "color": "顏色",

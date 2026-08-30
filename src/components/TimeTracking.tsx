@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, Task, TimeEntry } from "../lib/tauri";
+import { requestStopTimer } from "../lib/afkWhileTracking";
 import { errorMessage } from "../lib/errors";
 import { elapsedMs, formatClock, formatDurationShort, isTiming, overlapsExisting } from "../lib/time";
 import { estimatedSecondsOrUndefined, formatEstimatedSecondsInput } from "../state/taskUpdate";
@@ -84,7 +85,7 @@ export function TimeTracking({ task, estimateInput, onEstimateChange, estimateEr
 
   const run = (p: Promise<unknown>) => { setErr(null); p.catch(e => setErr(errorMessage(e))); };
 
-  const toggleTimer = () => run(running ? api.stopTimer(task.id) : api.startTimer(task.id));
+  const toggleTimer = () => run(running ? requestStopTimer(task.id) : api.startTimer(task.id));
 
   const openAdd = () => {
     setEditingId(null);

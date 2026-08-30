@@ -321,6 +321,13 @@
     "title": "Task estimate reached",
     "body": "You've tracked {{tracked}} on \"{{title}}\". Estimate: {{estimate}}."
   },
+  "afkTracking": {
+    "title": "Away from keyboard",
+    "body": "You were away for {{duration}}. Keep that time on the running timer, or discard it and stop tracking?",
+    "bodyMany": "You were away for {{duration}}. Keep that time on the {{count}} running timers, or discard it and stop tracking?",
+    "keep": "Keep",
+    "discard": "Discard"
+  },
   "tagEditor": {
     "name": "Name",
     "color": "Color",

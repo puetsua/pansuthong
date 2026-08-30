@@ -18,6 +18,7 @@
 
 - Theming: `src/lib/themes.ts` (presets + token resolution; Rust stores only opaque preset strings). UI: `ThemePickerModal.tsx`, `ThemeEditorModal.tsx`, `ThemeSettings.tsx`, `ThemePreview.tsx`; tokens in `src/styles/tokens.css`.
 - Time tracking: `src/lib/time.ts` (running/finished `TimeEntry` intervals, concurrent timers). UI: `TimeTracking.tsx`, `TimeEstimateReminder.tsx`.
+- AFK while running: `src/lib/afkWhileTracking.ts` + `AfkWhileTracking.tsx` (OS last-input idle; Keep/Discard dialog). Distinct from Assign idle.
 - Idle assignment: `src/lib/useIdleAnchor.ts` (session-local idle anchor; not synced) + `AssignIdle.tsx`, `IdleStatus.tsx` to assign untracked time to tasks.
 - Analytics/heatmaps: `src/lib/tag-analytics.ts`, `src/lib/recurrence-heatmap.ts`, `HeatmapGrid.tsx` (Tag stats tab + Dashboard).
 

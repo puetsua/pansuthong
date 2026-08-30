@@ -683,6 +683,28 @@ impl Task {
         stopped
     }
 
+    /// Discard the AFK tail of a running interval: close it at `afk_start`, or drop
+    /// the entry when it started at or after that instant (no zero-length row).
+    /// Returns whether a running interval was changed. Closed entries are untouched.
+    pub fn discard_running_afk(&mut self, afk_start: i64) -> bool {
+        let mut changed = false;
+        let mut i = 0;
+        while i < self.time_entries.len() {
+            if self.time_entries[i].end.is_some() {
+                i += 1;
+                continue;
+            }
+            changed = true;
+            if self.time_entries[i].start >= afk_start {
+                self.time_entries.remove(i);
+            } else {
+                self.time_entries[i].end = Some(afk_start);
+                i += 1;
+            }
+        }
+        changed
+    }
+
     /// True if the half-open interval `[start, end)` overlaps any existing entry,
     /// skipping the entry whose id equals `except` (the one being edited). An open
     /// `end` (`None`, a running timer) extends to `+∞`. Intervals that merely touch
@@ -1089,6 +1111,38 @@ mod tests {
         });
         assert!(t.stop_timer(2_000));
         assert_eq!(t.time_entries[1].end, Some(8_000));
+    }
+
+    #[test]
+    fn discard_running_afk_closes_at_afk_start_or_drops_zero_length() {
+        let mut t = task();
+        t.time_entries.push(TimeEntry {
+            id: "te_closed".into(),
+            start: 1_000,
+            end: Some(2_000),
+        });
+        t.time_entries.push(TimeEntry {
+            id: "te_open".into(),
+            start: 3_000,
+            end: None,
+        });
+        assert!(t.discard_running_afk(5_000));
+        assert_eq!(t.time_entries.len(), 2);
+        assert_eq!(t.time_entries[0].end, Some(2_000));
+        assert_eq!(t.time_entries[1].end, Some(5_000));
+        assert!(t.running_entry().is_none());
+        // Nothing running: no-op.
+        assert!(!t.discard_running_afk(6_000));
+
+        t.time_entries.push(TimeEntry {
+            id: "te_after".into(),
+            start: 8_000,
+            end: None,
+        });
+        assert!(t.discard_running_afk(7_000));
+        assert!(t.time_entries.iter().all(|e| e.id != "te_after"));
+        assert_eq!(t.time_entries.len(), 2);
+        assert!(t.running_entry().is_none());
     }
 
     #[test]
