@@ -5,9 +5,10 @@ const T = AFK_THRESHOLD_MS;
 const NOW = 1_000_000;
 
 describe("pollAfk (#170)", () => {
-  it("ignores unavailable idle and idle with no running timer", () => {
-    expect(pollAfk(null, NOW, T, true, 1)).toEqual({ afkSinceMs: null, prompt: false });
+  it("clears AFK when nothing is running; preserves it when idle cannot be read", () => {
     expect(pollAfk(T + 1, NOW, T, false, 1)).toEqual({ afkSinceMs: null, prompt: false });
+    expect(pollAfk(null, NOW, T, true, 1)).toEqual({ afkSinceMs: 1, prompt: false });
+    expect(pollAfk(null, NOW, T, true, null)).toEqual({ afkSinceMs: null, prompt: false });
   });
 
   it("records AFK start at last input once idle crosses the threshold", () => {
@@ -17,6 +18,7 @@ describe("pollAfk (#170)", () => {
 
   it("prompts when input resumes after AFK", () => {
     expect(pollAfk(0, NOW, T, true, NOW - T)).toEqual({ afkSinceMs: NOW - T, prompt: true });
+    expect(pollAfk(T - 1, NOW, T, true, NOW - T)).toEqual({ afkSinceMs: NOW - T, prompt: true });
   });
 });
 

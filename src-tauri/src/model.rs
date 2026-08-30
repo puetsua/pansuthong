@@ -1143,6 +1143,15 @@ mod tests {
         assert!(t.time_entries.iter().all(|e| e.id != "te_after"));
         assert_eq!(t.time_entries.len(), 2);
         assert!(t.running_entry().is_none());
+
+        t.time_entries.push(TimeEntry {
+            id: "te_at".into(),
+            start: 9_000,
+            end: None,
+        });
+        assert!(t.discard_running_afk(9_000));
+        assert!(t.time_entries.iter().all(|e| e.id != "te_at"));
+        assert!(t.running_entry().is_none());
     }
 
     #[test]

@@ -58,22 +58,48 @@ mod windows {
 mod linux {
     use std::os::raw::{c_char, c_int, c_void};
     use std::ptr;
+    use std::sync::Mutex;
     use x11_dl::xlib::{self, Display};
     use x11_dl::xss;
 
+    struct X11 {
+        xlib: xlib::Xlib,
+        xss: xss::Xss,
+        display: *mut Display,
+    }
+
+    enum Conn {
+        Failed,
+        Ready(X11),
+    }
+
+    // Queries are serialized through `CONN`; Xlib is not used off this mutex.
+    unsafe impl Send for X11 {}
+
+    static CONN: Mutex<Option<Conn>> = Mutex::new(None);
+
     pub fn session_idle_ms() -> Option<u64> {
+        let mut g = CONN.lock().ok()?;
+        if g.is_none() {
+            *g = Some(open().map(Conn::Ready).unwrap_or(Conn::Failed));
+        }
+        let Conn::Ready(x11) = g.as_ref()? else {
+            return None;
+        };
+        // SAFETY: `display` was opened with this `xlib` and is only used under `CONN`.
+        unsafe { query_idle(&x11.xlib, &x11.xss, x11.display) }
+    }
+
+    fn open() -> Option<X11> {
         let xlib = xlib::Xlib::open().ok()?;
         let xss = xss::Xss::open().ok()?;
-        // SAFETY: `xlib`/`xss` were opened; we close any display we open.
-        unsafe {
-            let display = (xlib.XOpenDisplay)(ptr::null::<c_char>());
-            if display.is_null() {
-                return None;
-            }
-            let idle = query_idle(&xlib, &xss, display);
-            (xlib.XCloseDisplay)(display);
-            idle
+        // SAFETY: null display name is the default display; we keep the handle
+        // for process lifetime and only use it under `CONN`.
+        let display = unsafe { (xlib.XOpenDisplay)(ptr::null::<c_char>()) };
+        if display.is_null() {
+            return None;
         }
+        Some(X11 { xlib, xss, display })
     }
 
     /// # Safety
@@ -93,7 +119,7 @@ mod linux {
             return None;
         }
         let root = (xlib.XDefaultRootWindow)(display);
-        let status = (xss.XScreenSaverQueryInfo)(display, root, info);
+        let status = (xss.XScreenSaverQueryInfo)(display, root as xlib::Drawable, info);
         let idle = if status != 0 {
             Some((*info).idle as u64)
         } else {

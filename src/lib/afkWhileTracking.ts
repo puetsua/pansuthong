@@ -12,7 +12,9 @@ export function pollAfk(
   running: boolean,
   afkSinceMs: number | null,
 ): { afkSinceMs: number | null; prompt: boolean } {
-  if (!running || idleMs == null) return { afkSinceMs: null, prompt: false };
+  if (!running) return { afkSinceMs: null, prompt: false };
+  // A failed/unavailable poll must not forget an AFK span we already recorded.
+  if (idleMs == null) return { afkSinceMs, prompt: false };
   if (idleMs >= thresholdMs) {
     return { afkSinceMs: afkSinceMs ?? nowMs - idleMs, prompt: false };
   }
