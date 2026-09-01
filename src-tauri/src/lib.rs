@@ -4,6 +4,7 @@ pub mod conflict;
 pub mod db;
 pub mod error;
 pub mod history;
+pub mod idle;
 pub mod model;
 pub mod parse;
 pub mod safsync;
@@ -325,6 +326,8 @@ pub fn run() {
             commands::add_time_entry,
             commands::update_time_entry,
             commands::delete_time_entry,
+            commands::session_idle_ms,
+            commands::discard_running_afk,
             commands::add_template,
             commands::update_template,
             commands::duplicate_template,

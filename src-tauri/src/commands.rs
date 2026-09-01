@@ -1634,6 +1634,35 @@ pub struct DeleteTimeEntryInput {
     pub entry_id: String,
 }
 
+/// Milliseconds since the last OS keyboard/mouse input, or `None` when the
+/// platform cannot report it (Android, missing X11 ScreenSaver, …).
+#[tauri::command]
+pub fn session_idle_ms() -> Option<u64> {
+    crate::idle::session_idle_ms()
+}
+
+/// Close every running interval at `afk_start_ms`, dropping an entry that started
+/// at or after that instant so we never persist a zero-length row. One choice
+/// applies to every task that was timing during the AFK span (#170).
+#[tauri::command]
+pub fn discard_running_afk(
+    afk_start_ms: i64,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<()> {
+    state.write(|d| {
+        let ts = now_ms();
+        for t in d.tasks.iter_mut() {
+            if t.discard_running_afk(afk_start_ms) {
+                t.updated_at = ts;
+            }
+        }
+        Ok(())
+    })?;
+    emit_changed(&app);
+    Ok(())
+}
+
 /// Remove a time entry (#81). Deleting the open interval simply stops timing.
 #[tauri::command]
 pub fn delete_time_entry(

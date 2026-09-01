@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Task, Tag, isDone } from "../lib/tauri";
 import { api } from "../lib/tauri";
+import { requestStopTimer } from "../lib/afkWhileTracking";
 import { errorMessage } from "../lib/errors";
 import { readableTextColor } from "../lib/tags";
 import { elapsedMs, formatClock, formatDurationShort, isTiming } from "../lib/time";
@@ -91,7 +92,7 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
   const overEstimate = running && estimateMs > 0 && total >= estimateMs;
   const toggleTimer = () => {
     setError(null);
-    (running ? api.stopTimer(task.id) : api.startTimer(task.id))
+    (running ? requestStopTimer(task.id) : api.startTimer(task.id))
       .then(() => { if (!running) onTimerStarted?.(); })
       .catch(err => setError(errorMessage(err)));
   };

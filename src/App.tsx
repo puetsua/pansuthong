@@ -27,6 +27,7 @@ import { dateFormat, reminderIntervalMinutes, timeFormat } from "./lib/settings"
 import { api } from "./lib/tauri";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import { TimeEstimateReminder } from "./components/TimeEstimateReminder";
+import { AfkWhileTracking } from "./components/AfkWhileTracking";
 
 export default function App() {
   const { t } = useTranslation();
@@ -150,6 +151,7 @@ export default function App() {
       <Shell doc={doc} indexes={indexes}>
         <UpdatePrompt />
         <TimeEstimateReminder tasks={doc.tasks} intervalMinutes={reminderIntervalMinutes(doc.settings)} />
+        <AfkWhileTracking tasks={doc.tasks} />
         {reloadError && (
           <div className="reload-banner" role="alert">
             <span>{t("app.reloadError", { error: reloadError })}</span>

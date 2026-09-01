@@ -291,6 +291,10 @@ export const api = {
                                    invoke<Task>("update_time_entry", { input: { task_id: taskId, entry_id: entryId, ...patch } }),
   deleteTimeEntry: (taskId: string, entryId: string) =>
                                    invoke<Task>("delete_time_entry", { input: { task_id: taskId, entry_id: entryId } }),
+  // AFK while a timer is running (#170). `null` when last-input idle is unavailable.
+  sessionIdleMs: () => invoke<number | null>("session_idle_ms"),
+  discardRunningAfk: (afkStartMs: number) =>
+    invoke<void>("discard_running_afk", { afk_start_ms: afkStartMs }),
   addTemplate:    (input: NewTemplate)    => invoke<TemplateTask>("add_template", { input }),
   updateTemplate: (input: TemplateUpdate) => invoke<TemplateTask>("update_template", { input }),
   duplicateTemplate: (id: string)         => invoke<TemplateTask>("duplicate_template", { id }),
