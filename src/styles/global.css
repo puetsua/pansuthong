@@ -1843,6 +1843,12 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .afk-tracking-dialog {
   z-index: 110;
 }
+.afk-tracking-dialog .te-confirm-actions {
+  flex-wrap: wrap;
+}
+.afk-tracking-dialog .te-confirm-actions > button {
+  white-space: nowrap;
+}
 .te-confirm-box {
   max-width: 22rem;
   padding: var(--space-4);

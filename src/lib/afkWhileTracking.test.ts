@@ -20,6 +20,10 @@ describe("pollAfk (#170)", () => {
     expect(pollAfk(0, NOW, T, true, NOW - T)).toEqual({ afkSinceMs: NOW - T, prompt: true });
     expect(pollAfk(T - 1, NOW, T, true, NOW - T)).toEqual({ afkSinceMs: NOW - T, prompt: true });
   });
+
+  it("does not record AFK while still under the threshold", () => {
+    expect(pollAfk(0, NOW, T, true, null)).toEqual({ afkSinceMs: null, prompt: false });
+  });
 });
 
 describe("afkSinceForStop (#170)", () => {
@@ -29,5 +33,6 @@ describe("afkSinceForStop (#170)", () => {
     expect(afkSinceForStop(0, NOW, T, null, T + 1_000)).toBe(NOW - (T + 1_000));
     expect(afkSinceForStop(0, NOW, T, null, 10)).toBeNull();
     expect(afkSinceForStop(null, NOW, T, null, null)).toBeNull();
+    expect(afkSinceForStop(null, NOW, T, null, T)).toBe(NOW - T);
   });
 });

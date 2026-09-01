@@ -22,7 +22,8 @@ export function pollAfk(
   return { afkSinceMs: null, prompt: false };
 }
 
-/** AFK start to use when Stop is hit, or `null` if this Stop should go through. */
+/** AFK start to use when Stop is hit, or `null` if this Stop should go through.
+ *  Remembered start wins, else current idle, else last polled idle over the threshold. */
 export function afkSinceForStop(
   idleMs: number | null,
   nowMs: number,

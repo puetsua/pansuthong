@@ -323,10 +323,10 @@
   },
   "afkTracking": {
     "title": "Away from keyboard",
-    "body": "You were away for {{duration}}. Keep that time on the running timer, or discard it and stop tracking?",
-    "bodyMany": "You were away for {{duration}}. Keep that time on the {{count}} running timers, or discard it and stop tracking?",
-    "keep": "Keep",
-    "discard": "Discard"
+    "body": "{{duration}} since you stepped away. Keep going, or discard and stop?",
+    "bodyMany": "{{duration}} since you stepped away. Keep going on the {{count}} running timers, or discard and stop?",
+    "keep": "Keep going",
+    "discard": "Discard and stop"
   },
   "tagEditor": {
     "name": "Name",

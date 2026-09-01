@@ -317,10 +317,10 @@
   },
   "afkTracking": {
     "title": "離開鍵盤",
-    "body": "你離開了 {{duration}}。要保留這段時間在進行中的計時，還是捨棄並停止計時？",
-    "bodyMany": "你離開了 {{duration}}。要保留這段時間在 {{count}} 個進行中的計時，還是捨棄並停止計時？",
-    "keep": "保留",
-    "discard": "捨棄"
+    "body": "自你離開後已過 {{duration}}。要繼續計時，還是捨棄並停止？",
+    "bodyMany": "自你離開後已過 {{duration}}。{{count}} 個進行中的計時要繼續，還是捨棄並停止？",
+    "keep": "繼續計時",
+    "discard": "捨棄並停止"
   },
   "tagEditor": {
     "name": "名稱",

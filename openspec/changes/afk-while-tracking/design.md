@@ -32,7 +32,7 @@ The prompt needs an in-app choice. Estimate reminders (`TimeEstimateReminder`) a
 - **Choice:** Poll milliseconds since last keyboard/mouse input. AFK starts at that last-input instant once idle ≥ 5 minutes. The AFK span shown and discarded is `now - last_input`, not `now - (last_input + threshold)`.
 - **Why:** Matches "walk away or lock the screen". Five minutes is a common tracker default; issue forbids a new Settings control unless decided separately.
 - **Windows:** `GetLastInputInfo` (system-wide, including while Pansuthong is in the background or the session is locked).
-- **Linux:** X11 `XScreenSaverQueryInfo` when a display is available; otherwise best-effort session idle (e.g. freedesktop ScreenSaver) and `None` if nothing works (typical unprivileged Wayland).
+- **Linux:** X11 `XScreenSaverQueryInfo` when a display is available; `None` otherwise (typical unprivileged Wayland).
 - **Android / unavailable:** command returns `null`; frontend does not prompt.
 - **Alternatives:** Webview-only mousemove — misses lock-screen and other-app use. Instant AFK on lock — nicer on lock, but walk-away still needs a threshold; last-input covers both.
 

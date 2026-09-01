@@ -10,7 +10,6 @@ type Props = { tasks: Task[]; thresholdMs?: number };
 
 type Prompt = {
   afkSinceMs: number;
-  durationMs: number;
   stopTaskId: string | null;
 };
 
@@ -20,8 +19,9 @@ const FOCUSABLE =
 
 /**
  * Warn when the user returns from AFK (or hits Stop after a long AFK) while a
- * timer is running. Keep leaves the AFK span in the entry; Discard closes every
- * running interval at AFK start and stops tracking (#170).
+ * timer is running. Keep going leaves the AFK span in the entry (and, if Stop
+ * opened the dialog, then stops that task). Discard and stop closes every
+ * running interval at AFK start (#170).
  *
  * Separate from Assign idle (untracked time when nothing is running). Portaled
  * above TaskEditor so Stop-from-editor still sees the prompt.
@@ -29,6 +29,7 @@ const FOCUSABLE =
 export function AfkWhileTracking({ tasks, thresholdMs = AFK_THRESHOLD_MS }: Props) {
   const { t } = useTranslation();
   const [prompt, setPrompt] = useState<Prompt | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const promptRef = useRef(prompt);
@@ -62,7 +63,7 @@ export function AfkWhileTracking({ tasks, thresholdMs = AFK_THRESHOLD_MS }: Prop
       const now = Date.now();
       const since = afkSinceForStop(idle, now, thresholdMs, afkSinceRef.current, lastIdleRef.current);
       if (since == null) return false;
-      showPrompt({ afkSinceMs: since, durationMs: now - since, stopTaskId: taskId });
+      showPrompt({ afkSinceMs: since, stopTaskId: taskId });
       return true;
     };
     setAfkStopHandler(handler);
@@ -93,7 +94,7 @@ export function AfkWhileTracking({ tasks, thresholdMs = AFK_THRESHOLD_MS }: Prop
         const next = pollAfk(idle, now, thresholdMs, tasksRef.current.some(isTiming), afkSinceRef.current);
         afkSinceRef.current = next.afkSinceMs;
         if (next.prompt && next.afkSinceMs != null) {
-          showPrompt({ afkSinceMs: next.afkSinceMs, durationMs: now - next.afkSinceMs, stopTaskId: null });
+          showPrompt({ afkSinceMs: next.afkSinceMs, stopTaskId: null });
         }
       } finally {
         inFlightRef.current = false;
@@ -106,6 +107,15 @@ export function AfkWhileTracking({ tasks, thresholdMs = AFK_THRESHOLD_MS }: Prop
       window.clearInterval(interval);
     };
   }, [thresholdMs]);
+
+  // Idle poll pauses while the dialog is open; this clock is the live "since you
+  // stepped away" figure. Discard still cuts at afkSinceMs.
+  useEffect(() => {
+    if (!prompt) return;
+    setNowMs(Date.now());
+    const clock = window.setInterval(() => setNowMs(Date.now()), TICK_MS);
+    return () => window.clearInterval(clock);
+  }, [prompt]);
 
   useEffect(() => {
     if (!prompt) return;
@@ -137,7 +147,7 @@ export function AfkWhileTracking({ tasks, thresholdMs = AFK_THRESHOLD_MS }: Prop
   if (!prompt) return null;
 
   const count = tasks.filter(isTiming).length;
-  const duration = formatDurationShort(prompt.durationMs);
+  const duration = formatDurationShort(nowMs - prompt.afkSinceMs);
   const body = count > 1
     ? t("afkTracking.bodyMany", { duration, count })
     : t("afkTracking.body", { duration });

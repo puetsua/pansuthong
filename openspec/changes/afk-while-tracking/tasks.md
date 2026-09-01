@@ -1,6 +1,6 @@
 ## 1. Rust idle query and discard
 
-- [x] 1.1 Add desktop last-input idle helper (`session_idle_ms`) — Windows `GetLastInputInfo`, Linux X11 ScreenSaver with best-effort fallback; Android returns `None`
+- [x] 1.1 Add desktop last-input idle helper (`session_idle_ms`) — Windows `GetLastInputInfo`, Linux X11 ScreenSaver (`None` if no display); Android returns `None`
 - [x] 1.2 Add `Task::discard_running_afk(afk_start)` (close at AFK start, or drop the entry if `start >= afk_start`) and cover it with model tests
 - [x] 1.3 Add `session_idle_ms` and `discard_running_afk` commands, register them, wrap idle in the TS API
 

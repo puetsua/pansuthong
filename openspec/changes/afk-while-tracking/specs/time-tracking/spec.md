@@ -11,7 +11,8 @@ time is unavailable, the system SHALL NOT prompt.
 When the user returns from AFK while a timer is still running, or when they stop
 a running timer after a long AFK without having answered a prompt, the system
 SHALL show an in-app dialog (not an OS notification and not the untracked-idle
-assignment UI) that states how long the AFK span was and offers Keep or Discard.
+assignment UI) that shows elapsed time since AFK start (updating while the
+dialog stays open) and offers Keep or Discard.
 The dialog SHALL require an explicit choice.
 
 **Keep** SHALL leave the AFK duration in each running interval. If the dialog was

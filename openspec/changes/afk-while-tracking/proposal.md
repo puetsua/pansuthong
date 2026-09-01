@@ -24,7 +24,7 @@ While a timer is running, Pansuthong never notices that the user walked away or 
 
 ## Impact
 
-- Desktop Rust: last-input idle query (Windows `GetLastInputInfo`, Linux X11 ScreenSaver / best-effort session idle). New commands to read idle time and discard running AFK spans.
+- Desktop Rust: last-input idle query (Windows `GetLastInputInfo`, Linux X11 ScreenSaver; `None` on Wayland / no display). New commands to read idle time and discard running AFK spans.
 - Frontend: new dialog + poll while timers run; intercept Stop so AFK is not closed at "now" without a prompt. Locales (en, zh-TW).
 - Model: discard-at-AFK-start on running entries; no Document schema change.
 - No Settings, no synced idle state, no Android behavior change.
