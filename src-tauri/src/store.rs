@@ -39,7 +39,12 @@ pub struct AppState {
 }
 
 struct Inner {
-    conn: Connection,
+    /// Live connection only for the in-memory pending store. File-backed stores
+    /// leave this `None` between writes so a cloud-sync client can exclusive-open
+    /// the replica (Windows `CreateFile` with `share_mode` 0). Holding the handle
+    /// across idle is what made a 15s+ OneDrive lock unrecoverable without restart
+    /// (#179).
+    conn: Option<Connection>,
     doc: Document,
     path: PathBuf,
     /// Content hash of our own document (compact serialization).
@@ -55,19 +60,36 @@ struct Inner {
     pending: bool,
 }
 
+impl Inner {
+    /// Persist `self.doc`. File-backed stores open, write, and drop the replica so
+    /// a sync client can exclusive-open it; the in-memory pending store keeps its
+    /// connection because there is no file.
+    fn persist(&mut self) -> Result<()> {
+        if self.pending {
+            let conn = self.conn.as_mut().ok_or_else(|| {
+                AppError::Invalid("pending store is missing its in-memory connection".into())
+            })?;
+            crate::db::write_document(conn, &self.doc)
+        } else {
+            self.conn = None;
+            crate::db::persist_document(&self.path, &self.doc)
+        }
+    }
+}
+
 impl AppState {
     /// Open the store at `path`, migrating/merging any sibling replicas (and a
     /// legacy JSON file) into the local database.
     pub fn open(path: PathBuf) -> Result<Self> {
         ensure_parent(&path)?;
-        let device_id = crate::config::device_id_from_data_path(&path)
-            .unwrap_or_else(|| "device".to_string());
+        let device_id =
+            crate::config::device_id_from_data_path(&path).unwrap_or_else(|| "device".to_string());
         let device_name = crate::config::resolve_device_name(&device_id);
         // One-time: fold bare `history.jsonl` into `history_<device>.jsonl`, then delete it.
         if let Err(e) = crate::history::migrate_legacy_history_jsonl(&path) {
             eprintln!("warning: failed to migrate legacy history.jsonl: {e}");
         }
-        let mut conn = crate::db::open(&path)?;
+        let conn = crate::db::open(&path)?;
         // Our own database (empty on a fresh install).
         let working = crate::db::read_document(&conn)?;
         // Merge in peers + a legacy JSON file (migration), preferring newer edits.
@@ -79,12 +101,14 @@ impl AppState {
             docs.push(working);
         }
         let doc = merge_documents(docs);
-        crate::db::write_document(&mut conn, &doc)?;
+        // Drop before persist so we never hold two handles on a cloud-synced path.
+        drop(conn);
+        crate::db::persist_document(&path, &doc)?;
         let own_hash = content_hash(&doc);
         let peers_hash = peers_content_hash(&path);
         Ok(Self {
             inner: Mutex::new(Inner {
-                conn,
+                conn: None,
                 doc,
                 path,
                 own_hash,
@@ -123,7 +147,7 @@ impl AppState {
         let peers_hash = [0; 32];
         Ok(Self {
             inner: Mutex::new(Inner {
-                conn,
+                conn: Some(conn),
                 doc,
                 path: intended_path,
                 own_hash,
@@ -216,7 +240,7 @@ impl AppState {
         // the app reporting a change that never reached disk — and the next successful
         // write would bake that phantom state in. Restore the pre-mutation document
         // (which also restores `last_modified`/`version`) so the two never disagree.
-        if let Err(e) = crate::db::write_document(&mut inner.conn, &inner.doc) {
+        if let Err(e) = inner.persist() {
             g.doc = before;
             return Err(e);
         }
@@ -255,7 +279,7 @@ impl AppState {
         // Same atomicity rule as `write`: if the merged document cannot be persisted,
         // keep the pre-merge one in memory. Leaving `peers_hash` un-refreshed means the
         // peer still reads as changed, so a later poll retries the merge on its own.
-        if let Err(e) = crate::db::write_document(&mut inner.conn, &inner.doc) {
+        if let Err(e) = inner.persist() {
             g.doc = before;
             return Err(e);
         }
@@ -294,7 +318,10 @@ impl AppState {
 
     #[allow(dead_code)] // used by tests and the folder-sync bookkeeping
     pub fn last_written_hash(&self) -> [u8; 32] {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).own_hash
+        self.inner
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .own_hash
     }
 
     /// Relocate the store to `new_path`. If the target folder already holds data
@@ -324,9 +351,8 @@ impl AppState {
         } else {
             merge_documents(target_docs)
         };
-        let mut conn = crate::db::open(&new_path)?;
-        crate::db::write_document(&mut conn, &doc)?;
-        g.conn = conn;
+        crate::db::persist_document(&new_path, &doc)?;
+        g.conn = None;
         g.doc = doc;
         g.path = new_path;
         g.own_hash = content_hash(&g.doc);
@@ -385,7 +411,7 @@ impl AppState {
         inner.doc = merged;
         // Same atomicity rule as `write`: a merge that cannot be persisted must not
         // stay adopted in memory, or the Android pull path reports data it never wrote.
-        if let Err(e) = crate::db::write_document(&mut inner.conn, &inner.doc) {
+        if let Err(e) = inner.persist() {
             g.doc = before;
             return Err(e);
         }
@@ -428,7 +454,7 @@ impl AppState {
         // Same atomicity rule as `write`: if the incoming document cannot be persisted,
         // the old one must stay in memory rather than the app switching to a source it
         // failed to write.
-        if let Err(e) = crate::db::write_document(&mut inner.conn, &inner.doc) {
+        if let Err(e) = inner.persist() {
             g.doc = before;
             return Err(e);
         }
@@ -686,19 +712,28 @@ mod tests {
 
         // 1. Boot: app starts with a pending in-memory store (loading screen shows).
         let state = AppState::open_in_memory("testdev", data_path.clone()).unwrap();
-        assert!(state.is_pending(), "store should be pending -- loading screen visible");
+        assert!(
+            state.is_pending(),
+            "store should be pending -- loading screen visible"
+        );
 
         // 2. Frontend retry #1: folder still missing, stays pending.
         let opened = state.retry_open().unwrap();
         assert!(!opened, "retry must fail while the cloud folder is missing");
         assert!(state.is_pending(), "store must still be pending");
         // The folder must NOT have been created by the retry.
-        assert!(!cloud_folder.exists(), "retry must not create the missing folder");
+        assert!(
+            !cloud_folder.exists(),
+            "retry must not create the missing folder"
+        );
 
         // 3. Frontend retry #2: still missing, still pending.
         let opened = state.retry_open().unwrap();
         assert!(!opened, "second retry must also fail");
-        assert!(state.is_pending(), "store must still be pending after second retry");
+        assert!(
+            state.is_pending(),
+            "store must still be pending after second retry"
+        );
 
         // 4. Google Drive mounts: the cloud folder appears (with existing data).
         std::fs::create_dir_all(&cloud_folder).unwrap();
@@ -712,12 +747,22 @@ mod tests {
 
         // 5. Frontend retry #3: folder now exists, opens the real store.
         let opened = state.retry_open().unwrap();
-        assert!(opened, "retry must succeed once the cloud folder is available");
-        assert!(!state.is_pending(), "store must no longer be pending -- loading screen clears");
+        assert!(
+            opened,
+            "retry must succeed once the cloud folder is available"
+        );
+        assert!(
+            !state.is_pending(),
+            "store must no longer be pending -- loading screen clears"
+        );
 
         // 6. The real data is now visible.
         let ids: Vec<_> = state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect());
-        assert_eq!(ids, ["k_from_cloud"], "real data from the cloud folder must be loaded");
+        assert_eq!(
+            ids,
+            ["k_from_cloud"],
+            "real data from the cloud folder must be loaded"
+        );
     }
 
     /// While pending, the store holds an empty document. The frontend's
@@ -822,7 +867,10 @@ mod tests {
                 Ok(())
             })
             .unwrap();
-        assert!(state.read(|d| d.last_modified) > 0, "write bumps last_modified");
+        assert!(
+            state.read(|d| d.last_modified) > 0,
+            "write bumps last_modified"
+        );
         drop(state);
 
         // Reopen the same database file: the task survived.
@@ -867,14 +915,20 @@ mod tests {
 
         // A peer replica appears (e.g. pulled by Google Drive).
         write_json_replica(&dir.path().join("tasks_peer.json"), "k_peer");
-        assert!(state.reload_replicas_if_changed().unwrap(), "new peer detected");
+        assert!(
+            state.reload_replicas_if_changed().unwrap(),
+            "new peer detected"
+        );
         let mut ids = state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>());
         ids.sort();
         assert_eq!(ids, ["k_dev", "k_peer"]);
 
         // A second poll with nothing new must NOT reload (content hash is stable
         // even though our own .db was rewritten byte-differently).
-        assert!(!state.reload_replicas_if_changed().unwrap(), "no change -> no reload");
+        assert!(
+            !state.reload_replicas_if_changed().unwrap(),
+            "no change -> no reload"
+        );
     }
 
     #[test]
@@ -948,7 +1002,10 @@ mod tests {
     fn open_migrates_legacy_json() {
         let dir = tempdir().unwrap();
         // Pre-SQLite world: a single legacy tasks.json, no per-device replica.
-        write_json_replica(&dir.path().join(crate::config::legacy_data_file_name()), "k_legacy");
+        write_json_replica(
+            &dir.path().join(crate::config::legacy_data_file_name()),
+            "k_legacy",
+        );
 
         let path = dir.path().join("tasks_dev.db");
         let state = AppState::open(path.clone()).unwrap();
@@ -959,7 +1016,10 @@ mod tests {
         );
         // The imported data is now in the .db, and the legacy file is left in place.
         assert!(path.exists());
-        assert!(dir.path().join(crate::config::legacy_data_file_name()).exists());
+        assert!(dir
+            .path()
+            .join(crate::config::legacy_data_file_name())
+            .exists());
     }
 
     #[test]
@@ -1444,7 +1504,10 @@ mod tests {
         // opens on healthy data. The version gate is exercised directly in db.rs;
         // here we assert one bad replica never sinks startup.
         let state = AppState::open(dir.path().join("tasks_dev.db"));
-        assert!(state.is_ok(), "a bad peer replica is skipped, not fatal at open");
+        assert!(
+            state.is_ok(),
+            "a bad peer replica is skipped, not fatal at open"
+        );
     }
 
     #[test]
@@ -1508,10 +1571,7 @@ mod tests {
     }
 
     /// Hold an exclusive lock on the replica for `hold`, returning once it is taken.
-    fn hold_exclusive_lock(
-        path: &Path,
-        hold: std::time::Duration,
-    ) -> std::thread::JoinHandle<()> {
+    fn hold_exclusive_lock(path: &Path, hold: std::time::Duration) -> std::thread::JoinHandle<()> {
         use std::sync::mpsc;
 
         let (taken_tx, taken_rx) = mpsc::channel();
@@ -1529,9 +1589,10 @@ mod tests {
 
     /// Break the replica so the next write fails for a reason that is *not* lock
     /// contention — exercising the rollback path without waiting out a retry budget.
+    /// Overwrite with garbage rather than DROP TABLE: persist reopens and `init`s,
+    /// which would recreate a dropped table and turn the injection into a success.
     fn break_replica(path: &Path) {
-        let conn = crate::db::open(path).unwrap();
-        conn.execute_batch("DROP TABLE tasks").unwrap();
+        std::fs::write(path, b"not a sqlite database").unwrap();
     }
 
     /// The mutation is applied to the in-memory document before it is persisted. If a
@@ -1556,7 +1617,10 @@ mod tests {
             Ok(())
         });
 
-        assert!(result.is_err(), "the write must fail once the replica is broken");
+        assert!(
+            result.is_err(),
+            "the write must fail once the replica is broken"
+        );
         assert_eq!(
             state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
             ["k_saved"],
@@ -1580,7 +1644,9 @@ mod tests {
                 Ok(())
             })
             .unwrap();
-        let history_after_success = crate::history::read_history(&path, usize::MAX).unwrap().len();
+        let history_after_success = crate::history::read_history(&path, usize::MAX)
+            .unwrap()
+            .len();
 
         break_replica(&path);
         let _ = state.write(|d| {
@@ -1589,7 +1655,9 @@ mod tests {
         });
 
         assert_eq!(
-            crate::history::read_history(&path, usize::MAX).unwrap().len(),
+            crate::history::read_history(&path, usize::MAX)
+                .unwrap()
+                .len(),
             history_after_success,
             "history must not record a change that was never persisted",
         );
@@ -1611,19 +1679,26 @@ mod tests {
 
         // A peer shows up with a task we do not have, so the poll will try to merge.
         write_json_replica(&dir.path().join("tasks_peer.json"), "k_peer");
-        let history_before = crate::history::read_history(&path, usize::MAX).unwrap().len();
+        let history_before = crate::history::read_history(&path, usize::MAX)
+            .unwrap()
+            .len();
         break_replica(&path);
 
         let result = state.reload_replicas_if_changed();
 
-        assert!(result.is_err(), "the merge write must fail once the replica is broken");
+        assert!(
+            result.is_err(),
+            "the merge write must fail once the replica is broken"
+        );
         assert_eq!(
             state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
             ["k_local"],
             "a merge that did not reach disk must not be adopted in memory",
         );
         assert_eq!(
-            crate::history::read_history(&path, usize::MAX).unwrap().len(),
+            crate::history::read_history(&path, usize::MAX)
+                .unwrap()
+                .len(),
             history_before,
             "History must not record a peer merge that was never persisted",
         );
@@ -1642,7 +1717,9 @@ mod tests {
                 Ok(())
             })
             .unwrap();
-        let history_before = crate::history::read_history(&path, usize::MAX).unwrap().len();
+        let history_before = crate::history::read_history(&path, usize::MAX)
+            .unwrap()
+            .len();
 
         let mut incoming = Document::default();
         incoming.tasks.push(sample_task("k_incoming"));
@@ -1650,14 +1727,19 @@ mod tests {
 
         let result = state.adopt_synced(incoming);
 
-        assert!(result.is_err(), "the adopt write must fail once the replica is broken");
+        assert!(
+            result.is_err(),
+            "the adopt write must fail once the replica is broken"
+        );
         assert_eq!(
             state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
             ["k_local"],
             "an adopted merge that did not reach disk must not stay in memory",
         );
         assert_eq!(
-            crate::history::read_history(&path, usize::MAX).unwrap().len(),
+            crate::history::read_history(&path, usize::MAX)
+                .unwrap()
+                .len(),
             history_before,
             "History must not record an adopt that was never persisted",
         );
@@ -1683,7 +1765,10 @@ mod tests {
 
         let result = state.load_replacing_local(incoming);
 
-        assert!(result.is_err(), "the replace must fail once the replica is broken");
+        assert!(
+            result.is_err(),
+            "the replace must fail once the replica is broken"
+        );
         assert_eq!(
             state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
             ["k_local"],
@@ -1703,5 +1788,104 @@ mod tests {
             Path::new(r"D:\Sync\tasks_peer.db"),
             Path::new(r"D:\Sync\tasks_dev.db"),
         ));
+    }
+
+    #[cfg(unix)]
+    fn open_fds_to(path: &Path) -> Vec<PathBuf> {
+        let Ok(canon) = path.canonicalize() else {
+            return Vec::new();
+        };
+        let Ok(dir) = std::fs::read_dir("/proc/self/fd") else {
+            return Vec::new();
+        };
+        dir.flatten()
+            .filter_map(|entry| std::fs::read_link(entry.path()).ok())
+            .filter(|target| target == &canon)
+            .collect()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn idle_store_does_not_hold_the_replica_file() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path.clone()).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_a"));
+                Ok(())
+            })
+            .unwrap();
+        let fds = open_fds_to(&path);
+        assert!(
+            fds.is_empty(),
+            "file-backed store must release the replica between writes: {fds:?}"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn idle_store_allows_exclusive_createfile() {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path.clone()).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_a"));
+                Ok(())
+            })
+            .unwrap();
+
+        let exclusive = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .share_mode(0)
+            .open(&path);
+        assert!(
+            exclusive.is_ok(),
+            "idle store must not hold the replica: {:?}",
+            exclusive.err()
+        );
+    }
+
+    #[test]
+    fn a_later_write_in_the_same_session_recovers_after_the_lock_clears() {
+        use std::time::Duration;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(path.clone()).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_saved"));
+                Ok(())
+            })
+            .unwrap();
+
+        let holder = hold_exclusive_lock(&path, Duration::from_secs(2));
+        let first = crate::db::persist_document_within_for_test(
+            &path,
+            &Document::default(),
+            Duration::from_millis(300),
+            Duration::from_millis(50),
+        );
+        assert!(
+            matches!(first, Err(AppError::Busy(_))),
+            "expected Busy while the lock is held, got {first:?}"
+        );
+        holder.join().unwrap();
+
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_after"));
+                Ok(())
+            })
+            .expect("same AppState must persist once the lock is gone, without restart");
+        assert_eq!(
+            state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["k_saved", "k_after"]
+        );
     }
 }

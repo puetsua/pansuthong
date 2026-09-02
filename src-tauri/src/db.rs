@@ -47,16 +47,28 @@ const LOCKED_MESSAGE: &str = "The data file is locked by another program \
     (usually a cloud-sync client finishing an upload). Your change was not saved — \
     please try again in a moment.";
 
-/// True for the SQLite codes that mean "someone else holds the file", the only ones
-/// worth retrying. A constraint violation or a corrupt database will not improve with
-/// time, so those must surface immediately.
+/// True for errors that mean "someone else holds the file", the only ones worth
+/// retrying. A constraint violation, a corrupt database, or `SQLITE_CANTOPEN` on a
+/// missing/invalid path will not improve with time, so those must surface immediately.
 fn is_lock_contention(e: &AppError) -> bool {
-    matches!(
-        e,
-        AppError::Db(rusqlite::Error::SqliteFailure(inner, _))
-            if inner.code == rusqlite::ErrorCode::DatabaseBusy
-                || inner.code == rusqlite::ErrorCode::DatabaseLocked
-    )
+    match e {
+        AppError::Db(rusqlite::Error::SqliteFailure(inner, msg)) => {
+            matches!(
+                inner.code,
+                rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked
+            ) || msg
+                .as_deref()
+                .is_some_and(|m| m.to_ascii_lowercase().contains("sharing violation"))
+        }
+        AppError::Io(io) => is_sharing_violation(io),
+        _ => false,
+    }
+}
+
+/// Windows `CreateFile` exclusive (`share_mode` 0) and Unix `EBUSY`/`EAGAIN` while
+/// another process holds the replica. Not a generic permission or not-found error.
+fn is_sharing_violation(e: &std::io::Error) -> bool {
+    matches!(e.raw_os_error(), Some(32) | Some(33) | Some(11) | Some(16))
 }
 
 /// Open (or create) the database at `path` and ensure the schema. Uses rollback
@@ -66,8 +78,16 @@ fn is_lock_contention(e: &AppError) -> bool {
 /// during a commit is removed when the transaction ends; peers guard against a torn
 /// mid-commit read with `PRAGMA quick_check` (see `load_from_file`).
 pub fn open(path: &Path) -> Result<Connection> {
+    open_for_write(path, BUSY_TIMEOUT)
+}
+
+/// Open the replica with `busy` applied *before* any pragma or schema write, so a
+/// lock held by another process is retried on our budget rather than SQLite's default
+/// inner wait. [`persist_document`] uses this so tests can shrink the wait without
+/// the production 5s timeout running first inside `init`.
+fn open_for_write(path: &Path, busy: Duration) -> Result<Connection> {
     let conn = Connection::open(path)?;
-    conn.busy_timeout(BUSY_TIMEOUT)?;
+    conn.busy_timeout(busy)?;
     conn.pragma_update(None, "journal_mode", "DELETE")?;
     conn.pragma_update(None, "synchronous", "FULL")?;
     init(&conn)?;
@@ -102,9 +122,7 @@ fn sqlite_immutable_uri(path: &Path) -> Result<String> {
     let abs = if path.is_absolute() {
         path.to_path_buf()
     } else {
-        std::env::current_dir()
-            .map_err(AppError::Io)?
-            .join(path)
+        std::env::current_dir().map_err(AppError::Io)?.join(path)
     };
     let raw = abs.to_string_lossy();
     // SQLite URI paths use forward slashes; percent-encode characters that would
@@ -182,12 +200,14 @@ fn set_user_version(conn: &Connection, v: u32) -> Result<()> {
     Ok(())
 }
 
-/// Persist the whole `Document`, retrying while another process holds the file.
+/// Persist the whole `Document` on an already-open connection, retrying while another
+/// process holds the file. Prefer [`persist_document`] for a file-backed replica: that
+/// path drops the handle between attempts so a Windows sync client can exclusive-open
+/// the file. This entry point remains for the in-memory pending store and tests.
 ///
-/// The replica lives in a folder a cloud-sync client also writes, so losing the race
-/// is routine rather than exceptional. Each attempt is a complete DELETE-then-INSERT
-/// transaction, so re-running one is idempotent — a retry cannot leave a half-applied
-/// document. Only lock contention is retried; every other error returns at once.
+/// Each attempt is a complete DELETE-then-INSERT transaction, so re-running one is
+/// idempotent — a retry cannot leave a half-applied document. Only lock contention is
+/// retried; every other error returns at once.
 pub fn write_document(conn: &mut Connection, doc: &Document) -> Result<()> {
     write_document_within(conn, doc, LOCK_RETRY_BUDGET)
 }
@@ -199,9 +219,52 @@ pub(crate) fn write_document_within(
     doc: &Document,
     budget: Duration,
 ) -> Result<()> {
+    retry_write(budget, || write_document_once(conn, doc))
+}
+
+/// Open the replica, persist `doc`, and drop the connection. File-backed stores must
+/// use this rather than holding a live handle: a Windows cloud-sync client exclusive-
+/// opens the file (`CreateFile` `share_mode` 0) and cannot finish while SQLite still
+/// has it. Closing between attempts also lets that upload complete inside the retry
+/// budget; a later persist in the same process then succeeds without restarting (#179).
+pub fn persist_document(path: &Path, doc: &Document) -> Result<()> {
+    persist_document_within(path, doc, LOCK_RETRY_BUDGET)
+}
+
+/// [`persist_document`] with an explicit budget, so tests can exercise exhaustion
+/// without sleeping for the production budget.
+pub(crate) fn persist_document_within(path: &Path, doc: &Document, budget: Duration) -> Result<()> {
+    persist_with_timeouts(path, doc, budget, BUSY_TIMEOUT)
+}
+
+fn persist_with_timeouts(
+    path: &Path,
+    doc: &Document,
+    budget: Duration,
+    busy: Duration,
+) -> Result<()> {
+    retry_write(budget, || {
+        let mut conn = open_for_write(path, busy)?;
+        let result = write_document_once(&mut conn, doc);
+        drop(conn);
+        result
+    })
+}
+
+#[cfg(test)]
+pub(crate) fn persist_document_within_for_test(
+    path: &Path,
+    doc: &Document,
+    budget: Duration,
+    busy: Duration,
+) -> Result<()> {
+    persist_with_timeouts(path, doc, budget, busy)
+}
+
+fn retry_write(budget: Duration, mut attempt: impl FnMut() -> Result<()>) -> Result<()> {
     let deadline = Instant::now() + budget;
     loop {
-        match write_document_once(conn, doc) {
+        match attempt() {
             Err(e) if is_lock_contention(&e) => {
                 if Instant::now() >= deadline {
                     return Err(AppError::Busy(LOCKED_MESSAGE.to_string()));
@@ -301,8 +364,7 @@ fn read_entities<T: serde::de::DeserializeOwned>(conn: &Connection, table: &str)
 }
 
 fn read_tombstones(conn: &Connection, kind: &str) -> Result<Vec<Tombstone>> {
-    let mut stmt =
-        conn.prepare("SELECT data FROM tombstones WHERE kind = ?1 ORDER BY rowid")?;
+    let mut stmt = conn.prepare("SELECT data FROM tombstones WHERE kind = ?1 ORDER BY rowid")?;
     let rows = stmt.query_map([kind], |r| r.get::<_, String>(0))?;
     let mut out = Vec::new();
     for row in rows {
@@ -525,7 +587,8 @@ mod tests {
         conn.busy_timeout(Duration::from_millis(50)).unwrap();
 
         let holder = hold_exclusive_lock(&path, Duration::from_secs(2));
-        let result = write_document_within(&mut conn, &Document::default(), Duration::from_millis(300));
+        let result =
+            write_document_within(&mut conn, &Document::default(), Duration::from_millis(300));
         holder.join().unwrap();
 
         match result {
@@ -552,11 +615,8 @@ mod tests {
         conn.execute_batch("DROP TABLE tasks").unwrap();
 
         let started = Instant::now();
-        let result = write_document_within(
-            &mut conn,
-            &Document::default(),
-            Duration::from_secs(30),
-        );
+        let result =
+            write_document_within(&mut conn, &Document::default(), Duration::from_secs(30));
 
         assert!(result.is_err(), "a missing table must fail the write");
         assert!(
@@ -567,6 +627,115 @@ mod tests {
             started.elapsed() < Duration::from_secs(5),
             "a non-lock failure must not consume the retry budget",
         );
+    }
+
+    fn persist_busy_assert(result: Result<()>) {
+        match result {
+            Err(AppError::Busy(msg)) => {
+                assert!(
+                    msg.contains("not saved"),
+                    "the message must say the change was not saved: {msg}",
+                );
+                assert!(
+                    !msg.contains("database is locked"),
+                    "the raw SQLite string must not reach the user: {msg}",
+                );
+            }
+            other => panic!("expected AppError::Busy, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn persist_document_exhausted_budget_reports_busy() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        persist_document(&path, &Document::default()).unwrap();
+
+        let holder = hold_exclusive_lock(&path, Duration::from_secs(2));
+        let result = persist_document_within_for_test(
+            &path,
+            &Document::default(),
+            Duration::from_millis(300),
+            Duration::from_millis(50),
+        );
+        holder.join().unwrap();
+        persist_busy_assert(result);
+    }
+
+    #[test]
+    fn persist_document_recovers_in_the_same_session_after_the_lock_clears() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        persist_document(&path, &Document::default()).unwrap();
+
+        let holder = hold_exclusive_lock(&path, Duration::from_secs(2));
+        let first = persist_document_within_for_test(
+            &path,
+            &Document::default(),
+            Duration::from_millis(300),
+            Duration::from_millis(50),
+        );
+        persist_busy_assert(first);
+        holder.join().unwrap();
+
+        persist_document(&path, &Document::default())
+            .expect("the next persist in this process must succeed once the lock is gone");
+    }
+
+    #[test]
+    fn persist_document_does_not_retry_a_corrupt_replica() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        persist_document(&path, &Document::default()).unwrap();
+        std::fs::write(&path, b"not a sqlite database").unwrap();
+
+        let started = Instant::now();
+        let result = persist_document_within(&path, &Document::default(), Duration::from_secs(30));
+
+        assert!(result.is_err(), "garbage bytes must fail the persist");
+        assert!(
+            !matches!(result, Err(AppError::Busy(_))),
+            "a corrupt file must not be reported as contention",
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "a corrupt file must not consume the retry budget",
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn persist_document_releases_the_replica_file() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("tasks_dev.db");
+        persist_document(&path, &Document::default()).unwrap();
+        assert!(
+            open_fds_to(&path).is_empty(),
+            "persist must drop the replica handle: {:?}",
+            open_fds_to(&path),
+        );
+    }
+
+    #[cfg(unix)]
+    fn open_fds_to(path: &Path) -> Vec<std::path::PathBuf> {
+        let Ok(canon) = path.canonicalize() else {
+            return Vec::new();
+        };
+        let Ok(dir) = std::fs::read_dir("/proc/self/fd") else {
+            return Vec::new();
+        };
+        dir.flatten()
+            .filter_map(|entry| std::fs::read_link(entry.path()).ok())
+            .filter(|target| target == &canon)
+            .collect()
     }
 
     #[test]
