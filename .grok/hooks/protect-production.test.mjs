@@ -1,5 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   decide,
   extractPids,
@@ -7,6 +10,8 @@ import {
   isProductionInstallPath,
   DENY_REASON,
 } from "./protect-production.mjs";
+
+const hookPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "protect-production.mjs");
 
 const prodExe = "C:\\Users\\hank\\AppData\\Local\\Pansuthong\\pansuthong.exe";
 const devExe = "D:\\Projects\\pansuthong\\src-tauri\\target\\debug\\pansuthong.exe";
@@ -33,6 +38,14 @@ describe("path classifiers", () => {
     assert.equal(isProductionInstallPath(prodExe), true);
     assert.equal(isProductionInstallPath(devExe), false);
     assert.equal(isProductionInstallPath("C:\\Users\\hank\\AppData\\Local\\Pansuthong Dev\\Pansuthong Dev.exe"), false);
+    assert.equal(
+      isProductionInstallPath("$env:LOCALAPPDATA\\Pansuthong\\pansuthong.exe"),
+      true,
+    );
+    assert.equal(
+      isProductionInstallPath("%LOCALAPPDATA%\\Pansuthong\\pansuthong.exe"),
+      true,
+    );
   });
 
   it("detects live production data dirs but not .dev", () => {
@@ -53,6 +66,10 @@ describe("allow: dev and read-only discovery", () => {
   it("allows npm run tauri dev / android dev", () => {
     allow(bash("npm run tauri dev"));
     allow(bash("npm run tauri android dev"));
+    allow(bash("pnpm run tauri dev"));
+    allow(bash("pnpm tauri android dev"));
+    allow(bash("yarn run tauri dev"));
+    allow(bash("yarn tauri android dev"));
   });
 
   it("allows listing processes to find production so it can be avoided", () => {
@@ -94,11 +111,15 @@ describe("deny: production launch / kill / data / mcp", () => {
   it("denies launching the installed exe", () => {
     deny(bash(`Start-Process '${prodExe}'`));
     deny(bash(`& '${prodExe}'`));
+    deny(bash('& "$env:LOCALAPPDATA\\Pansuthong\\pansuthong.exe"'));
+    deny(bash('Start-Process "$env:LOCALAPPDATA\\Pansuthong\\pansuthong.exe"'));
   });
 
-  it("denies image-name kill of pansuthong.exe (would also hit production)", () => {
+  it("denies image-name kill of pansuthong (would also hit production)", () => {
     deny(bash("taskkill /IM pansuthong.exe /F"));
     deny(bash("Stop-Process -Name pansuthong -Force"));
+    deny(bash("pkill pansuthong"));
+    deny(bash("killall pansuthong"));
   });
 
   it("denies killing a PID that resolves to the production exe", () => {
@@ -107,6 +128,17 @@ describe("deny: production launch / kill / data / mcp", () => {
     });
     deny(bash("taskkill /PID 43904 /F"), {
       resolvePid: (pid) => (Number(pid) === 43904 ? prodExe : ""),
+    });
+  });
+
+  it("denies killing a PID when exe-path lookup fails (fail closed)", () => {
+    deny(bash("kill 43904"), {
+      resolvePid: () => "",
+    });
+    deny(bash("Stop-Process -Id 43904 -Force"), {
+      resolvePid: () => {
+        throw new Error("lookup failed");
+      },
     });
   });
 
@@ -134,11 +166,39 @@ describe("deny: production launch / kill / data / mcp", () => {
     allow(bash("adb uninstall net.puetsua.pansuthong.dev"));
   });
 
+  it("denies winget uninstall of production Pansuthong by name", () => {
+    deny(bash("winget uninstall Pansuthong"));
+    deny(bash("winget uninstall --name Pansuthong"));
+    allow(bash("winget uninstall --id SomePublisher.PansuthongDev"));
+  });
+
   it("denies cargo run / bare tauri dev without the Dev config", () => {
     deny(bash("cargo run --manifest-path src-tauri/Cargo.toml"));
     deny(bash("cargo run"), { cwd: "D:\\Projects\\pansuthong\\src-tauri" });
     deny(bash("npx tauri dev"));
     allow(bash("npx tauri dev --config src-tauri/tauri.dev.conf.json"));
+  });
+});
+
+describe("hook process: fail closed", () => {
+  it("denies on empty stdin unless PANSUTHONG_ALLOW_PRODUCTION=1", () => {
+    const denied = spawnSync("node", [hookPath], { encoding: "utf8", input: "" });
+    assert.equal(denied.status, 2);
+    assert.match(denied.stdout, /"permission":"deny"/);
+
+    const allowed = spawnSync("node", [hookPath], {
+      encoding: "utf8",
+      input: "",
+      env: { ...process.env, PANSUTHONG_ALLOW_PRODUCTION: "1" },
+    });
+    assert.equal(allowed.status, 0);
+    assert.match(allowed.stdout, /"permission":"allow"/);
+  });
+
+  it("denies on invalid JSON unless override is set", () => {
+    const denied = spawnSync("node", [hookPath], { encoding: "utf8", input: "not-json" });
+    assert.equal(denied.status, 2);
+    assert.match(denied.stdout, /"permission":"deny"/);
   });
 });
 

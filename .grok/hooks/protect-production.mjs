@@ -20,7 +20,8 @@ const READ_ONLY = /\b(tasklist|get-process|get-ciminstance|get-wmiobject|get-ite
 
 const MUTATE = /\b(taskkill|stop-process|stop-ciminstance|invoke-cimmethod|kill(all)?\b|uninstall|remove-item|remove-appxpackage|remove-appx|erase\b|rmdir\b|\brd\b|\brm\b|\bdel\b|start-process|invoke-item|invoke-expression|set-content|add-content|out-file|copy-item|move-item|rename-item|\bren\b|copy\b|move\b|winget\s+uninstall|adb\s+uninstall|am\s+force-stop|am\s+start|pm\s+uninstall|pm\s+clear|pm\s+disable)\b/i;
 
-const KILL = /\b(taskkill|stop-process|stop-ciminstance|invoke-cimmethod.{0,80}terminate|wmic\s+process[^\n]*call\s+terminate|kill(all)?\s|kill\s+-)/i;
+const KILL =
+  /\b(taskkill|stop-process|stop-ciminstance|invoke-cimmethod.{0,80}terminate|wmic\s+process[^\n]*call\s+terminate|pkill|killall|kill\s+[-\d])/i;
 
 export function normalize(p) {
   return String(p ?? "").replace(/\\/g, "/").toLowerCase();
@@ -44,6 +45,13 @@ export function isProductionInstallPath(p) {
   if (/\/appdata\/local\/pansuthong\/pansuthong(\.exe)?$/.test(n)) return true;
   if (n.includes("/appdata/local/pansuthong/") && !n.includes("pansuthong dev")) return true;
   if (n.includes("/appdata/local/programs/pansuthong/")) return true;
+  // PowerShell / cmd env-var launch paths (e.g. $env:LOCALAPPDATA\Pansuthong\pansuthong.exe).
+  if (
+    /(?:\$env:|%)[a-z_]*localappdata[^/\\]*[\\/]pansuthong(?:[\\/]|$)/.test(n) &&
+    !n.includes("pansuthong dev")
+  ) {
+    return true;
+  }
   if (n.includes("/usr/bin/pansuthong")) return true;
   if (n.includes("/usr/lib/pansuthong")) return true;
   if (/\/opt\/pansuthong\//.test(n)) return true;
@@ -147,15 +155,19 @@ export function defaultResolvePid(pid) {
 }
 
 function isTauriMcp(name) {
-  return /^(tauri__|mcp__tauri__|mcp__tauri)/i.test(name);
+  return /^(tauri__|mcp__tauri__|mcp__tauri|MCP:tauri)/i.test(name);
 }
 
 function isFileTool(name) {
-  return /^(read_file|read|write|search_replace|edit|multiedit|delete)$/i.test(name);
+  return /^(read_file|read|write|search_replace|edit|multiedit|delete|grep)$/i.test(name);
 }
 
 function isShellTool(name) {
   return /^(bash|run_terminal_command|powershell|shell)$/i.test(name) || name === "";
+}
+
+function isPackageScriptTauri(cmd) {
+  return /\b(npm|pnpm|yarn)\s+(run\s+)?tauri\b/i.test(cmd);
 }
 
 function denyCargoRunWithoutDevConfig(cmd, cwd) {
@@ -167,10 +179,18 @@ function denyCargoRunWithoutDevConfig(cmd, cwd) {
 }
 
 function denyBareTauriDev(cmd) {
-  if (/\bnpm\s+run\s+tauri\b/i.test(cmd)) return false;
+  if (isPackageScriptTauri(cmd)) return false;
   if (/scripts\/tauri\.mjs/i.test(cmd)) return false;
   if (isDevIdentity(cmd)) return false;
   return /(?:^|[\s"'\\/])tauri(?:\.cmd)?\s+(dev|android\s+dev)\b/i.test(cmd);
+}
+
+function denyWingetUninstallProd(cmd) {
+  if (!/\bwinget\s+uninstall\b/i.test(cmd)) return false;
+  if (isDevIdentity(cmd)) return false;
+  // By-name uninstall (not --id) of production Pansuthong.
+  if (/\bpansuthong\b/i.test(cmd) && !/pansuthong\s+dev/i.test(cmd)) return true;
+  return false;
 }
 
 function denyAdbProd(text) {
@@ -181,10 +201,10 @@ function denyAdbProd(text) {
 }
 
 function denyKillByImageName(cmd) {
-  // Image-name kill of pansuthong.exe also hits the installed production process.
+  // Image-name kill of pansuthong also hits the installed production process.
   if (/pansuthong\s+dev/i.test(cmd)) return false;
   return (
-    /\b(taskkill|stop-process|killall)\b/i.test(cmd) &&
+    /\b(taskkill|stop-process|killall|pkill)\b/i.test(cmd) &&
     /\bpansuthong(?:\.exe)?\b/i.test(cmd) &&
     !/src-tauri[\\/]target/i.test(cmd) &&
     !/executablepath/i.test(cmd)
@@ -222,6 +242,7 @@ export function decide(input, opts = {}) {
 
   if (denyAdbProd(blob)) return { decision: "deny", reason: DENY_REASON };
   if (denyBareTauriDev(cmd || hay)) return { decision: "deny", reason: DENY_REASON };
+  if (denyWingetUninstallProd(cmd || hay)) return { decision: "deny", reason: DENY_REASON };
   if (denyCargoRunWithoutDevConfig(cmd || hay, cwd)) {
     return { decision: "deny", reason: DENY_REASON };
   }
@@ -241,8 +262,14 @@ export function decide(input, opts = {}) {
       }
     }
     for (const pid of extractPids(cmd || hay)) {
-      const exe = resolvePid(pid);
-      if (exe && isProductionInstallPath(exe)) {
+      let exe = "";
+      try {
+        exe = resolvePid(pid);
+      } catch {
+        exe = "";
+      }
+      // Fail closed when the exe path cannot be resolved (unknown PID may be production).
+      if (!exe || isProductionInstallPath(exe)) {
         return { decision: "deny", reason: DENY_REASON };
       }
     }
@@ -266,35 +293,67 @@ function readStdin() {
   }
 }
 
+function productionOverrideEnabled() {
+  return process.env.PANSUTHONG_ALLOW_PRODUCTION === "1";
+}
+
+function hookPayload(out) {
+  if (out.decision === "deny") {
+    const reason = out.reason ?? DENY_REASON;
+    return {
+      permission: "deny",
+      user_message: reason,
+      agent_message: reason,
+      decision: "deny",
+      reason,
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: reason,
+      },
+    };
+  }
+  return {
+    permission: "allow",
+    decision: "allow",
+  };
+}
+
+function writeHookResult(out) {
+  const payload = hookPayload(out);
+  process.stdout.write(`${JSON.stringify(payload)}\n`);
+  if (out.decision === "deny") process.exitCode = 2;
+}
+
 function main() {
+  const override = productionOverrideEnabled();
   try {
     const raw = readStdin().trim();
     if (!raw) {
-      process.stdout.write(`${JSON.stringify({ decision: "allow" })}\n`);
+      if (override) {
+        writeHookResult({ decision: "allow" });
+      } else {
+        writeHookResult({
+          decision: "deny",
+          reason:
+            "Blocked: protect-production hook received empty stdin (fail closed). Set PANSUTHONG_ALLOW_PRODUCTION=1 only if the user explicitly asked for production work.",
+        });
+      }
       return;
     }
     const input = JSON.parse(raw);
-    const out = decide(input);
-    if (out.decision === "deny") {
-      process.stdout.write(
-        `${JSON.stringify({
-          decision: "deny",
-          reason: out.reason,
-          hookSpecificOutput: {
-            hookEventName: "PreToolUse",
-            permissionDecision: "deny",
-            permissionDecisionReason: out.reason,
-          },
-        })}\n`,
-      );
-      process.exitCode = 2;
-      return;
-    }
-    process.stdout.write(`${JSON.stringify({ decision: "allow" })}\n`);
+    writeHookResult(decide(input));
   } catch (err) {
     const msg = String(err?.message ?? err);
     process.stderr.write(`protect-production hook error: ${msg}\n`);
-    process.stdout.write(`${JSON.stringify({ decision: "allow" })}\n`);
+    if (override) {
+      writeHookResult({ decision: "allow" });
+    } else {
+      writeHookResult({
+        decision: "deny",
+        reason: `Blocked: protect-production hook error (fail closed): ${msg}`,
+      });
+    }
   }
 }
 
