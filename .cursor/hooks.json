@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "node .grok/hooks/protect-production.mjs",
+        "timeout": 15,
+        "failClosed": true
+      }
+    ]
+  }
+}
