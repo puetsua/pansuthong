@@ -14,7 +14,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
-    "test": "vitest run",
+    "test": "vitest run && node --test .grok/hooks/protect-production.test.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {
