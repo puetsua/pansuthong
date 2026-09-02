@@ -122,6 +122,16 @@ The system SHALL report lock contention as a distinct error kind carrying a mess
 that names the likely cause and the fact that the edit was not saved, rather than
 surfacing the underlying SQLite error text.
 
+When a persist against this device's replica has finished — successfully or as a
+lock-contention failure — the system SHALL NOT keep that replica file open. Between
+retry attempts the file SHALL also be closed, so another process can exclusive-open
+it (the usual cloud-sync client upload). A later write in the same session SHALL
+reopen the replica and persist once the lock is gone; restarting the app SHALL NOT
+be required for recovery.
+
+A temporary in-memory store used while the real data folder is not yet available
+is exempt: it has no replica file.
+
 #### Scenario: Transient sync-client lock is ridden out
 - **WHEN** another process holds a write lock on this device's replica
 - **AND** it releases the lock within the retry budget
@@ -155,6 +165,22 @@ surfacing the underlying SQLite error text.
 #### Scenario: A failed data-source switch keeps the previous document
 - **WHEN** the user switches data source and the incoming document cannot be persisted
 - **THEN** the in-memory document remains the previous one
+
+#### Scenario: The replica file is not held between writes
+- **WHEN** a persist of this device's replica has finished (success or failure)
+- **THEN** the system does not keep that replica file open
+- **AND** another process can exclusive-open the file
+
+#### Scenario: Retry attempts release the file between tries
+- **WHEN** a write is retrying because the replica is locked
+- **THEN** each failed attempt closes the replica before waiting to retry
+- **AND** the locking process can finish during the remaining budget
+
+#### Scenario: A later write in the same session recovers without restart
+- **WHEN** a write reported lock-contention
+- **AND** the external lock is later released
+- **THEN** a subsequent write in the same session persists the new change
+- **AND** the app does not need to be restarted
 
 ### Requirement: Relocatable data folder
 
