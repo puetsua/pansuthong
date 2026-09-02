@@ -3,11 +3,11 @@
 ## Purpose
 
 On Android there is no always-mounted cloud folder, so an app-private local
-master (`tasks_<device>.db`) remains crash-safe and a mirror layer copies it (and
-any conflict copies / attachment blobs) to and from a user-picked SAF (Storage
-Access Framework) folder. All SAF I/O sits behind a `SafBackend` trait so the
-mirror logic is testable on desktop; the SAF commands are no-ops on non-Android
-targets.
+master (`tasks_<device>.db`) remains crash-safe and a mirror layer copies it
+(and conflict copies, attachment blobs, and `history_<device>.jsonl` sidecars)
+to and from a user-picked SAF (Storage Access Framework) folder. All SAF I/O
+sits behind a `SafBackend` trait so the mirror logic is testable on desktop;
+the SAF commands are no-ops on non-Android targets.
 
 ## Requirements
 
@@ -39,6 +39,40 @@ elsewhere, and SHALL never write WAL/`-shm` sidecar files into the SAF folder.
 - **WHEN** `saf_push` runs
 - **THEN** the local master's `.db` bytes (and recognized conflict copies) are written to
   the SAF folder, and no WAL sidecar files are written there
+
+### Requirement: History sidecar mirroring
+
+The system SHALL mirror this device's `history_<device>.jsonl` into the SAF folder
+on push, and SHALL pull peer `history_*.jsonl` sidecars into the app-private folder
+on pull. Push SHALL NOT write peer history files. Pull SHALL NOT overwrite a local
+own sidecar that already exists (local appends remain the source of truth until the
+next push). An explicit folder-switch SHALL adopt the folder's own sidecar when
+present and SHALL remove a local own sidecar the folder does not contain. Bare
+`history.jsonl` SHALL NOT be mirrored.
+
+#### Scenario: Push writes own history sidecar
+- **WHEN** `saf_push` runs and the app-private folder holds `history_<device>.jsonl`
+- **THEN** that file is written to the SAF folder beside the `.db` replica
+
+#### Scenario: Push still writes history when the document is unchanged
+- **WHEN** `saf_push` runs and the document content hash matches the last synced hash
+- **THEN** an updated own history sidecar is still written if its bytes differ
+
+#### Scenario: Pull copies peer history sidecars
+- **WHEN** the SAF folder holds `history_<peer>.jsonl`
+- **THEN** a pull copies it into the app-private data folder
+
+#### Scenario: Pull does not clobber local own history
+- **WHEN** the app-private folder already has `history_<device>.jsonl`
+- **THEN** a pull leaves that file unchanged even if the SAF folder has a different copy
+
+#### Scenario: Switch adopts the folder's own history
+- **WHEN** the user links a folder that already has `history_<device>.jsonl`
+- **THEN** that sidecar replaces the local own file (the discarded document is not the source of truth)
+
+#### Scenario: Switch drops own history absent from the folder
+- **WHEN** the user links a folder that has no `history_<device>.jsonl`
+- **THEN** the local own sidecar is removed so the next push does not publish history from the discarded document
 
 ### Requirement: Attachment and conflict mirroring
 

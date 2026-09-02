@@ -55,7 +55,9 @@ The system SHALL allow dragging the window from the titlebar drag region, toggli
 
 ### Requirement: Snap-layout hover flyout deferred
 
-The system is NOT REQUIRED to show the Windows 11 Snap Layout flyout when hovering the maximize control. Edge snap and keyboard snap MAY continue to work via the OS.
+The system SHALL maximize or restore the window from the maximize control even
+when no Windows 11 Snap Layout flyout is shown. The flyout itself is deferred.
+Edge snap and keyboard snap MAY continue to work via the OS.
 
 #### Scenario: Maximize still works without flyout
 - **WHEN** the user activates the maximize control on Windows 11

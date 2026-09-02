@@ -1,16 +1,18 @@
 //! Android folder-sync mirror layer.
 //!
 //! The app-private `tasks_<device>.db` remains the crash-safe master (`store.rs`).
-//! This module mirrors it (and conflict copies / attachment blobs) to/from a
-//! user-picked SAF folder. All SAF I/O is hidden behind `SafBackend` so the
-//! mirror logic is testable on desktop; the real Android backend lives in the
-//! `android` submodule.
+//! This module mirrors it (and conflict copies / attachment blobs / history
+//! sidecars) to/from a user-picked SAF folder. All SAF I/O is hidden behind
+//! `SafBackend` so the mirror logic is testable on desktop; the real Android
+//! backend lives in the `android` submodule.
 //!
 //! Wire format matches desktop: per-device `.db` replicas, legacy JSON peers still
-//! readable, attachments under `attachments_<device>/` (plus legacy flat files).
+//! readable, attachments under `attachments_<device>/` (plus legacy flat files),
+//! and per-device `history_<device>.jsonl` sidecars.
 
 use crate::commands::is_attachment_filename;
 use crate::error::Result;
+use crate::history::{self, is_history_sidecar_filename};
 use crate::model::{merge_documents, Document};
 use crate::store::{content_hash, AppState};
 use serde::{Deserialize, Serialize};
@@ -120,6 +122,8 @@ fn decode_replica_bytes(name: &str, bytes: &[u8]) -> Result<Document> {
 fn mime_for_name(name: &str) -> Option<&'static str> {
     if name.ends_with(".json") {
         Some("application/json")
+    } else if name.ends_with(".jsonl") {
+        Some("application/jsonl")
     } else if name.ends_with(".db") {
         Some("application/vnd.sqlite3")
     } else {
@@ -174,12 +178,14 @@ pub fn push_out(
     let h = content_hash(&doc);
     if Some(h) == last_synced_hash {
         mirror_local_attachment_files(backend, data_path)?;
+        mirror_local_history_file(backend, data_path)?;
         return Ok(None);
     }
     // Single-file DELETE-journal store: the on-disk master is the publishable replica.
     let bytes = std::fs::read(state.path())?;
     backend.write_file(&writable_replica_name(data_path), &bytes)?;
     mirror_local_attachment_files(backend, data_path)?;
+    mirror_local_history_file(backend, data_path)?;
     Ok(Some(h))
 }
 
@@ -209,6 +215,7 @@ pub fn pull_in(
     // 1. Mirror conflict files first (independent of main-file validity).
     let conflict_count = mirror_conflict_files(backend, dir)?;
     let attachments_imported = mirror_remote_attachment_files(backend, dir)?;
+    let history_imported = mirror_remote_history_files(backend, data_path, false)?;
 
     // 2. Merge a changed, VALID remote replica document into local (same LWW
     //    path as desktop peer reload). A torn/garbage or newer-version remote
@@ -261,7 +268,7 @@ pub fn pull_in(
     }
 
     Ok(PullOutcome {
-        imported: imported || attachments_imported,
+        imported: imported || attachments_imported || history_imported,
         new_synced_hash: new_hash,
         conflict_count,
         warning,
@@ -333,6 +340,84 @@ fn local_attachment_rel_paths(dir: &Path) -> Result<Vec<String>> {
     crate::commands::list_managed_attachment_rels(dir)
 }
 
+fn own_history_filename(data_path: &Path) -> Option<String> {
+    history::history_path(data_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|n| is_history_sidecar_filename(n))
+        .map(|n| n.to_string())
+}
+
+/// Push this device's history sidecar. Peer `history_<other>.jsonl` files stay
+/// owned by those devices — writing them from here would clobber a newer remote.
+fn mirror_local_history_file(backend: &dyn SafBackend, data_path: &Path) -> Result<()> {
+    let Some(name) = own_history_filename(data_path) else {
+        return Ok(());
+    };
+    let path = history::history_path(data_path);
+    if !path.exists() {
+        return Ok(());
+    }
+    let bytes = std::fs::read(&path)?;
+    let should_write = match backend.read_file(&name) {
+        Ok(remote) => sha256(&remote) != sha256(&bytes),
+        Err(_) => true,
+    };
+    if should_write {
+        backend.write_file(&name, &bytes)?;
+    }
+    Ok(())
+}
+
+/// Pull history sidecars from the SAF folder.
+///
+/// `adopt_own`: routine pull keeps a present own sidecar (local appends win until
+/// the next push). Folder-switch adopts the new folder as source of truth: copy
+/// the remote own sidecar if it exists, otherwise delete the local one so the
+/// next push does not publish history from the discarded document.
+fn mirror_remote_history_files(
+    backend: &dyn SafBackend,
+    data_path: &Path,
+    adopt_own: bool,
+) -> Result<bool> {
+    let dir = data_path.parent().unwrap_or_else(|| Path::new("."));
+    let own = own_history_filename(data_path);
+    let mut imported = false;
+    let mut saw_own = false;
+    for name in backend.list_file_names()? {
+        if !is_history_sidecar_filename(&name) {
+            continue;
+        }
+        let dest = dir.join(&name);
+        let is_own = own.as_deref() == Some(name.as_str());
+        if is_own {
+            saw_own = true;
+            if !adopt_own && dest.exists() {
+                continue;
+            }
+        }
+        if let Ok(bytes) = backend.read_file(&name) {
+            let changed = std::fs::read(&dest)
+                .map(|local| sha256(&local) != sha256(&bytes))
+                .unwrap_or(true);
+            if changed {
+                std::fs::write(&dest, bytes)?;
+                imported = true;
+            }
+        }
+    }
+    if adopt_own {
+        if let Some(own_name) = &own {
+            let dest = dir.join(own_name);
+            if dest.exists() && !saw_own {
+                let _ = std::fs::remove_file(&dest);
+                imported = true;
+            }
+        }
+    }
+    Ok(imported)
+}
+
 /// Switch the master to the folder's replicas, **discarding** the current
 /// local in-memory document (no conflict file). For the explicit "change data
 /// source" action, where the user wants the new folder's data loaded outright.
@@ -347,6 +432,7 @@ pub fn switch_to_remote(
     let dir = data_path.parent().unwrap_or_else(|| Path::new("."));
     let conflict_count = mirror_conflict_files(backend, dir)?;
     let attachments_imported = mirror_remote_attachment_files(backend, dir)?;
+    let history_imported = mirror_remote_history_files(backend, data_path, true)?;
     // The explicit folder-switch loads the remote outright; skipped replicas are
     // already logged in read_merged_remote.
     let (imported, new_synced_hash) = match read_merged_remote(backend)?.0 {
@@ -357,7 +443,7 @@ pub fn switch_to_remote(
     // linger locally, or the next push re-uploads them into the new folder.
     crate::commands::gc_unreferenced_attachment_blobs(state);
     Ok(PullOutcome {
-        imported: imported || attachments_imported,
+        imported: imported || attachments_imported || history_imported,
         new_synced_hash,
         conflict_count,
         warning: None,
@@ -811,6 +897,66 @@ mod tests {
     }
 
     #[test]
+    fn switch_to_remote_adopts_own_history_from_folder() {
+        let (dir, state, path) = temp_state();
+        std::fs::write(dir.path().join("history_android.jsonl"), b"{\"event\":\"discarded\"}\n")
+            .unwrap();
+        let mut remote_doc = crate::model::Document::default();
+        remote_doc.tags.push(crate::model::Tag {
+            id: "g_remote".into(),
+            name: "remote".into(),
+            color: "#fff".into(),
+            priority: 0,
+            pinned: false,
+            updated_at: 1,
+            dashboard_view: None,
+        });
+        let remote = write_peer_db(&remote_doc);
+        let backend = FakeBackend::with(&[
+            ("tasks_peer.db", remote.as_slice()),
+            ("history_android.jsonl", b"{\"event\":\"from-folder\"}\n".as_slice()),
+        ]);
+        switch_to_remote(&state, &backend, &path).unwrap();
+        assert_eq!(
+            std::fs::read(dir.path().join("history_android.jsonl")).unwrap(),
+            b"{\"event\":\"from-folder\"}\n"
+        );
+    }
+
+    #[test]
+    fn switch_to_remote_drops_own_history_absent_from_folder() {
+        let (dir, state, path) = temp_state();
+        std::fs::write(dir.path().join("history_android.jsonl"), b"{\"event\":\"discarded\"}\n")
+            .unwrap();
+        let mut remote_doc = crate::model::Document::default();
+        remote_doc.tags.push(crate::model::Tag {
+            id: "g_remote".into(),
+            name: "remote".into(),
+            color: "#fff".into(),
+            priority: 0,
+            pinned: false,
+            updated_at: 1,
+            dashboard_view: None,
+        });
+        let remote = write_peer_db(&remote_doc);
+        let backend = FakeBackend::with(&[("tasks_peer.db", remote.as_slice())]);
+        switch_to_remote(&state, &backend, &path).unwrap();
+        assert!(
+            !dir.path().join("history_android.jsonl").exists(),
+            "switch must drop own history the new folder does not contain"
+        );
+        push_out(&state, &backend, &path, None).unwrap();
+        assert!(
+            !backend
+                .files
+                .lock()
+                .unwrap()
+                .contains_key("history_android.jsonl"),
+            "next push must not republish discarded-document history"
+        );
+    }
+
+    #[test]
     fn first_link_aborts_rather_than_seed_when_state_unknown() {
         // The regression guard for the Google Drive data-loss bug: when we can't
         // tell whether the folder already holds a tasks.json, we must NOT seed
@@ -1215,6 +1361,198 @@ mod tests {
         assert!(
             !backend.files.lock().unwrap().contains_key(rel),
             "push must not resurrect a blob the remote deleted"
+        );
+    }
+
+    #[test]
+    fn push_out_writes_own_history_sidecar_even_when_doc_unchanged() {
+        let (dir, state, path) = temp_state();
+        state
+            .write(|d| {
+                d.tags.push(crate::model::Tag {
+                    id: "g".into(),
+                    name: "t".into(),
+                    color: "#fff".into(),
+                    priority: 0,
+                    pinned: false,
+                    updated_at: 1,
+                    dashboard_view: None,
+                });
+                Ok(())
+            })
+            .unwrap();
+        let local_history = std::fs::read(dir.path().join("history_android.jsonl")).unwrap();
+        assert!(!local_history.is_empty());
+
+        let backend = FakeBackend::default();
+        let h = push_out(&state, &backend, &path, None).unwrap();
+        assert!(h.is_some());
+        assert_eq!(
+            backend
+                .files
+                .lock()
+                .unwrap()
+                .get("history_android.jsonl")
+                .map(|b| b.as_slice()),
+            Some(local_history.as_slice())
+        );
+
+        // A later local append must still reach the folder even if the document
+        // hash has not changed since the last push (hash-suppressed db write).
+        std::fs::write(dir.path().join("history_android.jsonl"), b"{\"event\":\"later\"}\n").unwrap();
+        let h2 = push_out(&state, &backend, &path, h).unwrap();
+        assert!(h2.is_none());
+        assert_eq!(
+            backend
+                .files
+                .lock()
+                .unwrap()
+                .get("history_android.jsonl")
+                .map(|b| b.as_slice()),
+            Some(b"{\"event\":\"later\"}\n".as_slice())
+        );
+        assert!(
+            !backend.files.lock().unwrap().contains_key("history_peer.jsonl"),
+            "push must not publish a peer sidecar sitting locally"
+        );
+    }
+
+    #[test]
+    fn push_out_does_not_upload_peer_history_sidecars() {
+        let (dir, state, path) = temp_state();
+        std::fs::write(dir.path().join("history_peer.jsonl"), b"{\"event\":\"peer\"}\n").unwrap();
+        let backend = FakeBackend::default();
+        push_out(&state, &backend, &path, None).unwrap();
+        assert!(!backend.files.lock().unwrap().contains_key("history_peer.jsonl"));
+        assert!(!backend.files.lock().unwrap().contains_key("history.jsonl"));
+    }
+
+    #[test]
+    fn pull_in_mirrors_peer_history_and_skips_bare_legacy() {
+        let (dir, state, path) = temp_state();
+        let own = b"{\"event\":\"local-own\"}\n";
+        std::fs::write(dir.path().join("history_android.jsonl"), own).unwrap();
+
+        let backend = FakeBackend::with(&[
+            ("history_desktop.jsonl", b"{\"event\":\"peer\"}\n".as_slice()),
+            ("history_android.jsonl", b"{\"event\":\"stale-own\"}\n".as_slice()),
+            ("history.jsonl", b"{\"event\":\"legacy\"}\n".as_slice()),
+        ]);
+        let out = pull_in(&state, &backend, &path, None).unwrap();
+        assert!(out.imported);
+        assert_eq!(
+            std::fs::read(dir.path().join("history_desktop.jsonl")).unwrap(),
+            b"{\"event\":\"peer\"}\n"
+        );
+        assert_eq!(
+            std::fs::read(dir.path().join("history_android.jsonl")).unwrap(),
+            own,
+            "local own sidecar must not be overwritten by a stale remote copy"
+        );
+        assert!(
+            !dir.path().join("history.jsonl").exists(),
+            "bare history.jsonl is not a per-device sidecar"
+        );
+    }
+
+    #[test]
+    fn pull_in_fills_missing_own_history_from_remote() {
+        let (dir, state, path) = temp_state();
+        assert!(!dir.path().join("history_android.jsonl").exists());
+        let backend = FakeBackend::with(&[(
+            "history_android.jsonl",
+            b"{\"event\":\"from-folder\"}\n".as_slice(),
+        )]);
+        let out = pull_in(&state, &backend, &path, None).unwrap();
+        assert!(out.imported);
+        assert_eq!(
+            std::fs::read(dir.path().join("history_android.jsonl")).unwrap(),
+            b"{\"event\":\"from-folder\"}\n"
+        );
+    }
+
+    #[test]
+    fn pull_in_makes_peer_history_readable_like_the_history_view() {
+        // Desktop already published a valid sidecar in the shared folder.
+        let desktop_dir = tempfile::tempdir().unwrap();
+        let desktop_data = desktop_dir.path().join("tasks_desktop.db");
+        crate::history::append_history(
+            &desktop_data,
+            &[crate::history::HistoryEntry {
+                timestamp: 1_700_000_000_000,
+                event: "task.created".into(),
+                entity: "task".into(),
+                entity_id: "k_desktop".into(),
+                title: "From desktop".into(),
+                summary: "Created task".into(),
+                device_id: Some("desktop".into()),
+                device_name: Some("PC".into()),
+                dedup_key: Some("task.created|task|k_desktop|1700000000000".into()),
+            }],
+        )
+        .unwrap();
+        let desktop_bytes = std::fs::read(desktop_dir.path().join("history_desktop.jsonl")).unwrap();
+
+        let (_dir, state, path) = temp_state();
+        let backend = FakeBackend::with(&[("history_desktop.jsonl", desktop_bytes.as_slice())]);
+        let out = pull_in(&state, &backend, &path, None).unwrap();
+        assert!(out.imported);
+
+        let titles: Vec<String> = crate::history::read_all_history(&path)
+            .unwrap()
+            .into_iter()
+            .map(|e| e.title)
+            .collect();
+        assert!(
+            titles.iter().any(|t| t == "From desktop"),
+            "History view must include the peer sidecar after pull, got {titles:?}"
+        );
+    }
+
+    #[test]
+    fn two_device_push_then_pull_round_trips_history() {
+        // Device A (android) records an edit and publishes to the shared folder.
+        let (_dir_a, state_a, path_a) = temp_state();
+        state_a
+            .write(|d| {
+                d.tags.push(crate::model::Tag {
+                    id: "g_shared".into(),
+                    name: "shared-tag".into(),
+                    color: "#fff".into(),
+                    priority: 0,
+                    pinned: false,
+                    updated_at: 1,
+                    dashboard_view: None,
+                });
+                Ok(())
+            })
+            .unwrap();
+        let backend = FakeBackend::default();
+        push_out(&state_a, &backend, &path_a, None).unwrap();
+        assert!(backend
+            .files
+            .lock()
+            .unwrap()
+            .contains_key("history_android.jsonl"));
+
+        // Device B (phone) pulls that folder and must see A's history entries.
+        let dir_b = tempfile::tempdir().unwrap();
+        let path_b = dir_b.path().join("tasks_phone.db");
+        let state_b = AppState::open(path_b.clone()).unwrap();
+        let out = pull_in(&state_b, &backend, &path_b, None).unwrap();
+        assert!(out.imported);
+        assert!(
+            dir_b.path().join("history_android.jsonl").exists(),
+            "pull must copy the pusher's sidecar into the peer's data folder"
+        );
+        let titles: Vec<String> = crate::history::read_all_history(&path_b)
+            .unwrap()
+            .into_iter()
+            .map(|e| e.title)
+            .collect();
+        assert!(
+            titles.iter().any(|t| t == "#shared-tag"),
+            "peer device must read the pusher's history sidecar, got {titles:?}"
         );
     }
 }
