@@ -25,7 +25,7 @@ for the kotlin out dir). Never delete + re-init `gen/android` for one identifier
 both `MainActivity.kt` variants. Always build through `npm run tauri`, not a bare
 `tauri` CLI, or the generated-tree cleanup is skipped.
 
-Do not touch the production app (`Pansuthong`, `net.puetsua.pansuthong`) during testing. Use only `Pansuthong Dev` / `PansuthongDev` (`net.puetsua.pansuthong.dev`) unless the user explicitly asks for production work.
+Do not touch the production app (`Pansuthong`, `net.puetsua.pansuthong`) during testing. Use only `Pansuthong Dev` / `PansuthongDev` (`net.puetsua.pansuthong.dev`) unless the user explicitly asks for production work. A PreToolUse hook (`.grok/hooks/protect-production.mjs`) denies production-app process/data actions; set `PANSUTHONG_ALLOW_PRODUCTION=1` only for an explicit production request.
 
 ## Linux desktop deps
 

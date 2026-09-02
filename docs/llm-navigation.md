@@ -8,6 +8,7 @@ Load this file after `AGENTS.md`; then open only the topic doc needed.
 - `docs/agent/repo-map.md` - frontend/Rust file ownership
 - `docs/agent/change-workflow.md` - common edit paths, tests, git workflow
 - `docs/agent/commands-toolchain.md` - commands, Android/desktop toolchain
+- `.grok/hooks/protect-production.mjs` - PreToolUse hook that blocks touching the production app
 - `docs/agent/releases.md` - release and updater notes
 
 ## Highest-Value Files
