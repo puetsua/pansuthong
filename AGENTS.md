@@ -24,6 +24,8 @@ Before touching any Pansuthong process, locate the **production** app's process 
 
 Production data and windows are off-limits. If you are unsure whether a window/process is dev or production, ask the user before proceeding.
 
+This is enforced by a PreToolUse hook (`.grok/hooks/protect-production.mjs`, also registered in `.claude/settings.json`), not only by this file. It blocks launching, killing, uninstalling, or writing live production app/data. Override only when the user explicitly asked: `PANSUTHONG_ALLOW_PRODUCTION=1`. Grok: `/hooks-trust` once so project hooks run.
+
 ## Start Here
 
 - Repo map: `docs/llm-navigation.md`
