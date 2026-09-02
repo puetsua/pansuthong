@@ -1,14 +1,10 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { Document, Tag } from "../lib/tauri";
-import { appVersion } from "../lib/platform";
-import { getPendingUpdate, requestUpdatePrompt, subscribeToPendingUpdate } from "../lib/updater";
 import { Indexes, openCount } from "../state/indexes";
 import { TagEditor } from "../components/TagEditor";
-
-const RELEASES_BASE = "https://github.com/puetsua/pansuthong/releases/tag/";
+import { AppVersionRow } from "./AppVersionRow";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -24,17 +20,6 @@ export function Sidebar({ doc, indexes }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const [editor, setEditor] = useState<EditorState>(null);
-
-  // Set by UpdatePrompt's startup check; null until (and unless) one is found.
-  const pending = useSyncExternalStore(subscribeToPendingUpdate, getPendingUpdate);
-
-  // Show the running version in the footer; null (e.g. in tests) hides the label.
-  const [version, setVersion] = useState<string | null>(null);
-  useEffect(() => {
-    let active = true;
-    void appVersion().then(v => { if (active) setVersion(v); });
-    return () => { active = false; };
-  }, []);
 
   // Only pinned tags appear in the sidebar; the full set lives on the Tags
   // screen, where tags are pinned/unpinned (#78).
@@ -120,26 +105,7 @@ export function Sidebar({ doc, indexes }: Props) {
         </ul>
         {/* Either half can be missing: `appVersion()` returns null on any
             failure, and that must not take the update entry point down with it. */}
-        {(version || pending) && (
-          <div className="sidebar-version-row">
-            {version && (
-              <button type="button" className="sidebar-version"
-                      title={t("sidebar.releaseNotes", { version })}
-                      onClick={() => void openUrl(RELEASES_BASE + version)}>
-                v{version}
-              </button>
-            )}
-            {/* Only while an update is pending: reopens the prompt after it was
-                dismissed. UpdatePrompt (mounted in App) owns the dialog. */}
-            {pending && (
-              <button type="button" className="sidebar-version-update"
-                      title={t("sidebar.updateTo", { version: pending.version })}
-                      onClick={requestUpdatePrompt}>
-                {t("sidebar.update")}
-              </button>
-            )}
-          </div>
-        )}
+        <AppVersionRow />
       </div>
 
       {editor && (

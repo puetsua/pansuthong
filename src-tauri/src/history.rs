@@ -41,6 +41,16 @@ pub fn history_path(data_path: &Path) -> PathBuf {
         .join(format!("history_{device}.jsonl"))
 }
 
+/// True for a top-level per-device sidecar (`history_<device>.jsonl`). Rejects
+/// path separators so SAF names cannot escape the folder, and does not match
+/// the legacy bare `history.jsonl`.
+pub fn is_history_sidecar_filename(name: &str) -> bool {
+    !name.contains('/')
+        && !name.contains('\\')
+        && name.starts_with("history_")
+        && name.ends_with(".jsonl")
+}
+
 fn legacy_history_path(data_path: &Path) -> PathBuf {
     data_path
         .parent()
@@ -85,7 +95,7 @@ fn history_replica_paths(data_path: &Path) -> Vec<PathBuf> {
     if let Ok(entries) = fs::read_dir(parent) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with("history_") && name.ends_with(".jsonl") {
+            if is_history_sidecar_filename(&name) {
                 paths.push(entry.path());
             }
         }
@@ -494,6 +504,18 @@ mod tests {
         summary: &str,
     ) -> HistoryEntry {
         entry(timestamp, event, entity, entity_id, title, summary, 0)
+    }
+
+    #[test]
+    fn is_history_sidecar_filename_accepts_device_jsonl_only() {
+        assert!(is_history_sidecar_filename("history_android.jsonl"));
+        assert!(is_history_sidecar_filename("history_dev.jsonl"));
+        assert!(!is_history_sidecar_filename("history.jsonl"));
+        assert!(!is_history_sidecar_filename("history_android.jsonl.tmp"));
+        assert!(!is_history_sidecar_filename("history_android/x.jsonl"));
+        assert!(!is_history_sidecar_filename("history_android\\x.jsonl"));
+        assert!(!is_history_sidecar_filename("notes.jsonl"));
+        assert!(!is_history_sidecar_filename("tasks_android.db"));
     }
 
     #[test]

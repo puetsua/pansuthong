@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Indexes } from "../state/indexes";
+import { AppVersionRow } from "./AppVersionRow";
 
 type Props = { indexes: Indexes };
 
@@ -63,6 +64,9 @@ export function MobileHeader({ indexes }: Props) {
                 {t(item.labelKey)}
               </Link>
             ))}
+            {/* Same version/update footer as the desktop sidebar; Android has
+                no sidebar, so this is the only place the running build shows. */}
+            <AppVersionRow className="mobile-menu-version" />
           </nav>
         </>
       )}
