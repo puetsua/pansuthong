@@ -2,7 +2,7 @@ import { KeyboardEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tag } from "../lib/tauri";
 import { readableTextColor } from "../lib/tags";
-import { pickPaletteColor } from "../state/quickAdd";
+import { defaultTagColor } from "../lib/settings";
 
 type Props = {
   /** Every known tag, keyed by id (same map TaskEditor receives). */
@@ -107,7 +107,7 @@ export function TagInput({
           </button>
         ))}
         {newNames.map(name => {
-          const color = pickPaletteColor(name.toLowerCase());
+          const color = defaultTagColor();
           const ink = readableTextColor(color);
           return (
             <button type="button" key={`new:${name}`} className="te-tag on te-tag-new"

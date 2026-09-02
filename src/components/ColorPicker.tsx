@@ -15,17 +15,29 @@ const SWATCHES = [
 const HEX = /^#[0-9a-f]{6}$/;
 const DEFAULT_COLOR = SWATCHES[0];
 
-type Props = { value: string; onChange: (color: string) => void };
+type Props = {
+  value: string;
+  onChange: (color: string) => void;
+  /** Active theme background; prepended when it is not already in the static list. */
+  themeSwatch?: string;
+};
 
-export function ColorPicker({ value, onChange }: Props) {
+function swatchesFor(themeSwatch?: string): string[] {
+  const extra = themeSwatch?.trim().toLowerCase();
+  if (!extra || !HEX.test(extra) || SWATCHES.includes(extra)) return SWATCHES;
+  return [extra, ...SWATCHES];
+}
+
+export function ColorPicker({ value, onChange, themeSwatch }: Props) {
   const { t } = useTranslation();
   const normalized = value.toLowerCase();
   const customValue = HEX.test(normalized) ? normalized : DEFAULT_COLOR;
+  const swatches = swatchesFor(themeSwatch);
 
   return (
     <div className="color-picker">
       <div className="color-picker-swatches">
-        {SWATCHES.map(c => {
+        {swatches.map(c => {
           const active = normalized === c;
           return (
             <button

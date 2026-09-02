@@ -1,5 +1,6 @@
 import { Settings } from "./tauri";
 import { clampWeight } from "./tags";
+import { activeVariant, prefersDarkScheme, resolveThemeVars } from "./themes";
 import {
   DateFormat,
   DateTimeFormat,
@@ -50,14 +51,44 @@ export function clampDayStartHour(raw: string | number): number {
   return clampInt(raw, DAY_START_HOUR_MIN, DAY_START_HOUR_MAX, DAY_START_HOUR_DEFAULT);
 }
 
-/** Color a new tag starts with when the user hasn't set a preference (#79). */
-export const DEFAULT_TAG_COLOR = "#475569";
+/** Built-in light background (`--c-bg`); fallback when theme tokens are unavailable. */
+export const DEFAULT_TAG_COLOR = "#f9fafb";
+/** Theme token used as the new-tag color (page background of the active variant). */
+export const NEW_TAG_COLOR_TOKEN = "--c-bg";
 /** Priority weight a new tag starts with when unset (#79). */
 export const DEFAULT_TAG_PRIORITY = 0;
 
-/** The color a new tag's swatch should pre-fill to for these settings. */
+/** Expand `#rgb`/`#rrggbb` to lowercase `#rrggbb`, or undefined if not a hex color. */
+export function normalizeTagColorHex(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const s = raw.trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(s)) return s;
+  if (/^#[0-9a-f]{3}$/.test(s)) return `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`;
+  return undefined;
+}
+
+function cssThemeTagColor(): string | undefined {
+  if (typeof document === "undefined") return undefined;
+  try {
+    return normalizeTagColorHex(
+      getComputedStyle(document.documentElement).getPropertyValue(NEW_TAG_COLOR_TOKEN),
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Color a new tag starts with: the active theme's `--c-bg`.
+ * `settings.default_tag_color` is kept on config.json for compatibility and is not used.
+ */
 export function defaultTagColor(settings?: Settings): string {
-  return settings?.default_tag_color ?? DEFAULT_TAG_COLOR;
+  if (settings) {
+    const variant = activeVariant(settings.theme ?? "auto", prefersDarkScheme());
+    const fromTheme = normalizeTagColorHex(resolveThemeVars(settings, variant)[NEW_TAG_COLOR_TOKEN]);
+    if (fromTheme) return fromTheme;
+  }
+  return cssThemeTagColor() ?? DEFAULT_TAG_COLOR;
 }
 
 /** The weight a new tag should pre-fill to, clamped defensively to the valid range. */

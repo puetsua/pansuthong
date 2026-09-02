@@ -65,17 +65,24 @@ describe("TagEditor — create mode", () => {
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
   });
 
-  it("seeds a new tag's weight and color from device settings (#79)", async () => {
+  it("seeds a new tag's weight from device settings and color from the theme background", async () => {
     const settings = {
-      theme: "auto" as const,
+      theme: "light" as const,
       sort_order: "priority" as const,
-      default_tag_color: "#ef4444",
+      theme_preset: "c1",
+      custom_presets: [{
+        id: "c1", name: "Mine",
+        light: { "--c-bg": "#ef4444" },
+        dark: { "--c-bg": "#00ff00" },
+      }],
+      default_tag_color: "#000000",
       default_tag_priority: 7,
     };
     render(<TagEditor settings={settings} onClose={vi.fn()} />);
 
-    // Weight pre-fills to the configured default.
+    // Weight pre-fills to the configured default; color follows the theme background.
     expect(weightInput().value).toBe("7");
+    expect(screen.getByRole("button", { name: "Color #ef4444" }).className).toContain("swatch-active");
 
     fireEvent.change(nameInput(), { target: { value: "urgent" } });
     fireEvent.click(button("Save"));
@@ -88,6 +95,7 @@ describe("TagEditor — create mode", () => {
   it("falls back to the built-in defaults when no settings are provided", () => {
     render(<TagEditor onClose={vi.fn()} />);
     expect(weightInput().value).toBe("0");
+    expect(screen.getByRole("button", { name: "Color #f9fafb" }).className).toContain("swatch-active");
   });
 });
 

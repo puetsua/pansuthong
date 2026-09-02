@@ -13,6 +13,7 @@ import {
 } from "../state/taskUpdate";
 import { resolveTagIds } from "../state/quickAdd";
 import { daysBetweenIso, todayIso } from "../lib/dates";
+import { defaultTagColor } from "../lib/settings";
 import { playCompletionSound } from "../lib/sound";
 import { TagInput } from "./TagInput";
 import { TimeTracking } from "./TimeTracking";
@@ -174,7 +175,7 @@ export function TaskEditor(props: Props) {
     if (newNames.length === 0) return form.tag_ids;
     const byName = new Map<string, Tag>();
     for (const tag of allTags.values()) byName.set(tag.name.toLowerCase(), tag);
-    const newIds = await resolveTagIds(newNames, byName, api.addTag);
+    const newIds = await resolveTagIds(newNames, byName, api.addTag, defaultTagColor());
     return [...form.tag_ids, ...newIds.filter(id => !form.tag_ids.includes(id))];
   };
 
