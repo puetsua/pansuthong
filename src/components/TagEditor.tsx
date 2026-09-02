@@ -10,7 +10,7 @@ import { ColorPicker } from "./ColorPicker";
 type Props = {
   /** The tag to edit; omit (or null) to create a new one. */
   tag?: Tag | null;
-  /** Device settings, used to seed a new tag's color/weight defaults (#79). */
+  /** Device settings: new-tag weight, and theme tokens used to seed color. */
   settings?: Settings;
   onClose: () => void;
   /** Called instead of onClose after a successful delete (falls back to onClose). */
@@ -129,7 +129,11 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
 
         <div className="te-field">
           <span>{t("tagEditor.color")}</span>
-          <ColorPicker value={form.color} onChange={c => set("color", c)} />
+          <ColorPicker
+            value={form.color}
+            onChange={c => set("color", c)}
+            themeSwatch={defaultTagColor(settings)}
+          />
         </div>
 
         <div className="te-field">

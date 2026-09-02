@@ -140,13 +140,48 @@ describe("dayStartHour", () => {
 });
 
 describe("defaultTagColor", () => {
-  it("falls back to the built-in default when unset or settings absent", () => {
+  it("falls back to the built-in light background when settings are absent", () => {
     expect(defaultTagColor(undefined)).toBe(DEFAULT_TAG_COLOR);
-    expect(defaultTagColor(settings())).toBe(DEFAULT_TAG_COLOR);
+    expect(DEFAULT_TAG_COLOR).toBe("#f9fafb");
   });
 
-  it("uses the configured color when present", () => {
-    expect(defaultTagColor({ ...settings(), default_tag_color: "#ef4444" })).toBe("#ef4444");
+  it("uses the built-in light background for the default light theme", () => {
+    expect(defaultTagColor({ ...settings(), theme: "light" })).toBe("#f9fafb");
+  });
+
+  it("uses the built-in dark background for the default dark theme", () => {
+    expect(defaultTagColor({ ...settings(), theme: "dark" })).toBe("#0f172a");
+  });
+
+  it("uses a built-in preset's background", () => {
+    expect(defaultTagColor({ ...settings(), theme: "light", theme_preset: "emerald" })).toBe("#f6faf7");
+  });
+
+  it("uses a custom preset's background and ignores stored default_tag_color", () => {
+    expect(defaultTagColor({
+      ...settings(),
+      theme: "light",
+      theme_preset: "c1",
+      custom_presets: [{
+        id: "c1", name: "Mine",
+        light: { "--c-bg": "#ef4444" },
+        dark: { "--c-bg": "#00ff00" },
+      }],
+      default_tag_color: "#000000",
+    })).toBe("#ef4444");
+  });
+
+  it("expands a 3-digit custom background to #rrggbb", () => {
+    expect(defaultTagColor({
+      ...settings(),
+      theme: "light",
+      theme_preset: "c1",
+      custom_presets: [{
+        id: "c1", name: "Mine",
+        light: { "--c-bg": "#abc" },
+        dark: { "--c-bg": "#000" },
+      }],
+    })).toBe("#aabbcc");
   });
 });
 

@@ -12,7 +12,9 @@ export type Settings = {
   sort_order: SortOrder;
   upcoming_days?: number; // how many days ahead Upcoming looks; 1..365, default 14
   day_start_hour?: number; // hour the logical day rolls over; 0..23, default 0 (midnight)
-  default_tag_color?: string;    // color pre-filled for a new tag; hex, default "#10b981" (#79)
+  // Kept for config.json compatibility. New tags seed from the active theme
+  // background (`defaultTagColor`); this stored hex is not used for creation.
+  default_tag_color?: string;
   default_tag_priority?: number; // weight pre-filled for a new tag; -9999..9999, default 0 (#79)
   language?: "auto" | "en" | "zh-TW"; // UI language; "auto" follows the OS locale, default (#26)
   sound_on_complete?: boolean; // play a sound when a task is marked done; default true (#80)

@@ -4,6 +4,7 @@ import { api, Tag, Task } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { parseComposer } from "../state/parse";
 import { todayIso } from "../lib/dates";
+import { defaultTagColor } from "../lib/settings";
 import { ComposerPreview } from "./ComposerPreview";
 import { TaskEditor } from "./TaskEditor";
 import { resolveTagIds } from "../state/quickAdd";
@@ -53,7 +54,7 @@ export function Composer({ startDate, todayIso: today = todayIso(), tagsByName, 
     if (!parsed.title) return;
 
     try {
-      const resolvedTagIds = await resolveTagIds(parsed.tag_names, tagsByName, api.addTag);
+      const resolvedTagIds = await resolveTagIds(parsed.tag_names, tagsByName, api.addTag, defaultTagColor());
       // Auto-tag with the current tag view's tag so the task stays in view,
       // without duplicating a tag the user also typed explicitly (#106).
       const tagIds = contextTagId && !resolvedTagIds.includes(contextTagId)

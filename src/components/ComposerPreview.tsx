@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Tag } from "../lib/tauri";
 import { ParsedInput } from "../state/parse";
 import { formatEstimatedSecondsInput } from "../state/taskUpdate";
+import { defaultTagColor } from "../lib/settings";
 
 type Props = {
   parsed: ParsedInput;
@@ -21,7 +22,7 @@ export function ComposerPreview({ parsed, tagsByName }: Props) {
     <div className="composer-preview">
       {parsed.tag_names.map(name => {
         const existing = tagsByName.get(name.toLowerCase());
-        const color = existing?.color ?? "var(--c-text-muted)";
+        const color = existing?.color ?? defaultTagColor();
         const isNew = !existing;
         return (
           <span key={name} className="composer-chip"

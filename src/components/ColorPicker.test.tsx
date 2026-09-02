@@ -53,4 +53,17 @@ describe("ColorPicker", () => {
     const custom = screen.getByLabelText("Custom color") as HTMLInputElement;
     expect(custom.value).toMatch(/^#[0-9a-f]{6}$/);
   });
+
+  it("prepends a theme background that is not already in the static presets", () => {
+    render(<ColorPicker value="#f9fafb" onChange={vi.fn()} themeSwatch="#f9fafb" />);
+    const extra = screen.getByRole("button", { name: "Color #f9fafb" });
+    expect(extra.className).toContain("swatch-active");
+    expect(swatches()[0]).toBe(extra);
+  });
+
+  it("does not duplicate a theme color that is already a preset", () => {
+    render(<ColorPicker value="#4338ca" onChange={vi.fn()} themeSwatch="#4338ca" />);
+    const matches = screen.getAllByRole("button", { name: "Color #4338ca" });
+    expect(matches).toHaveLength(1);
+  });
 });
