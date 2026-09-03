@@ -34,7 +34,7 @@ The system SHALL check once at launch on Android for a newer release APK. Produc
 
 ### Requirement: Android download and system install
 
-The system SHALL download the pending APK to app-private storage with visible progress, then launch the Android system installer for that file. The user SHALL confirm installation in the system UI; the app SHALL NOT replace itself silently. On install launch failure, the prompt SHALL show a retryable error.
+The system SHALL download the pending APK to app-private storage with visible progress, then launch the Android system installer for that file. The download URL SHALL be resolved during `check` and kept in plugin state; the webview MUST NOT supply a download URL to `download_and_install`. The user SHALL confirm installation in the system UI; the app SHALL NOT replace itself silently. On install launch failure, the prompt SHALL show a retryable error.
 
 #### Scenario: Progress is reported while downloading
 
