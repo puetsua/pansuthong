@@ -4,18 +4,23 @@ pub fn is_version_newer(current: &str, remote: &str) -> bool {
 }
 
 fn compare_versions(current: &str, remote: &str) -> std::cmp::Ordering {
-    let parse = |v: &str| -> (Vec<u64>, Option<&str>) {
-        let (core, pre) = v.split_once('-').unwrap_or((v, ""));
+    let parse = |v: &str| -> (Vec<u64>, Option<String>) {
+        let trimmed = v.trim_start_matches('v');
+        let (core, pre) = trimmed.split_once('-').unwrap_or((trimmed, ""));
         let nums: Vec<u64> = core
             .split('.')
             .map(|p| p.parse().unwrap_or(0))
             .collect();
-        let pre = if pre.is_empty() { None } else { Some(pre) };
+        let pre = if pre.is_empty() {
+            None
+        } else {
+            Some(pre.to_string())
+        };
         (nums, pre)
     };
 
-    let (cur_nums, cur_pre) = parse(current.trim_start_matches('v'));
-    let (rem_nums, rem_pre) = parse(remote.trim_start_matches('v'));
+    let (cur_nums, cur_pre) = parse(current);
+    let (rem_nums, rem_pre) = parse(remote);
 
     let len = cur_nums.len().max(rem_nums.len());
     for i in 0..len {
