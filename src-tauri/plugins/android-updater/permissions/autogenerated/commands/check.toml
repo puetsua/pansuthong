@@ -1,0 +1,3 @@
+identifier = "allow-check"
+description = "Enables the check command."
+commands.allow = ["check"]

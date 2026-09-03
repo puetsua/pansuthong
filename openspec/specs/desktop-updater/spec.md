@@ -5,20 +5,24 @@
 On desktop the app updates itself in place: at launch it asks GitHub whether a
 newer signed release exists and, if so, offers a one-click download-install-relaunch.
 The updater is desktop-only — the `tauri-plugin-updater` has no Android support and
-calling it there would throw — so on Android the whole flow is a silent no-op. A
-failed or offline check must never block startup or nag the user.
+calling it there would throw — so on Android the app uses the `android-updater` plugin
+instead (GitHub Release APK or Dev manifest). A failed or offline check must never
+block startup or nag the user.
 
 ## Requirements
 
 ### Requirement: Startup update check
 
-The system SHALL check once at launch for a newer release, resolving to nothing on
-Android, when already up to date, or on any error, so a failed or offline check
-neither blocks startup nor surfaces an error.
+The system SHALL check once at launch for a newer release, resolving to nothing when
+already up to date or on any error, so a failed or offline check neither blocks
+startup nor surfaces an error. On Android it SHALL use the Android in-app updater
+(GitHub Release APK or Dev manifest) instead of the desktop-only updater plugin.
 
-#### Scenario: Android skips the check
+#### Scenario: Android uses the in-app updater plugin
+
 - **WHEN** the update check runs on Android
-- **THEN** it resolves to no pending update without calling the desktop-only updater plugin
+- **THEN** it checks for a newer APK via the Android updater plugin
+- **AND** does not call the desktop-only updater plugin
 
 #### Scenario: A failed check is silent
 - **WHEN** the check throws (offline, endpoint unreachable, malformed manifest)

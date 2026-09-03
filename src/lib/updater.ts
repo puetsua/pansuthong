@@ -1,17 +1,83 @@
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { isAndroid } from "./platform";
 
+/** Cross-platform pending update surfaced to UpdatePrompt and the sidebar. */
+export type AppUpdate = {
+  version: string;
+  body?: string | null;
+  downloadAndInstall: (
+    onEvent: (event: { event: string; data: { chunkLength?: number; contentLength?: number } }) => void,
+  ) => Promise<void>;
+};
+
+type AndroidUpdateInfo = {
+  version: string;
+  body?: string | null;
+  downloadUrl: string;
+};
+
+function wrapDesktopUpdate(update: Update): AppUpdate {
+  return {
+    version: update.version,
+    body: update.body,
+    downloadAndInstall: onEvent => update.downloadAndInstall(onEvent),
+  };
+}
+
+function wrapAndroidUpdate(info: AndroidUpdateInfo): AppUpdate {
+  return {
+    version: info.version,
+    body: info.body,
+    downloadAndInstall: async onEvent => {
+      let total = 0;
+      const unlisten = await listen<{ downloaded: number; total?: number }>(
+        "android-updater://progress",
+        ({ payload }) => {
+          if (payload.total != null && payload.total > 0) {
+            total = payload.total;
+            onEvent({
+              event: "Started",
+              data: { contentLength: total },
+            });
+          }
+          onEvent({
+            event: "Progress",
+            data: { chunkLength: payload.downloaded },
+          });
+        },
+      );
+      try {
+        await invoke("plugin:android-updater|download_and_install", {
+          downloadUrl: info.downloadUrl,
+        });
+        onEvent({ event: "Finished", data: {} });
+      } finally {
+        unlisten();
+      }
+    },
+  };
+}
+
 /**
- * Check GitHub for a newer release. Resolves to the pending `Update`, or `null`
- * when there's nothing to do: on Android (the updater plugin is desktop-only and
- * calling it there would throw), when already up to date, or on any error — a
- * failed/offline check must never block startup or nag the user.
+ * Check for a newer release. Resolves to the pending update, or `null` when
+ * there's nothing to do: when already up to date, or on any error — a failed or
+ * offline check must never block startup or nag the user.
  */
-export async function checkForUpdate(): Promise<Update | null> {
-  if (await isAndroid()) return null;
+export async function checkForUpdate(): Promise<AppUpdate | null> {
+  if (await isAndroid()) {
+    try {
+      const info = await invoke<AndroidUpdateInfo | null>("plugin:android-updater|check");
+      return info ? wrapAndroidUpdate(info) : null;
+    } catch {
+      return null;
+    }
+  }
   try {
-    return await check();
+    const update = await check();
+    return update ? wrapDesktopUpdate(update) : null;
   } catch {
     return null;
   }
@@ -21,11 +87,11 @@ export async function checkForUpdate(): Promise<Update | null> {
 // offer a way back in after the prompt is dismissed. Module state rather than
 // context because the publisher (UpdatePrompt) and the reader (Sidebar) live in
 // different subtrees, and there is at most one pending update per run.
-let pendingUpdate: Update | null = null;
+let pendingUpdate: AppUpdate | null = null;
 const pendingListeners = new Set<() => void>();
 
 /** The update the startup check found, or `null` if there is none (yet). */
-export function getPendingUpdate(): Update | null {
+export function getPendingUpdate(): AppUpdate | null {
   return pendingUpdate;
 }
 
@@ -34,9 +100,9 @@ export function getPendingUpdate(): Update | null {
  * startup check's result (and by tests directly). Nothing in production ever
  * resets it to `null` — a found update stays offered for the process lifetime,
  * since the only ways out are installing it or quitting. The guard is reference
- * identity, so re-publishing an equal-but-distinct `Update` still notifies.
+ * identity, so re-publishing an equal-but-distinct `AppUpdate` still notifies.
  */
-export function setPendingUpdate(update: Update | null): void {
+export function setPendingUpdate(update: AppUpdate | null): void {
   if (pendingUpdate === update) return;
   pendingUpdate = update;
   for (const listener of pendingListeners) listener();
@@ -74,29 +140,39 @@ export function onUpdatePromptRequested(handler: () => void): () => void {
 }
 
 /**
- * Download and install `update`, then relaunch into the new version. `onProgress`
- * receives a 0..1 fraction as bytes arrive; it stays at 0 until the total content
- * length is known and jumps to 1 on completion.
+ * Download and install `update`, then relaunch into the new version on desktop.
+ * On Android the system installer replaces the app; relaunch is not attempted.
+ * `onProgress` receives a 0..1 fraction as bytes arrive.
  */
 export async function installUpdate(
-  update: Update,
+  update: AppUpdate,
   onProgress?: (fraction: number) => void,
 ): Promise<void> {
   let total = 0;
   let downloaded = 0;
+  const android = await isAndroid();
   await update.downloadAndInstall(event => {
     switch (event.event) {
       case "Started":
         total = event.data.contentLength ?? 0;
+        if (android && total === 0) {
+          // Android progress events carry absolute downloaded bytes; fraction
+          // is computed once total is known from the first progress payload.
+        }
         break;
       case "Progress":
-        downloaded += event.data.chunkLength;
-        if (total > 0) onProgress?.(downloaded / total);
+        if (android) {
+          downloaded = event.data.chunkLength ?? downloaded;
+          if (total > 0) onProgress?.(downloaded / total);
+        } else {
+          downloaded += event.data.chunkLength ?? 0;
+          if (total > 0) onProgress?.(downloaded / total);
+        }
         break;
       case "Finished":
         onProgress?.(1);
         break;
     }
   });
-  await relaunch();
+  if (!android) await relaunch();
 }

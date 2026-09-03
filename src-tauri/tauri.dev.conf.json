@@ -17,5 +17,10 @@
     "security": {
       "csp": null
     }
+  },
+  "plugins": {
+    "androidUpdater": {
+      "endpoints": ["http://127.0.0.1:8765/android-latest.json"]
+    }
   }
 }

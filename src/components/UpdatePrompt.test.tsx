@@ -19,15 +19,19 @@ import {
   installUpdate,
   requestUpdatePrompt,
   setPendingUpdate,
+  type AppUpdate,
 } from "../lib/updater";
 import { UpdatePrompt } from "./UpdatePrompt";
-import type { Update } from "@tauri-apps/plugin-updater";
 
 const checkMock = vi.mocked(checkForUpdate);
 const installMock = vi.mocked(installUpdate);
 
-const fakeUpdate = (over: Partial<Update> = {}) =>
-  ({ version: "0.2.0", body: "## Fixed\n\n- A bug", ...over }) as Update;
+const fakeUpdate = (over: Partial<AppUpdate> = {}): AppUpdate => ({
+  version: "0.2.0",
+  body: "## Fixed\n\n- A bug",
+  downloadAndInstall: vi.fn(),
+  ...over,
+});
 
 beforeEach(() => {
   checkMock.mockReset();
@@ -120,7 +124,7 @@ describe("UpdatePrompt pending update", () => {
   it("does not publish an update that resolves after unmount", async () => {
     // The `active` guard in the mount effect is the only thing stopping a late
     // check from publishing into a torn-down app (and, in tests, past the reset).
-    let resolve!: (u: Update | null) => void;
+    let resolve!: (u: AppUpdate | null) => void;
     checkMock.mockReturnValue(new Promise(r => { resolve = r; }));
     const { unmount } = render(<UpdatePrompt />);
     await waitFor(() => expect(checkMock).toHaveBeenCalled());

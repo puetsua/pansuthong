@@ -120,7 +120,10 @@ pub fn run() {
     );
 
     #[cfg(target_os = "android")]
-    let builder = builder.plugin(tauri_plugin_android_fs::init());
+    let builder = builder
+        .plugin(tauri_plugin_android_fs::init())
+        .plugin(tauri_plugin_android_installer::init())
+        .plugin(tauri_plugin_android_updater::init());
 
     // MCP Bridge: WebSocket on :9223 for @hypothesi/tauri-mcp-server (screenshots,
     // DOM, IPC). Debug builds only — not shipped in release.

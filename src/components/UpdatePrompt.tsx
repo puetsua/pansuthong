@@ -2,19 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
-import type { Update } from "@tauri-apps/plugin-updater";
 import {
   checkForUpdate,
   getPendingUpdate,
   installUpdate,
   onUpdatePromptRequested,
   setPendingUpdate,
+  type AppUpdate,
 } from "../lib/updater";
 
 type Phase =
-  | { kind: "available"; update: Update }
-  | { kind: "downloading"; update: Update; fraction: number }
-  | { kind: "error"; update: Update; message: string };
+  | { kind: "available"; update: AppUpdate }
+  | { kind: "downloading"; update: AppUpdate; fraction: number }
+  | { kind: "error"; update: AppUpdate; message: string };
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
