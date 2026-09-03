@@ -14,12 +14,19 @@
 //!
 //! # Taskbar identity (#192)
 //!
-//! Distinct dev/production taskbar entries rely on `enableGTKAppId: true` in
-//! `tauri.conf.json` (see `install` below). Manual regression:
+//! GTK3 maps X11 `WM_CLASS` and Wayland `xdg_toplevel` app_id from
+//! `g_get_prgname()` / `gdk_get_program_class()`, not from `enableGTKAppId` alone.
+//! Call [`install_desktop_identity`] at process start (before the first window is
+//! realized) with the compiled Tauri `identifier`. For local dev, install
+//! `linux/net.puetsua.pansuthong.dev.desktop` so the shell tooltip matches.
+//!
+//! Manual regression:
 //! 1. Run dev (`target/debug/pansuthong` + `tauri.dev.conf.json`) and production
 //!    (`target/release/pansuthong`) together.
 //! 2. The taskbar/pager shows separate entries (not one shared "Pansuthong" button).
 
+use gtk::gdk;
+use gtk::glib;
 use gtk::glib::Propagation;
 use gtk::prelude::*;
 use tauri::WebviewWindow;
@@ -28,6 +35,34 @@ use tauri::WebviewWindow;
 pub const TITLEBAR_HEIGHT_PX: f64 = 32.0;
 /// Three `.desktop-titlebar-btn` controls at 46px each.
 pub const CONTROLS_WIDTH_PX: f64 = 138.0;
+
+/// Production identifier from `tauri.conf.json` (emitted by `build.rs` for tests).
+pub const PRODUCTION_IDENTIFIER: &str = env!("TAURI_APP_IDENTIFIER");
+/// Development identifier from `tauri.dev.conf.json`.
+pub const DEV_IDENTIFIER: &str = "net.puetsua.pansuthong.dev";
+
+/// Set GLib/GDK program identity before GTK realizes any window.
+///
+/// Shells group windows by `WM_CLASS` (X11) and GTK3 Wayland app_id from prgname.
+pub fn install_desktop_identity(identifier: &str) {
+    glib::set_prgname(Some(identifier));
+    gdk::set_program_class(identifier);
+}
+
+/// Assert runtime prgname/program_class match the expected identifier.
+#[cfg(test)]
+pub fn assert_desktop_identity(identifier: &str) {
+    assert_eq!(
+        glib::prgname().as_deref(),
+        Some(identifier),
+        "g_get_prgname() should match the compiled identifier"
+    );
+    assert_eq!(
+        gdk::program_class().as_deref(),
+        Some(identifier),
+        "gdk_get_program_class() should match the compiled identifier"
+    );
+}
 
 /// Button-press coordinates for titlebar drag: widget-local for hit testing,
 /// root/screen for `gtk::WindowExt::begin_move_drag`.
@@ -111,6 +146,25 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::Path;
+    use std::sync::Once;
+
+    static GTK_TEST_INIT: Once = Once::new();
+
+    fn init_gtk_for_test() {
+        GTK_TEST_INIT.call_once(|| {
+            gtk::init().expect("gtk::init for linux_desktop identity tests");
+        });
+    }
+
+    fn identifier_from_config(filename: &str) -> String {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(filename);
+        let text = fs::read_to_string(&path).expect("read tauri config");
+        let json: serde_json::Value = serde_json::from_str(&text).expect("parse tauri config");
+        json["identifier"]
+            .as_str()
+            .expect("identifier in tauri config")
+            .to_string()
+    }
 
     #[test]
     fn titlebar_drag_zone_excludes_controls_and_below_bar() {
@@ -140,16 +194,23 @@ mod tests {
     }
 
     #[test]
-    fn tauri_config_enables_gtk_app_id() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tauri.conf.json");
-        let text = fs::read_to_string(path).expect("read tauri.conf.json");
-        let json: serde_json::Value = serde_json::from_str(&text).expect("parse tauri.conf.json");
-        assert_eq!(
-            json.get("app")
-                .and_then(|app| app.get("enableGTKAppId"))
-                .and_then(serde_json::Value::as_bool),
-            Some(true),
-            "enableGTKAppId must be true for distinct dev/production Linux taskbar entries (#192)"
+    fn desktop_identity_runtime_matches_production_and_dev_configs() {
+        init_gtk_for_test();
+
+        install_desktop_identity(PRODUCTION_IDENTIFIER);
+        assert_desktop_identity(PRODUCTION_IDENTIFIER);
+
+        let production = identifier_from_config("tauri.conf.json");
+        let dev = identifier_from_config("tauri.dev.conf.json");
+        assert_ne!(production, dev);
+        assert_eq!(dev, DEV_IDENTIFIER);
+
+        install_desktop_identity(&dev);
+        assert_desktop_identity(&dev);
+        assert_ne!(
+            gdk::program_class().as_deref(),
+            Some(production.as_str()),
+            "dev program_class must not match production identifier"
         );
     }
 }

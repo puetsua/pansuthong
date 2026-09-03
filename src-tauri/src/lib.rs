@@ -58,6 +58,11 @@ fn focus_existing_main_window(app: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let context = tauri::generate_context!();
+
+    #[cfg(target_os = "linux")]
+    linux_desktop::install_desktop_identity(&context.config().identifier);
+
     // First plugin so a second launch exits before other plugins start work.
     #[cfg(desktop)]
     let builder =
@@ -363,6 +368,6 @@ pub fn run() {
             commands::saf_sync_now,
             commands::saf_status,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }
