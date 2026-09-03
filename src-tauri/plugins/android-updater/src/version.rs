@@ -35,6 +35,19 @@ fn compare_versions(current: &str, remote: &str) -> std::cmp::Ordering {
     }
 }
 
+/// True when `url` points at an APK, not a minisign sidecar or other artifact.
+pub fn is_apk_download_url(url: &str) -> bool {
+    let path = url
+        .split('?')
+        .next()
+        .unwrap_or(url)
+        .rsplit('/')
+        .next()
+        .unwrap_or(url)
+        .to_ascii_lowercase();
+    path.ends_with(".apk") && !path.ends_with(".apk.sig")
+}
+
 /// True when `name` looks like the production universal APK (not a signature sidecar).
 pub fn is_universal_apk_asset(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
@@ -71,5 +84,15 @@ mod tests {
         ));
         assert!(is_universal_apk_asset("Pansuthong_0.2.0_universal.apk"));
         assert!(!is_universal_apk_asset("latest.json"));
+    }
+
+    #[test]
+    fn rejects_sig_download_url() {
+        assert!(!is_apk_download_url(
+            "https://github.com/x/releases/download/0.2.0/Pansuthong_0.2.0_universal.apk.sig"
+        ));
+        assert!(is_apk_download_url(
+            "https://github.com/x/releases/download/0.2.0/Pansuthong_0.2.0_universal.apk"
+        ));
     }
 }

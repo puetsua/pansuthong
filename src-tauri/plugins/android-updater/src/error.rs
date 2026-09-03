@@ -11,6 +11,9 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+    #[cfg(target_os = "android")]
+    #[error(transparent)]
+    Installer(#[from] tauri_plugin_android_installer::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

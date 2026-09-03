@@ -1,22 +1,21 @@
-import { check, type Update } from "@tauri-apps/plugin-updater";
+import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isAndroid } from "./platform";
 
+export type { DownloadEvent };
+
 /** Cross-platform pending update surfaced to UpdatePrompt and the sidebar. */
 export type AppUpdate = {
   version: string;
   body?: string | null;
-  downloadAndInstall: (
-    onEvent: (event: { event: string; data: { chunkLength?: number; contentLength?: number } }) => void,
-  ) => Promise<void>;
+  downloadAndInstall: (onEvent: (event: DownloadEvent) => void) => Promise<void>;
 };
 
-type AndroidUpdateInfo = {
+type AndroidUpdateResponse = {
   version: string;
   body?: string | null;
-  downloadUrl: string;
 };
 
 function wrapDesktopUpdate(update: Update): AppUpdate {
@@ -27,7 +26,7 @@ function wrapDesktopUpdate(update: Update): AppUpdate {
   };
 }
 
-function wrapAndroidUpdate(info: AndroidUpdateInfo): AppUpdate {
+function wrapAndroidUpdate(info: AndroidUpdateResponse): AppUpdate {
   return {
     version: info.version,
     body: info.body,
@@ -50,10 +49,8 @@ function wrapAndroidUpdate(info: AndroidUpdateInfo): AppUpdate {
         },
       );
       try {
-        await invoke("plugin:android-updater|download_and_install", {
-          downloadUrl: info.downloadUrl,
-        });
-        onEvent({ event: "Finished", data: {} });
+        await invoke("plugin:android-updater|download_and_install");
+        onEvent({ event: "Finished" });
       } finally {
         unlisten();
       }
@@ -69,7 +66,7 @@ function wrapAndroidUpdate(info: AndroidUpdateInfo): AppUpdate {
 export async function checkForUpdate(): Promise<AppUpdate | null> {
   if (await isAndroid()) {
     try {
-      const info = await invoke<AndroidUpdateInfo | null>("plugin:android-updater|check");
+      const info = await invoke<AndroidUpdateResponse | null>("plugin:android-updater|check");
       return info ? wrapAndroidUpdate(info) : null;
     } catch {
       return null;
@@ -155,17 +152,13 @@ export async function installUpdate(
     switch (event.event) {
       case "Started":
         total = event.data.contentLength ?? 0;
-        if (android && total === 0) {
-          // Android progress events carry absolute downloaded bytes; fraction
-          // is computed once total is known from the first progress payload.
-        }
         break;
       case "Progress":
         if (android) {
-          downloaded = event.data.chunkLength ?? downloaded;
+          downloaded = event.data.chunkLength;
           if (total > 0) onProgress?.(downloaded / total);
         } else {
-          downloaded += event.data.chunkLength ?? 0;
+          downloaded += event.data.chunkLength;
           if (total > 0) onProgress?.(downloaded / total);
         }
         break;

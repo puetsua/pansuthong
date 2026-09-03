@@ -6,7 +6,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 vi.mock("./platform", () => ({ isAndroid: vi.fn() }));
 
-import { check, type Update } from "@tauri-apps/plugin-updater";
+import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -20,6 +20,7 @@ import {
   setPendingUpdate,
   subscribeToPendingUpdate,
   type AppUpdate,
+  type DownloadEvent,
 } from "./updater";
 
 const checkMock = vi.mocked(check);
@@ -27,6 +28,12 @@ const relaunchMock = vi.mocked(relaunch);
 const invokeMock = vi.mocked(invoke);
 const listenMock = vi.mocked(listen);
 const isAndroidMock = vi.mocked(isAndroid);
+
+const appUpdate = (over: Partial<AppUpdate> = {}): AppUpdate => ({
+  version: "0.2.0",
+  downloadAndInstall: vi.fn(),
+  ...over,
+});
 
 beforeEach(() => {
   checkMock.mockReset();
@@ -46,7 +53,6 @@ describe("checkForUpdate", () => {
     invokeMock.mockResolvedValue({
       version: "0.2.0",
       body: "notes",
-      downloadUrl: "https://x/apk",
     });
     const update = await checkForUpdate();
     expect(update?.version).toBe("0.2.0");
@@ -77,31 +83,28 @@ describe("checkForUpdate", () => {
   });
 
   it("returns the pending update when one is available on desktop", async () => {
-    const update = { version: "0.2.0", downloadAndInstall: vi.fn() } as Update;
-    checkMock.mockResolvedValue(update);
+    checkMock.mockResolvedValue(appUpdate({ version: "0.2.0" }) as never);
     expect((await checkForUpdate())?.version).toBe("0.2.0");
   });
 });
 
 describe("pending update store", () => {
-  const update = (v: string): AppUpdate => ({ version: v, downloadAndInstall: vi.fn() });
-
   it("notifies subscribers on change and stops after unsubscribe", () => {
     const listener = vi.fn();
     const unsubscribe = subscribeToPendingUpdate(listener);
 
-    setPendingUpdate(update("0.2.0"));
+    setPendingUpdate(appUpdate({ version: "0.2.0" }));
     expect(listener).toHaveBeenCalledTimes(1);
     expect(getPendingUpdate()?.version).toBe("0.2.0");
 
     unsubscribe();
-    setPendingUpdate(update("0.3.0"));
+    setPendingUpdate(appUpdate({ version: "0.3.0" }));
     expect(listener).toHaveBeenCalledTimes(1);
     expect(getPendingUpdate()?.version).toBe("0.3.0");
   });
 
   it("does not notify when the same reference is republished", () => {
-    const same = update("0.2.0");
+    const same = appUpdate({ version: "0.2.0" });
     setPendingUpdate(same);
     const listener = vi.fn();
     subscribeToPendingUpdate(listener)();
@@ -114,7 +117,7 @@ describe("pending update store", () => {
   });
 
   it("returns a stable snapshot (safe for useSyncExternalStore)", () => {
-    const same = update("0.2.0");
+    const same = appUpdate({ version: "0.2.0" });
     setPendingUpdate(same);
     expect(getPendingUpdate()).toBe(getPendingUpdate());
     expect(getPendingUpdate()).toBe(same);
@@ -134,7 +137,7 @@ describe("pending update store", () => {
 
 describe("installUpdate", () => {
   it("maps download events to a 0..1 fraction and relaunches on desktop", async () => {
-    const downloadAndInstall = vi.fn(async (onEvent: (e: unknown) => void) => {
+    const downloadAndInstall = vi.fn(async (onEvent: (e: DownloadEvent) => void) => {
       onEvent({ event: "Started", data: { contentLength: 100 } });
       onEvent({ event: "Progress", data: { chunkLength: 25 } });
       onEvent({ event: "Progress", data: { chunkLength: 25 } });
@@ -151,7 +154,7 @@ describe("installUpdate", () => {
 
   it("does not relaunch on Android", async () => {
     isAndroidMock.mockResolvedValue(true);
-    const downloadAndInstall = vi.fn(async (onEvent: (e: unknown) => void) => {
+    const downloadAndInstall = vi.fn(async (onEvent: (e: DownloadEvent) => void) => {
       onEvent({ event: "Finished" });
     });
     await installUpdate({ version: "0.2.0", downloadAndInstall });
@@ -159,7 +162,7 @@ describe("installUpdate", () => {
   });
 
   it("does not emit progress before the total length is known on desktop", async () => {
-    const downloadAndInstall = vi.fn(async (onEvent: (e: unknown) => void) => {
+    const downloadAndInstall = vi.fn(async (onEvent: (e: DownloadEvent) => void) => {
       onEvent({ event: "Started", data: {} });
       onEvent({ event: "Progress", data: { chunkLength: 10 } });
     });

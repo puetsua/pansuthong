@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
 use crate::models::{DevManifest, UpdateInfo};
-use crate::version::{is_universal_apk_asset, is_version_newer};
+use crate::version::{is_apk_download_url, is_universal_apk_asset, is_version_newer};
 use serde::Deserialize;
 use ureq::Agent;
 
@@ -34,6 +34,10 @@ pub fn check_for_update(
         return Ok(None);
     };
 
+    if !is_apk_download_url(&info.download_url) {
+        return Err(Error::Msg("resolved update url is not an APK".into()));
+    }
+
     if is_version_newer(current_version, &info.version) {
         Ok(Some(info))
     } else {
@@ -65,9 +69,7 @@ fn check_github(agent: &Agent) -> Result<UpdateInfo> {
 fn check_dev_manifest(agent: &Agent, manifest_url: &str) -> Result<UpdateInfo> {
     let manifest: DevManifest = agent.get(manifest_url).call()?.into_json()?;
 
-    if !manifest.url.to_ascii_lowercase().ends_with(".apk")
-        || manifest.url.to_ascii_lowercase().ends_with(".apk.sig")
-    {
+    if !is_apk_download_url(&manifest.url) {
         return Err(Error::Msg("dev manifest url is not an APK".into()));
     }
 
@@ -76,14 +78,4 @@ fn check_dev_manifest(agent: &Agent, manifest_url: &str) -> Result<UpdateInfo> {
         body: manifest.notes,
         download_url: manifest.url,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn prod_uses_github_not_dev() {
-        assert_eq!(PROD_ID, "net.puetsua.pansuthong");
-    }
 }

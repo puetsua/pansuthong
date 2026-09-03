@@ -6,8 +6,7 @@ import { buildIndexes } from "../state/indexes";
 import { Document } from "../lib/tauri";
 import { appVersion } from "../lib/platform";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { onUpdatePromptRequested, setPendingUpdate } from "../lib/updater";
-import type { Update } from "@tauri-apps/plugin-updater";
+import { onUpdatePromptRequested, setPendingUpdate, type AppUpdate } from "../lib/updater";
 
 vi.mock("../lib/platform", () => ({ appVersion: vi.fn() }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
@@ -72,7 +71,7 @@ describe("MobileHeader — version label", () => {
     openMore();
     await waitFor(() => expect(appVersionMock).toHaveBeenCalled());
 
-    act(() => setPendingUpdate({ version: "0.6.0" } as Update));
+    act(() => setPendingUpdate({ version: "0.6.0", downloadAndInstall: vi.fn() } satisfies AppUpdate));
     const requested = vi.fn();
     const off = onUpdatePromptRequested(requested);
     fireEvent.click(await screen.findByRole("button", { name: "Update" }));

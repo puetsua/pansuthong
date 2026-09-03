@@ -26,7 +26,7 @@ See proposal.md for motivation.
 
 ### 1. Custom `android-updater` plugin + `tauri-plugin-android-installer`
 
-- **Choice:** Local plugin at `src-tauri/plugins/android-updater` exposes `check` and `download_and_install`. Install delegates to `tauri-plugin-android-installer` after APK lands in `appCacheDir`.
+- **Choice:** Local plugin at `src-tauri/plugins/android-updater` exposes `check` and `download_and_install`. `check` stores the resolved APK URL in plugin state (not exposed to the webview); `download_and_install` uses that stored URL only. Install delegates to `tauri-plugin-android-installer` after APK lands in `appCacheDir`.
 - **Why:** Keeps desktop updater untouched; installer plugin already handles FileProvider and `REQUEST_INSTALL_PACKAGES`.
 - **Alternatives:** Extend desktop updater (unsupported on Android). Rewrite PackageInstaller sessions (unnecessary).
 
