@@ -5,6 +5,8 @@ pub mod db;
 pub mod error;
 pub mod history;
 pub mod idle;
+#[cfg(target_os = "linux")]
+pub mod linux_desktop;
 pub mod model;
 pub mod parse;
 pub mod safsync;
@@ -263,6 +265,14 @@ pub fn run() {
                     }
                 }
                 enforce_desktop_chrome(app.handle());
+                #[cfg(target_os = "linux")]
+                {
+                    if let Some(win) = app.get_webview_window("main") {
+                        if let Err(e) = crate::linux_desktop::install_titlebar_drag(&win) {
+                            eprintln!("warning: linux titlebar drag hook failed: {e}");
+                        }
+                    }
+                }
                 #[cfg(target_os = "linux")]
                 show_linux_main(app.handle());
                 let handle = app.handle().clone();

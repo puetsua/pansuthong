@@ -3,6 +3,15 @@ import { getVersion } from "@tauri-apps/api/app";
 
 let cached: boolean | null = null;
 
+/** True when running on Linux (native GTK titlebar drag is used there). */
+export async function isLinux(): Promise<boolean> {
+  try {
+    return (await type()) === "linux";
+  } catch {
+    return false;
+  }
+}
+
 /** True when running on Android (the desktop sync-folder picker is hidden there). */
 export async function isAndroid(): Promise<boolean> {
   if (cached === null) {
