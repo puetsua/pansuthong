@@ -36,7 +36,7 @@ fn compare_versions(current: &str, remote: &str) -> std::cmp::Ordering {
         (None, None) => std::cmp::Ordering::Equal,
         (Some(_), None) => std::cmp::Ordering::Less, // release > prerelease
         (None, Some(_)) => std::cmp::Ordering::Greater,
-        (Some(c), Some(r)) => c.cmp(r),
+        (Some(c), Some(r)) => c.as_str().cmp(r.as_str()),
     }
 }
 
