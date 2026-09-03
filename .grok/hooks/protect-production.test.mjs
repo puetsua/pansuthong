@@ -122,6 +122,12 @@ describe("deny: production launch / kill / data / mcp", () => {
     deny(bash("killall pansuthong"));
   });
 
+  it("still denies production kill/delete when the command also mentions Dev in a comment", () => {
+    deny(bash('taskkill /IM pansuthong.exe /F # avoid Pansuthong Dev'));
+    deny(bash(`Remove-Item '${prodExe}' # Pansuthong Dev`));
+    deny(bash("pkill pansuthong # Pansuthong Dev"));
+  });
+
   it("denies killing a PID that resolves to the production exe", () => {
     deny(bash("Stop-Process -Id 43904 -Force"), {
       resolvePid: (pid) => (Number(pid) === 43904 ? prodExe : ""),

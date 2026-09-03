@@ -27,29 +27,59 @@ export function normalize(p) {
   return String(p ?? "").replace(/\\/g, "/").toLowerCase();
 }
 
+export function isDevInstallPath(p) {
+  const n = normalize(p);
+  return (
+    /(?:^|[\\/])pansuthong dev(?:[\\/]|\.exe$)/.test(n) ||
+    /(?:^|[\\/])pansuthongdev/.test(n) ||
+    n.includes(DEV_ID) ||
+    n.includes("/src-tauri/target/")
+  );
+}
+
+export function isDevProcessImage(name) {
+  const n = normalize(name);
+  return /pansuthong\s+dev(?:\.exe)?$/.test(n) || /pansuthongdev(?:\.exe)?$/.test(n);
+}
+
+/** Strip shell comments so trailing "Pansuthong Dev" notes do not affect target checks. */
+export function stripShellComments(text) {
+  return String(text ?? "")
+    .replace(/#.*$/gm, "")
+    .replace(/\/\/.*$/gm, "");
+}
+
+export function extractKillImageName(cmd) {
+  const s = stripShellComments(cmd);
+  let m = s.match(/\b\/IM\s+("([^"]+)"|'([^']+)'|(\S+))/i);
+  if (m) return m[2] || m[3] || m[4];
+  m = s.match(/\b-Name\s+("([^"]+)"|'([^']+)'|(\S+))/i);
+  if (m) return m[2] || m[3] || m[4];
+  m = s.match(/\b(?:pkill|killall)\s+("([^"]+)"|'([^']+)'|(\S+))/i);
+  if (m) return m[2] || m[3] || m[4];
+  return "";
+}
+
 export function isDevIdentity(text) {
   const s = normalize(text);
+  if (isDevInstallPath(s)) return true;
+  if (s === DEV_ID || s.includes(`/${DEV_ID}`) || s.includes(`\\${DEV_ID}`)) {
+    return true;
+  }
   return (
-    s.includes("pansuthong dev") ||
-    s.includes("pansuthongdev") ||
-    s.includes(DEV_ID) ||
-    s.includes("tauri.dev.conf.json") ||
-    s.includes("tauri.android-dev.conf.json")
+    s.includes("tauri.dev.conf.json") || s.includes("tauri.android-dev.conf.json")
   );
 }
 
 export function isProductionInstallPath(p) {
   const n = normalize(p);
-  if (!n || isDevIdentity(n)) return false;
+  if (!n || isDevInstallPath(n)) return false;
   if (n.includes("/src-tauri/target/")) return false;
-  if (/\/appdata\/local\/pansuthong\/pansuthong(\.exe)?$/.test(n)) return true;
-  if (n.includes("/appdata/local/pansuthong/") && !n.includes("pansuthong dev")) return true;
+  if (/\/appdata\/local\/pansuthong\/pansuthong(\.exe)?(?:\s|$|['"])/.test(n)) return true;
+  if (n.includes("/appdata/local/pansuthong/")) return true;
   if (n.includes("/appdata/local/programs/pansuthong/")) return true;
   // PowerShell / cmd env-var launch paths (e.g. $env:LOCALAPPDATA\Pansuthong\pansuthong.exe).
-  if (
-    /(?:\$env:|%)[a-z_]*localappdata[^/\\]*[\\/]pansuthong(?:[\\/]|$)/.test(n) &&
-    !n.includes("pansuthong dev")
-  ) {
+  if (/(?:\$env:|%)[a-z_]*localappdata[^/\\]*[\\/]pansuthong(?:[\\/]|$)/.test(n)) {
     return true;
   }
   if (n.includes("/usr/bin/pansuthong")) return true;
@@ -59,8 +89,8 @@ export function isProductionInstallPath(p) {
 }
 
 export function isProductionDataPath(p) {
-  const n = normalize(p);
-  if (!n || isDevIdentity(n)) return false;
+  const n = normalize(stripShellComments(p));
+  if (!n || n.includes(DEV_ID)) return false;
   // Live app dirs, not the git repo. Negative lookahead so `.dev` is allowed.
   return (
     /appdata\/(local|roaming)\/net\.puetsua\.pansuthong(?!\.dev)(?:\/|$)/.test(n) ||
@@ -187,9 +217,9 @@ function denyBareTauriDev(cmd) {
 
 function denyWingetUninstallProd(cmd) {
   if (!/\bwinget\s+uninstall\b/i.test(cmd)) return false;
-  if (isDevIdentity(cmd)) return false;
-  // By-name uninstall (not --id) of production Pansuthong.
-  if (/\bpansuthong\b/i.test(cmd) && !/pansuthong\s+dev/i.test(cmd)) return true;
+  const target = stripShellComments(cmd).replace(/^.*\bwinget\s+uninstall\b/i, "").trim();
+  if (isDevProcessImage(target) || /\bpansuthong\s+dev\b/i.test(target)) return false;
+  if (/\bpansuthong\b/i.test(target)) return true;
   return false;
 }
 
@@ -201,14 +231,23 @@ function denyAdbProd(text) {
 }
 
 function denyKillByImageName(cmd) {
-  // Image-name kill of pansuthong also hits the installed production process.
-  if (/pansuthong\s+dev/i.test(cmd)) return false;
-  return (
-    /\b(taskkill|stop-process|killall|pkill)\b/i.test(cmd) &&
-    /\bpansuthong(?:\.exe)?\b/i.test(cmd) &&
-    !/src-tauri[\\/]target/i.test(cmd) &&
-    !/executablepath/i.test(cmd)
-  );
+  const body = stripShellComments(cmd);
+  const named = extractKillImageName(cmd);
+  if (named) {
+    if (isDevProcessImage(named)) return false;
+    if (/\bpansuthong(?:\.exe)?\b/i.test(named)) {
+      return (
+        /\b(taskkill|stop-process|killall|pkill)\b/i.test(body) &&
+        !/src-tauri[\\/]target/i.test(body) &&
+        !/executablepath/i.test(body)
+      );
+    }
+    return false;
+  }
+  if (!/\b(taskkill|stop-process|killall|pkill)\b/i.test(body)) return false;
+  if (/src-tauri[\\/]target/i.test(body) || /executablepath/i.test(body)) return false;
+  if (/\bpansuthong\s+dev\b/i.test(body)) return false;
+  return /\bpansuthong(?:\.exe)?\b/i.test(body);
 }
 
 export function decide(input, opts = {}) {
@@ -239,6 +278,7 @@ export function decide(input, opts = {}) {
   }
 
   const blob = `${cmd}\n${hay}\n${cwd}`;
+  const cmdBody = stripShellComments(cmd || hay);
 
   if (denyAdbProd(blob)) return { decision: "deny", reason: DENY_REASON };
   if (denyBareTauriDev(cmd || hay)) return { decision: "deny", reason: DENY_REASON };
@@ -249,10 +289,13 @@ export function decide(input, opts = {}) {
   if (denyKillByImageName(cmd || hay)) return { decision: "deny", reason: DENY_REASON };
 
   if (KILL.test(blob) || MUTATE.test(blob)) {
-    if (isProductionInstallPath(blob) || isProductionDataPath(blob)) {
+    if (
+      isProductionInstallPath(stripShellComments(blob)) ||
+      isProductionDataPath(blob)
+    ) {
       return { decision: "deny", reason: DENY_REASON };
     }
-    if (mentionsProdPackage(blob) && !isDevIdentity(blob) && !READ_ONLY.test(blob)) {
+    if (mentionsProdPackage(cmdBody) && !READ_ONLY.test(blob)) {
       // Repo source edits mention the id constantly; only deny when this looks
       // like a live-app action (already gated by MUTATE/KILL).
       if (isShellTool(name) || isTauriMcp(name)) {
@@ -275,7 +318,7 @@ export function decide(input, opts = {}) {
     }
   } else if (
     isShellTool(name) &&
-    (isProductionInstallPath(cmd) || isProductionDataPath(cmd)) &&
+    (isProductionInstallPath(stripShellComments(cmd)) || isProductionDataPath(cmd)) &&
     !READ_ONLY.test(cmd)
   ) {
     // Launching the installed exe (`& path`, start path) with no explicit verb.
