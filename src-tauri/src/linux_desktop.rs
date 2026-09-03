@@ -29,6 +29,37 @@ pub const TITLEBAR_HEIGHT_PX: f64 = 32.0;
 /// Three `.desktop-titlebar-btn` controls at 46px each.
 pub const CONTROLS_WIDTH_PX: f64 = 138.0;
 
+/// Button-press coordinates for titlebar drag: widget-local for hit testing,
+/// root/screen for `gtk::WindowExt::begin_move_drag`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TitlebarPressCoords {
+    pub local_x: f64,
+    pub local_y: f64,
+    pub root_x: f64,
+    pub root_y: f64,
+}
+
+impl TitlebarPressCoords {
+    pub fn from_event(local: (f64, f64), root: (f64, f64)) -> Self {
+        Self {
+            local_x: local.0,
+            local_y: local.1,
+            root_x: root.0,
+            root_y: root.1,
+        }
+    }
+
+    /// Hit test in webview-local space (matches titlebar CSS layout).
+    pub fn in_drag_zone(&self, window_width: f64) -> bool {
+        is_titlebar_drag_zone(self.local_x, self.local_y, window_width)
+    }
+
+    /// Root/screen coordinates required by `begin_move_drag` (not widget-local).
+    pub fn begin_move_drag_roots(&self) -> (i32, i32) {
+        (self.root_x.round() as i32, self.root_y.round() as i32)
+    }
+}
+
 /// Returns true when `(x, y)` is in the draggable titlebar strip, excluding controls.
 pub fn is_titlebar_drag_zone(x: f64, y: f64, window_width: f64) -> bool {
     (0.0..TITLEBAR_HEIGHT_PX).contains(&y)
@@ -51,9 +82,9 @@ pub fn install_titlebar_drag(window: &WebviewWindow) -> tauri::Result<()> {
                 return Propagation::Proceed;
             };
 
-            let (x, y) = event.position();
+            let press = TitlebarPressCoords::from_event(event.position(), event.root());
             let width = gtk_window.allocation().width() as f64;
-            if !is_titlebar_drag_zone(x, y, width) {
+            if !press.in_drag_zone(width) {
                 return Propagation::Proceed;
             }
 
@@ -66,7 +97,8 @@ pub fn install_titlebar_drag(window: &WebviewWindow) -> tauri::Result<()> {
                 return Propagation::Proceed;
             }
 
-            gtk_window.begin_move_drag(1, x as i32, y as i32, event.time());
+            let (root_x, root_y) = press.begin_move_drag_roots();
+            gtk_window.begin_move_drag(1, root_x, root_y, event.time());
             Propagation::Proceed
         });
     })?;
@@ -87,6 +119,24 @@ mod tests {
         assert!(is_titlebar_drag_zone(width - CONTROLS_WIDTH_PX - 1.0, 0.0, width));
         assert!(!is_titlebar_drag_zone(width - CONTROLS_WIDTH_PX, 0.0, width));
         assert!(!is_titlebar_drag_zone(0.0, TITLEBAR_HEIGHT_PX, width));
+    }
+
+    #[test]
+    fn begin_move_drag_uses_root_not_local_coords() {
+        let press = TitlebarPressCoords {
+            local_x: 10.0,
+            local_y: 5.0,
+            root_x: 250.0,
+            root_y: 180.0,
+        };
+        assert!(press.in_drag_zone(900.0));
+        let (drag_x, drag_y) = press.begin_move_drag_roots();
+        assert_eq!((drag_x, drag_y), (250, 180));
+        assert_ne!(
+            (drag_x, drag_y),
+            (press.local_x.round() as i32, press.local_y.round() as i32),
+            "begin_move_drag must receive root/screen coords, not widget-local"
+        );
     }
 
     #[test]
