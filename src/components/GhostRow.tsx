@@ -4,11 +4,13 @@ import { api, Tag, Task } from "../lib/tauri";
 import { GhostTask } from "../lib/recurrence";
 import { errorMessage } from "../lib/errors";
 import { readableTextColor } from "../lib/tags";
+import { playCompletionSound } from "../lib/sound";
 import { TaskEditor } from "./TaskEditor";
 
 type Props = {
   ghost: GhostTask;
   tags: Map<string, Tag>;
+  onCompleted?: (id: string) => void;
   onTimerStarted?: () => void;
 };
 
@@ -18,7 +20,7 @@ type Props = {
  * applies the action to the returned task. The de-emphasised styling + the
  * recurrence marker distinguish it from real rows.
  */
-export function GhostRow({ ghost, tags, onTimerStarted }: Props) {
+export function GhostRow({ ghost, tags, onCompleted, onTimerStarted }: Props) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,11 @@ export function GhostRow({ ghost, tags, onTimerStarted }: Props) {
     // there's no need to clear `busy` in the happy path — the row unmounts.
   };
 
-  const complete = () => run(t => api.setTaskDone(t.id, true));
+  const complete = () => run(async t => {
+    await api.setTaskDone(t.id, true);
+    playCompletionSound();
+    onCompleted?.(t.id);
+  });
 
   // Open the editor on a DRAFT (not yet persisted) pre-filled from this occurrence,
   // mirroring TemplateRow's "New task from template". Nothing is created until the
