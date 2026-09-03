@@ -14,7 +14,7 @@ use std::sync::Mutex;
 use state::PendingUpdate;
 use tauri::{
     plugin::{Builder, TauriPlugin},
-    Runtime,
+    Manager, Runtime,
 };
 
 /// Initializes the Android updater plugin.
