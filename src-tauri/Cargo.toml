@@ -54,6 +54,8 @@ tauri-plugin-single-instance = "2"
 
 [target.'cfg(target_os = "android")'.dependencies]
 tauri-plugin-android-fs = "28"
+tauri-plugin-android-installer = "0.1"
+tauri-plugin-android-updater = { path = "plugins/android-updater" }
 
 # Runtime X11 ScreenSaver idle query (dlopen). Desktop Linux only — Android is
 # `target_os = "android"`, not `linux`. Missing libXss at runtime yields None.

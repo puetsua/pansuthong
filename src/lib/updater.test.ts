@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock the cross-language seams: the updater/process plugins (Rust IPC) and the
-// platform probe. A failed or Android-skipped check must never throw.
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: vi.fn() }));
 vi.mock("@tauri-apps/plugin-process", () => ({ relaunch: vi.fn() }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 vi.mock("./platform", () => ({ isAndroid: vi.fn() }));
 
-import { check, type Update } from "@tauri-apps/plugin-updater";
+import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { isAndroid } from "./platform";
 import {
   checkForUpdate,
@@ -17,66 +19,92 @@ import {
   requestUpdatePrompt,
   setPendingUpdate,
   subscribeToPendingUpdate,
+  type AppUpdate,
+  type DownloadEvent,
 } from "./updater";
 
 const checkMock = vi.mocked(check);
 const relaunchMock = vi.mocked(relaunch);
+const invokeMock = vi.mocked(invoke);
+const listenMock = vi.mocked(listen);
 const isAndroidMock = vi.mocked(isAndroid);
+
+const appUpdate = (over: Partial<AppUpdate> = {}): AppUpdate => ({
+  version: "0.2.0",
+  downloadAndInstall: vi.fn(),
+  ...over,
+});
 
 beforeEach(() => {
   checkMock.mockReset();
   relaunchMock.mockReset();
   relaunchMock.mockResolvedValue(undefined as never);
+  invokeMock.mockReset();
+  listenMock.mockReset();
+  listenMock.mockResolvedValue(() => {});
   isAndroidMock.mockReset();
   isAndroidMock.mockResolvedValue(false);
-  setPendingUpdate(null); // module-level store; must not leak between tests
+  setPendingUpdate(null);
 });
 
 describe("checkForUpdate", () => {
-  it("returns null and never calls check() on Android", async () => {
+  it("calls the Android plugin on Android", async () => {
     isAndroidMock.mockResolvedValue(true);
-    expect(await checkForUpdate()).toBeNull();
+    invokeMock.mockResolvedValue({
+      version: "0.2.0",
+      body: "notes",
+    });
+    const update = await checkForUpdate();
+    expect(update?.version).toBe("0.2.0");
+    expect(invokeMock).toHaveBeenCalledWith("plugin:android-updater|check");
     expect(checkMock).not.toHaveBeenCalled();
   });
 
-  it("swallows errors (offline) and returns null", async () => {
+  it("returns null on Android when the plugin reports up to date", async () => {
+    isAndroidMock.mockResolvedValue(true);
+    invokeMock.mockResolvedValue(null);
+    expect(await checkForUpdate()).toBeNull();
+  });
+
+  it("swallows Android errors and returns null", async () => {
+    isAndroidMock.mockResolvedValue(true);
+    invokeMock.mockRejectedValue(new Error("offline"));
+    expect(await checkForUpdate()).toBeNull();
+  });
+
+  it("swallows desktop errors (offline) and returns null", async () => {
     checkMock.mockRejectedValue(new Error("network down"));
     expect(await checkForUpdate()).toBeNull();
   });
 
-  it("returns null when already up to date", async () => {
+  it("returns null when already up to date on desktop", async () => {
     checkMock.mockResolvedValue(null);
     expect(await checkForUpdate()).toBeNull();
   });
 
-  it("returns the pending update when one is available", async () => {
-    const update = { version: "0.2.0" } as Update;
-    checkMock.mockResolvedValue(update);
-    expect(await checkForUpdate()).toBe(update);
+  it("returns the pending update when one is available on desktop", async () => {
+    checkMock.mockResolvedValue(appUpdate({ version: "0.2.0" }) as never);
+    expect((await checkForUpdate())?.version).toBe("0.2.0");
   });
 });
 
-// The store backing the sidebar's Update button. Both unsubscribe paths matter:
-// a leaked listener would outlive its component and set state after unmount.
 describe("pending update store", () => {
-  const update = (v: string) => ({ version: v }) as Update;
-
   it("notifies subscribers on change and stops after unsubscribe", () => {
     const listener = vi.fn();
     const unsubscribe = subscribeToPendingUpdate(listener);
 
-    setPendingUpdate(update("0.2.0"));
+    setPendingUpdate(appUpdate({ version: "0.2.0" }));
     expect(listener).toHaveBeenCalledTimes(1);
     expect(getPendingUpdate()?.version).toBe("0.2.0");
 
     unsubscribe();
-    setPendingUpdate(update("0.3.0"));
-    expect(listener).toHaveBeenCalledTimes(1); // no longer notified
-    expect(getPendingUpdate()?.version).toBe("0.3.0"); // value still updates
+    setPendingUpdate(appUpdate({ version: "0.3.0" }));
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(getPendingUpdate()?.version).toBe("0.3.0");
   });
 
   it("does not notify when the same reference is republished", () => {
-    const same = update("0.2.0");
+    const same = appUpdate({ version: "0.2.0" });
     setPendingUpdate(same);
     const listener = vi.fn();
     subscribeToPendingUpdate(listener)();
@@ -89,7 +117,7 @@ describe("pending update store", () => {
   });
 
   it("returns a stable snapshot (safe for useSyncExternalStore)", () => {
-    const same = update("0.2.0");
+    const same = appUpdate({ version: "0.2.0" });
     setPendingUpdate(same);
     expect(getPendingUpdate()).toBe(getPendingUpdate());
     expect(getPendingUpdate()).toBe(same);
@@ -108,15 +136,14 @@ describe("pending update store", () => {
 });
 
 describe("installUpdate", () => {
-  it("maps download events to a 0..1 fraction and relaunches", async () => {
-    // Drive the onEvent callback through a realistic Started→Progress→Finished run.
-    const downloadAndInstall = vi.fn(async (onEvent: (e: unknown) => void) => {
+  it("maps download events to a 0..1 fraction and relaunches on desktop", async () => {
+    const downloadAndInstall = vi.fn(async (onEvent: (e: DownloadEvent) => void) => {
       onEvent({ event: "Started", data: { contentLength: 100 } });
       onEvent({ event: "Progress", data: { chunkLength: 25 } });
       onEvent({ event: "Progress", data: { chunkLength: 25 } });
       onEvent({ event: "Finished" });
     });
-    const update = { downloadAndInstall } as unknown as Update;
+    const update: AppUpdate = { version: "0.2.0", downloadAndInstall };
 
     const fractions: number[] = [];
     await installUpdate(update, f => fractions.push(f));
@@ -125,17 +152,26 @@ describe("installUpdate", () => {
     expect(relaunchMock).toHaveBeenCalledOnce();
   });
 
-  it("does not emit progress before the total length is known", async () => {
-    const downloadAndInstall = vi.fn(async (onEvent: (e: unknown) => void) => {
-      onEvent({ event: "Started", data: {} }); // contentLength unknown
+  it("does not relaunch on Android", async () => {
+    isAndroidMock.mockResolvedValue(true);
+    const downloadAndInstall = vi.fn(async (onEvent: (e: DownloadEvent) => void) => {
+      onEvent({ event: "Finished" });
+    });
+    await installUpdate({ version: "0.2.0", downloadAndInstall });
+    expect(relaunchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not emit progress before the total length is known on desktop", async () => {
+    const downloadAndInstall = vi.fn(async (onEvent: (e: DownloadEvent) => void) => {
+      onEvent({ event: "Started", data: {} });
       onEvent({ event: "Progress", data: { chunkLength: 10 } });
     });
-    const update = { downloadAndInstall } as unknown as Update;
+    const update: AppUpdate = { version: "0.2.0", downloadAndInstall };
 
     const fractions: number[] = [];
     await installUpdate(update, f => fractions.push(f));
 
-    expect(fractions).toEqual([]); // no division by an unknown total
+    expect(fractions).toEqual([]);
     expect(relaunchMock).toHaveBeenCalledOnce();
   });
 });

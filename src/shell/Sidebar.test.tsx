@@ -6,8 +6,7 @@ import { buildIndexes } from "../state/indexes";
 import { Document, Tag } from "../lib/tauri";
 import { appVersion } from "../lib/platform";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { onUpdatePromptRequested, setPendingUpdate } from "../lib/updater";
-import type { Update } from "@tauri-apps/plugin-updater";
+import { onUpdatePromptRequested, setPendingUpdate, type AppUpdate } from "../lib/updater";
 
 // The footer version label reads the app version and opens the release page.
 // This mock also stands in front of the `isAndroid` that `lib/updater` imports
@@ -156,7 +155,7 @@ describe("Sidebar — update button", () => {
 
     const requested = vi.fn();
     const off = onUpdatePromptRequested(requested);
-    act(() => setPendingUpdate({ version: "0.6.0" } as Update));
+    act(() => setPendingUpdate({ version: "0.6.0", downloadAndInstall: vi.fn() } satisfies AppUpdate));
 
     fireEvent.click(await screen.findByRole("button", { name: "Update" }));
     off();
@@ -170,7 +169,7 @@ describe("Sidebar — update button", () => {
     renderSidebar([]);
     await waitFor(() => expect(appVersionMock).toHaveBeenCalled());
 
-    act(() => setPendingUpdate({ version: "0.6.0" } as Update));
+    act(() => setPendingUpdate({ version: "0.6.0", downloadAndInstall: vi.fn() } satisfies AppUpdate));
     expect(screen.getByRole("button", { name: "Update" })).toBeTruthy();
     expect(screen.queryByText(/^v\d/)).toBeNull(); // label still absent
   });
@@ -180,7 +179,7 @@ describe("Sidebar — update button", () => {
     renderSidebar([]);
     await screen.findByText("v0.5.0");
 
-    act(() => setPendingUpdate({ version: "0.6.0" } as Update));
+    act(() => setPendingUpdate({ version: "0.6.0", downloadAndInstall: vi.fn() } satisfies AppUpdate));
     await screen.findByRole("button", { name: "Update" });
 
     act(() => setPendingUpdate(null));

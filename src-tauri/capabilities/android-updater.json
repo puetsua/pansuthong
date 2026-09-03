@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "android-updater",
+  "description": "Android in-app APK update check, download, and install",
+  "platforms": ["android"],
+  "windows": ["main"],
+  "permissions": [
+    "android-updater:default",
+    "android-installer:default"
+  ]
+}

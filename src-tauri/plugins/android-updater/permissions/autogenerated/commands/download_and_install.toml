@@ -1,0 +1,3 @@
+identifier = "allow-download-and-install"
+description = "Enables the download_and_install command."
+commands.allow = ["download_and_install"]
