@@ -46,8 +46,8 @@ The system SHALL download the pending APK to app-private storage with visible pr
 
 #### Scenario: Install launch failure is retryable
 
-- **WHEN** download or install launch fails
-- **THEN** the prompt shows the error and offers Retry rather than assuming success
+- **WHEN** download or install launch fails, or install-unknown-apps permission is not granted after returning from Settings
+- **THEN** the prompt shows a retryable error (including guidance to enable unknown-app installs) rather than assuming success
 
 ### Requirement: Play Store sideload constraint
 

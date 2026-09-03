@@ -55,7 +55,7 @@ See proposal.md for motivation.
 ## Risks / Trade-offs
 
 - **[Risk] `REQUEST_INSTALL_PACKAGES` blocks Play submission** → Document in releases.md; sideload-only for now.
-- **[Risk] Install success not observable** → Expected; user verifies version after relaunch. Prompt copy unchanged.
+- **[Risk] Install-unknown-apps permission not granted** → After returning from Settings, poll `can_install` briefly; if still denied, return a retry-friendly error for UpdatePrompt.
 - **[Risk] GitHub API rate limits** → One check per launch; failures swallowed like desktop.
 - **[Risk] Mismatched signing keys** → "App not installed"; document `adb uninstall` + same keystore in verification steps.
 - **[Risk] Emulator cannot complete Install tap in CI** → VM tests stop at download/install-launch; phone steps documented.
