@@ -60,6 +60,54 @@ export function extractKillImageName(cmd) {
   return "";
 }
 
+/** Extract `taskkill /FI` filter expressions (quoted or unquoted). */
+export function extractTaskkillFiFilters(cmd) {
+  const s = stripShellComments(cmd);
+  const filters = [];
+  const lower = s.toLowerCase();
+  let i = 0;
+  while ((i = lower.indexOf("/fi", i)) !== -1) {
+    i += 3;
+    while (i < s.length && /\s/.test(s[i])) i += 1;
+    if (i >= s.length) break;
+
+    let filter;
+    const quote = s[i];
+    if (quote === '"' || quote === "'") {
+      const end = s.indexOf(quote, i + 1);
+      if (end === -1) break;
+      filter = s.slice(i + 1, end);
+      i = end + 1;
+    } else {
+      const rest = s.slice(i);
+      const m = rest.match(/^(\S+(?:\s+\S+)*?)(?=\s+\/[A-Za-z]|\s*$)/);
+      filter = m ? m[1] : rest.trim();
+      i += filter.length;
+    }
+    if (filter?.trim()) filters.push(filter.trim());
+  }
+  return filters;
+}
+
+/** Return the image name from a `taskkill /FI "IMAGENAME eq …"` filter, if present. */
+export function imagenameFromTaskkillFilter(filter) {
+  const m = normalize(filter).match(/\bimagename\s+eq\s+(.+)$/);
+  return m ? m[1].trim() : "";
+}
+
+function denyTaskkillFiProductionImage(cmd) {
+  const body = stripShellComments(cmd);
+  if (!/\btaskkill\b/i.test(body)) return false;
+  if (/src-tauri[\\/]target/i.test(body) || /executablepath/i.test(body)) return false;
+
+  for (const filter of extractTaskkillFiFilters(cmd)) {
+    const image = imagenameFromTaskkillFilter(filter);
+    if (!image || isDevProcessImage(image)) continue;
+    if (/\bpansuthong(?:\.exe)?\b/i.test(image)) return true;
+  }
+  return false;
+}
+
 export function isDevIdentity(text) {
   const s = normalize(text);
   if (isDevInstallPath(s)) return true;
@@ -232,6 +280,7 @@ function denyAdbProd(text) {
 
 function denyKillByImageName(cmd) {
   const body = stripShellComments(cmd);
+  if (denyTaskkillFiProductionImage(cmd)) return true;
   const named = extractKillImageName(cmd);
   if (named) {
     if (isDevProcessImage(named)) return false;
