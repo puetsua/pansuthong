@@ -117,9 +117,24 @@ describe("deny: production launch / kill / data / mcp", () => {
 
   it("denies image-name kill of pansuthong (would also hit production)", () => {
     deny(bash("taskkill /IM pansuthong.exe /F"));
+    deny(bash('taskkill /FI "IMAGENAME eq pansuthong.exe" /F'));
+    deny(bash("taskkill /FI 'IMAGENAME eq pansuthong.exe' /F"));
+    deny(bash("taskkill /FI \"imagename eq PANSUTHONG.EXE\" /F"));
+    deny(bash("taskkill /FI IMAGENAME eq pansuthong.exe /F"));
     deny(bash("Stop-Process -Name pansuthong -Force"));
     deny(bash("pkill pansuthong"));
     deny(bash("killall pansuthong"));
+  });
+
+  it("allows taskkill /FI filters that target Pansuthong Dev only", () => {
+    allow(bash('taskkill /FI "IMAGENAME eq Pansuthong Dev.exe" /F'));
+    allow(bash("taskkill /FI 'imagename eq pansuthong dev.exe' /F"));
+  });
+
+  it("still denies production kill/delete when the command also mentions Dev in a comment", () => {
+    deny(bash('taskkill /IM pansuthong.exe /F # avoid Pansuthong Dev'));
+    deny(bash(`Remove-Item '${prodExe}' # Pansuthong Dev`));
+    deny(bash("pkill pansuthong # Pansuthong Dev"));
   });
 
   it("denies killing a PID that resolves to the production exe", () => {

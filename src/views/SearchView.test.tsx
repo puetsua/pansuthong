@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SearchView } from "./SearchView";
 import { buildIndexes } from "../state/indexes";
 import { Document, Tag, Task } from "../lib/tauri";
@@ -9,6 +9,8 @@ vi.mock("../lib/tauri", async orig => {
   const actual = await orig<typeof import("../lib/tauri")>();
   return { ...actual, api: { setTaskDone: vi.fn().mockResolvedValue({}) } };
 });
+
+import { api } from "../lib/tauri";
 
 const activeTask = (n: number, over: Partial<Task> = {}): Task => ({
   id: `t_${n}`,
@@ -39,7 +41,7 @@ const doc = (tasks: Task[], tags: Tag[] = []): Document => ({
 
 const renderView = (tasks: Task[], tags: Tag[] = []) => {
   const d = doc(tasks, tags);
-  render(<SearchView doc={d} indexes={buildIndexes(d)} />);
+  return render(<SearchView doc={d} indexes={buildIndexes(d)} />);
 };
 
 const rowCount = () => screen.queryAllByRole("checkbox").length;
@@ -110,6 +112,46 @@ describe("SearchView — text search + pagination", () => {
 
   it("reports no matches for a query that hits nothing", () => {
     renderView([activeTask(1, { title: "Buy milk" })]);
+    fireEvent.change(screen.getByLabelText(/search active tasks/i), { target: { value: "zzz" } });
+    expect(rowCount()).toBe(0);
+    expect(screen.getByText(/no active tasks match/i)).toBeTruthy();
+  });
+});
+
+describe("SearchView — held completions (#185)", () => {
+  it("drops held completions when the query is cleared", async () => {
+    const tasks = [activeTask(1, { title: "Buy milk" })];
+    const d = doc(tasks);
+    const { rerender } = render(<SearchView doc={d} indexes={buildIndexes(d)} />);
+
+    fireEvent.change(screen.getByLabelText(/search active tasks/i), { target: { value: "milk" } });
+    expect(rowCount()).toBe(1);
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    await waitFor(() => expect(api.setTaskDone).toHaveBeenCalled());
+    const done = { ...tasks[0], completed_at: `${todayIso()}T12:00:00+08:00` };
+    const d2 = doc([done]);
+    rerender(<SearchView doc={d2} indexes={buildIndexes(d2)} />);
+    await waitFor(() => expect(rowCount()).toBe(1));
+
+    fireEvent.change(screen.getByLabelText(/search active tasks/i), { target: { value: "" } });
+    expect(rowCount()).toBe(0);
+    expect(screen.getByText(/type to search active tasks/i)).toBeTruthy();
+  });
+
+  it("drops held completions when the query no longer matches", async () => {
+    const tasks = [activeTask(1, { title: "Buy milk" })];
+    const d = doc(tasks);
+    const { rerender } = render(<SearchView doc={d} indexes={buildIndexes(d)} />);
+
+    fireEvent.change(screen.getByLabelText(/search active tasks/i), { target: { value: "milk" } });
+    fireEvent.click(screen.getByRole("checkbox"));
+    await waitFor(() => expect(api.setTaskDone).toHaveBeenCalled());
+    const done = { ...tasks[0], completed_at: `${todayIso()}T12:00:00+08:00` };
+    const d2 = doc([done]);
+    rerender(<SearchView doc={d2} indexes={buildIndexes(d2)} />);
+    await waitFor(() => expect(rowCount()).toBe(1));
+
     fireEvent.change(screen.getByLabelText(/search active tasks/i), { target: { value: "zzz" } });
     expect(rowCount()).toBe(0);
     expect(screen.getByText(/no active tasks match/i)).toBeTruthy();
