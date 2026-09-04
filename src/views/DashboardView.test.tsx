@@ -42,8 +42,8 @@ function cardNames(): string[] {
     .map(el => el.textContent?.replace(/^#/, "") ?? "");
 }
 
-function mockDashboardSlotRects(rects: Array<{ top: number; height: number }>) {
-  document.querySelectorAll<HTMLElement>("[data-dashboard-slot]").forEach((el, i) => {
+function mockDashboardCardSlotRects(rects: Array<{ top: number; height: number }>) {
+  document.querySelectorAll<HTMLElement>('[data-dashboard-slot="card"]').forEach((el, i) => {
     const r = rects[i] ?? { top: i * 120, height: 100 };
     el.getBoundingClientRect = () => ({
       top: r.top,
@@ -90,7 +90,7 @@ function pointerReorder(fromName: string, moveClientY: number) {
     { top: 0, height: 100 },
     { top: 100, height: 100 },
   ];
-  const remock = () => mockDashboardSlotRects(slotLayout);
+  const remock = () => mockDashboardCardSlotRects(slotLayout);
   remock();
   act(() => { dispatchPointer(handle, "pointerdown", 150); });
   remock();
@@ -131,7 +131,7 @@ describe("DashboardView — tag order", () => {
       tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
     ]);
     const handle = screen.getByRole("button", { name: /drag to reorder second/i });
-    mockDashboardSlotRects([{ top: 0, height: 100 }, { top: 100, height: 100 }]);
+    mockDashboardCardSlotRects([{ top: 0, height: 100 }, { top: 100, height: 100 }]);
     fireEvent.pointerDown(handle, { pointerId: 1, button: 0, clientY: 150 });
     expect(document.querySelector(".dashboard-cards-dragging")).toBeTruthy();
     expect(document.querySelector(".dashboard-card-dragging")).toBeTruthy();
@@ -155,6 +155,31 @@ describe("DashboardView — tag order", () => {
     await waitFor(() => expect(api.updateTag).toHaveBeenCalledTimes(2));
     expect(api.updateTag).toHaveBeenCalledWith({ id: "t2", dashboard_order: 0 });
     expect(api.updateTag).toHaveBeenCalledWith({ id: "t1", dashboard_order: 1 });
+    expect(cardNames()).toEqual(["second", "first"]);
+  });
+
+  it("commits last insert index on pointer up when release is over a card", async () => {
+    renderView([
+      tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
+      tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
+    ]);
+    const handle = screen.getByRole("button", { name: /drag to reorder second/i });
+    handle.setPointerCapture = vi.fn();
+    handle.releasePointerCapture = vi.fn();
+    handle.hasPointerCapture = vi.fn().mockReturnValue(true);
+    const cardLayout = [
+      { top: 16, height: 100 },
+      { top: 116, height: 100 },
+    ];
+    const remockCards = () => mockDashboardCardSlotRects(cardLayout);
+    remockCards();
+    act(() => { dispatchPointer(handle, "pointerdown", 150); });
+    remockCards();
+    act(() => { dispatchPointer(window, "pointermove", 40); });
+    remockCards();
+    // Middle of card A (slot 1); card-only hit-test would return insertIndex 1 (no-op for B).
+    act(() => { dispatchPointer(window, "pointerup", 66); });
+    await waitFor(() => expect(api.updateTag).toHaveBeenCalledTimes(2));
     expect(cardNames()).toEqual(["second", "first"]);
   });
 

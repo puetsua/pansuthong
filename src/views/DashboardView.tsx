@@ -81,7 +81,7 @@ export function DashboardView({ doc, indexes }: Props) {
   };
 
   const readInsertIndexAt = useCallback((clientY: number) => {
-    const slots = listRef.current?.querySelectorAll<HTMLElement>("[data-dashboard-slot]");
+    const slots = listRef.current?.querySelectorAll<HTMLElement>('[data-dashboard-slot="card"]');
     if (!slots?.length) return 0;
     const rows = [...slots].map(slot => {
       const rect = slot.getBoundingClientRect();
@@ -155,7 +155,6 @@ export function DashboardView({ doc, indexes }: Props) {
       window.removeEventListener("pointerup", onPointerEnd);
       window.removeEventListener("pointercancel", onPointerEnd);
       if (draggingIdRef.current == null) return;
-      updateInsertIndexRef.current(ev.clientY);
       releaseCaptureRef.current(ev);
       void commitReorderRef.current();
     };
@@ -206,9 +205,9 @@ export function DashboardView({ doc, indexes }: Props) {
             {added.map((tag, index) => (
               <Fragment key={tag.id}>
                 {dragging && insertIndex === index && (
-                  <div className="dashboard-card-placeholder" data-dashboard-slot aria-hidden />
+                  <div className="dashboard-card-placeholder" aria-hidden />
                 )}
-                <div data-dashboard-slot>
+                <div data-dashboard-slot="card">
                   <DashboardCard
                     tag={tag}
                     indexes={indexes}
@@ -226,7 +225,7 @@ export function DashboardView({ doc, indexes }: Props) {
               </Fragment>
             ))}
             {dragging && insertIndex === added.length && (
-              <div className="dashboard-card-placeholder" data-dashboard-slot aria-hidden />
+              <div className="dashboard-card-placeholder" aria-hidden />
             )}
           </div>
           <Legend />

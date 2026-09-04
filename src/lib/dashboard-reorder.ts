@@ -3,7 +3,7 @@ import type { Tag } from "./tauri";
 /** Row geometry for pointer hit-testing (midpoint splits decide insert index). */
 export type DashboardRowRect = { top: number; height: number };
 
-/** Insert index 0..rows.length from pointer Y over slot rows (cards + placeholder). */
+/** Insert index 0..rows.length from pointer Y over card slot rows (excludes drop placeholder). */
 export function dashboardInsertIndexAtY(rows: DashboardRowRect[], clientY: number): number {
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
