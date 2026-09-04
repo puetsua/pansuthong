@@ -31,7 +31,7 @@ const renderView = (tags: Tag[]) => {
 };
 
 function dataTransferWith(id: string) {
-  const store: Record<string, string> = {};
+  const store: Record<string, string> = { "text/plain": id };
   return {
     effectAllowed: "move",
     setData: (format: string, value: string) => { store[format] = value; },
