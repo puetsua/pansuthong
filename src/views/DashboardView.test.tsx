@@ -30,6 +30,15 @@ const renderView = (tags: Tag[]) => {
   return render(<DashboardView doc={d} indexes={buildIndexes(d)} />);
 };
 
+function dataTransferWith(id: string) {
+  const store: Record<string, string> = {};
+  return {
+    effectAllowed: "move",
+    setData: (format: string, value: string) => { store[format] = value; },
+    getData: (format: string) => store[format] ?? "",
+  };
+}
+
 describe("DashboardView — tag order", () => {
   beforeEach(() => {
     vi.mocked(api.updateTag).mockClear();
@@ -51,6 +60,19 @@ describe("DashboardView — tag order", () => {
       tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
     ]);
     fireEvent.click(screen.getByRole("button", { name: /move first down/i }));
+    expect(api.updateTag).toHaveBeenCalledWith({ id: "t2", dashboard_order: 0 });
+    expect(api.updateTag).toHaveBeenCalledWith({ id: "t1", dashboard_order: 1 });
+  });
+
+  it("persists reorder on drop using dataTransfer id", () => {
+    renderView([
+      tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
+      tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
+    ]);
+    const dataTransfer = dataTransferWith("t1");
+    fireEvent.dragStart(screen.getByRole("button", { name: /drag to reorder first/i }), { dataTransfer });
+    const cards = document.querySelectorAll(".dashboard-card");
+    fireEvent.drop(cards[1]!, { dataTransfer });
     expect(api.updateTag).toHaveBeenCalledWith({ id: "t2", dashboard_order: 0 });
     expect(api.updateTag).toHaveBeenCalledWith({ id: "t1", dashboard_order: 1 });
   });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { api, DashboardView as DashboardViewKind, Document, Tag } from "../lib/tauri";
@@ -34,8 +34,14 @@ export function DashboardView({ doc, indexes }: Props) {
     [tags],
   );
   const available = tags.filter(tag => !tag.dashboard_view);
+  const draggingIdRef = useRef<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+
+  const setDragging = (id: string) => {
+    draggingIdRef.current = id;
+    setDraggingId(id);
+  };
 
   const setTagView = (tag: Tag, view: DashboardViewKind | null) =>
     void api.updateTag({ id: tag.id, dashboard_view: view });
@@ -68,8 +74,26 @@ export function DashboardView({ doc, indexes }: Props) {
   };
 
   const clearDragState = () => {
+    draggingIdRef.current = null;
     setDraggingId(null);
     setDropTargetId(null);
+  };
+
+  const handleDrop = (toId: string, e: DragEvent) => {
+    const fromId = e.dataTransfer.getData("text/plain")
+      || draggingIdRef.current
+      || draggingId;
+    if (fromId) reorder(fromId, toId);
+    clearDragState();
+  };
+
+  const handleDragLeave = (e: DragEvent) => {
+    const related = e.relatedTarget as Node | null;
+    // Browsers often report relatedTarget === null while still over children;
+    // only clear the drop highlight when the pointer truly left the list.
+    if (related != null && !e.currentTarget.contains(related)) {
+      setDropTargetId(null);
+    }
   };
 
   return (
@@ -99,10 +123,7 @@ export function DashboardView({ doc, indexes }: Props) {
         <p className="view-empty">{t("dashboard.noPins")}</p>
       ) : (
         <>
-          <div className="dashboard-cards"
-               onDragLeave={e => {
-                 if (!e.currentTarget.contains(e.relatedTarget as Node | null)) clearDragState();
-               }}>
+          <div className="dashboard-cards" onDragLeave={handleDragLeave}>
             {added.map((tag, index) => (
               <DashboardCard
                 key={tag.id}
@@ -121,12 +142,9 @@ export function DashboardView({ doc, indexes }: Props) {
                 onRemove={() => setTagView(tag, null)}
                 onMoveUp={() => moveBy(tag.id, -1)}
                 onMoveDown={() => moveBy(tag.id, 1)}
-                onDragStart={() => setDraggingId(tag.id)}
+                onDragStart={() => setDragging(tag.id)}
                 onDragOver={() => setDropTargetId(tag.id)}
-                onDrop={() => {
-                  if (draggingId) reorder(draggingId, tag.id);
-                  clearDragState();
-                }}
+                onDrop={e => handleDrop(tag.id, e)}
                 onDragEnd={clearDragState}
               />
             ))}
@@ -157,7 +175,7 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh,
   onMoveDown: () => void;
   onDragStart: () => void;
   onDragOver: () => void;
-  onDrop: () => void;
+  onDrop: (e: DragEvent) => void;
   onDragEnd: () => void;
 }) {
   const { t } = useTranslation();
@@ -186,7 +204,7 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh,
       }}
       onDrop={e => {
         e.preventDefault();
-        onDrop();
+        onDrop(e);
       }}
     >
       <div className="dashboard-card-head">
