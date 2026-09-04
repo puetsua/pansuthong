@@ -27,7 +27,12 @@ export function SearchView({ doc, indexes }: Props) {
     return sortTasks([...hits], order, indexes.tagsById);
   }, [indexes.tasks, indexes.tagsById, filtering, trimmed, order]);
 
-  const tasks = withHeld(matched, held);
+  const heldMatching = useMemo(() => {
+    if (!filtering) return [];
+    return held.filter(task => taskMatchesQuery(task, trimmed, indexes.tagsById));
+  }, [held, filtering, trimmed, indexes.tagsById]);
+
+  const tasks = withHeld(matched, heldMatching);
 
   const {
     pageSize,

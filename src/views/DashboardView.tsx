@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { api, DashboardView as DashboardViewKind, Document, Tag } from "../lib/tauri";
 import { Indexes } from "../state/indexes";
-import { dashboardHeatmapDays, firstDayOfWeek } from "../lib/settings";
+import { dashboardHeatmapDays, dayStartHour, firstDayOfWeek } from "../lib/settings";
 import { Heatmap, HeatCell, recurrenceStreak } from "../lib/recurrence-heatmap";
 import { computeTagAnalytics, recurringScheduledDates } from "../lib/tag-analytics";
 import { formatDate } from "../lib/dates";
@@ -18,6 +18,7 @@ export function DashboardView({ doc, indexes }: Props) {
   const { t } = useTranslation();
   const days = dashboardHeatmapDays(doc.settings);
   const fdow = firstDayOfWeek(doc.settings);
+  const dsh = dayStartHour(doc.settings);
   const todayIso = indexes.todayIso;
 
   // Any tag can be pinned to the Dashboard (#dashboard) — it need not be a
@@ -69,6 +70,7 @@ export function DashboardView({ doc, indexes }: Props) {
                 tasks={doc.tasks}
                 todayIso={todayIso}
                 days={days}
+                dayStartHour={dsh}
                 firstDayOfWeek={fdow}
                 onSetView={view => setTagView(tag, view)}
                 onRemove={() => setTagView(tag, null)}
@@ -83,12 +85,13 @@ export function DashboardView({ doc, indexes }: Props) {
 }
 
 /** One pinned tag, rendered in its chosen view with view + remove controls. */
-function DashboardCard({ tag, indexes, tasks, todayIso, days, firstDayOfWeek, onSetView, onRemove }: {
+function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh, firstDayOfWeek, onSetView, onRemove }: {
   tag: Tag;
   indexes: Indexes;
   tasks: Document["tasks"];
   todayIso: string;
   days: number;
+  dayStartHour: number;
   firstDayOfWeek: number;
   onSetView: (view: DashboardViewKind) => void;
   onRemove: () => void;
@@ -97,8 +100,14 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, firstDayOfWeek, on
   const view = tag.dashboard_view ?? "heatmap";
   const heat = useMemo(() => {
     const taggedTasks = tasks.filter(task => task.tag_ids.includes(tag.id));
-    return computeTagAnalytics(taggedTasks, todayIso, days, recurringScheduledDates(indexes, tag.id, days)).heat;
-  }, [tag.id, tasks, todayIso, days, indexes]);
+    return computeTagAnalytics(
+      taggedTasks,
+      todayIso,
+      days,
+      recurringScheduledDates(indexes, tag.id, days),
+      dsh,
+    ).heat;
+  }, [tag.id, tasks, todayIso, days, indexes, dsh]);
 
   return (
     <div className="dashboard-card">

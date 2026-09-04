@@ -24,7 +24,8 @@ export function RowList({ rows, tags, todayIso, emptyText, onCompleted, onReopen
   return (
     <div>
       {rows.map(row => row.kind === "ghost"
-        ? <GhostRow key={row.ghost.id} ghost={row.ghost} tags={tags} onTimerStarted={onTimerStarted} />
+        ? <GhostRow key={row.ghost.id} ghost={row.ghost} tags={tags}
+                    onCompleted={onCompleted} onTimerStarted={onTimerStarted} />
         : <TaskRow key={row.task.id} task={row.task} tags={tags} todayIso={todayIso}
                    onCompleted={onCompleted} onReopened={onReopened}
                    onTimerStarted={onTimerStarted} />)}

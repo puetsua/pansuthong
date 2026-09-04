@@ -1,6 +1,6 @@
 import type { Indexes } from "../state/indexes";
 import { Task, isDone } from "./tauri";
-import { addDaysIso } from "./dates";
+import { addDaysIso, logicalDayOf } from "./dates";
 import { elapsedMs } from "./time";
 import type { HeatCell, Heatmap } from "./recurrence-heatmap";
 
@@ -31,6 +31,7 @@ export function computeTagAnalytics(
   todayIso: string,
   days: number,
   recurringScheduled: Set<string>,
+  dayStartHour = 0,
 ): TagAnalytics {
   const now = Date.now();
   const start = addDaysIso(todayIso, -(days - 1));
@@ -48,11 +49,11 @@ export function computeTagAnalytics(
     totalSpentMs += spent;
 
     for (const entry of task.time_entries ?? []) {
-      const iso = entry.start.slice(0, 10);
+      const iso = logicalDayOf(entry.start, dayStartHour);
       if (iso >= start && iso <= todayIso) scheduled.add(iso);
     }
     if (task.completed_at) {
-      const iso = task.completed_at.slice(0, 10);
+      const iso = logicalDayOf(task.completed_at, dayStartHour);
       if (iso >= start && iso <= todayIso) completed.add(iso);
     }
     for (const iso of [task.start_date, task.due_date]) {

@@ -13,7 +13,7 @@ import { useHeldCompletions, withHeld } from "../state/heldCompletions";
 import { Document, isDone } from "../lib/tauri";
 import { formatDate } from "../lib/dates";
 import { currentLocale } from "../i18n";
-import { firstDayOfWeek, dashboardHeatmapDays } from "../lib/settings";
+import { dayStartHour, firstDayOfWeek, dashboardHeatmapDays } from "../lib/settings";
 import { formatDurationShort } from "../lib/time";
 import { useIdleAnchor } from "../lib/useIdleAnchor";
 import { recurrenceStreak, type HeatCell, type Heatmap } from "../lib/recurrence-heatmap";
@@ -45,6 +45,7 @@ export function TagView({ doc, indexes }: Props) {
         indexes.todayIso,
         days,
         recurringScheduledDates(indexes, tagId, days),
+        dayStartHour(doc.settings),
       );
     },
     [taggedTasks, indexes, indexes.todayIso, doc.settings, tagId],
