@@ -44,7 +44,13 @@ pub const DEV_IDENTIFIER: &str = "net.puetsua.pansuthong.dev";
 /// Set GLib/GDK program identity before GTK realizes any window.
 ///
 /// Shells group windows by `WM_CLASS` (X11) and GTK3 Wayland app_id from prgname.
+/// `gdk::set_program_class` requires GDK; this calls `gtk::init()` first (idempotent).
 pub fn install_desktop_identity(identifier: &str) {
+    if let Err(e) = gtk::init() {
+        eprintln!("warning: gtk::init before desktop identity failed: {e}");
+        glib::set_prgname(Some(identifier));
+        return;
+    }
     glib::set_prgname(Some(identifier));
     gdk::set_program_class(identifier);
 }
@@ -146,7 +152,6 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::Path;
-    use std::sync::Once;
 
     fn identifier_from_config(filename: &str) -> String {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(filename);
@@ -212,27 +217,24 @@ mod tests {
         std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok()
     }
 
-    fn try_init_gtk_for_test() -> bool {
-        use std::sync::atomic::{AtomicBool, Ordering};
-
-        static INIT: Once = Once::new();
-        static READY: AtomicBool = AtomicBool::new(false);
-        INIT.call_once(|| {
-            READY.store(gtk::init().is_ok(), Ordering::Relaxed);
-        });
-        READY.load(Ordering::Relaxed)
+    /// Mirrors `run()` calling `install_desktop_identity` with no prior `gtk::init`.
+    /// Skips on headless CI (no DISPLAY); must not panic when a display exists.
+    #[test]
+    fn install_desktop_identity_without_prior_gtk_init_does_not_panic() {
+        if !has_display() {
+            eprintln!("skip install_desktop_identity_without_prior_gtk_init: no display");
+            return;
+        }
+        install_desktop_identity(PRODUCTION_IDENTIFIER);
+        assert_desktop_identity(PRODUCTION_IDENTIFIER);
     }
 
-    /// Local/manual only — needs a display and GTK init (skipped on headless CI).
+    /// Local/manual only — needs a display (skipped on headless CI).
     #[test]
     #[ignore = "requires a display; run: cargo test -- --ignored desktop_identity_runtime"]
     fn desktop_identity_runtime_matches_production_and_dev_configs() {
         if !has_display() {
             eprintln!("skip desktop_identity_runtime: no DISPLAY/WAYLAND_DISPLAY");
-            return;
-        }
-        if !try_init_gtk_for_test() {
-            eprintln!("skip desktop_identity_runtime: gtk::init failed");
             return;
         }
 
