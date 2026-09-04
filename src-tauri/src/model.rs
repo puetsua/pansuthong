@@ -167,6 +167,11 @@ pub struct Tag {
     /// rest of the tag, so the Dashboard layout follows across devices.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dashboard_view: Option<String>,
+    /// User-defined order among pinned Dashboard tags (#171). Lower values appear
+    /// first; `None` falls back to name sort among unordered cards. Synced like the
+    /// rest of the tag via per-tag LWW.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dashboard_order: Option<i64>,
 }
 
 /// A delete marker used by per-device replica files. Without this, an older
@@ -1046,6 +1051,54 @@ mod tests {
     }
 
     #[test]
+    fn tag_dashboard_order_round_trips_and_omits_when_absent() {
+        let legacy: Tag =
+            serde_json::from_str(r##"{"id":"t_1","name":"work","color":"#000"}"##).unwrap();
+        assert!(legacy.dashboard_order.is_none());
+        assert!(!serde_json::to_string(&legacy).unwrap().contains("dashboard_order"));
+        let ordered: Tag = serde_json::from_str(
+            r##"{"id":"t_2","name":"home","color":"#111","dashboard_order":2}"##,
+        )
+        .unwrap();
+        assert_eq!(ordered.dashboard_order, Some(2));
+        let back: Tag =
+            serde_json::from_str(&serde_json::to_string(&ordered).unwrap()).unwrap();
+        assert_eq!(back.dashboard_order, Some(2));
+    }
+
+    #[test]
+    fn merge_tag_dashboard_order_follows_lww() {
+        let mut older = Document::default();
+        older.last_modified = 10;
+        older.tags.push(Tag {
+            id: "t_1".into(),
+            name: "work".into(),
+            color: "#000".into(),
+            priority: 0,
+            pinned: false,
+            updated_at: 5,
+            dashboard_view: Some("heatmap".into()),
+            dashboard_order: Some(0),
+        });
+
+        let mut newer = Document::default();
+        newer.last_modified = 20;
+        newer.tags.push(Tag {
+            id: "t_1".into(),
+            name: "work".into(),
+            color: "#000".into(),
+            priority: 0,
+            pinned: false,
+            updated_at: 50,
+            dashboard_view: Some("heatmap".into()),
+            dashboard_order: Some(2),
+        });
+
+        let merged = merge_documents(vec![older, newer]);
+        assert_eq!(merged.tags[0].dashboard_order, Some(2));
+    }
+
+    #[test]
     fn tag_dashboard_view_round_trips_and_omits_when_absent() {
         // A tag with no Dashboard pin loads `None` and serializes without the key
         // (#dashboard); a present value round-trips.
@@ -1563,6 +1616,7 @@ mod tests {
             pinned: false,
             updated_at,
             dashboard_view: None,
+            dashboard_order: None,
         }
     }
 
@@ -1773,6 +1827,7 @@ mod tests {
             pinned: true,
             updated_at: 1,
             dashboard_view: None,
+            dashboard_order: None,
         });
         // Templates carry tags/offsets but live in `template_tasks`, so they can't
         // land in Today/Inbox/tag views no matter what they reference.

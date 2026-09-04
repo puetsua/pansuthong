@@ -271,6 +271,7 @@
     "legendSkip": "有活動但未完成",
     "legendNone": "當天無活動",
     "heatmapAria": "標籤活動熱圖",
+    "reorderHandle": "拖曳以調整 {{name}} 順序",
     "tipDone": "{{date}}：已完成",
     "tipSkip": "{{date}}：有活動但未完成",
     "tipNone": "{{date}}：無活動"

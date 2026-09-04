@@ -178,6 +178,7 @@ mod poll_tests {
             pinned: false,
             updated_at: 1,
             dashboard_view: None,
+            dashboard_order: None,
         });
         std::fs::write(
             dir.path().join("tasks_peer.json"),

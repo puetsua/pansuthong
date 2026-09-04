@@ -48,6 +48,7 @@ export type Tag = {
   pinned?: boolean; // shown in the curated sidebar tag list; absent = false (#78)
   updated_at?: string; // ISO-8601 local time w/ offset of last tag edit; omitted for older tags
   dashboard_view?: DashboardView; // which view this tag is pinned to on the Dashboard; absent = not pinned (#dashboard)
+  dashboard_order?: number; // order among pinned Dashboard cards; absent = name sort fallback (#171)
 };
 
 /**
@@ -306,7 +307,7 @@ export const api = {
   addTag:        (name: string, color: string, priority = 0, pinned = false) =>
                                                 invoke<Tag>("add_tag", { input: { name, color, priority, pinned } }),
   deleteTag:     (id: string)                => invoke<void>("delete_tag", { id }),
-  updateTag:       (input: { id: string; name?: string; color?: string; priority?: number; pinned?: boolean; dashboard_view?: DashboardView | null }) =>
+  updateTag:       (input: { id: string; name?: string; color?: string; priority?: number; pinned?: boolean; dashboard_view?: DashboardView | null; dashboard_order?: number | null }) =>
                                      invoke<Tag>("update_tag", { input }),
   // Any subset of settings; the Rust side merges the provided keys. Typed as
   // Partial<Settings> so a new setting added to Settings is accepted here

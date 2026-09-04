@@ -277,6 +277,7 @@
     "legendSkip": "Active, not completed",
     "legendNone": "No activity",
     "heatmapAria": "Tag activity heatmap",
+    "reorderHandle": "Drag to reorder {{name}}",
     "tipDone": "{{date}}: completed",
     "tipSkip": "{{date}}: active, not completed",
     "tipNone": "{{date}}: no activity"

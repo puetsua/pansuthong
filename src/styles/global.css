@@ -2301,10 +2301,25 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .dashboard-add select:hover { border-color: var(--c-accent); }
 
 .dashboard-cards { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.dashboard-cards-dragging { cursor: grabbing; user-select: none; }
 .dashboard-card {
   border: 1px solid var(--c-border); border-radius: var(--radius-lg);
   background: var(--c-surface); padding: var(--space-4);
   min-width: 0; max-width: 100%;
+  transition: box-shadow 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+.dashboard-card-dragging {
+  opacity: 0.92;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.14);
+  transform: scale(1.01);
+  cursor: grabbing;
+}
+.dashboard-card-placeholder {
+  border: 2px dashed color-mix(in srgb, var(--c-accent) 60%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--c-accent) 10%, var(--c-surface));
+  min-height: 3.25rem;
+  pointer-events: none;
 }
 .dashboard-card-head {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
@@ -2313,7 +2328,19 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .dashboard-card-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .dashboard-card-name { font-weight: 600; color: var(--c-text); word-break: break-word; }
 .dashboard-card-tag { font-size: 0.8rem; color: var(--c-text-muted); }
-.dashboard-card-controls { display: flex; align-items: center; gap: var(--space-2); }
+.dashboard-card-controls { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.dashboard-card-handle {
+  border: none; background: transparent; color: var(--c-text-muted); cursor: grab;
+  padding: var(--space-1); line-height: 1; touch-action: none; flex-shrink: 0;
+}
+.dashboard-card-handle:active { cursor: grabbing; }
+.dashboard-handle-dots {
+  display: grid; grid-template-columns: repeat(2, 4px); gap: 3px;
+}
+.dashboard-handle-dots > span {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--c-text-muted);
+}
 .dashboard-remove {
   border: 1px solid var(--c-border); border-radius: var(--radius-md);
   background: var(--c-surface-2); color: var(--c-text-muted); cursor: pointer;

@@ -3,8 +3,8 @@ use crate::conflict::{apply_decisions, diff_tasks, tags_to_merge, Decision, Task
 use crate::error::{AppError, Result};
 use crate::history::HistoryEntry;
 use crate::model::{
-    new_attachment_id, new_tag_id, new_task_id, new_time_entry_id, now_ms, Attachment, Recurrence,
-    Tag, Task, TemplateTask, TimeEntry, Tombstone, YearlyDate,
+    new_attachment_id, new_tag_id, new_task_id, new_time_entry_id, now_ms, Attachment, Document,
+    Recurrence, Tag, Task, TemplateTask, TimeEntry, Tombstone, YearlyDate,
 };
 use crate::store::AppState;
 use crate::sync::scan_conflict_files;
@@ -2036,6 +2036,7 @@ pub fn add_tag(input: NewTagInput, state: State<'_, AppState>, app: AppHandle) -
         pinned: input.pinned,
         updated_at: now_ms(),
         dashboard_view: None,
+        dashboard_order: None,
     };
     let saved = state.write(|d| {
         d.tags.push(t.clone());
@@ -2089,6 +2090,47 @@ pub struct UpdateTagInput {
     /// to unpin. Absent leaves the current state unchanged.
     #[serde(default, deserialize_with = "double_option")]
     pub dashboard_view: Option<Option<String>>,
+    /// Dashboard card order among pinned tags (#171). `null` clears; absent leaves
+    /// unchanged.
+    #[serde(default, deserialize_with = "double_option")]
+    pub dashboard_order: Option<Option<i64>>,
+}
+
+fn update_tag_on_document(d: &mut Document, input: &UpdateTagInput) -> Result<Tag> {
+    let t = d
+        .tags
+        .iter_mut()
+        .find(|t| t.id == input.id)
+        .ok_or_else(|| AppError::NotFound(format!("tag {}", input.id)))?;
+    if let Some(v) = &input.name {
+        let trimmed = v.trim().to_string();
+        if trimmed.is_empty() {
+            return Err(AppError::Invalid("name is empty".into()));
+        }
+        t.name = trimmed;
+    }
+    if let Some(v) = &input.color {
+        t.color = v.clone();
+    }
+    if let Some(v) = input.priority {
+        t.priority = v;
+    }
+    if let Some(v) = input.pinned {
+        t.pinned = v;
+    }
+    if let Some(v) = &input.dashboard_view {
+        validate_dashboard_view(v.as_ref())?;
+        let clearing = v.is_none();
+        t.dashboard_view = v.clone();
+        if clearing {
+            t.dashboard_order = None;
+        }
+    }
+    if let Some(v) = &input.dashboard_order {
+        t.dashboard_order = *v;
+    }
+    t.updated_at = now_ms();
+    Ok(t.clone())
 }
 
 #[tauri::command]
@@ -2097,35 +2139,7 @@ pub fn update_tag(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<crate::model::Tag> {
-    let updated = state.write(|d| {
-        let t = d
-            .tags
-            .iter_mut()
-            .find(|t| t.id == input.id)
-            .ok_or_else(|| AppError::NotFound(format!("tag {}", input.id)))?;
-        if let Some(v) = input.name {
-            let trimmed = v.trim().to_string();
-            if trimmed.is_empty() {
-                return Err(AppError::Invalid("name is empty".into()));
-            }
-            t.name = trimmed;
-        }
-        if let Some(v) = input.color {
-            t.color = v;
-        }
-        if let Some(v) = input.priority {
-            t.priority = v;
-        }
-        if let Some(v) = input.pinned {
-            t.pinned = v;
-        }
-        if let Some(v) = input.dashboard_view {
-            validate_dashboard_view(v.as_ref())?;
-            t.dashboard_view = v;
-        }
-        t.updated_at = now_ms();
-        Ok(t.clone())
-    })?;
+    let updated = state.write(|d| update_tag_on_document(d, &input))?;
     emit_changed(&app);
     Ok(updated)
 }
@@ -2979,6 +2993,7 @@ mod tests {
             pinned: false,
             updated_at: 0,
             dashboard_view: None,
+            dashboard_order: None,
         }
     }
 
@@ -3564,6 +3579,38 @@ mod tests {
     }
 
     #[test]
+    fn update_tag_input_dashboard_order_parses_absent_null_value() {
+        let absent: UpdateTagInput = serde_json::from_str(r#"{"id":"t_1"}"#).unwrap();
+        assert_eq!(absent.dashboard_order, None);
+        let cleared: UpdateTagInput =
+            serde_json::from_str(r#"{"id":"t_1","dashboard_order":null}"#).unwrap();
+        assert_eq!(cleared.dashboard_order, Some(None));
+        let set: UpdateTagInput =
+            serde_json::from_str(r#"{"id":"t_1","dashboard_order":3}"#).unwrap();
+        assert_eq!(set.dashboard_order, Some(Some(3)));
+    }
+
+    #[test]
+    fn update_tag_unpin_clears_dashboard_order() {
+        let mut doc = Document::default();
+        doc.tags.push(Tag {
+            id: "t_1".into(),
+            name: "work".into(),
+            color: "#000".into(),
+            priority: 0,
+            pinned: false,
+            updated_at: 0,
+            dashboard_view: Some("heatmap".into()),
+            dashboard_order: Some(2),
+        });
+        let input: UpdateTagInput =
+            serde_json::from_str(r#"{"id":"t_1","dashboard_view":null}"#).unwrap();
+        let updated = update_tag_on_document(&mut doc, &input).unwrap();
+        assert!(updated.dashboard_view.is_none());
+        assert!(updated.dashboard_order.is_none());
+    }
+
+    #[test]
     fn update_tag_input_dashboard_view_parses_absent_null_value() {
         // Absent leaves the pin untouched; explicit null unpins; a string pins to
         // that view (#dashboard). Mirrors the template dashboard_view tri-state.
@@ -3602,6 +3649,7 @@ mod tests {
             pinned: false,
             updated_at: 1,
             dashboard_view: None,
+            dashboard_order: None,
         }];
         let out = retain_known_tags(
             vec!["t_known".into(), "t_unknown".into(), "t_known".into()],

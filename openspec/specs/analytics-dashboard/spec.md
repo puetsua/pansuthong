@@ -57,3 +57,17 @@ view ("heatmap" or "streak"), with the pin synced as part of the entity.
 #### Scenario: Pin view selects the rendering
 - **WHEN** an entity is pinned with `dashboard_view` = "streak"
 - **THEN** it renders as a streak view on the Dashboard, and its pin follows across devices
+
+### Requirement: Dashboard tag order
+
+The system SHALL let users reorder pinned tag cards on the Dashboard and persist
+that order on each tag as `dashboard_order`, synced across devices like other tag
+fields. Tags without `dashboard_order` fall back to name sort among unordered cards.
+
+#### Scenario: Reorder persists across reload
+- **WHEN** a user reorders pinned Dashboard tag cards
+- **THEN** the new order is saved on the tags and shown again after reload
+
+#### Scenario: Unordered tags sort by name
+- **WHEN** pinned tags lack `dashboard_order`
+- **THEN** their cards appear in alphabetical name order
