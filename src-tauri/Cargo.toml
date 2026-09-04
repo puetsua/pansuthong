@@ -16,6 +16,7 @@ name = "pansuthong_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
+serde_json = "1"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
@@ -60,5 +61,7 @@ tauri-plugin-android-updater = { path = "plugins/android-updater" }
 # Runtime X11 ScreenSaver idle query (dlopen). Desktop Linux only — Android is
 # `target_os = "android"`, not `linux`. Missing libXss at runtime yields None.
 [target.'cfg(target_os = "linux")'.dependencies]
+gtk = { version = "0.18", features = ["v3_24"] }
+webkit2gtk = "2.0"
 x11-dl = "2.21"
 

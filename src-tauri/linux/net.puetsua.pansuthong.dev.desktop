@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Pansuthong Dev
+GenericName=Task tracker
+Comment=Pansuthong development build (net.puetsua.pansuthong.dev)
+# Set Exec to the absolute path of target/debug/pansuthong before installing.
+Exec=target/debug/pansuthong
+Icon=net.puetsua.pansuthong.dev
+StartupWMClass=net.puetsua.pansuthong.dev
+Terminal=false
+Categories=Office;Utility;

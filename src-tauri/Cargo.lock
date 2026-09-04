@@ -2926,6 +2926,7 @@ name = "pansuthong"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "gtk",
  "notify",
  "rusqlite",
  "serde",
@@ -2947,6 +2948,7 @@ dependencies = [
  "tauri-plugin-window-state",
  "tempfile",
  "uuid",
+ "webkit2gtk",
  "x11-dl",
 ]
 

@@ -5,6 +5,8 @@ pub mod db;
 pub mod error;
 pub mod history;
 pub mod idle;
+#[cfg(target_os = "linux")]
+pub mod linux_desktop;
 pub mod model;
 pub mod parse;
 pub mod safsync;
@@ -56,6 +58,11 @@ fn focus_existing_main_window(app: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let context = tauri::generate_context!();
+
+    #[cfg(target_os = "linux")]
+    linux_desktop::install_desktop_identity(&context.config().identifier);
+
     // First plugin so a second launch exits before other plugins start work.
     #[cfg(desktop)]
     let builder =
@@ -264,6 +271,14 @@ pub fn run() {
                 }
                 enforce_desktop_chrome(app.handle());
                 #[cfg(target_os = "linux")]
+                {
+                    if let Some(win) = app.get_webview_window("main") {
+                        if let Err(e) = crate::linux_desktop::install_titlebar_drag(&win) {
+                            eprintln!("warning: linux titlebar drag hook failed: {e}");
+                        }
+                    }
+                }
+                #[cfg(target_os = "linux")]
                 show_linux_main(app.handle());
                 let handle = app.handle().clone();
                 std::thread::spawn(move || {
@@ -353,6 +368,6 @@ pub fn run() {
             commands::saf_sync_now,
             commands::saf_status,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }

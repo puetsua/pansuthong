@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isLinux } from "../lib/platform";
 
 /** Desktop-only custom chrome: icon + drag region + window controls. */
 export function DesktopTitlebar() {
   const { t } = useTranslation();
   const [maximized, setMaximized] = useState(false);
+  const [nativeLinuxDrag, setNativeLinuxDrag] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -24,6 +26,9 @@ export function DesktopTitlebar() {
     // override tauri.conf.json. Force frameless once on mount.
     void getCurrentWindow().setDecorations(false).catch(() => { /* non-Tauri */ });
     void syncMaximized();
+    void isLinux().then(linux => {
+      if (active) setNativeLinuxDrag(linux);
+    });
     void getCurrentWindow()
       .onResized(() => { void syncMaximized(); })
       .then(fn => { unlisten = fn; })
@@ -42,17 +47,28 @@ export function DesktopTitlebar() {
     }).catch(() => { /* non-Tauri */ });
   };
 
+  const onDragMouseDown = (e: React.MouseEvent) => {
+    if (nativeLinuxDrag || e.button !== 0) return;
+    if (e.detail === 2) {
+      toggleMaximize();
+      return;
+    }
+    void getCurrentWindow().startDragging().catch(() => { /* non-Tauri */ });
+  };
+
   return (
     <header className="desktop-titlebar">
       {/*
-        Single drag/maximize path: Tauri injects drag.js on
-        data-tauri-drag-region (mousedown drag; second mousedown toggles
-        maximize on Windows + Linux). Do not also attach startDragging /
-        onDoubleClick or CSS app-region — those stack with the injected
-        listener and double-toggle maximize. Controls are siblings, not
-        inside the drag region.
+        Linux: Rust hooks WebKitGTK button-press and calls begin_move_drag
+        synchronously (#191). Windows/macOS: manual startDragging on mousedown
+        (no data-tauri-drag-region — Tauri's injected drag.js preventDefault /
+        IPC round-trip is unreliable for short grabs on Linux and stacks badly
+        with a second handler). Control buttons are siblings outside the drag region.
       */}
-      <div className="desktop-titlebar-drag" data-tauri-drag-region>
+      <div
+        className="desktop-titlebar-drag"
+        onMouseDown={nativeLinuxDrag ? undefined : onDragMouseDown}
+      >
         <img
           className="desktop-titlebar-icon"
           src="/app-icon.png"
