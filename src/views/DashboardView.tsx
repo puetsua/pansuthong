@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { api, DashboardView as DashboardViewKind, Document, Tag } from "../lib/tauri";
@@ -23,9 +23,6 @@ export function DashboardView({ doc, indexes }: Props) {
   const dsh = dayStartHour(doc.settings);
   const todayIso = indexes.todayIso;
 
-  // Any tag can be pinned to the Dashboard (#dashboard) — it need not be a
-  // recurrence tag. The pin lives on the tag (`dashboard_view`), and the card
-  // shows the tag's activity heatmap aggregated across every task carrying it.
   const tags = useMemo(
     () => [...doc.tags].sort((a, b) => a.name.localeCompare(b.name)),
     [doc.tags],
@@ -86,16 +83,6 @@ export function DashboardView({ doc, indexes }: Props) {
     await persistOrder(next);
   };
 
-  const moveBy = async (id: string, delta: -1 | 1) => {
-    const index = added.findIndex(tag => tag.id === id);
-    const target = index + delta;
-    if (index < 0 || target < 0 || target >= added.length) return;
-    const next = [...added];
-    const [moved] = next.splice(index, 1);
-    next.splice(target, 0, moved);
-    await persistOrder(next);
-  };
-
   const clearDragState = () => {
     draggingIdRef.current = null;
     setDraggingId(null);
@@ -112,12 +99,12 @@ export function DashboardView({ doc, indexes }: Props) {
 
   const handleDragLeave = (e: DragEvent) => {
     const related = e.relatedTarget as Node | null;
-    // Browsers often report relatedTarget === null while still over children;
-    // only clear the drop highlight when the pointer truly left the list.
     if (related != null && !e.currentTarget.contains(related)) {
       setDropTargetId(null);
     }
   };
+
+  const dragging = draggingId != null;
 
   return (
     <section>
@@ -147,30 +134,32 @@ export function DashboardView({ doc, indexes }: Props) {
       ) : (
         <>
           {reorderError && <p className="composer-error" role="alert">{reorderError}</p>}
-          <div className="dashboard-cards" onDragLeave={handleDragLeave}>
-            {added.map((tag, index) => (
-              <DashboardCard
-                key={tag.id}
-                tag={tag}
-                indexes={indexes}
-                tasks={doc.tasks}
-                todayIso={todayIso}
-                days={days}
-                dayStartHour={dsh}
-                firstDayOfWeek={fdow}
-                isDragging={draggingId === tag.id}
-                isDropTarget={dropTargetId === tag.id && draggingId !== tag.id}
-                canMoveUp={index > 0}
-                canMoveDown={index < added.length - 1}
-                onSetView={view => setTagView(tag, view)}
-                onRemove={() => setTagView(tag, null)}
-                onMoveUp={() => { void moveBy(tag.id, -1); }}
-                onMoveDown={() => { void moveBy(tag.id, 1); }}
-                onDragStart={() => setDragging(tag.id)}
-                onDragOver={() => setDropTargetId(tag.id)}
-                onDrop={e => handleDrop(tag.id, e)}
-                onDragEnd={clearDragState}
-              />
+          <div
+            className={["dashboard-cards", dragging ? "dashboard-cards-dragging" : ""].filter(Boolean).join(" ")}
+            onDragLeave={handleDragLeave}
+          >
+            {added.map(tag => (
+              <Fragment key={tag.id}>
+                {dropTargetId === tag.id && draggingId !== tag.id && (
+                  <div className="dashboard-card-placeholder" aria-hidden />
+                )}
+                <DashboardCard
+                  tag={tag}
+                  indexes={indexes}
+                  tasks={doc.tasks}
+                  todayIso={todayIso}
+                  days={days}
+                  dayStartHour={dsh}
+                  firstDayOfWeek={fdow}
+                  isDragging={draggingId === tag.id}
+                  onSetView={view => setTagView(tag, view)}
+                  onRemove={() => setTagView(tag, null)}
+                  onDragStart={() => setDragging(tag.id)}
+                  onDragOver={() => setDropTargetId(tag.id)}
+                  onDrop={e => handleDrop(tag.id, e)}
+                  onDragEnd={clearDragState}
+                />
+              </Fragment>
             ))}
           </div>
           <Legend />
@@ -180,8 +169,7 @@ export function DashboardView({ doc, indexes }: Props) {
   );
 }
 
-/** One pinned tag, rendered in its chosen view with view + remove controls. */
-function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh, firstDayOfWeek, isDragging, isDropTarget, canMoveUp, canMoveDown, onSetView, onRemove, onMoveUp, onMoveDown, onDragStart, onDragOver, onDrop, onDragEnd }: {
+function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh, firstDayOfWeek, isDragging, onSetView, onRemove, onDragStart, onDragOver, onDrop, onDragEnd }: {
   tag: Tag;
   indexes: Indexes;
   tasks: Document["tasks"];
@@ -190,13 +178,8 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh,
   dayStartHour: number;
   firstDayOfWeek: number;
   isDragging: boolean;
-  isDropTarget: boolean;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
   onSetView: (view: DashboardViewKind) => void;
   onRemove: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
   onDragStart: () => void;
   onDragOver: () => void;
   onDrop: (e: DragEvent) => void;
@@ -217,11 +200,7 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh,
 
   return (
     <div
-      className={[
-        "dashboard-card",
-        isDragging ? "dashboard-card-dragging" : "",
-        isDropTarget ? "dashboard-card-drop-target" : "",
-      ].filter(Boolean).join(" ")}
+      className={["dashboard-card", isDragging ? "dashboard-card-dragging" : ""].filter(Boolean).join(" ")}
       onDragOver={e => {
         e.preventDefault();
         onDragOver();
@@ -246,25 +225,15 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh,
             }}
             onDragEnd={onDragEnd}
           >
-            <span aria-hidden>⋮⋮</span>
+            <span className="dashboard-handle-dots" aria-hidden>
+              {Array.from({ length: 6 }, (_, i) => <span key={i} />)}
+            </span>
           </button>
           <span className="dashboard-card-name">
             <span style={{ color: tag.color }}>#</span>{tag.name}
           </span>
         </div>
         <div className="dashboard-card-controls">
-          <div className="dashboard-card-reorder" role="group" aria-label={t("dashboard.reorderLabel")}>
-            <button type="button" className="dashboard-reorder-btn"
-                    aria-label={t("dashboard.moveUp", { name: tag.name })}
-                    title={t("dashboard.moveUp", { name: tag.name })}
-                    disabled={!canMoveUp}
-                    onClick={onMoveUp}>↑</button>
-            <button type="button" className="dashboard-reorder-btn"
-                    aria-label={t("dashboard.moveDown", { name: tag.name })}
-                    title={t("dashboard.moveDown", { name: tag.name })}
-                    disabled={!canMoveDown}
-                    onClick={onMoveDown}>↓</button>
-          </div>
           <div className="te-segmented" role="group" aria-label={t("dashboard.viewLabel")}>
             {DASHBOARD_VIEWS.map(v => (
               <button key={v} type="button" aria-pressed={view === v}

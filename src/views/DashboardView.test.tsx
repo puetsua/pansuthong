@@ -51,6 +51,16 @@ function cardNames(): string[] {
     .map(el => el.textContent?.replace(/^#/, "") ?? "");
 }
 
+function dropReorder(fromId: string, fromName: string, ontoIndex: number) {
+  const dataTransfer = dataTransferWith(fromId);
+  fireEvent.dragStart(
+    screen.getByRole("button", { name: new RegExp(`drag to reorder ${fromName}`, "i") }),
+    { dataTransfer },
+  );
+  const cards = document.querySelectorAll(".dashboard-card");
+  fireEvent.drop(cards[ontoIndex]!, { dataTransfer });
+}
+
 describe("DashboardView — tag order", () => {
   beforeEach(() => {
     vi.mocked(api.updateTag).mockClear();
@@ -68,15 +78,24 @@ describe("DashboardView — tag order", () => {
     expect(cardNames()).toEqual(["home", "work", "alpha"]);
   });
 
-  it("persists a new order when move down is clicked", async () => {
+  it("does not render move up/down reorder buttons", () => {
     renderView([
       tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
       tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
     ]);
-    fireEvent.click(screen.getByRole("button", { name: /move first down/i }));
+    expect(screen.queryByRole("button", { name: /move .* (up|down)/i })).toBeNull();
+    expect(screen.getAllByRole("button", { name: /drag to reorder/i })).toHaveLength(2);
+  });
+
+  it("persists reorder on drop using dataTransfer id", async () => {
+    renderView([
+      tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
+      tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
+    ]);
+    dropReorder("t1", "first", 1);
     await waitFor(() => expect(api.updateTag).toHaveBeenCalledTimes(2));
-    expect(api.updateTag).toHaveBeenNthCalledWith(1, { id: "t2", dashboard_order: 0 });
-    expect(api.updateTag).toHaveBeenNthCalledWith(2, { id: "t1", dashboard_order: 1 });
+    expect(api.updateTag).toHaveBeenCalledWith({ id: "t2", dashboard_order: 0 });
+    expect(api.updateTag).toHaveBeenCalledWith({ id: "t1", dashboard_order: 1 });
   });
 
   it("awaits updateTag calls sequentially", async () => {
@@ -93,23 +112,9 @@ describe("DashboardView — tag order", () => {
       tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
       tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
     ]);
-    fireEvent.click(screen.getByRole("button", { name: /move first down/i }));
+    dropReorder("t1", "first", 1);
     await waitFor(() => expect(api.updateTag).toHaveBeenCalledTimes(2));
     expect(maxInFlight).toBe(1);
-  });
-
-  it("persists reorder on drop using dataTransfer id", async () => {
-    renderView([
-      tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
-      tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
-    ]);
-    const dataTransfer = dataTransferWith("t1");
-    fireEvent.dragStart(screen.getByRole("button", { name: /drag to reorder first/i }), { dataTransfer });
-    const cards = document.querySelectorAll(".dashboard-card");
-    fireEvent.drop(cards[1]!, { dataTransfer });
-    await waitFor(() => expect(api.updateTag).toHaveBeenCalledTimes(2));
-    expect(api.updateTag).toHaveBeenCalledWith({ id: "t2", dashboard_order: 0 });
-    expect(api.updateTag).toHaveBeenCalledWith({ id: "t1", dashboard_order: 1 });
   });
 
   it("shows persisted order after remount with updated document tags", async () => {
@@ -117,7 +122,7 @@ describe("DashboardView — tag order", () => {
       tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
       tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
     ]);
-    fireEvent.click(screen.getByRole("button", { name: /move first down/i }));
+    dropReorder("t1", "first", 1);
     await waitFor(() => expect(api.updateTag).toHaveBeenCalledTimes(2));
 
     unmount();
@@ -134,7 +139,7 @@ describe("DashboardView — tag order", () => {
       tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
       tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
     ]);
-    fireEvent.click(screen.getByRole("button", { name: /move first down/i }));
+    dropReorder("t1", "first", 1);
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toBe("save failed");
     expect(cardNames()).toEqual(["first", "second"]);
