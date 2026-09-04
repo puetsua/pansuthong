@@ -2,6 +2,18 @@
 // the global i18n instance render real strings during tests instead of raw keys.
 import "./i18n";
 
+// jsdom doesn't define PointerEvent; pointer-based drag tests dispatch native events.
+if (typeof PointerEvent === "undefined") {
+  class PointerEventPolyfill extends MouseEvent {
+    readonly pointerId: number;
+    constructor(type: string, params: PointerEventInit = {}) {
+      super(type, params);
+      this.pointerId = params.pointerId ?? 0;
+    }
+  }
+  globalThis.PointerEvent = PointerEventPolyfill as typeof PointerEvent;
+}
+
 // jsdom doesn't implement HTMLMediaElement.play; the completion chime (#80) calls
 // it and swallows failures, but jsdom still logs a noisy "Not implemented" error.
 // Stub it to a resolved no-op so test output stays clean.

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { DashboardView } from "./DashboardView";
 import { buildIndexes } from "../state/indexes";
 import { Document, Tag } from "../lib/tauri";
@@ -37,28 +37,66 @@ const renderView = (tags: Tag[]) => {
   return render(<DashboardView doc={d} indexes={buildIndexes(d)} />);
 };
 
-function dataTransferWith(id: string) {
-  const store: Record<string, string> = { "text/plain": id };
-  return {
-    effectAllowed: "move",
-    setData: (format: string, value: string) => { store[format] = value; },
-    getData: (format: string) => store[format] ?? "",
-  };
-}
-
 function cardNames(): string[] {
   return [...document.querySelectorAll(".dashboard-card-name")]
     .map(el => el.textContent?.replace(/^#/, "") ?? "");
 }
 
-function dropReorder(fromId: string, fromName: string, ontoIndex: number) {
-  const dataTransfer = dataTransferWith(fromId);
-  fireEvent.dragStart(
-    screen.getByRole("button", { name: new RegExp(`drag to reorder ${fromName}`, "i") }),
-    { dataTransfer },
-  );
-  const cards = document.querySelectorAll(".dashboard-card");
-  fireEvent.drop(cards[ontoIndex]!, { dataTransfer });
+function mockDashboardSlotRects(rects: Array<{ top: number; height: number }>) {
+  document.querySelectorAll<HTMLElement>("[data-dashboard-slot]").forEach((el, i) => {
+    const r = rects[i] ?? { top: i * 120, height: 100 };
+    el.getBoundingClientRect = () => ({
+      top: r.top,
+      left: 0,
+      right: 400,
+      bottom: r.top + r.height,
+      width: 400,
+      height: r.height,
+      x: 0,
+      y: r.top,
+      toJSON: () => ({}),
+    });
+  });
+}
+
+function dispatchPointer(
+  target: Element | Window,
+  type: "pointerdown" | "pointermove" | "pointerup",
+  clientY: number,
+) {
+  const init = {
+    pointerId: 1,
+    button: 0,
+    buttons: type === "pointerup" ? 0 : 1,
+    pointerType: "mouse",
+    clientY,
+    bubbles: true,
+  };
+  if (target === window) {
+    target.dispatchEvent(new PointerEvent(type, init));
+    return;
+  }
+  if (type === "pointerdown") fireEvent.pointerDown(target, init);
+  else if (type === "pointermove") fireEvent.pointerMove(target, init);
+  else fireEvent.pointerUp(target, init);
+}
+
+function pointerReorder(fromName: string, moveClientY: number) {
+  const handle = screen.getByRole("button", { name: new RegExp(`drag to reorder ${fromName}`, "i") });
+  handle.setPointerCapture = vi.fn();
+  handle.releasePointerCapture = vi.fn();
+  handle.hasPointerCapture = vi.fn().mockReturnValue(true);
+  const slotLayout = [
+    { top: 0, height: 100 },
+    { top: 100, height: 100 },
+  ];
+  const remock = () => mockDashboardSlotRects(slotLayout);
+  remock();
+  act(() => { dispatchPointer(handle, "pointerdown", 150); });
+  remock();
+  act(() => { dispatchPointer(window, "pointermove", moveClientY); });
+  remock();
+  act(() => { dispatchPointer(window, "pointerup", moveClientY); });
 }
 
 describe("DashboardView — tag order", () => {
@@ -87,15 +125,37 @@ describe("DashboardView — tag order", () => {
     expect(screen.getAllByRole("button", { name: /drag to reorder/i })).toHaveLength(2);
   });
 
-  it("persists reorder on drop using dataTransfer id", async () => {
+  it("enters dragging state on handle pointer down", () => {
     renderView([
       tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
       tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
     ]);
-    dropReorder("t1", "first", 1);
+    const handle = screen.getByRole("button", { name: /drag to reorder second/i });
+    mockDashboardSlotRects([{ top: 0, height: 100 }, { top: 100, height: 100 }]);
+    fireEvent.pointerDown(handle, { pointerId: 1, button: 0, clientY: 150 });
+    expect(document.querySelector(".dashboard-cards-dragging")).toBeTruthy();
+    expect(document.querySelector(".dashboard-card-dragging")).toBeTruthy();
+  });
+
+  it("settles optimistic order on pointer up before persist completes", async () => {
+    renderView([
+      tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
+      tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
+    ]);
+    act(() => { pointerReorder("second", 40); });
+    expect(cardNames()).toEqual(["second", "first"]);
+  });
+
+  it("persists reorder on pointer drag (bottom card to top)", async () => {
+    renderView([
+      tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
+      tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
+    ]);
+    act(() => { pointerReorder("second", 40); });
     await waitFor(() => expect(api.updateTag).toHaveBeenCalledTimes(2));
     expect(api.updateTag).toHaveBeenCalledWith({ id: "t2", dashboard_order: 0 });
     expect(api.updateTag).toHaveBeenCalledWith({ id: "t1", dashboard_order: 1 });
+    expect(cardNames()).toEqual(["second", "first"]);
   });
 
   it("awaits updateTag calls sequentially", async () => {
@@ -112,7 +172,7 @@ describe("DashboardView — tag order", () => {
       tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
       tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
     ]);
-    dropReorder("t1", "first", 1);
+    act(() => { pointerReorder("second", 40); });
     await waitFor(() => expect(api.updateTag).toHaveBeenCalledTimes(2));
     expect(maxInFlight).toBe(1);
   });
@@ -122,7 +182,7 @@ describe("DashboardView — tag order", () => {
       tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
       tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
     ]);
-    dropReorder("t1", "first", 1);
+    act(() => { pointerReorder("second", 40); });
     await waitFor(() => expect(api.updateTag).toHaveBeenCalledTimes(2));
 
     unmount();
@@ -139,7 +199,7 @@ describe("DashboardView — tag order", () => {
       tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
       tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
     ]);
-    dropReorder("t1", "first", 1);
+    act(() => { pointerReorder("second", 40); });
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toBe("save failed");
     expect(cardNames()).toEqual(["first", "second"]);

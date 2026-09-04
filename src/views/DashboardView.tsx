@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { api, DashboardView as DashboardViewKind, Document, Tag } from "../lib/tauri";
@@ -11,6 +11,7 @@ import { formatDate } from "../lib/dates";
 import { currentLocale } from "../i18n";
 import { HeatmapGrid } from "../components/HeatmapGrid";
 import { dashboardOrderUpdates, sortDashboardPinnedTags } from "../lib/dashboard-tags";
+import { dashboardInsertIndexAtY, dashboardReorderAtIndex } from "../lib/dashboard-reorder";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -28,9 +29,13 @@ export function DashboardView({ doc, indexes }: Props) {
     [doc.tags],
   );
   const available = tags.filter(tag => !tag.dashboard_view);
+  const listRef = useRef<HTMLDivElement>(null);
   const draggingIdRef = useRef<string | null>(null);
+  const insertIndexRef = useRef<number | null>(null);
+  const captureTargetRef = useRef<HTMLElement | null>(null);
+  const addedRef = useRef<Tag[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [insertIndex, setInsertIndex] = useState<number | null>(null);
   const [orderedPinned, setOrderedPinned] = useState<Tag[] | null>(null);
   const [reorderError, setReorderError] = useState<string | null>(null);
 
@@ -38,6 +43,7 @@ export function DashboardView({ doc, indexes }: Props) {
     if (orderedPinned) return orderedPinned;
     return sortDashboardPinnedTags(tags.filter(tag => tag.dashboard_view));
   }, [tags, orderedPinned]);
+  addedRef.current = added;
 
   useEffect(() => {
     if (!orderedPinned) return;
@@ -50,11 +56,6 @@ export function DashboardView({ doc, indexes }: Props) {
         && actual[index]?.dashboard_order === update.dashboard_order);
     if (synced) setOrderedPinned(null);
   }, [tags, orderedPinned]);
-
-  const setDragging = (id: string) => {
-    draggingIdRef.current = id;
-    setDraggingId(id);
-  };
 
   const setTagView = (tag: Tag, view: DashboardViewKind | null) =>
     void api.updateTag({ id: tag.id, dashboard_view: view });
@@ -72,36 +73,100 @@ export function DashboardView({ doc, indexes }: Props) {
     }
   };
 
-  const reorder = async (fromId: string, toId: string) => {
-    if (fromId === toId) return;
-    const fromIndex = added.findIndex(tag => tag.id === fromId);
-    const toIndex = added.findIndex(tag => tag.id === toId);
-    if (fromIndex < 0 || toIndex < 0) return;
-    const next = [...added];
-    const [moved] = next.splice(fromIndex, 1);
-    next.splice(toIndex, 0, moved);
-    await persistOrder(next);
-  };
-
   const clearDragState = () => {
     draggingIdRef.current = null;
+    insertIndexRef.current = null;
     setDraggingId(null);
-    setDropTargetId(null);
+    setInsertIndex(null);
   };
 
-  const handleDrop = (toId: string, e: DragEvent) => {
-    const fromId = e.dataTransfer.getData("text/plain")
-      || draggingIdRef.current
-      || draggingId;
+  const readInsertIndexAt = useCallback((clientY: number) => {
+    const slots = listRef.current?.querySelectorAll<HTMLElement>("[data-dashboard-slot]");
+    if (!slots?.length) return 0;
+    const rows = [...slots].map(slot => {
+      const rect = slot.getBoundingClientRect();
+      const height = rect.height || slot.clientHeight || 48;
+      return { top: rect.top, height };
+    });
+    return dashboardInsertIndexAtY(rows, clientY);
+  }, []);
+
+  const updateInsertIndex = useCallback((clientY: number) => {
+    const idx = readInsertIndexAt(clientY);
+    insertIndexRef.current = idx;
+    setInsertIndex(idx);
+  }, [readInsertIndexAt]);
+
+  const updateInsertIndexRef = useRef(updateInsertIndex);
+  updateInsertIndexRef.current = updateInsertIndex;
+
+  const commitReorder = useCallback(async () => {
+    const fromId = draggingIdRef.current;
+    const idx = insertIndexRef.current;
     clearDragState();
-    if (fromId) void reorder(fromId, toId);
-  };
+    if (!fromId || idx == null) return;
+    const next = dashboardReorderAtIndex(addedRef.current, fromId, idx);
+    if (!next) return;
+    await persistOrder(next);
+  }, []);
 
-  const handleDragLeave = (e: DragEvent) => {
-    const related = e.relatedTarget as Node | null;
-    if (related != null && !e.currentTarget.contains(related)) {
-      setDropTargetId(null);
+  const commitReorderRef = useRef(commitReorder);
+  commitReorderRef.current = commitReorder;
+
+  const releaseCapture = useCallback((e: globalThis.PointerEvent) => {
+    const captureTarget = captureTargetRef.current;
+    if (captureTarget?.hasPointerCapture(e.pointerId)) {
+      captureTarget.releasePointerCapture(e.pointerId);
     }
+    captureTargetRef.current = null;
+  }, []);
+
+  const releaseCaptureRef = useRef(releaseCapture);
+  releaseCaptureRef.current = releaseCapture;
+
+  const detachPointerListenersRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => {
+    detachPointerListenersRef.current?.();
+    detachPointerListenersRef.current = null;
+  }, []);
+
+  const onHandlePointerDown = (tagId: string) => (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if ((e.button ?? 0) !== 0) return;
+    e.preventDefault();
+    detachPointerListenersRef.current?.();
+    captureTargetRef.current = e.currentTarget;
+    if (e.currentTarget.setPointerCapture) {
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* unsupported */ }
+    }
+    const fromIndex = addedRef.current.findIndex(tag => tag.id === tagId);
+    draggingIdRef.current = tagId;
+    insertIndexRef.current = fromIndex;
+    setDraggingId(tagId);
+    setInsertIndex(fromIndex);
+
+    const onPointerMove = (ev: globalThis.PointerEvent) => {
+      ev.preventDefault();
+      updateInsertIndexRef.current(ev.clientY);
+    };
+    const onPointerEnd = (ev: globalThis.PointerEvent) => {
+      detachPointerListenersRef.current = null;
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerEnd);
+      window.removeEventListener("pointercancel", onPointerEnd);
+      if (draggingIdRef.current == null) return;
+      updateInsertIndexRef.current(ev.clientY);
+      releaseCaptureRef.current(ev);
+      void commitReorderRef.current();
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerEnd);
+    window.addEventListener("pointercancel", onPointerEnd);
+    detachPointerListenersRef.current = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerEnd);
+      window.removeEventListener("pointercancel", onPointerEnd);
+    };
   };
 
   const dragging = draggingId != null;
@@ -135,32 +200,34 @@ export function DashboardView({ doc, indexes }: Props) {
         <>
           {reorderError && <p className="composer-error" role="alert">{reorderError}</p>}
           <div
+            ref={listRef}
             className={["dashboard-cards", dragging ? "dashboard-cards-dragging" : ""].filter(Boolean).join(" ")}
-            onDragLeave={handleDragLeave}
           >
-            {added.map(tag => (
+            {added.map((tag, index) => (
               <Fragment key={tag.id}>
-                {dropTargetId === tag.id && draggingId !== tag.id && (
-                  <div className="dashboard-card-placeholder" aria-hidden />
+                {dragging && insertIndex === index && (
+                  <div className="dashboard-card-placeholder" data-dashboard-slot aria-hidden />
                 )}
-                <DashboardCard
-                  tag={tag}
-                  indexes={indexes}
-                  tasks={doc.tasks}
-                  todayIso={todayIso}
-                  days={days}
-                  dayStartHour={dsh}
-                  firstDayOfWeek={fdow}
-                  isDragging={draggingId === tag.id}
-                  onSetView={view => setTagView(tag, view)}
-                  onRemove={() => setTagView(tag, null)}
-                  onDragStart={() => setDragging(tag.id)}
-                  onDragOver={() => setDropTargetId(tag.id)}
-                  onDrop={e => handleDrop(tag.id, e)}
-                  onDragEnd={clearDragState}
-                />
+                <div data-dashboard-slot>
+                  <DashboardCard
+                    tag={tag}
+                    indexes={indexes}
+                    tasks={doc.tasks}
+                    todayIso={todayIso}
+                    days={days}
+                    dayStartHour={dsh}
+                    firstDayOfWeek={fdow}
+                    isDragging={draggingId === tag.id}
+                    onSetView={view => setTagView(tag, view)}
+                    onRemove={() => setTagView(tag, null)}
+                    onHandlePointerDown={onHandlePointerDown(tag.id)}
+                  />
+                </div>
               </Fragment>
             ))}
+            {dragging && insertIndex === added.length && (
+              <div className="dashboard-card-placeholder" data-dashboard-slot aria-hidden />
+            )}
           </div>
           <Legend />
         </>
@@ -169,7 +236,7 @@ export function DashboardView({ doc, indexes }: Props) {
   );
 }
 
-function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh, firstDayOfWeek, isDragging, onSetView, onRemove, onDragStart, onDragOver, onDrop, onDragEnd }: {
+function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh, firstDayOfWeek, isDragging, onSetView, onRemove, onHandlePointerDown }: {
   tag: Tag;
   indexes: Indexes;
   tasks: Document["tasks"];
@@ -180,10 +247,7 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh,
   isDragging: boolean;
   onSetView: (view: DashboardViewKind) => void;
   onRemove: () => void;
-  onDragStart: () => void;
-  onDragOver: () => void;
-  onDrop: (e: DragEvent) => void;
-  onDragEnd: () => void;
+  onHandlePointerDown: (e: ReactPointerEvent<HTMLButtonElement>) => void;
 }) {
   const { t } = useTranslation();
   const view = tag.dashboard_view ?? "heatmap";
@@ -201,29 +265,15 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh,
   return (
     <div
       className={["dashboard-card", isDragging ? "dashboard-card-dragging" : ""].filter(Boolean).join(" ")}
-      onDragOver={e => {
-        e.preventDefault();
-        onDragOver();
-      }}
-      onDrop={e => {
-        e.preventDefault();
-        onDrop(e);
-      }}
     >
       <div className="dashboard-card-head">
         <div className="dashboard-card-title">
           <button
             type="button"
             className="dashboard-card-handle"
-            draggable
             aria-label={t("dashboard.reorderHandle", { name: tag.name })}
             title={t("dashboard.reorderHandle", { name: tag.name })}
-            onDragStart={e => {
-              e.dataTransfer.effectAllowed = "move";
-              e.dataTransfer.setData("text/plain", tag.id);
-              onDragStart();
-            }}
-            onDragEnd={onDragEnd}
+            onPointerDown={onHandlePointerDown}
           >
             <span className="dashboard-handle-dots" aria-hidden>
               {Array.from({ length: 6 }, (_, i) => <span key={i} />)}
