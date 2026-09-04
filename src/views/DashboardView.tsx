@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { api, DashboardView as DashboardViewKind, Document, Tag } from "../lib/tauri";
+import { errorMessage } from "../lib/errors";
 import { Indexes } from "../state/indexes";
 import { dashboardHeatmapDays, dayStartHour, firstDayOfWeek } from "../lib/settings";
 import { Heatmap, HeatCell, recurrenceStreak } from "../lib/recurrence-heatmap";
@@ -29,14 +30,29 @@ export function DashboardView({ doc, indexes }: Props) {
     () => [...doc.tags].sort((a, b) => a.name.localeCompare(b.name)),
     [doc.tags],
   );
-  const added = useMemo(
-    () => sortDashboardPinnedTags(tags.filter(tag => tag.dashboard_view)),
-    [tags],
-  );
   const available = tags.filter(tag => !tag.dashboard_view);
   const draggingIdRef = useRef<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [orderedPinned, setOrderedPinned] = useState<Tag[] | null>(null);
+  const [reorderError, setReorderError] = useState<string | null>(null);
+
+  const added = useMemo(() => {
+    if (orderedPinned) return orderedPinned;
+    return sortDashboardPinnedTags(tags.filter(tag => tag.dashboard_view));
+  }, [tags, orderedPinned]);
+
+  useEffect(() => {
+    if (!orderedPinned) return;
+    const fromDoc = sortDashboardPinnedTags(tags.filter(tag => tag.dashboard_view));
+    const expected = dashboardOrderUpdates(orderedPinned);
+    const actual = dashboardOrderUpdates(fromDoc);
+    const synced = expected.length === actual.length
+      && expected.every((update, index) =>
+        actual[index]?.id === update.id
+        && actual[index]?.dashboard_order === update.dashboard_order);
+    if (synced) setOrderedPinned(null);
+  }, [tags, orderedPinned]);
 
   const setDragging = (id: string) => {
     draggingIdRef.current = id;
@@ -46,13 +62,20 @@ export function DashboardView({ doc, indexes }: Props) {
   const setTagView = (tag: Tag, view: DashboardViewKind | null) =>
     void api.updateTag({ id: tag.id, dashboard_view: view });
 
-  const persistOrder = (ordered: Tag[]) => {
-    for (const update of dashboardOrderUpdates(ordered)) {
-      void api.updateTag(update);
+  const persistOrder = async (ordered: Tag[]) => {
+    setOrderedPinned(ordered);
+    setReorderError(null);
+    try {
+      for (const update of dashboardOrderUpdates(ordered)) {
+        await api.updateTag(update);
+      }
+    } catch (err) {
+      setOrderedPinned(null);
+      setReorderError(errorMessage(err));
     }
   };
 
-  const reorder = (fromId: string, toId: string) => {
+  const reorder = async (fromId: string, toId: string) => {
     if (fromId === toId) return;
     const fromIndex = added.findIndex(tag => tag.id === fromId);
     const toIndex = added.findIndex(tag => tag.id === toId);
@@ -60,17 +83,17 @@ export function DashboardView({ doc, indexes }: Props) {
     const next = [...added];
     const [moved] = next.splice(fromIndex, 1);
     next.splice(toIndex, 0, moved);
-    persistOrder(next);
+    await persistOrder(next);
   };
 
-  const moveBy = (id: string, delta: -1 | 1) => {
+  const moveBy = async (id: string, delta: -1 | 1) => {
     const index = added.findIndex(tag => tag.id === id);
     const target = index + delta;
     if (index < 0 || target < 0 || target >= added.length) return;
     const next = [...added];
     const [moved] = next.splice(index, 1);
     next.splice(target, 0, moved);
-    persistOrder(next);
+    await persistOrder(next);
   };
 
   const clearDragState = () => {
@@ -83,8 +106,8 @@ export function DashboardView({ doc, indexes }: Props) {
     const fromId = e.dataTransfer.getData("text/plain")
       || draggingIdRef.current
       || draggingId;
-    if (fromId) reorder(fromId, toId);
     clearDragState();
+    if (fromId) void reorder(fromId, toId);
   };
 
   const handleDragLeave = (e: DragEvent) => {
@@ -123,6 +146,7 @@ export function DashboardView({ doc, indexes }: Props) {
         <p className="view-empty">{t("dashboard.noPins")}</p>
       ) : (
         <>
+          {reorderError && <p className="composer-error" role="alert">{reorderError}</p>}
           <div className="dashboard-cards" onDragLeave={handleDragLeave}>
             {added.map((tag, index) => (
               <DashboardCard
@@ -140,8 +164,8 @@ export function DashboardView({ doc, indexes }: Props) {
                 canMoveDown={index < added.length - 1}
                 onSetView={view => setTagView(tag, view)}
                 onRemove={() => setTagView(tag, null)}
-                onMoveUp={() => moveBy(tag.id, -1)}
-                onMoveDown={() => moveBy(tag.id, 1)}
+                onMoveUp={() => { void moveBy(tag.id, -1); }}
+                onMoveDown={() => { void moveBy(tag.id, 1); }}
                 onDragStart={() => setDragging(tag.id)}
                 onDragOver={() => setDropTargetId(tag.id)}
                 onDrop={e => handleDrop(tag.id, e)}

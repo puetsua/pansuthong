@@ -1,12 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { DashboardView } from "./DashboardView";
 import { buildIndexes } from "../state/indexes";
 import { Document, Tag } from "../lib/tauri";
 
 vi.mock("../lib/tauri", async orig => {
   const actual = await orig<typeof import("../lib/tauri")>();
-  return { ...actual, api: { updateTag: vi.fn().mockResolvedValue({}) } };
+  const stubTag = (id: string): Tag => ({ id, name: id, color: "#000", priority: 0 });
+  return {
+    ...actual,
+    api: {
+      ...actual.api,
+      updateTag: vi.fn(async (input: { id: string }) => stubTag(input.id)),
+    },
+  };
 });
 
 import { api } from "../lib/tauri";
@@ -39,9 +46,17 @@ function dataTransferWith(id: string) {
   };
 }
 
+function cardNames(): string[] {
+  return [...document.querySelectorAll(".dashboard-card-name")]
+    .map(el => el.textContent?.replace(/^#/, "") ?? "");
+}
+
 describe("DashboardView — tag order", () => {
   beforeEach(() => {
     vi.mocked(api.updateTag).mockClear();
+    vi.mocked(api.updateTag).mockImplementation(async input =>
+      tag({ id: input.id, name: input.id }),
+    );
   });
 
   it("renders pinned tags in dashboard_order with name fallback", () => {
@@ -50,21 +65,40 @@ describe("DashboardView — tag order", () => {
       tag({ id: "t2", name: "home", dashboard_view: "heatmap", dashboard_order: 0 }),
       tag({ id: "t3", name: "alpha", dashboard_view: "heatmap" }),
     ]);
-    const cards = document.querySelectorAll(".dashboard-card-name");
-    expect([...cards].map(el => el.textContent?.replace(/^#/, ""))).toEqual(["home", "work", "alpha"]);
+    expect(cardNames()).toEqual(["home", "work", "alpha"]);
   });
 
-  it("persists a new order when move down is clicked", () => {
+  it("persists a new order when move down is clicked", async () => {
     renderView([
       tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
       tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
     ]);
     fireEvent.click(screen.getByRole("button", { name: /move first down/i }));
-    expect(api.updateTag).toHaveBeenCalledWith({ id: "t2", dashboard_order: 0 });
-    expect(api.updateTag).toHaveBeenCalledWith({ id: "t1", dashboard_order: 1 });
+    await waitFor(() => expect(api.updateTag).toHaveBeenCalledTimes(2));
+    expect(api.updateTag).toHaveBeenNthCalledWith(1, { id: "t2", dashboard_order: 0 });
+    expect(api.updateTag).toHaveBeenNthCalledWith(2, { id: "t1", dashboard_order: 1 });
   });
 
-  it("persists reorder on drop using dataTransfer id", () => {
+  it("awaits updateTag calls sequentially", async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    vi.mocked(api.updateTag).mockImplementation(async (input): Promise<Tag> => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise(resolve => setTimeout(resolve, 5));
+      inFlight -= 1;
+      return tag({ id: input.id, name: input.id });
+    });
+    renderView([
+      tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
+      tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: /move first down/i }));
+    await waitFor(() => expect(api.updateTag).toHaveBeenCalledTimes(2));
+    expect(maxInFlight).toBe(1);
+  });
+
+  it("persists reorder on drop using dataTransfer id", async () => {
     renderView([
       tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
       tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
@@ -73,7 +107,36 @@ describe("DashboardView — tag order", () => {
     fireEvent.dragStart(screen.getByRole("button", { name: /drag to reorder first/i }), { dataTransfer });
     const cards = document.querySelectorAll(".dashboard-card");
     fireEvent.drop(cards[1]!, { dataTransfer });
+    await waitFor(() => expect(api.updateTag).toHaveBeenCalledTimes(2));
     expect(api.updateTag).toHaveBeenCalledWith({ id: "t2", dashboard_order: 0 });
     expect(api.updateTag).toHaveBeenCalledWith({ id: "t1", dashboard_order: 1 });
+  });
+
+  it("shows persisted order after remount with updated document tags", async () => {
+    const { unmount } = renderView([
+      tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
+      tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: /move first down/i }));
+    await waitFor(() => expect(api.updateTag).toHaveBeenCalledTimes(2));
+
+    unmount();
+    renderView([
+      tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 0 }),
+      tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 1 }),
+    ]);
+    expect(cardNames()).toEqual(["second", "first"]);
+  });
+
+  it("surfaces reorder failures", async () => {
+    vi.mocked(api.updateTag).mockRejectedValueOnce("save failed");
+    renderView([
+      tag({ id: "t1", name: "first", dashboard_view: "heatmap", dashboard_order: 0 }),
+      tag({ id: "t2", name: "second", dashboard_view: "heatmap", dashboard_order: 1 }),
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: /move first down/i }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("save failed");
+    expect(cardNames()).toEqual(["first", "second"]);
   });
 });
