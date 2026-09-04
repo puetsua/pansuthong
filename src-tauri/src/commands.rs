@@ -2127,7 +2127,7 @@ fn update_tag_on_document(d: &mut Document, input: &UpdateTagInput) -> Result<Ta
         }
     }
     if let Some(v) = &input.dashboard_order {
-        t.dashboard_order = v.clone();
+        t.dashboard_order = *v;
     }
     t.updated_at = now_ms();
     Ok(t.clone())
