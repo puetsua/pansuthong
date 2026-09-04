@@ -863,6 +863,7 @@ mod tests {
                     pinned: false,
                     updated_at: 1,
                     dashboard_view: None,
+                dashboard_order: None,
                 });
                 Ok(())
             })
@@ -878,6 +879,7 @@ mod tests {
             pinned: false,
             updated_at: 1,
             dashboard_view: None,
+        dashboard_order: None,
         });
         let remote = write_peer_db(&remote_doc);
         let backend = FakeBackend::with(&[("tasks_peer.db", &remote)]);
@@ -910,6 +912,7 @@ mod tests {
             pinned: false,
             updated_at: 1,
             dashboard_view: None,
+        dashboard_order: None,
         });
         let remote = write_peer_db(&remote_doc);
         let backend = FakeBackend::with(&[
@@ -937,6 +940,7 @@ mod tests {
             pinned: false,
             updated_at: 1,
             dashboard_view: None,
+        dashboard_order: None,
         });
         let remote = write_peer_db(&remote_doc);
         let backend = FakeBackend::with(&[("tasks_peer.db", remote.as_slice())]);
@@ -1010,6 +1014,7 @@ mod tests {
             pinned: false,
             updated_at: 1,
             dashboard_view: None,
+        dashboard_order: None,
         });
         let remote = write_peer_db(&remote_doc);
         let backend = FakeBackend::with(&[("tasks_peer.db", &remote)]);
@@ -1041,6 +1046,7 @@ mod tests {
                     pinned: false,
                     updated_at: 1,
                     dashboard_view: None,
+                dashboard_order: None,
                 });
                 Ok(())
             })
@@ -1056,6 +1062,7 @@ mod tests {
             pinned: false,
             updated_at: 1,
             dashboard_view: None,
+        dashboard_order: None,
         });
         let remote = write_peer_db(&remote_doc);
         let backend = FakeBackend::with(&[("tasks_peer.db", &remote)]);
@@ -1092,6 +1099,7 @@ mod tests {
                     pinned: false,
                     updated_at: 1,
                     dashboard_view: None,
+                dashboard_order: None,
                 });
                 Ok(())
             })
@@ -1108,6 +1116,7 @@ mod tests {
             pinned: false,
             updated_at: 1,
             dashboard_view: None,
+        dashboard_order: None,
         });
         let remote = write_peer_db(&remote_doc);
         let backend = FakeBackend::with(&[("tasks_peer.db", &remote)]);
@@ -1141,6 +1150,7 @@ mod tests {
                     pinned: false,
                     updated_at: 1,
                     dashboard_view: None,
+                dashboard_order: None,
                 });
                 Ok(())
             })
@@ -1155,6 +1165,7 @@ mod tests {
             pinned: false,
             updated_at: 1,
             dashboard_view: None,
+        dashboard_order: None,
         });
         let remote = write_peer_db(&remote_doc);
         let backend = FakeBackend::with(&[("tasks_peer.db", &remote)]);
@@ -1212,6 +1223,7 @@ mod tests {
             pinned: false,
             updated_at: 1,
             dashboard_view: None,
+        dashboard_order: None,
         });
         let good_bytes = write_peer_db(&good);
         let backend = FakeBackend::with(&[
@@ -1241,6 +1253,7 @@ mod tests {
             pinned: false,
             updated_at: 1,
             dashboard_view: None,
+        dashboard_order: None,
         });
         let good_bytes = serde_json::to_vec_pretty(&good).unwrap();
         let backend = FakeBackend::with(&[("tasks_legacy.json", &good_bytes)]);
@@ -1377,6 +1390,7 @@ mod tests {
                     pinned: false,
                     updated_at: 1,
                     dashboard_view: None,
+                dashboard_order: None,
                 });
                 Ok(())
             })
@@ -1523,6 +1537,7 @@ mod tests {
                     pinned: false,
                     updated_at: 1,
                     dashboard_view: None,
+                dashboard_order: None,
                 });
                 Ok(())
             })

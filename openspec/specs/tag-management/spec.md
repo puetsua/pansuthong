@@ -20,8 +20,9 @@ applying the configured new-tag color/priority defaults when not overridden.
 
 ### Requirement: Tag editing
 
-The system SHALL update a tag's name, color, priority, pinned state, and
-dashboard pin, validating the same way creation does, and stamp `updated_at`.
+The system SHALL update a tag's name, color, priority, pinned state, dashboard
+pin, and dashboard card order, validating the same way creation does, and stamp
+`updated_at`.
 
 #### Scenario: Priority weight is bounded
 - **WHEN** a tag priority outside -9999..=9999 is supplied

@@ -210,6 +210,15 @@
           "$ref": "#/$defs/timestamp",
           "description": "Last tag edit, as an ISO-8601 local-time timestamp with an offset. Omitted or 0 for tags written before this field existed.",
           "default": 0
+        },
+        "dashboard_view": {
+          "description": "Dashboard pin view: heatmap or streak. Omitted = not pinned.",
+          "type": "string",
+          "enum": ["heatmap", "streak"]
+        },
+        "dashboard_order": {
+          "description": "Order among pinned Dashboard tags. Lower values appear first; omitted tags sort by name.",
+          "type": "integer"
         }
       },
       "additionalProperties": false

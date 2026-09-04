@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { api, DashboardView as DashboardViewKind, Document, Tag } from "../lib/tauri";
@@ -9,6 +9,7 @@ import { computeTagAnalytics, recurringScheduledDates } from "../lib/tag-analyti
 import { formatDate } from "../lib/dates";
 import { currentLocale } from "../i18n";
 import { HeatmapGrid } from "../components/HeatmapGrid";
+import { dashboardOrderUpdates, sortDashboardPinnedTags } from "../lib/dashboard-tags";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -28,11 +29,48 @@ export function DashboardView({ doc, indexes }: Props) {
     () => [...doc.tags].sort((a, b) => a.name.localeCompare(b.name)),
     [doc.tags],
   );
-  const added = tags.filter(tag => tag.dashboard_view);
+  const added = useMemo(
+    () => sortDashboardPinnedTags(tags.filter(tag => tag.dashboard_view)),
+    [tags],
+  );
   const available = tags.filter(tag => !tag.dashboard_view);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   const setTagView = (tag: Tag, view: DashboardViewKind | null) =>
     void api.updateTag({ id: tag.id, dashboard_view: view });
+
+  const persistOrder = (ordered: Tag[]) => {
+    for (const update of dashboardOrderUpdates(ordered)) {
+      void api.updateTag(update);
+    }
+  };
+
+  const reorder = (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    const fromIndex = added.findIndex(tag => tag.id === fromId);
+    const toIndex = added.findIndex(tag => tag.id === toId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const next = [...added];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    persistOrder(next);
+  };
+
+  const moveBy = (id: string, delta: -1 | 1) => {
+    const index = added.findIndex(tag => tag.id === id);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= added.length) return;
+    const next = [...added];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved);
+    persistOrder(next);
+  };
+
+  const clearDragState = () => {
+    setDraggingId(null);
+    setDropTargetId(null);
+  };
 
   return (
     <section>
@@ -61,8 +99,11 @@ export function DashboardView({ doc, indexes }: Props) {
         <p className="view-empty">{t("dashboard.noPins")}</p>
       ) : (
         <>
-          <div className="dashboard-cards">
-            {added.map(tag => (
+          <div className="dashboard-cards"
+               onDragLeave={e => {
+                 if (!e.currentTarget.contains(e.relatedTarget as Node | null)) clearDragState();
+               }}>
+            {added.map((tag, index) => (
               <DashboardCard
                 key={tag.id}
                 tag={tag}
@@ -72,8 +113,21 @@ export function DashboardView({ doc, indexes }: Props) {
                 days={days}
                 dayStartHour={dsh}
                 firstDayOfWeek={fdow}
+                isDragging={draggingId === tag.id}
+                isDropTarget={dropTargetId === tag.id && draggingId !== tag.id}
+                canMoveUp={index > 0}
+                canMoveDown={index < added.length - 1}
                 onSetView={view => setTagView(tag, view)}
                 onRemove={() => setTagView(tag, null)}
+                onMoveUp={() => moveBy(tag.id, -1)}
+                onMoveDown={() => moveBy(tag.id, 1)}
+                onDragStart={() => setDraggingId(tag.id)}
+                onDragOver={() => setDropTargetId(tag.id)}
+                onDrop={() => {
+                  if (draggingId) reorder(draggingId, tag.id);
+                  clearDragState();
+                }}
+                onDragEnd={clearDragState}
               />
             ))}
           </div>
@@ -85,7 +139,7 @@ export function DashboardView({ doc, indexes }: Props) {
 }
 
 /** One pinned tag, rendered in its chosen view with view + remove controls. */
-function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh, firstDayOfWeek, onSetView, onRemove }: {
+function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh, firstDayOfWeek, isDragging, isDropTarget, canMoveUp, canMoveDown, onSetView, onRemove, onMoveUp, onMoveDown, onDragStart, onDragOver, onDrop, onDragEnd }: {
   tag: Tag;
   indexes: Indexes;
   tasks: Document["tasks"];
@@ -93,8 +147,18 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh,
   days: number;
   dayStartHour: number;
   firstDayOfWeek: number;
+  isDragging: boolean;
+  isDropTarget: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   onSetView: (view: DashboardViewKind) => void;
   onRemove: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onDragStart: () => void;
+  onDragOver: () => void;
+  onDrop: () => void;
+  onDragEnd: () => void;
 }) {
   const { t } = useTranslation();
   const view = tag.dashboard_view ?? "heatmap";
@@ -110,14 +174,55 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh,
   }, [tag.id, tasks, todayIso, days, indexes, dsh]);
 
   return (
-    <div className="dashboard-card">
+    <div
+      className={[
+        "dashboard-card",
+        isDragging ? "dashboard-card-dragging" : "",
+        isDropTarget ? "dashboard-card-drop-target" : "",
+      ].filter(Boolean).join(" ")}
+      onDragOver={e => {
+        e.preventDefault();
+        onDragOver();
+      }}
+      onDrop={e => {
+        e.preventDefault();
+        onDrop();
+      }}
+    >
       <div className="dashboard-card-head">
-        <span className="dashboard-card-title">
+        <div className="dashboard-card-title">
+          <button
+            type="button"
+            className="dashboard-card-handle"
+            draggable
+            aria-label={t("dashboard.reorderHandle", { name: tag.name })}
+            title={t("dashboard.reorderHandle", { name: tag.name })}
+            onDragStart={e => {
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", tag.id);
+              onDragStart();
+            }}
+            onDragEnd={onDragEnd}
+          >
+            <span aria-hidden>⋮⋮</span>
+          </button>
           <span className="dashboard-card-name">
             <span style={{ color: tag.color }}>#</span>{tag.name}
           </span>
-        </span>
+        </div>
         <div className="dashboard-card-controls">
+          <div className="dashboard-card-reorder" role="group" aria-label={t("dashboard.reorderLabel")}>
+            <button type="button" className="dashboard-reorder-btn"
+                    aria-label={t("dashboard.moveUp", { name: tag.name })}
+                    title={t("dashboard.moveUp", { name: tag.name })}
+                    disabled={!canMoveUp}
+                    onClick={onMoveUp}>↑</button>
+            <button type="button" className="dashboard-reorder-btn"
+                    aria-label={t("dashboard.moveDown", { name: tag.name })}
+                    title={t("dashboard.moveDown", { name: tag.name })}
+                    disabled={!canMoveDown}
+                    onClick={onMoveDown}>↓</button>
+          </div>
           <div className="te-segmented" role="group" aria-label={t("dashboard.viewLabel")}>
             {DASHBOARD_VIEWS.map(v => (
               <button key={v} type="button" aria-pressed={view === v}
