@@ -233,14 +233,77 @@ pub fn sanitize_device_id(device_id: &str) -> String {
     }
 }
 
-/// Readable device label for history: prefer OS hostname, else sanitized device id.
-pub fn resolve_device_name(device_id: &str) -> String {
-    let host = std::env::var("COMPUTERNAME")
+fn non_empty_trimmed(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+#[cfg(any(test, target_os = "android"))]
+fn title_case_word(value: &str) -> String {
+    let mut out = value.to_string();
+    if let Some(first) = out.get_mut(0..1) {
+        first.make_ascii_uppercase();
+    }
+    out
+}
+
+/// Build a readable Android device label from `getprop`-style keys.
+/// Injectable getter keeps this unit-testable off-device.
+#[cfg(any(test, target_os = "android"))]
+pub(crate) fn android_device_label_from_properties(
+    get: impl Fn(&str) -> Option<String>,
+) -> Option<String> {
+    if let Some(name) = get("ro.product.marketname").and_then(non_empty_trimmed) {
+        return Some(name);
+    }
+
+    let manufacturer = get("ro.product.manufacturer").and_then(non_empty_trimmed);
+    let model = get("ro.product.model").and_then(non_empty_trimmed);
+
+    match (manufacturer, model) {
+        (Some(mfr), Some(model)) => {
+            if model.to_ascii_lowercase().contains(&mfr.to_ascii_lowercase()) {
+                Some(model)
+            } else {
+                Some(format!("{} {}", title_case_word(&mfr), model))
+            }
+        }
+        (_, Some(model)) => Some(model),
+        (Some(mfr), None) => Some(title_case_word(&mfr)),
+        (None, None) => None,
+    }
+}
+
+#[cfg(target_os = "android")]
+fn android_device_label() -> Option<String> {
+    use android_system_properties::AndroidSystemProperties;
+    let props = AndroidSystemProperties::new();
+    android_device_label_from_properties(|key| props.get(key))
+}
+
+#[cfg(not(target_os = "android"))]
+fn android_device_label() -> Option<String> {
+    None
+}
+
+fn hostname_from_env() -> Option<String> {
+    std::env::var("COMPUTERNAME")
         .or_else(|_| std::env::var("HOSTNAME"))
         .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty());
-    host.unwrap_or_else(|| sanitize_device_id(device_id))
+        .and_then(non_empty_trimmed)
+}
+
+/// Readable device label for history. Desktop: `COMPUTERNAME` / `HOSTNAME`;
+/// Android: marketing name or manufacturer+model from system properties; else
+/// sanitized device id.
+pub fn resolve_device_name(device_id: &str) -> String {
+    hostname_from_env()
+        .or_else(android_device_label)
+        .unwrap_or_else(|| sanitize_device_id(device_id))
 }
 
 pub fn legacy_data_file_name() -> &'static str {
@@ -756,5 +819,79 @@ mod tests {
         assert_eq!(on_disk.folder.as_deref(), Some("/data/sync"));
         // Folder change must not clobber settings.
         assert_eq!(on_disk.settings.theme, "dark");
+    }
+
+    #[test]
+    fn resolve_device_name_falls_back_to_sanitized_id() {
+        let device_id = "ada2a13ca6b74fcb87dc74c70caedcf3";
+        if hostname_from_env().is_some() || android_device_label().is_some() {
+            return;
+        }
+        assert_eq!(resolve_device_name(device_id), device_id);
+    }
+
+    #[test]
+    fn android_device_label_prefers_market_name() {
+        let props = |key: &str| match key {
+            "ro.product.marketname" => Some("Pixel 7".into()),
+            "ro.product.manufacturer" => Some("Google".into()),
+            "ro.product.model" => Some("Pixel 7".into()),
+            _ => None,
+        };
+        assert_eq!(
+            android_device_label_from_properties(props).as_deref(),
+            Some("Pixel 7")
+        );
+    }
+
+    #[test]
+    fn android_device_label_combines_manufacturer_and_model() {
+        let props = |key: &str| match key {
+            "ro.product.manufacturer" => Some("google".into()),
+            "ro.product.model" => Some("Pixel 7".into()),
+            _ => None,
+        };
+        assert_eq!(
+            android_device_label_from_properties(props).as_deref(),
+            Some("Google Pixel 7")
+        );
+    }
+
+    #[test]
+    fn android_device_label_skips_redundant_manufacturer() {
+        let props = |key: &str| match key {
+            "ro.product.manufacturer" => Some("Samsung".into()),
+            "ro.product.model" => Some("Samsung Galaxy S23".into()),
+            _ => None,
+        };
+        assert_eq!(
+            android_device_label_from_properties(props).as_deref(),
+            Some("Samsung Galaxy S23")
+        );
+    }
+
+    #[test]
+    fn android_device_label_uses_model_when_manufacturer_missing() {
+        let props = |key: &str| match key {
+            "ro.product.model" => Some("SM-G991B".into()),
+            _ => None,
+        };
+        assert_eq!(
+            android_device_label_from_properties(props).as_deref(),
+            Some("SM-G991B")
+        );
+    }
+
+    #[test]
+    fn android_device_label_avoids_stamping_sanitized_device_id() {
+        let device_id = "ada2a13ca6b74fcb87dc74c70caedcf3";
+        let props = |key: &str| match key {
+            "ro.product.manufacturer" => Some("Google".into()),
+            "ro.product.model" => Some("Pixel 7".into()),
+            _ => None,
+        };
+        let label = android_device_label_from_properties(props).unwrap();
+        assert_ne!(label, sanitize_device_id(device_id));
+        assert_eq!(label, "Google Pixel 7");
     }
 }
