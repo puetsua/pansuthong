@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Tag } from "../../lib/tauri";
-import { readableTextColor } from "../../lib/tags";
+import { tagPillStyle } from "../../lib/tagColorDisplay";
+import { useThemeVariant } from "../../lib/useThemeVariant";
 import { EditorForm, maxDayForMonth, OFFSET_DAYS_MAX } from "../../state/taskUpdate";
 
 type Props = {
@@ -17,6 +18,7 @@ export function RecurrenceFields({
   form, allTags, isStartOffsetDisabled, offsetError, recurError, set, setForm,
 }: Props) {
   const { t } = useTranslation();
+  const theme = useThemeVariant();
   const MONTHS = t("taskEditor.months", { returnObjects: true }) as string[];
   return (
     <>
@@ -129,7 +131,7 @@ export function RecurrenceFields({
               <p className="te-recur-tags">
                 <span className="te-recur-tags-label">{t("taskEditor.recursUnder")}</span>
                 <span className="task-tag"
-                      style={{ background: recurTag.color, color: readableTextColor(recurTag.color) }}>{recurTag.name}</span>
+                      style={tagPillStyle(recurTag.color, theme)}>{recurTag.name}</span>
               </p>
             ) : null;
           })()}

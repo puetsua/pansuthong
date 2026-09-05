@@ -1,7 +1,8 @@
 import { KeyboardEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tag } from "../lib/tauri";
-import { readableTextColor } from "../lib/tags";
+import { tagPillStyle, normalizeTagHashColor } from "../lib/tagColorDisplay";
+import { useThemeVariant } from "../lib/useThemeVariant";
 import { defaultTagColor } from "../lib/settings";
 
 type Props = {
@@ -35,6 +36,7 @@ export function TagInput({
   onAddExisting, onAddNew, onRemoveExisting, onRemoveNew,
 }: Props) {
   const { t } = useTranslation();
+  const theme = useThemeVariant();
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -100,7 +102,7 @@ export function TagInput({
       <div className="te-tags">
         {assigned.map(tag => (
           <button type="button" key={tag.id} className="te-tag on"
-                  style={{ background: tag.color, borderColor: tag.color, color: readableTextColor(tag.color) }}
+                  style={tagPillStyle(tag.color, theme)}
                   onClick={() => onRemoveExisting(tag.id)}
                   aria-label={t("tagInput.remove", { name: tag.name })} title={t("tagInput.remove", { name: tag.name })}>
             {tag.name} <span aria-hidden="true">×</span>
@@ -108,10 +110,10 @@ export function TagInput({
         ))}
         {newNames.map(name => {
           const color = defaultTagColor();
-          const ink = readableTextColor(color);
+          const pill = tagPillStyle(color, theme);
           return (
             <button type="button" key={`new:${name}`} className="te-tag on te-tag-new"
-                    style={{ background: color, borderColor: ink, color: ink }}
+                    style={{ ...pill, borderStyle: "dashed" }}
                     onClick={() => onRemoveNew(name)}
                     aria-label={t("tagInput.removeNew", { name })} title={t("tagInput.removeNewTitle", { name })}>
               {name} <span aria-hidden="true">×</span>
@@ -142,7 +144,7 @@ export function TagInput({
                 return (
                   <li key={opt.tag.id} role="option" aria-selected={isActive}>
                     <button type="button" className={cls}
-                            style={{ color: opt.tag.color }}
+                            style={{ color: normalizeTagHashColor(opt.tag.color, theme) }}
                             onMouseDown={e => e.preventDefault()}
                             onClick={() => commit(opt)}>
                       {opt.tag.name}

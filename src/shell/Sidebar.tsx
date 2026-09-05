@@ -3,6 +3,8 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Document, Tag } from "../lib/tauri";
 import { Indexes, openCount } from "../state/indexes";
+import { normalizeTagHashColor } from "../lib/tagColorDisplay";
+import { useThemeVariant } from "../lib/useThemeVariant";
 import { TagEditor } from "../components/TagEditor";
 import { AppVersionRow } from "./AppVersionRow";
 
@@ -13,6 +15,7 @@ type EditorState = { tag: Tag | null } | null;
 
 export function Sidebar({ doc, indexes }: Props) {
   const { t } = useTranslation();
+  const theme = useThemeVariant(doc.settings);
   const today = indexes.todayIso;
   const todayCount = openCount(indexes.today(today));
   // Inbox is a catch-all view, not a tally — no sidebar count (matches Upcoming).
@@ -65,7 +68,7 @@ export function Sidebar({ doc, indexes }: Props) {
         ) : tags.map(t2 => (
           <li className="sidebar-tag-row" key={t2.id}>
             <NavLink to={`/tag/${t2.id}`} className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-              <span className="sidebar-hash" aria-hidden="true" style={{ color: t2.color }}>#</span>
+              <span className="sidebar-hash" aria-hidden="true" style={{ color: normalizeTagHashColor(t2.color, theme) }}>#</span>
               {t2.name}
               <span className="sidebar-count">{indexes.byTag.get(t2.id)?.length ?? 0}</span>
             </NavLink>

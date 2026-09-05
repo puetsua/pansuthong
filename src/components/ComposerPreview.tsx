@@ -2,6 +2,8 @@ import { useTranslation } from "react-i18next";
 import { Tag } from "../lib/tauri";
 import { ParsedInput } from "../state/parse";
 import { formatEstimatedSecondsInput } from "../state/taskUpdate";
+import { tagPillStyle } from "../lib/tagColorDisplay";
+import { useThemeVariant } from "../lib/useThemeVariant";
 import { defaultTagColor } from "../lib/settings";
 
 type Props = {
@@ -11,6 +13,7 @@ type Props = {
 
 export function ComposerPreview({ parsed, tagsByName }: Props) {
   const { t } = useTranslation();
+  const theme = useThemeVariant();
   const anything =
     parsed.tag_names.length > 0 ||
     parsed.due_date ||
@@ -24,9 +27,10 @@ export function ComposerPreview({ parsed, tagsByName }: Props) {
         const existing = tagsByName.get(name.toLowerCase());
         const color = existing?.color ?? defaultTagColor();
         const isNew = !existing;
+        const pill = tagPillStyle(color, theme);
         return (
           <span key={name} className="composer-chip"
-                style={{ background: color + "22", color }}>
+                style={pill}>
             #{name}{isNew && <span className="composer-new">{t("composerPreview.new")}</span>}
           </span>
         );

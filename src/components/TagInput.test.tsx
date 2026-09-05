@@ -31,10 +31,12 @@ describe("TagInput", () => {
     expect(h.onRemoveNew).toHaveBeenCalledWith("urgent");
   });
 
-  it("paints pending new tags with the theme background", () => {
+  it("paints pending new tags with normalized soft pill colors from the theme background", () => {
     render(<TagInput allTags={tags} tagIds={[]} newNames={["urgent"]} {...handlers()} />);
     const chip = button(/Remove urgent/) as HTMLButtonElement;
-    expect(chip.style.backgroundColor || chip.style.background).toMatch(/#f9fafb|rgb\(249,\s*250,\s*251\)/i);
+    expect(chip.style.backgroundColor || chip.style.background).toMatch(/rgba\(249,\s*250,\s*251/i);
+    expect(chip.style.borderStyle).toBe("dashed");
+    expect(chip.style.color).toBeTruthy();
   });
 
   it("filters candidates to a case-insensitive substring of the query", () => {

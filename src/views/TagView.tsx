@@ -18,12 +18,15 @@ import { formatDurationShort } from "../lib/time";
 import { useIdleAnchor } from "../lib/useIdleAnchor";
 import { recurrenceStreak, type HeatCell, type Heatmap } from "../lib/recurrence-heatmap";
 import { computeTagAnalytics, recurringScheduledDates } from "../lib/tag-analytics";
+import { normalizeTagHashColor } from "../lib/tagColorDisplay";
+import { useThemeVariant } from "../lib/useThemeVariant";
 
 type Props = { doc: Document; indexes: Indexes };
 type Tab = "tasks" | "analytics";
 
 export function TagView({ doc, indexes }: Props) {
   const { t } = useTranslation();
+  const theme = useThemeVariant(doc.settings);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
@@ -68,7 +71,7 @@ export function TagView({ doc, indexes }: Props) {
     <section>
       <header className="view-header">
         <div className="view-title-row">
-          <h1><span style={{ color: tag.color }}>#</span>{tag.name}</h1>
+          <h1><span style={{ color: normalizeTagHashColor(tag.color, theme) }}>#</span>{tag.name}</h1>
           <button type="button" className="link-button tag-edit-link"
                   onClick={() => setEditing(true)}>{t("tagView.editTag")}</button>
         </div>

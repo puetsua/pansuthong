@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Tag, Task, TemplateTask } from "../lib/tauri";
 import { addDaysIso } from "../lib/dates";
-import { readableTextColor } from "../lib/tags";
+import { tagPillStyle } from "../lib/tagColorDisplay";
+import { useThemeVariant } from "../lib/useThemeVariant";
 import { TaskEditor } from "./TaskEditor";
 
 type Props = {
@@ -21,6 +22,7 @@ function offsetLabel(tmpl: TemplateTask, t: TFunction): string {
 }
 
 export function TemplateRow({ template, tags, todayIso }: Props) {
+  const theme = useThemeVariant();
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   // A draft task pre-filled from this template, shown in the editor so the user can
@@ -63,7 +65,7 @@ export function TemplateRow({ template, tags, todayIso }: Props) {
             <span className="task-title">{template.title}</span>
           </span>
           {tmplTags.map(t => (
-            <span key={t.id} className="task-tag" style={{ background: t.color, color: readableTextColor(t.color) }}>
+            <span key={t.id} className="task-tag" style={tagPillStyle(t.color, theme)}>
               {t.name}
             </span>
           ))}

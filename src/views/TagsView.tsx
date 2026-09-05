@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api, Document, Tag } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { readableTextColor } from "../lib/tags";
+import { tagPillStyle } from "../lib/tagColorDisplay";
+import { useThemeVariant } from "../lib/useThemeVariant";
 import { Indexes } from "../state/indexes";
 import { TagEditor } from "../components/TagEditor";
 
@@ -14,6 +15,7 @@ type EditorState = { tag: Tag | null } | null;
 
 export function TagsView({ doc, indexes }: Props) {
   const { t } = useTranslation();
+  const theme = useThemeVariant(doc.settings);
   const [editor, setEditor] = useState<EditorState>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,7 +66,7 @@ export function TagsView({ doc, indexes }: Props) {
                       onClick={() => togglePinned(tag)}>{tag.pinned ? "★" : "☆"}</button>
               <Link to={`/tag/${tag.id}`} className="settings-name tag-name-link"
                     title={t("tags.viewTagged", { name: tag.name })}>
-                <span className="task-tag" style={{ background: tag.color, color: readableTextColor(tag.color) }}>
+                <span className="task-tag" style={tagPillStyle(tag.color, theme)}>
                   {tag.name}
                 </span>
               </Link>

@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { api, Tag, Task } from "../lib/tauri";
 import { GhostTask } from "../lib/recurrence";
 import { errorMessage } from "../lib/errors";
-import { readableTextColor } from "../lib/tags";
+import { tagPillStyle } from "../lib/tagColorDisplay";
+import { useThemeVariant } from "../lib/useThemeVariant";
 import { playCompletionSound } from "../lib/sound";
 import { TaskEditor } from "./TaskEditor";
 
@@ -21,6 +22,7 @@ type Props = {
  * recurrence marker distinguish it from real rows.
  */
 export function GhostRow({ ghost, tags, onCompleted, onTimerStarted }: Props) {
+  const theme = useThemeVariant();
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +84,7 @@ export function GhostRow({ ghost, tags, onCompleted, onTimerStarted }: Props) {
             <span className="task-title">{ghost.title}</span>
           </span>
           {ghostTags.map(t => (
-            <span key={t.id} className="task-tag" style={{ background: t.color, color: readableTextColor(t.color) }}>
+            <span key={t.id} className="task-tag" style={tagPillStyle(t.color, theme)}>
               {t.name}
             </span>
           ))}

@@ -5,7 +5,8 @@ import { Task, Tag, isDone } from "../lib/tauri";
 import { api } from "../lib/tauri";
 import { requestStopTimer } from "../lib/afkWhileTracking";
 import { errorMessage } from "../lib/errors";
-import { readableTextColor } from "../lib/tags";
+import { tagPillStyle } from "../lib/tagColorDisplay";
+import { useThemeVariant } from "../lib/useThemeVariant";
 import { elapsedMs, formatClock, formatDurationShort, isTiming } from "../lib/time";
 import { useNow } from "../lib/useNow";
 import { playCompletionSound } from "../lib/sound";
@@ -45,6 +46,7 @@ function whenLabel(task: Task, today: string, t: TFunction): { text: string; lat
 }
 
 export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, onReopened, onTimerStarted }: Props) {
+  const theme = useThemeVariant();
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +108,7 @@ export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, o
             <span className="task-title">{task.title}</span>
           </span>
           {taskTags.map(t => (
-            <span key={t.id} className="task-tag" style={{ background: t.color, color: readableTextColor(t.color) }}>
+            <span key={t.id} className="task-tag" style={tagPillStyle(t.color, theme)}>
               {t.name}
             </span>
           ))}

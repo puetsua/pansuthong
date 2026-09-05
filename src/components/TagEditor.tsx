@@ -3,7 +3,9 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { api, Settings, Tag } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
-import { clampWeight, readableTextColor } from "../lib/tags";
+import { clampWeight } from "../lib/tags";
+import { tagPillStyle } from "../lib/tagColorDisplay";
+import { useThemeVariant } from "../lib/useThemeVariant";
 import { defaultTagColor, defaultTagPriority } from "../lib/settings";
 import { ColorPicker } from "./ColorPicker";
 
@@ -21,6 +23,7 @@ type Form = { name: string; color: string; weight: string; pinned: boolean };
 
 export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
   const { t } = useTranslation();
+  const theme = useThemeVariant(settings);
   const isEdit = !!tag;
   const initialRef = useRef<Form>({
     name: tag?.name ?? "",
@@ -139,7 +142,7 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
         <div className="te-field">
           <span>{t("tagEditor.preview")}</span>
           <div>
-            <span className="task-tag" style={{ background: form.color, color: readableTextColor(form.color) }}>
+            <span className="task-tag" style={tagPillStyle(form.color, theme)}>
               {form.name.trim() || t("tagEditor.tagPlaceholder")}
             </span>
           </div>

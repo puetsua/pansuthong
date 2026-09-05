@@ -12,6 +12,8 @@ import { currentLocale } from "../i18n";
 import { HeatmapGrid } from "../components/HeatmapGrid";
 import { dashboardOrderUpdates, sortDashboardPinnedTags } from "../lib/dashboard-tags";
 import { dashboardInsertIndexAtY, dashboardReorderAtIndex } from "../lib/dashboard-reorder";
+import { normalizeTagHashColor } from "../lib/tagColorDisplay";
+import { useThemeVariant } from "../lib/useThemeVariant";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -249,6 +251,7 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh,
   onHandlePointerDown: (e: ReactPointerEvent<HTMLButtonElement>) => void;
 }) {
   const { t } = useTranslation();
+  const theme = useThemeVariant();
   const view = tag.dashboard_view ?? "heatmap";
   const heat = useMemo(() => {
     const taggedTasks = tasks.filter(task => task.tag_ids.includes(tag.id));
@@ -279,7 +282,7 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh,
             </span>
           </button>
           <span className="dashboard-card-name">
-            <span style={{ color: tag.color }}>#</span>{tag.name}
+            <span style={{ color: normalizeTagHashColor(tag.color, theme) }}>#</span>{tag.name}
           </span>
         </div>
         <div className="dashboard-card-controls">
