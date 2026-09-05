@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { Task, Tag, isDone } from "../lib/tauri";
+import { Task, Tag, isDone, Settings } from "../lib/tauri";
 import { api } from "../lib/tauri";
 import { requestStopTimer } from "../lib/afkWhileTracking";
 import { errorMessage } from "../lib/errors";
@@ -19,6 +19,7 @@ type Props = {
   task: Task;
   tags: Map<string, Tag>;
   todayIso: string;
+  settings?: Pick<Settings, "theme">;
   // Archived view: show a single "Restore" action instead of the done-checkbox.
   archived?: boolean;
   // Notified after a successful toggle so a view can keep a just-completed task
@@ -45,8 +46,8 @@ function whenLabel(task: Task, today: string, t: TFunction): { text: string; lat
   return { text: "", late: false };
 }
 
-export function TaskRow({ task, tags, todayIso, archived = false, onCompleted, onReopened, onTimerStarted }: Props) {
-  const theme = useThemeVariant();
+export function TaskRow({ task, tags, todayIso, settings, archived = false, onCompleted, onReopened, onTimerStarted }: Props) {
+  const theme = useThemeVariant(settings);
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);

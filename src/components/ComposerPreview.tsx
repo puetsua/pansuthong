@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Tag } from "../lib/tauri";
+import { Tag, Settings } from "../lib/tauri";
 import { ParsedInput } from "../state/parse";
 import { formatEstimatedSecondsInput } from "../state/taskUpdate";
 import { tagPillStyle } from "../lib/tagColorDisplay";
@@ -9,11 +9,12 @@ import { defaultTagColor } from "../lib/settings";
 type Props = {
   parsed: ParsedInput;
   tagsByName: Map<string, Tag>;
+  settings?: Pick<Settings, "theme">;
 };
 
-export function ComposerPreview({ parsed, tagsByName }: Props) {
+export function ComposerPreview({ parsed, tagsByName, settings }: Props) {
   const { t } = useTranslation();
-  const theme = useThemeVariant();
+  const theme = useThemeVariant(settings);
   const anything =
     parsed.tag_names.length > 0 ||
     parsed.due_date ||

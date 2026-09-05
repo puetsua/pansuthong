@@ -35,9 +35,9 @@ export function InboxView({ doc, indexes }: Props) {
         <AssignIdle tasks={doc.tasks} candidates={candidates} idleAnchorMs={idleAnchorMs}
                     onClose={() => setAssigning(false)} />
       ) : (
-        <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} />
+        <Composer todayIso={indexes.todayIso} settings={doc.settings} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} />
       )}
-      <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={indexes.todayIso}
+      <TaskList tasks={tasks} tags={indexes.tagsById} todayIso={indexes.todayIso} settings={doc.settings}
                 emptyText={t("inbox.empty")} onCompleted={onCompleted} onReopened={onReopened}
                 onTimerStarted={() => setAssigning(false)} />
     </section>

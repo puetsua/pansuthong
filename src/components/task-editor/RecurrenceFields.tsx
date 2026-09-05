@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Tag } from "../../lib/tauri";
+import { Tag, Settings } from "../../lib/tauri";
 import { tagPillStyle } from "../../lib/tagColorDisplay";
 import { useThemeVariant } from "../../lib/useThemeVariant";
 import { EditorForm, maxDayForMonth, OFFSET_DAYS_MAX } from "../../state/taskUpdate";
@@ -7,6 +7,7 @@ import { EditorForm, maxDayForMonth, OFFSET_DAYS_MAX } from "../../state/taskUpd
 type Props = {
   form: EditorForm;
   allTags: Map<string, Tag>;
+  settings?: Pick<Settings, "theme">;
   isStartOffsetDisabled: boolean;
   offsetError: string | null;
   recurError: string | null;
@@ -15,10 +16,10 @@ type Props = {
 };
 
 export function RecurrenceFields({
-  form, allTags, isStartOffsetDisabled, offsetError, recurError, set, setForm,
+  form, allTags, settings, isStartOffsetDisabled, offsetError, recurError, set, setForm,
 }: Props) {
   const { t } = useTranslation();
-  const theme = useThemeVariant();
+  const theme = useThemeVariant(settings);
   const MONTHS = t("taskEditor.months", { returnObjects: true }) as string[];
   return (
     <>

@@ -1,6 +1,6 @@
 import { KeyboardEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Tag } from "../lib/tauri";
+import { Tag, Settings } from "../lib/tauri";
 import { tagPillStyle, normalizeTagHashColor } from "../lib/tagColorDisplay";
 import { useThemeVariant } from "../lib/useThemeVariant";
 import { defaultTagColor } from "../lib/settings";
@@ -8,6 +8,7 @@ import { defaultTagColor } from "../lib/settings";
 type Props = {
   /** Every known tag, keyed by id (same map TaskEditor receives). */
   allTags: Map<string, Tag>;
+  settings?: Pick<Settings, "theme">;
   /** Ids of existing tags currently on the task. */
   tagIds: string[];
   /** Lowercased names typed by the user that don't exist as tags yet. */
@@ -32,11 +33,11 @@ type Option =
  * here — the typed name is handed up to the parent and only persisted on Save.
  */
 export function TagInput({
-  allTags, tagIds, newNames,
+  allTags, settings, tagIds, newNames,
   onAddExisting, onAddNew, onRemoveExisting, onRemoveNew,
 }: Props) {
   const { t } = useTranslation();
-  const theme = useThemeVariant();
+  const theme = useThemeVariant(settings);
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [highlight, setHighlight] = useState(0);

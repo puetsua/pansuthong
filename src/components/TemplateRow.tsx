@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { Tag, Task, TemplateTask } from "../lib/tauri";
+import { Tag, Task, TemplateTask, Settings } from "../lib/tauri";
 import { addDaysIso } from "../lib/dates";
 import { tagPillStyle } from "../lib/tagColorDisplay";
 import { useThemeVariant } from "../lib/useThemeVariant";
@@ -11,6 +11,7 @@ type Props = {
   template: TemplateTask;
   tags: Map<string, Tag>;
   todayIso: string;
+  settings?: Pick<Settings, "theme">;
 };
 
 /** Compact summary of a template's relative offsets, e.g. "start +0d · due +3d". */
@@ -21,8 +22,8 @@ function offsetLabel(tmpl: TemplateTask, t: TFunction): string {
   return parts.join(" · ");
 }
 
-export function TemplateRow({ template, tags, todayIso }: Props) {
-  const theme = useThemeVariant();
+export function TemplateRow({ template, tags, todayIso, settings }: Props) {
+  const theme = useThemeVariant(settings);
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   // A draft task pre-filled from this template, shown in the editor so the user can

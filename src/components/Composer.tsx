@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, Tag, Task } from "../lib/tauri";
+import { api, Tag, Task, Settings } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { parseComposer } from "../state/parse";
 import { todayIso } from "../lib/dates";
@@ -13,6 +13,7 @@ type Props = {
   startDate?: string;
   /** The logical "today" used to resolve relative dates ("today"/"tomorrow"). */
   todayIso?: string;
+  settings?: Pick<Settings, "theme">;
   tagsByName: Map<string, Tag>;
   /** Every known tag keyed by id — handed to the full editor modal (same map TaskEditor wants). */
   allTags?: Map<string, Tag>;
@@ -25,7 +26,7 @@ type Props = {
 
 const EMPTY_TAGS: Map<string, Tag> = new Map();
 
-export function Composer({ startDate, todayIso: today = todayIso(), tagsByName, allTags = EMPTY_TAGS, contextTagId }: Props) {
+export function Composer({ startDate, todayIso: today = todayIso(), settings, tagsByName, allTags = EMPTY_TAGS, contextTagId }: Props) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +93,7 @@ export function Composer({ startDate, todayIso: today = todayIso(), tagsByName, 
           <p className="composer-hint">{t("composer.needTitle")}</p>
         )}
       </form>
-      <ComposerPreview parsed={parsed} tagsByName={tagsByName} />
+      <ComposerPreview parsed={parsed} tagsByName={tagsByName} settings={settings} />
       {draft && (
         <TaskEditor task={draft} allTags={allTags} creating onClose={() => setDraft(null)} />
       )}

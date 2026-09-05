@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { api, DashboardView as DashboardViewKind, Document, Tag } from "../lib/tauri";
+import { api, DashboardView as DashboardViewKind, Document, Settings, Tag } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { Indexes } from "../state/indexes";
 import { dashboardHeatmapDays, dayStartHour, firstDayOfWeek } from "../lib/settings";
@@ -212,6 +212,7 @@ export function DashboardView({ doc, indexes }: Props) {
                 <div data-dashboard-slot="card">
                   <DashboardCard
                     tag={tag}
+                    settings={doc.settings}
                     indexes={indexes}
                     tasks={doc.tasks}
                     todayIso={todayIso}
@@ -237,8 +238,9 @@ export function DashboardView({ doc, indexes }: Props) {
   );
 }
 
-function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh, firstDayOfWeek, isDragging, onSetView, onRemove, onHandlePointerDown }: {
+function DashboardCard({ tag, settings, indexes, tasks, todayIso, days, dayStartHour: dsh, firstDayOfWeek, isDragging, onSetView, onRemove, onHandlePointerDown }: {
   tag: Tag;
+  settings: Settings;
   indexes: Indexes;
   tasks: Document["tasks"];
   todayIso: string;
@@ -251,7 +253,7 @@ function DashboardCard({ tag, indexes, tasks, todayIso, days, dayStartHour: dsh,
   onHandlePointerDown: (e: ReactPointerEvent<HTMLButtonElement>) => void;
 }) {
   const { t } = useTranslation();
-  const theme = useThemeVariant();
+  const theme = useThemeVariant(settings);
   const view = tag.dashboard_view ?? "heatmap";
   const heat = useMemo(() => {
     const taggedTasks = tasks.filter(task => task.tag_ids.includes(tag.id));

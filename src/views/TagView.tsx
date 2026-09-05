@@ -100,9 +100,9 @@ export function TagView({ doc, indexes }: Props) {
             <AssignIdle tasks={doc.tasks} candidates={candidates} idleAnchorMs={idleAnchorMs}
                         onClose={() => setAssigning(false)} />
           ) : (
-            <Composer todayIso={indexes.todayIso} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} contextTagId={id} />
+            <Composer todayIso={indexes.todayIso} settings={doc.settings} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} contextTagId={id} />
           )}
-          <RowList rows={rows} tags={indexes.tagsById} todayIso={indexes.todayIso}
+          <RowList rows={rows} tags={indexes.tagsById} todayIso={indexes.todayIso} settings={doc.settings}
                    emptyText={t("tagView.empty")}
                    onCompleted={onCompleted} onReopened={onReopened}
                    onTimerStarted={() => setAssigning(false)} />

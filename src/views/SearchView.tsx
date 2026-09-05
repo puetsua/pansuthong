@@ -71,6 +71,7 @@ export function SearchView({ doc, indexes }: Props) {
         tasks={pageItems}
         tags={indexes.tagsById}
         todayIso={indexes.todayIso}
+        settings={doc.settings}
         emptyText={filtering ? t("search.emptyFiltered") : t("search.emptyPrompt")}
         onCompleted={onCompleted}
         onReopened={onReopened}
