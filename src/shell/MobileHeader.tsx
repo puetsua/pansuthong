@@ -10,7 +10,6 @@ type Props = { indexes: Indexes };
 const ROUTE_TITLE_KEYS: Record<string, string> = {
   "/today":    "nav.today",
   "/inbox":    "nav.inbox",
-  "/upcoming": "nav.upcoming",
   "/calendar":  "nav.calendar",
   "/search":   "nav.search",
   "/templates": "nav.templates",
@@ -25,7 +24,6 @@ const ROUTE_TITLE_KEYS: Record<string, string> = {
 // buttons wide on a phone; primary views are the bottom tabs. Text-only —
 // glyph icons competed with labels on a dense phone menu.
 const MENU_ITEMS = [
-  { to: "/upcoming",   labelKey: "nav.upcoming" },
   { to: "/templates",  labelKey: "nav.templates" },
   { to: "/dashboard", labelKey: "nav.dashboard" },
   { to: "/history",    labelKey: "nav.history" },

@@ -14,6 +14,9 @@ type Props = {
   settings?: Pick<Settings, "theme">;
   onCompleted?: (id: string) => void;
   onTimerStarted?: () => void;
+  /** Calendar day view: hide timer (and optionally checkbox). */
+  hideTimer?: boolean;
+  hideCheckbox?: boolean;
 };
 
 /**
@@ -22,7 +25,7 @@ type Props = {
  * applies the action to the returned task. The de-emphasised styling + the
  * recurrence marker distinguish it from real rows.
  */
-export function GhostRow({ ghost, tags, settings, onCompleted, onTimerStarted }: Props) {
+export function GhostRow({ ghost, tags, settings, onCompleted, onTimerStarted, hideTimer = false, hideCheckbox = false }: Props) {
   const theme = useThemeVariant(settings);
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
@@ -90,12 +93,16 @@ export function GhostRow({ ghost, tags, settings, onCompleted, onTimerStarted }:
             </span>
           ))}
         </button>
-        <button type="button" className="task-timer" onClick={startTimer} disabled={busy}
-                aria-label={t("ghostRow.startTimer", { title: ghost.title })} title={t("ghostRow.startTimerTitle")}>
-          <span className="task-timer-icon" aria-hidden>▶</span>
-        </button>
-        <input type="checkbox" checked={false} onChange={complete} disabled={busy}
-               aria-label={t("ghostRow.complete", { title: ghost.title })} />
+        {!hideTimer && (
+          <button type="button" className="task-timer" onClick={startTimer} disabled={busy}
+                  aria-label={t("ghostRow.startTimer", { title: ghost.title })} title={t("ghostRow.startTimerTitle")}>
+            <span className="task-timer-icon" aria-hidden>▶</span>
+          </button>
+        )}
+        {!hideCheckbox && (
+          <input type="checkbox" checked={false} onChange={complete} disabled={busy}
+                 aria-label={t("ghostRow.complete", { title: ghost.title })} />
+        )}
       </div>
       {error && <p className="composer-error" role="alert">{t("ghostRow.addError", { error })}</p>}
       {creatingDraft && (

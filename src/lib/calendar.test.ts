@@ -4,10 +4,13 @@ import { buildIndexes } from "../state/indexes";
 import {
   agendaRowsForDay,
   buildMonthGrid,
-  calendarDots,
+  buildWeekDays,
+  monthChipSlice,
   shiftMonth,
+  shiftWeek,
   summarizeCalendarDay,
   taskOnDate,
+  weekStartIso,
 } from "./calendar";
 
 const TODAY = "2026-09-05";
@@ -37,6 +40,7 @@ describe("taskOnDate", () => {
     expect(taskOnDate(task({ id: "a", start_date: "2026-09-05" }), "2026-09-05")).toBe(true);
     expect(taskOnDate(task({ id: "b", due_date: "2026-09-05" }), "2026-09-05")).toBe(true);
     expect(taskOnDate(task({ id: "c", start_date: "2026-09-06" }), "2026-09-05")).toBe(false);
+    expect(taskOnDate(task({ id: "d" }), "2026-09-05")).toBe(false);
   });
 });
 
@@ -82,17 +86,10 @@ describe("agendaRowsForDay", () => {
   });
 });
 
-describe("calendarDots", () => {
-  it("caps visible dots and lists tasks before ghosts", () => {
-    const summary = {
-      iso: TODAY,
-      tasks: [task({ id: "a" }), task({ id: "b" }), task({ id: "c" }), task({ id: "d" })],
-      ghosts: [{ id: "g1", title: "g", notes: "", tag_ids: [], templateId: "t", occurrenceDate: TODAY }],
-      totalCount: 5,
-    };
-    expect(calendarDots(summary)).toEqual([
-      { kind: "task" }, { kind: "task" }, { kind: "task" },
-    ]);
+describe("monthChipSlice", () => {
+  it("caps visible month lines and reports overflow", () => {
+    const rows = Array.from({ length: 5 }, (_, i) => ({ kind: "task" as const, task: task({ id: `k_${i}` }) }));
+    expect(monthChipSlice(rows, 3)).toEqual({ visible: rows.slice(0, 3), overflow: 2 });
   });
 });
 
@@ -100,10 +97,27 @@ describe("buildMonthGrid", () => {
   it("pads weeks to the configured first day of week", () => {
     const d = doc([]);
     const ix = buildIndexes(d, TODAY);
-    const weeks = buildMonthGrid("2026-09", 1, ix); // Monday start
+    const weeks = buildMonthGrid("2026-09", 1, ix);
     expect(weeks[0][0].iso).toBe("2026-08-31");
     expect(weeks.flat().some(c => c.iso === "2026-09-05" && c.inMonth)).toBe(true);
     expect(weeks.at(-1)?.some(c => c.iso.startsWith("2026-10-"))).toBe(true);
+  });
+});
+
+describe("week indexing", () => {
+  it("finds week start and builds seven days", () => {
+    const d = doc([task({ id: "k_a", due_date: "2026-09-06" })]);
+    const ix = buildIndexes(d, TODAY);
+    expect(weekStartIso("2026-09-05", 1)).toBe("2026-08-31");
+    const days = buildWeekDays("2026-08-31", ix);
+    expect(days).toHaveLength(7);
+    expect(days[6].iso).toBe("2026-09-06");
+    expect(days[6].summary.totalCount).toBe(1);
+  });
+
+  it("shifts by whole weeks", () => {
+    expect(shiftWeek("2026-09-05", 1)).toBe("2026-09-12");
+    expect(shiftWeek("2026-09-05", -1)).toBe("2026-08-29");
   });
 });
 

@@ -1,20 +1,20 @@
 ## 1. Calendar indexing
 
-- [x] 1.1 Add `src/lib/calendar.ts` with day summary, month grid, and agenda row builders
-- [x] 1.2 Add unit tests in `src/lib/calendar.test.ts`
+- [x] 1.1 Extend `src/lib/calendar.ts` with week helpers and month overflow slicing
+- [x] 1.2 Update unit tests in `src/lib/calendar.test.ts`
 
-## 2. Calendar UI
+## 2. Calendar UI (Month | Week | Day)
 
-- [x] 2.1 Add `CalendarView` with month toolbar, grid, legend, and agenda (`RowList`)
-- [x] 2.2 Add calendar styles in `src/styles/global.css`
-- [x] 2.3 Add view tests in `src/views/CalendarView.test.tsx`
+- [x] 2.1 Add `CalendarMonthLine` and `CalendarWeekRow` components
+- [x] 2.2 Rewrite `CalendarView` with mode toggle, month grid, week grid, day agenda
+- [x] 2.3 Narrow week: day strip + list; `hideTimer` on TaskRow/GhostRow for day view
+- [x] 2.4 Replace Proposal C CSS with A+B styles
 
-## 3. Routing and navigation
+## 3. Navigation
 
-- [x] 3.1 Register `/calendar` in `App.tsx`
-- [x] 3.2 Add sidebar link under Upcoming; mobile bottom tab + More menu for Upcoming
-- [x] 3.3 Add `CalendarIcon`, i18n strings (en + zh-TW), update sidebar nav test
+- [x] 3.1 Remove Upcoming from sidebar/mobile; redirect `/upcoming` → `/calendar`
+- [x] 3.2 i18n en + zh-TW for mode labels and overflow copy
 
 ## 4. Verify
 
-- [x] 4.1 Run `npm test`, `npm run lint`, and `npm run build`
+- [x] 4.1 View and sidebar tests; `npm test`, `npm run lint`, `npm run build`

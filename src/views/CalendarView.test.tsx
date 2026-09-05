@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { CalendarView } from "./CalendarView";
 import { buildIndexes } from "../state/indexes";
 import { Document, Task } from "../lib/tauri";
+
+vi.mock("../lib/viewport", () => ({ useIsMobile: () => false }));
 
 function task(over: Partial<Task> & { id: string }): Task {
   return {
@@ -27,7 +29,7 @@ const doc: Document = {
 };
 
 describe("CalendarView", () => {
-  it("renders the month grid and agenda for the selected day", () => {
+  it("defaults to month mode with task lines in cells", () => {
     const indexes = buildIndexes(doc, "2026-09-05");
     render(
       <MemoryRouter>
@@ -35,15 +37,25 @@ describe("CalendarView", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { level: 1, name: /calendar/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Month", pressed: true })).toBeTruthy();
     expect(screen.getByText("Buy cat litter")).toBeTruthy();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
 
-    const day6 = screen.getByRole("gridcell", { name: /Sep 6, 2026/i });
-    fireEvent.click(day6);
+  it("switches to day mode when a date number is clicked", () => {
+    const indexes = buildIndexes(doc, "2026-09-05");
+    render(
+      <MemoryRouter>
+        <CalendarView doc={doc} indexes={indexes} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Sep 6, 2026/i }));
+    expect(screen.getByRole("button", { name: "Day", pressed: true })).toBeTruthy();
     expect(screen.getByText("Reply email")).toBeTruthy();
   });
 
-  it("jumps to today from the toolbar button", () => {
+  it("shows week columns in week mode", () => {
     const indexes = buildIndexes(doc, "2026-09-05");
     render(
       <MemoryRouter>
@@ -51,8 +63,22 @@ describe("CalendarView", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByLabelText(/next month/i));
-    fireEvent.click(screen.getByRole("button", { name: /^today$/i }));
-    expect(screen.getByText("Buy cat litter")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Week" }));
+    expect(screen.getByRole("grid", { name: /week calendar/i })).toBeTruthy();
+    expect(screen.getByText("Reply email")).toBeTruthy();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  it("shows checkboxes without timers in day mode", () => {
+    const indexes = buildIndexes(doc, "2026-09-05");
+    render(
+      <MemoryRouter>
+        <CalendarView doc={doc} indexes={indexes} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Day" }));
+    expect(screen.getAllByRole("checkbox").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /start timer/i })).toBeNull();
   });
 });

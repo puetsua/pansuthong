@@ -3,8 +3,11 @@ import type { Task } from "./tauri";
 import { isDone } from "./tauri";
 import type { GhostTask } from "./recurrence";
 import type { Indexes, Row } from "../state/indexes";
+import { addDaysIso } from "./dates";
 
-/** A day cell in the month grid with its computed task/ghost summary. */
+export type CalendarMode = "month" | "week" | "day";
+
+/** A day cell in the month/week grid with its computed task/ghost summary. */
 export type CalendarDaySummary = {
   iso: string;
   tasks: Task[];
@@ -19,9 +22,10 @@ export type CalendarCell = {
   summary: CalendarDaySummary;
 };
 
-const MAX_VISIBLE_DOTS = 3;
+/** Max task chips shown in a month cell before a +N overflow control. */
+export const MAX_MONTH_CHIPS = 3;
 
-/** True when a task's start or due date falls on `iso` (Upcoming/Calendar rule). */
+/** True when a task's start or due date falls on `iso`. */
 export function taskOnDate(task: Task, iso: string): boolean {
   return task.start_date === iso || task.due_date === iso;
 }
@@ -33,30 +37,35 @@ export function summarizeCalendarDay(indexes: Indexes, iso: string): CalendarDay
   return { iso, tasks, ghosts, totalCount: tasks.length + ghosts.length };
 }
 
-/** Agenda rows for a selected day, ordered like Upcoming (weight merge). */
+/** Agenda rows for a day, ordered by tag weight (same rule as the old Upcoming list). */
 export function agendaRowsForDay(indexes: Indexes, iso: string): Row[] {
   const { tasks, ghosts } = summarizeCalendarDay(indexes, iso);
   return indexes.mergeRowsByWeight(tasks, ghosts);
 }
 
-/** Dot markers under a date: solid for tasks, hollow for ghosts (capped for density). */
-export function calendarDots(summary: CalendarDaySummary): { kind: "task" | "ghost" }[] {
-  const out: { kind: "task" | "ghost" }[] = [];
-  for (const _ of summary.tasks) {
-    if (out.length >= MAX_VISIBLE_DOTS) break;
-    out.push({ kind: "task" });
-  }
-  for (const _ of summary.ghosts) {
-    if (out.length >= MAX_VISIBLE_DOTS) break;
-    out.push({ kind: "ghost" });
-  }
-  return out;
+export function chipLabel(row: Row): string {
+  return row.kind === "task" ? row.task.title : row.ghost.title;
 }
 
-function weekPosition(iso: string, firstDayOfWeek: number): number {
+export function isGhostRow(row: Row): boolean {
+  return row.kind === "ghost";
+}
+
+/** Visible chips plus overflow count for dense month cells. */
+export function monthChipSlice(rows: Row[], max = MAX_MONTH_CHIPS): { visible: Row[]; overflow: number } {
+  if (rows.length <= max) return { visible: rows, overflow: 0 };
+  return { visible: rows.slice(0, max), overflow: rows.length - max };
+}
+
+export function weekPosition(iso: string, firstDayOfWeek: number): number {
   const [y, m, d] = iso.split("-").map(Number);
   const js = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
   return (js - firstDayOfWeek + 7) % 7;
+}
+
+/** ISO date of the week start containing `iso`, honoring `firstDayOfWeek`. */
+export function weekStartIso(iso: string, firstDayOfWeek: number): string {
+  return addDaysIso(iso, -weekPosition(iso, firstDayOfWeek));
 }
 
 /** Build a month grid (week rows) including leading/trailing out-of-month padding days. */
@@ -85,7 +94,25 @@ export function buildMonthGrid(
   return weeks;
 }
 
+/** Seven consecutive days starting at `weekStart` (YYYY-MM-DD). */
+export function buildWeekDays(weekStart: string, indexes: Indexes): CalendarCell[] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const iso = addDaysIso(weekStart, i);
+    return {
+      iso,
+      inMonth: true,
+      day: Number(iso.slice(8, 10)),
+      summary: summarizeCalendarDay(indexes, iso),
+    };
+  });
+}
+
 /** Shift a YYYY-MM month string by `delta` months. */
 export function shiftMonth(yearMonth: string, delta: number): string {
   return dayjs(`${yearMonth}-01`).add(delta, "month").format("YYYY-MM");
+}
+
+/** Shift an ISO date by `weeks` whole weeks. */
+export function shiftWeek(iso: string, weeks: number): string {
+  return addDaysIso(iso, weeks * 7);
 }

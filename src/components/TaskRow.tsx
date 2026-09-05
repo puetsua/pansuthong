@@ -27,6 +27,8 @@ type Props = {
   onCompleted?: (id: string) => void;
   onReopened?: (id: string) => void;
   onTimerStarted?: () => void;
+  /** Calendar day view: hide the timer control while keeping the checkbox. */
+  hideTimer?: boolean;
 };
 
 function whenLabel(task: Task, today: string, t: TFunction): { text: string; late: boolean } {
@@ -46,7 +48,7 @@ function whenLabel(task: Task, today: string, t: TFunction): { text: string; lat
   return { text: "", late: false };
 }
 
-export function TaskRow({ task, tags, todayIso, settings, archived = false, onCompleted, onReopened, onTimerStarted }: Props) {
+export function TaskRow({ task, tags, todayIso, settings, archived = false, onCompleted, onReopened, onTimerStarted, hideTimer = false }: Props) {
   const theme = useThemeVariant(settings);
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
@@ -125,14 +127,16 @@ export function TaskRow({ task, tags, todayIso, settings, archived = false, onCo
           </>
         ) : (
           <>
-            <button type="button" className="task-timer" data-running={running} onClick={toggleTimer}
-                    aria-label={running ? t("taskRow.stopTimer", { title: task.title }) : t("taskRow.startTimer", { title: task.title })}
-                    title={running ? t("taskRow.stopTimerTitle") : t("taskRow.startTimerTitle")}>
-              <span className="task-timer-icon" aria-hidden>{running ? "■" : "▶"}</span>
-              {(running || total > 0) && (
-                <span className="task-timer-time">{running ? formatClock(total) : formatDurationShort(total)}</span>
-              )}
-            </button>
+            {!hideTimer && (
+              <button type="button" className="task-timer" data-running={running} onClick={toggleTimer}
+                      aria-label={running ? t("taskRow.stopTimer", { title: task.title }) : t("taskRow.startTimer", { title: task.title })}
+                      title={running ? t("taskRow.stopTimerTitle") : t("taskRow.startTimerTitle")}>
+                <span className="task-timer-icon" aria-hidden>{running ? "■" : "▶"}</span>
+                {(running || total > 0) && (
+                  <span className="task-timer-time">{running ? formatClock(total) : formatDurationShort(total)}</span>
+                )}
+              </button>
+            )}
             <input type="checkbox" checked={isDone(task)} onChange={toggle}
                    aria-label={t("taskRow.toggle", { title: task.title })} />
           </>

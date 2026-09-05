@@ -1,32 +1,23 @@
 ## Why
 
-Upcoming is a horizon list grouped by day; users cannot see how tasks spread across a
-month or pick a date at a glance (#172). A Calendar view complements Upcoming with a
-compact month grid and a per-day agenda without persisting another task list.
+Upcoming was a horizon list; users need a calendar with Month, Week, and Day modes
+(#172). Calendar supersedes Upcoming in navigation.
 
 ## What Changes
 
-- Add a `/calendar` route with Proposal C UX: month grid (task count badges, solid dots
-  for tasks, dashed dots for recurring ghosts), day selection, and an agenda list below
-  the grid reusing existing task rows.
-- Sidebar: Calendar entry under Upcoming; mobile bottom tab replaces Upcoming (Upcoming
-  moves to the More menu).
-- Calendar membership: open tasks on `start_date` or `due_date`, plus the same recurring
-  ghost projection used by Today/Upcoming; exclude completed/archived tasks.
-- No new Settings controls; not Dashboard heatmap semantics.
+- Rewrite Calendar with Month | Week | Day toggle (default Month, not persisted).
+- Month: task lines in cells, overflow link to Day, date click to Day.
+- Week: seven-column chips; narrow uses day strip + list.
+- Day: full TaskRow list without timers.
+- Remove Upcoming from nav; redirect `/upcoming` → `/calendar`.
 
 ## Capabilities
 
-### New Capabilities
-
-None.
-
 ### Modified Capabilities
 
-- `task-views`: add Calendar view requirement and nav placement.
+- `task-views`: Calendar requirement updated from Proposal C dots to A+B+Day.
 
 ## Impact
 
-- `src/lib/calendar.ts`, `src/views/CalendarView.tsx`, routing/shell/i18n/CSS.
-- Tests for calendar indexing and view rendering.
-- No Rust/model/schema changes.
+- `src/views/CalendarView.tsx`, `src/lib/calendar.ts`, calendar row components, CSS.
+- Sidebar, App route redirect, i18n, tests, OpenSpec delta.

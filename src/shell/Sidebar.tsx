@@ -20,7 +20,7 @@ export function Sidebar({ doc, indexes }: Props) {
   const theme = useThemeVariant(doc.settings);
   const today = indexes.todayIso;
   const todayCount = openCount(indexes.today(today));
-  // Inbox is a catch-all view, not a tally — no sidebar count (matches Upcoming).
+  // Inbox is a catch-all view, not a tally — no sidebar count (matches Calendar).
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,11 +52,6 @@ export function Sidebar({ doc, indexes }: Props) {
         <li>
           <NavLink to="/inbox" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
             {t("nav.inbox")}
-          </NavLink>
-        </li>
-        <li>
-          <NavLink to="/upcoming" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-            {t("nav.upcoming")}
           </NavLink>
         </li>
         <li>
