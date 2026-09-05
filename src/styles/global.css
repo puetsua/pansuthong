@@ -2270,8 +2270,11 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
     align-items: stretch;
     flex-direction: column;
   }
-  .te-segmented { width: 100%; }
-  .te-segmented button {
+  /* Task-editor notes only: full-width segmented sits under the label when the
+     field head stacks. Dashboard cards reuse .te-segmented but must stay inline
+     so the remove control does not wrap onto a second row (#198). */
+  .te-notes-field .te-segmented { width: 100%; }
+  .te-notes-field .te-segmented button {
     flex: 1;
     min-width: 0;
   }
@@ -2322,13 +2325,24 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   pointer-events: none;
 }
 .dashboard-card-head {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-  gap: var(--space-3); margin-bottom: var(--space-4);
+  display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between;
+  gap: var(--space-2); margin-bottom: var(--space-4); min-width: 0;
 }
-.dashboard-card-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-.dashboard-card-name { font-weight: 600; color: var(--c-text); word-break: break-word; }
+.dashboard-card-title {
+  display: flex; align-items: center; gap: var(--space-2);
+  flex: 1 1 auto; min-width: 0;
+}
+.dashboard-card-name {
+  font-weight: 600; color: var(--c-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .dashboard-card-tag { font-size: 0.8rem; color: var(--c-text-muted); }
-.dashboard-card-controls { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.dashboard-card-controls {
+  display: flex; align-items: center; gap: var(--space-2);
+  flex: 0 0 auto; flex-wrap: nowrap;
+}
+.dashboard-card-controls .te-segmented { flex-shrink: 1; min-width: 0; }
+.dashboard-card-controls .te-segmented button { min-width: 0; padding-inline: 6px; }
 .dashboard-card-handle {
   border: none; background: transparent; color: var(--c-text-muted); cursor: grab;
   padding: var(--space-1); line-height: 1; touch-action: none; flex-shrink: 0;
