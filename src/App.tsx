@@ -23,10 +23,11 @@ import { HistoryView } from "./views/HistoryView";
 import { useDocument } from "./state/store";
 import { setCompletionSoundEnabled } from "./lib/sound";
 import { currentDateFormat, currentTimeFormat, setDateFormat, setTimeFormat } from "./lib/dates";
-import { dateFormat, reminderIntervalMinutes, timeFormat } from "./lib/settings";
+import { dateFormat, dayStartHour, reminderIntervalMinutes, timeFormat } from "./lib/settings";
 import { api } from "./lib/tauri";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import { TimeEstimateReminder } from "./components/TimeEstimateReminder";
+import { ScheduledTaskNotifier } from "./components/ScheduledTaskNotifier";
 import { AfkWhileTracking } from "./components/AfkWhileTracking";
 
 export default function App() {
@@ -151,6 +152,7 @@ export default function App() {
       <Shell doc={doc} indexes={indexes}>
         <UpdatePrompt />
         <TimeEstimateReminder tasks={doc.tasks} intervalMinutes={reminderIntervalMinutes(doc.settings)} />
+        <ScheduledTaskNotifier tasks={doc.tasks} dayStartHour={dayStartHour(doc.settings)} />
         <AfkWhileTracking tasks={doc.tasks} />
         {reloadError && (
           <div className="reload-banner" role="alert">
