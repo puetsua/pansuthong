@@ -3,23 +3,23 @@ import { Task } from "./tauri";
 import {
   arrivalKey,
   arrivalsDueNow,
-  clearOsScheduled,
+  cancelStaleRegisteredPending,
   isArrivalDue,
+  isArrivalKeyEligible,
   loadNotifiedKeys,
-  loadOsScheduledKeys,
+  loadRegisteredOsNotifications,
   markNotified,
-  markOsScheduled,
   notificationId,
-  ownedNotificationIds,
   pruneNotifiedKeys,
-  reconcileOsDelivered,
+  reconcileDeliveredKeys,
+  registerOsNotification,
   saveNotifiedKeys,
   scheduleSignature,
   shouldNotifyImmediately,
-  staleOwnedPendingIds,
   taskArrival,
   taskArrivalKind,
   taskArrivalMoment,
+  unregisterOsNotification,
   upcomingArrivals,
 } from "./scheduledNotifications";
 
@@ -145,46 +145,95 @@ describe("upcomingArrivals", () => {
   });
 });
 
-describe("reconcileOsDelivered", () => {
-  it("marks due OS-scheduled arrivals as notified when no longer pending", () => {
-    const t = task({ id: "k_a", start_date: "2026-06-08", start_time: "09:00" });
-    const arrival = taskArrival(t, 0)!;
-    const now = arrival.at.getTime() + 1000;
-    const osScheduled = markOsScheduled(new Set(), arrival.key);
-    const result = reconcileOsDelivered([t], now, 0, new Set(), osScheduled, new Set());
+describe("isArrivalKeyEligible", () => {
+  it("returns false when the task is completed", () => {
+    const arrival = taskArrival(task({ id: "k_a", start_date: "2026-06-08", start_time: "09:00" }), 0)!;
+    const completed = task({
+      id: "k_a",
+      start_date: "2026-06-08",
+      start_time: "09:00",
+      completed_at: "2026-06-08T10:00:00+00:00",
+    });
+    expect(isArrivalKeyEligible(arrival.key, [completed], 0)).toBe(false);
+  });
+
+  it("returns false when the arrival kind changes", () => {
+    const oldKey = arrivalKey("start", "k_a", new Date(2026, 5, 8, 9, 0, 0, 0));
+    const dueOnly = task({ id: "k_a", due_date: "2026-06-08", due_time: "09:00" });
+    expect(isArrivalKeyEligible(oldKey, [dueOnly], 0)).toBe(false);
+  });
+});
+
+describe("reconcileDeliveredKeys", () => {
+  it("marks registered arrivals only with explicit delivered evidence", () => {
+    const arrival = taskArrival(task({ id: "k_a", start_date: "2026-06-08", start_time: "09:00" }), 0)!;
+    const registered = registerOsNotification(new Map(), arrival.key, notificationId("start", "k_a"));
+    const result = reconcileDeliveredKeys(new Set([arrival.key]), new Set(), registered);
     expect(result.notified.has(arrival.key)).toBe(true);
-    expect(result.osScheduled.has(arrival.key)).toBe(false);
+    expect(result.registered.has(arrival.key)).toBe(false);
   });
 
-  it("keeps due arrivals pending for immediate delivery", () => {
-    const t = task({ id: "k_a", start_date: "2026-06-08", start_time: "09:00" });
-    const arrival = taskArrival(t, 0)!;
-    const now = arrival.at.getTime() + 1000;
-    const pendingIds = new Set([notificationId("start", "k_a")]);
-    const osScheduled = markOsScheduled(new Set(), arrival.key);
-    const result = reconcileOsDelivered([t], now, 0, new Set(), osScheduled, pendingIds);
+  it("does not infer delivery from a missing pending entry", () => {
+    const arrival = taskArrival(task({ id: "k_a", start_date: "2026-06-08", start_time: "09:00" }), 0)!;
+    const registered = registerOsNotification(new Map(), arrival.key, notificationId("start", "k_a"));
+    const result = reconcileDeliveredKeys(new Set(), new Set(), registered);
     expect(result.notified.has(arrival.key)).toBe(false);
-    expect(result.osScheduled.has(arrival.key)).toBe(true);
+    expect(result.registered.has(arrival.key)).toBe(true);
   });
 });
 
-describe("staleOwnedPendingIds", () => {
-  it("cancels only owned ids that are not desired future schedules", () => {
-    const owned = new Set([10, 20, 30]);
-    const desired = new Set([20]);
-    const pending = new Set([10, 20, 99]);
-    expect(staleOwnedPendingIds(owned, desired, pending)).toEqual([10]);
+describe("cancelStaleRegisteredPending", () => {
+  it("cancels orphan pending ids when a task is completed", () => {
+    const arrival = taskArrival(task({ id: "k_a", start_date: "2026-06-09", start_time: "09:00" }), 0)!;
+    const id = notificationId("start", "k_a");
+    const registered = registerOsNotification(new Map(), arrival.key, id);
+    const completed = task({
+      id: "k_a",
+      start_date: "2026-06-09",
+      start_time: "09:00",
+      completed_at: "2026-06-08T10:00:00+00:00",
+    });
+    const result = cancelStaleRegisteredPending(
+      registered,
+      new Set([arrival.key]),
+      [completed],
+      0,
+      new Set([id]),
+    );
+    expect(result.cancel).toEqual([id]);
+    expect(result.registered.has(arrival.key)).toBe(false);
   });
-});
 
-describe("ownedNotificationIds", () => {
-  it("includes ids for schedulable tasks only", () => {
-    const ids = ownedNotificationIds([
-      task({ id: "k_a", start_date: "2026-06-08" }),
-      task({ id: "k_b" }),
-    ], 0);
-    expect(ids.has(notificationId("start", "k_a"))).toBe(true);
-    expect(ids.size).toBe(1);
+  it("cancels orphan pending ids when the arrival kind changes", () => {
+    const oldKey = arrivalKey("start", "k_a", new Date(2026, 5, 9, 9, 0, 0, 0));
+    const id = notificationId("start", "k_a");
+    const registered = registerOsNotification(new Map(), oldKey, id);
+    const dueOnly = task({ id: "k_a", due_date: "2026-06-09", due_time: "09:00" });
+    const newArrival = taskArrival(dueOnly, 0)!;
+    const result = cancelStaleRegisteredPending(
+      registered,
+      new Set([newArrival.key]),
+      [dueOnly],
+      0,
+      new Set([id]),
+    );
+    expect(result.cancel).toEqual([id]);
+    expect(result.registered.has(oldKey)).toBe(false);
+  });
+
+  it("keeps desired future registrations", () => {
+    const arrival = taskArrival(task({ id: "k_a", start_date: "2026-06-09", start_time: "09:00" }), 0)!;
+    const id = notificationId("start", "k_a");
+    const registered = registerOsNotification(new Map(), arrival.key, id);
+    const result = cancelStaleRegisteredPending(
+      registered,
+      new Set([arrival.key]),
+      [task({ id: "k_a", start_date: "2026-06-09", start_time: "09:00" })],
+      0,
+      new Set([id]),
+    );
+    expect(result.cancel).toEqual([]);
+    expect(result.registered.has(arrival.key)).toBe(true);
   });
 });
 
@@ -234,10 +283,10 @@ describe("notified key persistence", () => {
     expect([...pruned]).toEqual(["start:k_a:2026-06-08:09:00"]);
   });
 
-  it("tracks OS-scheduled keys separately", () => {
-    const keys = markOsScheduled(new Set(), "start:k_a:2026-06-08:09:00");
-    expect(loadOsScheduledKeys().has("start:k_a:2026-06-08:09:00")).toBe(true);
-    const cleared = clearOsScheduled(keys, "start:k_a:2026-06-08:09:00");
+  it("tracks registered OS notification ids", () => {
+    const registered = registerOsNotification(new Map(), "start:k_a:2026-06-08:09:00", 42);
+    expect(loadRegisteredOsNotifications().get("start:k_a:2026-06-08:09:00")).toBe(42);
+    const cleared = unregisterOsNotification(registered, "start:k_a:2026-06-08:09:00");
     expect(cleared.has("start:k_a:2026-06-08:09:00")).toBe(false);
   });
 });

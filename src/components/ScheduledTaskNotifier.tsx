@@ -21,18 +21,17 @@ import {
   POLL_MS,
   TaskArrival,
   arrivalsDueNow,
-  clearOsScheduled,
+  cancelStaleRegisteredPending,
   loadNotifiedKeys,
-  loadOsScheduledKeys,
+  loadRegisteredOsNotifications,
   markNotified,
-  markOsScheduled,
   notificationId,
-  ownedNotificationIds,
   pruneNotifiedKeys,
-  pruneOsScheduledKeys,
-  reconcileOsDelivered,
+  pruneRegisteredOsNotifications,
+  reconcileDeliveredKeys,
+  registerOsNotification,
   scheduleSignature,
-  staleOwnedPendingIds,
+  unregisterOsNotification,
   upcomingArrivals,
 } from "../lib/scheduledNotifications";
 
@@ -93,7 +92,7 @@ export function ScheduledTaskNotifier({ tasks, dayStartHour }: Props) {
   const dayStartRef = useRef(dayStartHour);
   dayStartRef.current = dayStartHour;
   const notifiedRef = useRef(loadNotifiedKeys());
-  const osScheduledRef = useRef(loadOsScheduledKeys());
+  const registeredRef = useRef(loadRegisteredOsNotifications());
   const claimedRef = useRef(new Set<string>());
   const lastScheduleSigRef = useRef("");
 
@@ -105,11 +104,16 @@ export function ScheduledTaskNotifier({ tasks, dayStartHour }: Props) {
     const titleFor = (kind: TaskArrival["kind"]) =>
       kind === "start" ? t("scheduledTaskNotifier.startTitle") : t("scheduledTaskNotifier.dueTitle");
 
-    const markFromNotification = (extra: Record<string, unknown> | undefined) => {
+    const deliveredKeyFromExtra = (extra: Record<string, unknown> | undefined): string | undefined => {
       const key = extra?.[ARRIVAL_KEY_EXTRA];
-      if (typeof key !== "string") return;
+      return typeof key === "string" ? key : undefined;
+    };
+
+    const markFromNotification = (extra: Record<string, unknown> | undefined) => {
+      const key = deliveredKeyFromExtra(extra);
+      if (!key) return;
       notifiedRef.current = markNotified(notifiedRef.current, key);
-      osScheduledRef.current = clearOsScheduled(osScheduledRef.current, key);
+      registeredRef.current = unregisterOsNotification(registeredRef.current, key);
       claimedRef.current.delete(key);
     };
 
@@ -131,7 +135,7 @@ export function ScheduledTaskNotifier({ tasks, dayStartHour }: Props) {
 
       const taskIds = new Set(tasksRef.current.map(task => task.id));
       notifiedRef.current = pruneNotifiedKeys(notifiedRef.current, taskIds);
-      osScheduledRef.current = pruneOsScheduledKeys(osScheduledRef.current, taskIds);
+      registeredRef.current = pruneRegisteredOsNotifications(registeredRef.current, taskIds);
 
       const now = Date.now();
       let pendingIds = new Set<number>();
@@ -141,22 +145,24 @@ export function ScheduledTaskNotifier({ tasks, dayStartHour }: Props) {
         // Fall back when pending is unavailable.
       }
 
+      const deliveredKeys = new Set<string>();
       try {
-        for (const n of await active()) markFromNotification(n.extra);
+        for (const n of await active()) {
+          const key = deliveredKeyFromExtra(n.extra);
+          if (key) deliveredKeys.add(key);
+        }
       } catch {
         // active() may be unavailable on some platforms.
       }
 
-      const reconciled = reconcileOsDelivered(
-        tasksRef.current,
-        now,
-        dayStartRef.current,
+      const reconciled = reconcileDeliveredKeys(
+        deliveredKeys,
         notifiedRef.current,
-        osScheduledRef.current,
-        pendingIds,
+        registeredRef.current,
       );
       notifiedRef.current = reconciled.notified;
-      osScheduledRef.current = reconciled.osScheduled;
+      registeredRef.current = reconciled.registered;
+      for (const key of deliveredKeys) claimedRef.current.delete(key);
 
       const dueCandidates = arrivalsDueNow(
         tasksRef.current,
@@ -182,7 +188,7 @@ export function ScheduledTaskNotifier({ tasks, dayStartHour }: Props) {
           if (cancelled) break;
           notifyArrival(arrival, titleFor(arrival.kind), channelId);
           notifiedRef.current = markNotified(notifiedRef.current, arrival.key);
-          osScheduledRef.current = clearOsScheduled(osScheduledRef.current, arrival.key);
+          registeredRef.current = unregisterOsNotification(registeredRef.current, arrival.key);
           claimedRef.current.delete(arrival.key);
           try {
             await cancel([notificationId(arrival.kind, arrival.task.id)]);
@@ -198,27 +204,34 @@ export function ScheduledTaskNotifier({ tasks, dayStartHour }: Props) {
       if (!granted || cancelled) return;
 
       const upcoming = upcomingArrivals(tasksRef.current, now, dayStartRef.current);
+      const desiredFutureKeys = new Set(upcoming.map(a => a.key));
+
+      try {
+        pendingIds = new Set((await pending()).map(n => n.id));
+        const stale = cancelStaleRegisteredPending(
+          registeredRef.current,
+          desiredFutureKeys,
+          tasksRef.current,
+          dayStartRef.current,
+          pendingIds,
+        );
+        registeredRef.current = stale.registered;
+        if (stale.cancel.length > 0) await cancel(stale.cancel);
+      } catch {
+        // pending/cancel may be unavailable on some platforms.
+      }
+
       const sig = scheduleSignature(upcoming);
       if (sig === lastScheduleSigRef.current) return;
       lastScheduleSigRef.current = sig;
 
       const channelId = await ensureAndroidChannel();
-      const ownedIds = ownedNotificationIds(tasksRef.current, dayStartRef.current);
-      const desiredFutureIds = new Set(upcoming.map(a => notificationId(a.kind, a.task.id)));
-
-      try {
-        pendingIds = new Set((await pending()).map(n => n.id));
-        const toCancel = staleOwnedPendingIds(ownedIds, desiredFutureIds, pendingIds);
-        if (toCancel.length > 0) await cancel(toCancel);
-      } catch {
-        // pending/cancel may be unavailable on some platforms.
-      }
-
       for (const arrival of upcoming) {
         if (notifiedRef.current.has(arrival.key)) continue;
         try {
+          const id = notificationId(arrival.kind, arrival.task.id);
           scheduleArrival(arrival, titleFor(arrival.kind), channelId);
-          osScheduledRef.current = markOsScheduled(osScheduledRef.current, arrival.key);
+          registeredRef.current = registerOsNotification(registeredRef.current, arrival.key, id);
         } catch {
           // Scheduling is best-effort; polling still covers running app.
         }

@@ -2,7 +2,10 @@ import { render, act } from "@testing-library/react";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { ScheduledTaskNotifier } from "./ScheduledTaskNotifier";
 import { Task } from "../lib/tauri";
-import { markOsScheduled, notificationId } from "../lib/scheduledNotifications";
+import {
+  notificationId,
+  registerOsNotification,
+} from "../lib/scheduledNotifications";
 
 const notification = vi.hoisted(() => ({
   isPermissionGranted: vi.fn(),
@@ -65,6 +68,7 @@ describe("ScheduledTaskNotifier", () => {
     notification.channels.mockResolvedValue([]);
     notification.createChannel.mockResolvedValue(undefined);
     notification.Schedule.at.mockClear();
+    notification.cancel.mockClear();
   });
 
   afterEach(() => {
@@ -204,9 +208,9 @@ describe("ScheduledTaskNotifier", () => {
     expect(notification.cancel).toHaveBeenCalledWith([id]);
   });
 
-  it("reconciles cold start after OS delivery", async () => {
+  it("marks delivered only with active evidence, not missing pending alone", async () => {
     const arrivalKey = "start:k_test:2026-06-08:09:00";
-    markOsScheduled(new Set(), arrivalKey);
+    registerOsNotification(new Map(), arrivalKey, notificationId("start", "k_test"));
     notification.pending.mockResolvedValue([]);
     notification.active.mockResolvedValue([]);
 
@@ -221,7 +225,57 @@ describe("ScheduledTaskNotifier", () => {
     const immediate = notification.sendNotification.mock.calls.filter(
       ([arg]) => typeof arg === "object" && arg != null && !("schedule" in arg),
     );
+    expect(immediate).toHaveLength(1);
+  });
+
+  it("suppresses duplicate notify when active evidence exists", async () => {
+    const arrivalKey = "start:k_test:2026-06-08:09:00";
+    registerOsNotification(new Map(), arrivalKey, notificationId("start", "k_test"));
+    notification.pending.mockResolvedValue([]);
+    notification.active.mockResolvedValue([{ extra: { arrivalKey } }]);
+
+    render(
+      <ScheduledTaskNotifier
+        tasks={[task({ start_date: "2026-06-08", start_time: "09:00" })]}
+        dayStartHour={0}
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+
+    const immediate = notification.sendNotification.mock.calls.filter(
+      ([arg]) => typeof arg === "object" && arg != null && !("schedule" in arg),
+    );
     expect(immediate).toHaveLength(0);
+  });
+
+  it("cancels orphan pending ids when a task is completed", async () => {
+    const arrivalKey = "start:k_test:2026-06-09:09:00";
+    const id = notificationId("start", "k_test");
+    registerOsNotification(new Map(), arrivalKey, id);
+    notification.pending.mockResolvedValue([{ id, schedule: {} }]);
+
+    vi.setSystemTime(new Date(2026, 5, 8, 8, 0, 0, 0));
+    const { rerender } = render(
+      <ScheduledTaskNotifier
+        tasks={[task({ start_date: "2026-06-09", start_time: "09:00" })]}
+        dayStartHour={0}
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+
+    rerender(
+      <ScheduledTaskNotifier
+        tasks={[task({
+          start_date: "2026-06-09",
+          start_time: "09:00",
+          completed_at: "2026-06-08T08:00:00+00:00",
+        })]}
+        dayStartHour={0}
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+
+    expect(notification.cancel).toHaveBeenCalledWith([id]);
   });
 
   it("skips completed tasks", async () => {

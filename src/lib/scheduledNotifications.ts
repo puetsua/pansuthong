@@ -22,7 +22,7 @@ export const POLL_MS = 60_000;
 export const MISSED_GRACE_MS = 60 * 60 * 1000;
 
 const NOTIFIED_STORAGE_KEY = "pansuthong.scheduledArrivalNotified";
-const OS_SCHEDULED_STORAGE_KEY = "pansuthong.scheduledArrivalOsScheduled";
+const OS_REGISTERED_STORAGE_KEY = "pansuthong.scheduledArrivalOsRegistered";
 const NOTIFICATION_ID_PREFIX = "pansuthong.scheduled.";
 
 /** Which schedule field drives the arrival notification. */
@@ -142,14 +142,18 @@ export function notificationId(kind: ArrivalKind, taskId: string): number {
   return signed === 0 ? 1 : signed;
 }
 
-/** Notification ids owned by the scheduled-arrival feature for the current tasks. */
-export function ownedNotificationIds(tasks: Task[], dayStartHour: number): Set<number> {
-  const ids = new Set<number>();
-  for (const task of tasks) {
-    const arrival = taskArrival(task, dayStartHour);
-    if (arrival) ids.add(notificationId(arrival.kind, task.id));
-  }
-  return ids;
+/** True when an arrival key still matches an active, eligible task moment. */
+export function isArrivalKeyEligible(
+  key: string,
+  tasks: Task[],
+  dayStartHour: number,
+): boolean {
+  const taskId = key.split(":")[1];
+  if (!taskId) return false;
+  const match = tasks.find(t => t.id === taskId);
+  if (!match) return false;
+  const arrival = taskArrival(match, dayStartHour);
+  return arrival?.key === key;
 }
 
 /** Stable signature of the OS schedule set; used to skip redundant re-schedules. */
@@ -161,61 +165,82 @@ export function scheduleSignature(arrivals: TaskArrival[]): string {
 }
 
 /**
- * After a cold start, treat OS-scheduled arrivals that are no longer pending as
- * delivered so we do not re-notify inside the grace window.
+ * Mark arrivals delivered with explicit evidence (`active()` / `onNotificationReceived`).
+ * Does not infer delivery from a missing pending entry.
  */
-export function reconcileOsDelivered(
-  tasks: Task[],
-  now: number,
-  dayStartHour: number,
+export function reconcileDeliveredKeys(
+  deliveredKeys: ReadonlySet<string>,
   notified: ReadonlySet<string>,
-  osScheduled: ReadonlySet<string>,
-  pendingIds: ReadonlySet<number>,
-): { notified: Set<string>; osScheduled: Set<string> } {
+  registered: ReadonlyMap<string, number>,
+): { notified: Set<string>; registered: Map<string, number> } {
   let nextNotified = new Set(notified);
-  let nextOsScheduled = new Set(osScheduled);
+  let nextRegistered = new Map(registered);
 
-  for (const task of tasks) {
-    const arrival = taskArrival(task, dayStartHour);
-    if (!arrival || !isArrivalDue(arrival.at, now)) continue;
-    if (!nextOsScheduled.has(arrival.key)) continue;
-    if (pendingIds.has(notificationId(arrival.kind, arrival.task.id))) continue;
-
-    nextNotified = markNotified(nextNotified, arrival.key);
-    nextOsScheduled = clearOsScheduled(nextOsScheduled, arrival.key);
+  for (const key of deliveredKeys) {
+    if (!nextRegistered.has(key)) continue;
+    nextNotified = markNotified(nextNotified, key);
+    nextRegistered = unregisterOsNotification(nextRegistered, key);
   }
 
-  return { notified: nextNotified, osScheduled: nextOsScheduled };
+  return { notified: nextNotified, registered: nextRegistered };
 }
 
-/** Owned pending ids that are stale (not in the desired future schedule). */
-export function staleOwnedPendingIds(
-  ownedIds: ReadonlySet<number>,
-  desiredFutureIds: ReadonlySet<number>,
+/**
+ * Cancel registered OS notifications that are stale: the task is no longer eligible,
+ * the arrival key changed (kind/date/time), or the schedule is no longer desired.
+ */
+export function cancelStaleRegisteredPending(
+  registered: ReadonlyMap<string, number>,
+  desiredFutureKeys: ReadonlySet<string>,
+  tasks: Task[],
+  dayStartHour: number,
   pendingIds: ReadonlySet<number>,
-): number[] {
-  const stale: number[] = [];
-  for (const id of pendingIds) {
-    if (!ownedIds.has(id)) continue;
-    if (!desiredFutureIds.has(id)) stale.push(id);
+): { cancel: number[]; registered: Map<string, number> } {
+  const cancel: number[] = [];
+  let nextRegistered = new Map(registered);
+
+  for (const [key, id] of registered) {
+    const keep = desiredFutureKeys.has(key) && isArrivalKeyEligible(key, tasks, dayStartHour);
+    if (keep) continue;
+    if (pendingIds.has(id)) cancel.push(id);
+    nextRegistered = unregisterOsNotification(nextRegistered, key);
   }
-  return stale;
+
+  return { cancel, registered: nextRegistered };
 }
 
 export function loadNotifiedKeys(): Set<string> {
   return loadStringSet(NOTIFIED_STORAGE_KEY);
 }
 
-export function loadOsScheduledKeys(): Set<string> {
-  return loadStringSet(OS_SCHEDULED_STORAGE_KEY);
+export function loadRegisteredOsNotifications(): Map<string, number> {
+  if (typeof localStorage === "undefined") return new Map();
+  try {
+    const raw = localStorage.getItem(OS_REGISTERED_STORAGE_KEY);
+    if (!raw) return new Map();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return new Map();
+    const out = new Map<string, number>();
+    for (const [key, id] of Object.entries(parsed)) {
+      if (typeof key === "string" && typeof id === "number") out.set(key, id);
+    }
+    return out;
+  } catch {
+    return new Map();
+  }
 }
 
 export function saveNotifiedKeys(keys: ReadonlySet<string>): void {
   saveStringSet(NOTIFIED_STORAGE_KEY, keys);
 }
 
-export function saveOsScheduledKeys(keys: ReadonlySet<string>): void {
-  saveStringSet(OS_SCHEDULED_STORAGE_KEY, keys);
+export function saveRegisteredOsNotifications(registered: ReadonlyMap<string, number>): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(OS_REGISTERED_STORAGE_KEY, JSON.stringify(Object.fromEntries(registered)));
+  } catch {
+    // Quota or private mode — in-memory state still applies this session.
+  }
 }
 
 export function markNotified(keys: ReadonlySet<string>, key: string): Set<string> {
@@ -225,17 +250,24 @@ export function markNotified(keys: ReadonlySet<string>, key: string): Set<string
   return next;
 }
 
-export function markOsScheduled(keys: ReadonlySet<string>, key: string): Set<string> {
-  const next = new Set(keys);
-  next.add(key);
-  saveOsScheduledKeys(next);
+export function registerOsNotification(
+  registered: ReadonlyMap<string, number>,
+  key: string,
+  id: number,
+): Map<string, number> {
+  const next = new Map(registered);
+  next.set(key, id);
+  saveRegisteredOsNotifications(next);
   return next;
 }
 
-export function clearOsScheduled(keys: ReadonlySet<string>, key: string): Set<string> {
-  const next = new Set(keys);
+export function unregisterOsNotification(
+  registered: ReadonlyMap<string, number>,
+  key: string,
+): Map<string, number> {
+  const next = new Map(registered);
   next.delete(key);
-  saveOsScheduledKeys(next);
+  saveRegisteredOsNotifications(next);
   return next;
 }
 
@@ -250,14 +282,16 @@ export function pruneNotifiedKeys(keys: ReadonlySet<string>, taskIds: ReadonlySe
   return next;
 }
 
-/** Drop OS-scheduled keys for tasks that no longer exist. */
-export function pruneOsScheduledKeys(keys: ReadonlySet<string>, taskIds: ReadonlySet<string>): Set<string> {
-  const next = new Set<string>();
-  for (const key of keys) {
+/** Drop registered OS notifications for tasks that no longer exist. */
+export function pruneRegisteredOsNotifications(
+  registered: ReadonlyMap<string, number>,
+  taskIds: ReadonlySet<string>,
+): Map<string, number> {
+  let next = new Map(registered);
+  for (const key of registered.keys()) {
     const taskId = key.split(":")[1];
-    if (taskId && taskIds.has(taskId)) next.add(key);
+    if (!taskId || !taskIds.has(taskId)) next = unregisterOsNotification(next, key);
   }
-  if (next.size !== keys.size) saveOsScheduledKeys(next);
   return next;
 }
 
