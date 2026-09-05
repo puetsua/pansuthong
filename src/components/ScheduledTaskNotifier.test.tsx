@@ -2,12 +2,14 @@ import { render, act } from "@testing-library/react";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { ScheduledTaskNotifier } from "./ScheduledTaskNotifier";
 import { Task } from "../lib/tauri";
+import { markOsScheduled, notificationId } from "../lib/scheduledNotifications";
 
 const notification = vi.hoisted(() => ({
   isPermissionGranted: vi.fn(),
   requestPermission: vi.fn(),
   sendNotification: vi.fn(),
   pending: vi.fn(),
+  active: vi.fn(),
   cancel: vi.fn(),
   onNotificationReceived: vi.fn(),
   channels: vi.fn(),
@@ -18,15 +20,17 @@ const notification = vi.hoisted(() => ({
   },
 }));
 
+const platform = vi.hoisted(() => ({
+  isAndroid: vi.fn(),
+}));
+
 vi.mock("@tauri-apps/plugin-notification", () => ({
   ...notification,
   Schedule: notification.Schedule,
   Importance: notification.Importance,
 }));
 
-vi.mock("../lib/platform", () => ({
-  isAndroid: vi.fn().mockResolvedValue(false),
-}));
+vi.mock("../lib/platform", () => platform);
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -50,10 +54,12 @@ describe("ScheduledTaskNotifier", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 5, 8, 9, 5, 0, 0));
     localStorage.clear();
+    platform.isAndroid.mockResolvedValue(false);
     notification.isPermissionGranted.mockResolvedValue(true);
     notification.requestPermission.mockResolvedValue("granted");
     notification.sendNotification.mockClear();
     notification.pending.mockResolvedValue([]);
+    notification.active.mockResolvedValue([]);
     notification.cancel.mockResolvedValue(undefined);
     notification.onNotificationReceived.mockResolvedValue({ unregister: vi.fn() });
     notification.channels.mockResolvedValue([]);
@@ -100,6 +106,33 @@ describe("ScheduledTaskNotifier", () => {
     expect(immediate).toHaveLength(1);
   });
 
+  it("serializes concurrent checkDue calls", async () => {
+    let permissionWaits = 0;
+    notification.isPermissionGranted.mockImplementation(async () => {
+      permissionWaits++;
+      await Promise.resolve();
+      return true;
+    });
+
+    const { container } = render(
+      <ScheduledTaskNotifier
+        tasks={[task({ start_date: "2026-06-08", start_time: "09:00" })]}
+        dayStartHour={0}
+      />,
+    );
+
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    await act(async () => { await Promise.resolve(); });
+
+    const immediate = notification.sendNotification.mock.calls.filter(
+      ([arg]) => typeof arg === "object" && arg != null && !("schedule" in arg),
+    );
+    expect(immediate).toHaveLength(1);
+    expect(container).toBeTruthy();
+    expect(permissionWaits).toBeGreaterThan(0);
+  });
+
   it("schedules upcoming OS notifications", async () => {
     vi.setSystemTime(new Date(2026, 5, 8, 8, 0, 0, 0));
     render(
@@ -113,6 +146,82 @@ describe("ScheduledTaskNotifier", () => {
     expect(notification.sendNotification).toHaveBeenCalledWith(expect.objectContaining({
       schedule: expect.anything(),
     }));
+  });
+
+  it("does not re-schedule when the upcoming set is unchanged", async () => {
+    vi.setSystemTime(new Date(2026, 5, 8, 8, 0, 0, 0));
+    render(
+      <ScheduledTaskNotifier
+        tasks={[task({ start_date: "2026-06-08", start_time: "09:00" })]}
+        dayStartHour={0}
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+    const scheduleCalls = notification.sendNotification.mock.calls.filter(
+      ([arg]) => typeof arg === "object" && arg != null && "schedule" in arg,
+    ).length;
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+      await Promise.resolve();
+    });
+
+    const scheduleCallsAfter = notification.sendNotification.mock.calls.filter(
+      ([arg]) => typeof arg === "object" && arg != null && "schedule" in arg,
+    ).length;
+    expect(scheduleCallsAfter).toBe(scheduleCalls);
+  });
+
+  it("creates the Android channel before scheduling", async () => {
+    platform.isAndroid.mockResolvedValue(true);
+    vi.setSystemTime(new Date(2026, 5, 8, 8, 0, 0, 0));
+    render(
+      <ScheduledTaskNotifier
+        tasks={[task({ start_date: "2026-06-08", start_time: "09:00" })]}
+        dayStartHour={0}
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+    expect(notification.createChannel).toHaveBeenCalledWith(expect.objectContaining({
+      id: "scheduled-tasks",
+    }));
+  });
+
+  it("notifies even when a past-due pending id still exists", async () => {
+    const id = notificationId("start", "k_test");
+    notification.pending.mockResolvedValue([{ id, schedule: {} }]);
+    render(
+      <ScheduledTaskNotifier
+        tasks={[task({ start_date: "2026-06-08", start_time: "09:00" })]}
+        dayStartHour={0}
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+    const immediate = notification.sendNotification.mock.calls.filter(
+      ([arg]) => typeof arg === "object" && arg != null && !("schedule" in arg),
+    );
+    expect(immediate).toHaveLength(1);
+    expect(notification.cancel).toHaveBeenCalledWith([id]);
+  });
+
+  it("reconciles cold start after OS delivery", async () => {
+    const arrivalKey = "start:k_test:2026-06-08:09:00";
+    markOsScheduled(new Set(), arrivalKey);
+    notification.pending.mockResolvedValue([]);
+    notification.active.mockResolvedValue([]);
+
+    render(
+      <ScheduledTaskNotifier
+        tasks={[task({ start_date: "2026-06-08", start_time: "09:00" })]}
+        dayStartHour={0}
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+
+    const immediate = notification.sendNotification.mock.calls.filter(
+      ([arg]) => typeof arg === "object" && arg != null && !("schedule" in arg),
+    );
+    expect(immediate).toHaveLength(0);
   });
 
   it("skips completed tasks", async () => {
@@ -162,5 +271,30 @@ describe("ScheduledTaskNotifier", () => {
       ([arg]) => typeof arg === "object" && arg != null && !("schedule" in arg),
     );
     expect(immediateAfter).toHaveLength(0);
+  });
+
+  it("re-runs OS sync on resume", async () => {
+    vi.setSystemTime(new Date(2026, 5, 8, 8, 0, 0, 0));
+    const { rerender } = render(
+      <ScheduledTaskNotifier
+        tasks={[task({ start_date: "2026-06-08", start_time: "09:00" })]}
+        dayStartHour={0}
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+
+    rerender(
+      <ScheduledTaskNotifier
+        tasks={[task({ id: "k_other", start_date: "2026-06-08", start_time: "10:00", title: "Other" })]}
+        dayStartHour={0}
+      />,
+    );
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await act(async () => { await Promise.resolve(); });
+
+    expect(notification.sendNotification.mock.calls.some(
+      ([arg]) => typeof arg === "object" && arg != null && "schedule" in arg && arg.body === "Other",
+    )).toBe(true);
   });
 });

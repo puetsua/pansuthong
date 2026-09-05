@@ -35,14 +35,14 @@ Tasks store `start_date`/`start_time` and `due_date`/`due_time` as `YYYY-MM-DD` 
 
 ### 3. Hybrid scheduler
 
-- **Choice:** `ScheduledTaskNotifier` polls every 60s while mounted, listens for `visibilitychange`/`focus`, and syncs OS `Schedule.at` notifications for arrivals in the next seven days. Immediate `sendNotification` when an arrival is due and not yet notified, but skips the poll path when the same arrival still has a pending OS notification (avoids double-firing with the scheduler). `onNotificationReceived` marks arrivals delivered by the OS path.
+- **Choice:** `ScheduledTaskNotifier` runs one serialized tick chain (interval, focus, visibility) so overlapping checks cannot double-send. Due arrivals are claimed synchronously before any await; delivery runs before OS sync cancels stale pending entries. Cold-start reconciliation marks OS-scheduled arrivals as notified when they are due, were registered with the OS, and are no longer pending; `active()` extras are honored too. OS cancel only touches owned ids and only after the due path runs; future schedules are re-registered only when the upcoming signature changes.
 - **Why:** Polling alone misses sleep; OS schedule alone misses edits and may not persist when the process exits on desktop.
 - **Missed grace:** Notify on resume only if arrival was within the last hour (avoids spamming old tasks on first run).
 
 ### 4. Dedupe keys in localStorage
 
-- **Choice:** Key `pansuthong.scheduledArrivalNotified` stores `kind:taskId:YYYY-MM-DD:HH:MM` strings.
-- **Why:** Device-local, no schema change; survives restart.
+- **Choice:** Key `pansuthong.scheduledArrivalNotified` stores delivered arrival keys; `pansuthong.scheduledArrivalOsScheduled` tracks keys registered with the OS scheduler for cold-start reconciliation.
+- **Why:** Device-local, no schema change; survives restart and distinguishes OS-delivered vs never-scheduled arrivals.
 
 ### 5. Stable notification IDs
 

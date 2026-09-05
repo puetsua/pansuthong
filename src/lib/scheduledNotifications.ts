@@ -11,6 +11,9 @@ export type TaskArrival = {
   key: string;
 };
 
+/** Payload key stored on scheduled notifications for reconciliation. */
+export const ARRIVAL_KEY_EXTRA = "arrivalKey";
+
 /** How far ahead to register OS-scheduled notifications. */
 export const SCHEDULE_HORIZON_MS = 7 * 24 * 60 * 60 * 1000;
 /** Poll interval while the app is running. */
@@ -18,7 +21,9 @@ export const POLL_MS = 60_000;
 /** After this window a missed arrival is too stale to notify on resume. */
 export const MISSED_GRACE_MS = 60 * 60 * 1000;
 
-const STORAGE_KEY = "pansuthong.scheduledArrivalNotified";
+const NOTIFIED_STORAGE_KEY = "pansuthong.scheduledArrivalNotified";
+const OS_SCHEDULED_STORAGE_KEY = "pansuthong.scheduledArrivalOsScheduled";
+const NOTIFICATION_ID_PREFIX = "pansuthong.scheduled.";
 
 /** Which schedule field drives the arrival notification. */
 export function taskArrivalKind(task: Task): ArrivalKind | null {
@@ -83,14 +88,11 @@ export function shouldNotifyImmediately(
   arrival: TaskArrival,
   now: number,
   notified: ReadonlySet<string>,
-  pendingIds: ReadonlySet<number>,
+  claimed: ReadonlySet<string>,
   graceMs = MISSED_GRACE_MS,
 ): boolean {
-  if (notified.has(arrival.key)) return false;
-  if (!isArrivalDue(arrival.at, now, graceMs)) return false;
-  // An OS-scheduled notification still pending will deliver on its own.
-  if (pendingIds.has(notificationId(arrival.kind, arrival.task.id))) return false;
-  return true;
+  if (notified.has(arrival.key) || claimed.has(arrival.key)) return false;
+  return isArrivalDue(arrival.at, now, graceMs);
 }
 
 /** Arrivals that should notify immediately at `now`. */
@@ -99,13 +101,13 @@ export function arrivalsDueNow(
   now: number,
   dayStartHour: number,
   notified: ReadonlySet<string>,
-  pendingIds: ReadonlySet<number> = new Set(),
+  claimed: ReadonlySet<string> = new Set(),
 ): TaskArrival[] {
   const out: TaskArrival[] = [];
   for (const task of tasks) {
     const arrival = taskArrival(task, dayStartHour);
     if (!arrival) continue;
-    if (shouldNotifyImmediately(arrival, now, notified, pendingIds)) out.push(arrival);
+    if (shouldNotifyImmediately(arrival, now, notified, claimed)) out.push(arrival);
   }
   return out;
 }
@@ -130,40 +132,110 @@ export function upcomingArrivals(
 
 /** 32-bit signed notification id for the Tauri plugin (cancel/reschedule). */
 export function notificationId(kind: ArrivalKind, taskId: string): number {
-  const input = `${kind}:${taskId}`;
-  let hash = 0;
+  const input = `${NOTIFICATION_ID_PREFIX}${kind}.${taskId}`;
+  let hash = 0x811c9dc5;
   for (let i = 0; i < input.length; i++) {
-    hash = (hash * 31 + input.charCodeAt(i)) | 0;
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
   }
-  return hash === 0 ? 1 : hash;
+  const signed = hash | 0;
+  return signed === 0 ? 1 : signed;
+}
+
+/** Notification ids owned by the scheduled-arrival feature for the current tasks. */
+export function ownedNotificationIds(tasks: Task[], dayStartHour: number): Set<number> {
+  const ids = new Set<number>();
+  for (const task of tasks) {
+    const arrival = taskArrival(task, dayStartHour);
+    if (arrival) ids.add(notificationId(arrival.kind, task.id));
+  }
+  return ids;
+}
+
+/** Stable signature of the OS schedule set; used to skip redundant re-schedules. */
+export function scheduleSignature(arrivals: TaskArrival[]): string {
+  return arrivals
+    .map(a => a.key)
+    .sort()
+    .join("|");
+}
+
+/**
+ * After a cold start, treat OS-scheduled arrivals that are no longer pending as
+ * delivered so we do not re-notify inside the grace window.
+ */
+export function reconcileOsDelivered(
+  tasks: Task[],
+  now: number,
+  dayStartHour: number,
+  notified: ReadonlySet<string>,
+  osScheduled: ReadonlySet<string>,
+  pendingIds: ReadonlySet<number>,
+): { notified: Set<string>; osScheduled: Set<string> } {
+  let nextNotified = new Set(notified);
+  let nextOsScheduled = new Set(osScheduled);
+
+  for (const task of tasks) {
+    const arrival = taskArrival(task, dayStartHour);
+    if (!arrival || !isArrivalDue(arrival.at, now)) continue;
+    if (!nextOsScheduled.has(arrival.key)) continue;
+    if (pendingIds.has(notificationId(arrival.kind, arrival.task.id))) continue;
+
+    nextNotified = markNotified(nextNotified, arrival.key);
+    nextOsScheduled = clearOsScheduled(nextOsScheduled, arrival.key);
+  }
+
+  return { notified: nextNotified, osScheduled: nextOsScheduled };
+}
+
+/** Owned pending ids that are stale (not in the desired future schedule). */
+export function staleOwnedPendingIds(
+  ownedIds: ReadonlySet<number>,
+  desiredFutureIds: ReadonlySet<number>,
+  pendingIds: ReadonlySet<number>,
+): number[] {
+  const stale: number[] = [];
+  for (const id of pendingIds) {
+    if (!ownedIds.has(id)) continue;
+    if (!desiredFutureIds.has(id)) stale.push(id);
+  }
+  return stale;
 }
 
 export function loadNotifiedKeys(): Set<string> {
-  if (typeof localStorage === "undefined") return new Set();
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((k): k is string => typeof k === "string"));
-  } catch {
-    return new Set();
-  }
+  return loadStringSet(NOTIFIED_STORAGE_KEY);
+}
+
+export function loadOsScheduledKeys(): Set<string> {
+  return loadStringSet(OS_SCHEDULED_STORAGE_KEY);
 }
 
 export function saveNotifiedKeys(keys: ReadonlySet<string>): void {
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...keys]));
-  } catch {
-    // Quota or private mode — in-memory dedupe still applies this session.
-  }
+  saveStringSet(NOTIFIED_STORAGE_KEY, keys);
+}
+
+export function saveOsScheduledKeys(keys: ReadonlySet<string>): void {
+  saveStringSet(OS_SCHEDULED_STORAGE_KEY, keys);
 }
 
 export function markNotified(keys: ReadonlySet<string>, key: string): Set<string> {
   const next = new Set(keys);
   next.add(key);
   saveNotifiedKeys(next);
+  return next;
+}
+
+export function markOsScheduled(keys: ReadonlySet<string>, key: string): Set<string> {
+  const next = new Set(keys);
+  next.add(key);
+  saveOsScheduledKeys(next);
+  return next;
+}
+
+export function clearOsScheduled(keys: ReadonlySet<string>, key: string): Set<string> {
+  const next = new Set(keys);
+  next.delete(key);
+  saveOsScheduledKeys(next);
   return next;
 }
 
@@ -176,4 +248,37 @@ export function pruneNotifiedKeys(keys: ReadonlySet<string>, taskIds: ReadonlySe
   }
   if (next.size !== keys.size) saveNotifiedKeys(next);
   return next;
+}
+
+/** Drop OS-scheduled keys for tasks that no longer exist. */
+export function pruneOsScheduledKeys(keys: ReadonlySet<string>, taskIds: ReadonlySet<string>): Set<string> {
+  const next = new Set<string>();
+  for (const key of keys) {
+    const taskId = key.split(":")[1];
+    if (taskId && taskIds.has(taskId)) next.add(key);
+  }
+  if (next.size !== keys.size) saveOsScheduledKeys(next);
+  return next;
+}
+
+function loadStringSet(storageKey: string): Set<string> {
+  if (typeof localStorage === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((k): k is string => typeof k === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveStringSet(storageKey: string, keys: ReadonlySet<string>): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(storageKey, JSON.stringify([...keys]));
+  } catch {
+    // Quota or private mode — in-memory state still applies this session.
+  }
 }

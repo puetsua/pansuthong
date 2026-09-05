@@ -3,13 +3,20 @@ import { Task } from "./tauri";
 import {
   arrivalKey,
   arrivalsDueNow,
+  clearOsScheduled,
   isArrivalDue,
   loadNotifiedKeys,
+  loadOsScheduledKeys,
   markNotified,
+  markOsScheduled,
   notificationId,
+  ownedNotificationIds,
   pruneNotifiedKeys,
+  reconcileOsDelivered,
   saveNotifiedKeys,
+  scheduleSignature,
   shouldNotifyImmediately,
+  staleOwnedPendingIds,
   taskArrival,
   taskArrivalKind,
   taskArrivalMoment,
@@ -89,12 +96,18 @@ describe("isArrivalDue", () => {
 });
 
 describe("shouldNotifyImmediately", () => {
-  it("skips when an OS-scheduled notification is still pending", () => {
+  it("skips claimed arrivals", () => {
     const t = task({ id: "k_a", start_date: "2026-06-08", start_time: "09:00" });
     const arrival = taskArrival(t, 0)!;
     const now = arrival.at.getTime() + 1000;
-    const pendingIds = new Set([notificationId("start", "k_a")]);
-    expect(shouldNotifyImmediately(arrival, now, new Set(), pendingIds)).toBe(false);
+    expect(shouldNotifyImmediately(arrival, now, new Set(), new Set([arrival.key]))).toBe(false);
+  });
+
+  it("does not skip due arrivals because of pending ids", () => {
+    const t = task({ id: "k_a", start_date: "2026-06-08", start_time: "09:00" });
+    const arrival = taskArrival(t, 0)!;
+    const now = arrival.at.getTime() + 1000;
+    expect(shouldNotifyImmediately(arrival, now, new Set(), new Set())).toBe(true);
   });
 });
 
@@ -132,6 +145,57 @@ describe("upcomingArrivals", () => {
   });
 });
 
+describe("reconcileOsDelivered", () => {
+  it("marks due OS-scheduled arrivals as notified when no longer pending", () => {
+    const t = task({ id: "k_a", start_date: "2026-06-08", start_time: "09:00" });
+    const arrival = taskArrival(t, 0)!;
+    const now = arrival.at.getTime() + 1000;
+    const osScheduled = markOsScheduled(new Set(), arrival.key);
+    const result = reconcileOsDelivered([t], now, 0, new Set(), osScheduled, new Set());
+    expect(result.notified.has(arrival.key)).toBe(true);
+    expect(result.osScheduled.has(arrival.key)).toBe(false);
+  });
+
+  it("keeps due arrivals pending for immediate delivery", () => {
+    const t = task({ id: "k_a", start_date: "2026-06-08", start_time: "09:00" });
+    const arrival = taskArrival(t, 0)!;
+    const now = arrival.at.getTime() + 1000;
+    const pendingIds = new Set([notificationId("start", "k_a")]);
+    const osScheduled = markOsScheduled(new Set(), arrival.key);
+    const result = reconcileOsDelivered([t], now, 0, new Set(), osScheduled, pendingIds);
+    expect(result.notified.has(arrival.key)).toBe(false);
+    expect(result.osScheduled.has(arrival.key)).toBe(true);
+  });
+});
+
+describe("staleOwnedPendingIds", () => {
+  it("cancels only owned ids that are not desired future schedules", () => {
+    const owned = new Set([10, 20, 30]);
+    const desired = new Set([20]);
+    const pending = new Set([10, 20, 99]);
+    expect(staleOwnedPendingIds(owned, desired, pending)).toEqual([10]);
+  });
+});
+
+describe("ownedNotificationIds", () => {
+  it("includes ids for schedulable tasks only", () => {
+    const ids = ownedNotificationIds([
+      task({ id: "k_a", start_date: "2026-06-08" }),
+      task({ id: "k_b" }),
+    ], 0);
+    expect(ids.has(notificationId("start", "k_a"))).toBe(true);
+    expect(ids.size).toBe(1);
+  });
+});
+
+describe("scheduleSignature", () => {
+  it("changes when the upcoming set changes", () => {
+    const a = taskArrival(task({ start_date: "2026-06-08", start_time: "09:00" }), 0)!;
+    const b = taskArrival(task({ start_date: "2026-06-09", start_time: "09:00" }), 0)!;
+    expect(scheduleSignature([a])).not.toBe(scheduleSignature([a, b]));
+  });
+});
+
 describe("notificationId", () => {
   it("is stable and non-zero", () => {
     const a = notificationId("start", "k_abc");
@@ -142,6 +206,10 @@ describe("notificationId", () => {
 
   it("differs by kind", () => {
     expect(notificationId("start", "k_abc")).not.toBe(notificationId("due", "k_abc"));
+  });
+
+  it("differs by task id", () => {
+    expect(notificationId("start", "k_abc")).not.toBe(notificationId("start", "k_xyz"));
   });
 });
 
@@ -164,5 +232,12 @@ describe("notified key persistence", () => {
     saveNotifiedKeys(new Set(["start:k_a:2026-06-08:09:00", "due:k_b:2026-06-09:10:00"]));
     const pruned = pruneNotifiedKeys(loadNotifiedKeys(), new Set(["k_a"]));
     expect([...pruned]).toEqual(["start:k_a:2026-06-08:09:00"]);
+  });
+
+  it("tracks OS-scheduled keys separately", () => {
+    const keys = markOsScheduled(new Set(), "start:k_a:2026-06-08:09:00");
+    expect(loadOsScheduledKeys().has("start:k_a:2026-06-08:09:00")).toBe(true);
+    const cleared = clearOsScheduled(keys, "start:k_a:2026-06-08:09:00");
+    expect(cleared.has("start:k_a:2026-06-08:09:00")).toBe(false);
   });
 });
