@@ -131,8 +131,8 @@ export function upcomingArrivals(
 }
 
 /** 32-bit signed notification id for the Tauri plugin (cancel/reschedule). */
-export function notificationId(kind: ArrivalKind, taskId: string): number {
-  const input = `${NOTIFICATION_ID_PREFIX}${kind}.${taskId}`;
+export function notificationIdForKey(arrivalKey: string): number {
+  const input = `${NOTIFICATION_ID_PREFIX}${arrivalKey}`;
   let hash = 0x811c9dc5;
   for (let i = 0; i < input.length; i++) {
     hash ^= input.charCodeAt(i);
@@ -140,6 +140,23 @@ export function notificationId(kind: ArrivalKind, taskId: string): number {
   }
   const signed = hash | 0;
   return signed === 0 ? 1 : signed;
+}
+
+/** @deprecated Prefer `notificationIdForKey(arrival.key)` so edits get distinct ids. */
+export function notificationId(kind: ArrivalKind, taskId: string): number {
+  return notificationIdForKey(`${kind}:${taskId}`);
+}
+
+/** Parse the local arrival instant encoded in an arrival key. */
+export function arrivalMomentFromKey(key: string): Date | undefined {
+  const parts = key.split(":");
+  if (parts.length < 5) return undefined;
+  const [year, month, day] = parts[2].split("-").map(Number);
+  const hour = Number(parts[3]);
+  const minute = Number(parts[4]);
+  if (!year || !month || !day || !Number.isFinite(hour) || !Number.isFinite(minute)) return undefined;
+  const at = new Date(year, month - 1, day, hour, minute, 0, 0);
+  return Number.isNaN(at.getTime()) ? undefined : at;
 }
 
 /** True when an arrival key still matches an active, eligible task moment. */
@@ -165,8 +182,8 @@ export function scheduleSignature(arrivals: TaskArrival[]): string {
 }
 
 /**
- * Mark arrivals delivered with explicit evidence (`active()` / `onNotificationReceived`).
- * Does not infer delivery from a missing pending entry.
+ * Mark arrivals delivered with explicit evidence (`active()` / `onNotificationReceived`),
+ * or OS background delivery on platforms that honor scheduled notifications.
  */
 export function reconcileDeliveredKeys(
   deliveredKeys: ReadonlySet<string>,
@@ -183,6 +200,29 @@ export function reconcileDeliveredKeys(
   }
 
   return { notified: nextNotified, registered: nextRegistered };
+}
+
+/**
+ * Infer OS delivery while the app was inactive: registered, due, and no longer pending.
+ * Used on Android where `Schedule.at` can fire while backgrounded; desktop may not.
+ */
+export function reconcileOsBackgroundDelivered(
+  registered: ReadonlyMap<string, number>,
+  now: number,
+  pendingIds: ReadonlySet<number>,
+  trustBackgroundDelivery: boolean,
+): Set<string> {
+  const delivered = new Set<string>();
+  if (!trustBackgroundDelivery) return delivered;
+
+  for (const [key, id] of registered) {
+    const at = arrivalMomentFromKey(key);
+    if (!at || !isArrivalDue(at, now)) continue;
+    if (pendingIds.has(id)) continue;
+    delivered.add(key);
+  }
+
+  return delivered;
 }
 
 /**
@@ -279,19 +319,6 @@ export function pruneNotifiedKeys(keys: ReadonlySet<string>, taskIds: ReadonlySe
     if (taskId && taskIds.has(taskId)) next.add(key);
   }
   if (next.size !== keys.size) saveNotifiedKeys(next);
-  return next;
-}
-
-/** Drop registered OS notifications for tasks that no longer exist. */
-export function pruneRegisteredOsNotifications(
-  registered: ReadonlyMap<string, number>,
-  taskIds: ReadonlySet<string>,
-): Map<string, number> {
-  let next = new Map(registered);
-  for (const key of registered.keys()) {
-    const taskId = key.split(":")[1];
-    if (!taskId || !taskIds.has(taskId)) next = unregisterOsNotification(next, key);
-  }
   return next;
 }
 

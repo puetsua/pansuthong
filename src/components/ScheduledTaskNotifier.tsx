@@ -25,10 +25,10 @@ import {
   loadNotifiedKeys,
   loadRegisteredOsNotifications,
   markNotified,
-  notificationId,
+  notificationIdForKey,
   pruneNotifiedKeys,
-  pruneRegisteredOsNotifications,
   reconcileDeliveredKeys,
+  reconcileOsBackgroundDelivered,
   registerOsNotification,
   scheduleSignature,
   unregisterOsNotification,
@@ -76,7 +76,7 @@ function notifyArrival(arrival: TaskArrival, title: string, channelId?: string):
 
 function scheduleArrival(arrival: TaskArrival, title: string, channelId?: string): void {
   sendNotification({
-    id: notificationId(arrival.kind, arrival.task.id),
+    id: notificationIdForKey(arrival.key),
     title,
     body: arrival.task.title,
     channelId,
@@ -135,7 +135,6 @@ export function ScheduledTaskNotifier({ tasks, dayStartHour }: Props) {
 
       const taskIds = new Set(tasksRef.current.map(task => task.id));
       notifiedRef.current = pruneNotifiedKeys(notifiedRef.current, taskIds);
-      registeredRef.current = pruneRegisteredOsNotifications(registeredRef.current, taskIds);
 
       const now = Date.now();
       let pendingIds = new Set<number>();
@@ -153,6 +152,15 @@ export function ScheduledTaskNotifier({ tasks, dayStartHour }: Props) {
         }
       } catch {
         // active() may be unavailable on some platforms.
+      }
+
+      for (const key of reconcileOsBackgroundDelivered(
+        registeredRef.current,
+        now,
+        pendingIds,
+        await isAndroid(),
+      )) {
+        deliveredKeys.add(key);
       }
 
       const reconciled = reconcileDeliveredKeys(
@@ -191,7 +199,7 @@ export function ScheduledTaskNotifier({ tasks, dayStartHour }: Props) {
           registeredRef.current = unregisterOsNotification(registeredRef.current, arrival.key);
           claimedRef.current.delete(arrival.key);
           try {
-            await cancel([notificationId(arrival.kind, arrival.task.id)]);
+            await cancel([notificationIdForKey(arrival.key)]);
           } catch {
             // Ignore — may already have fired or be unsupported.
           }
@@ -229,7 +237,7 @@ export function ScheduledTaskNotifier({ tasks, dayStartHour }: Props) {
       for (const arrival of upcoming) {
         if (notifiedRef.current.has(arrival.key)) continue;
         try {
-          const id = notificationId(arrival.kind, arrival.task.id);
+          const id = notificationIdForKey(arrival.key);
           scheduleArrival(arrival, titleFor(arrival.kind), channelId);
           registeredRef.current = registerOsNotification(registeredRef.current, arrival.key, id);
         } catch {

@@ -10,8 +10,10 @@ import {
   loadRegisteredOsNotifications,
   markNotified,
   notificationId,
+  notificationIdForKey,
   pruneNotifiedKeys,
   reconcileDeliveredKeys,
+  reconcileOsBackgroundDelivered,
   registerOsNotification,
   saveNotifiedKeys,
   scheduleSignature,
@@ -165,27 +167,37 @@ describe("isArrivalKeyEligible", () => {
 });
 
 describe("reconcileDeliveredKeys", () => {
-  it("marks registered arrivals only with explicit delivered evidence", () => {
+  it("marks registered arrivals with explicit delivered evidence", () => {
     const arrival = taskArrival(task({ id: "k_a", start_date: "2026-06-08", start_time: "09:00" }), 0)!;
-    const registered = registerOsNotification(new Map(), arrival.key, notificationId("start", "k_a"));
+    const registered = registerOsNotification(new Map(), arrival.key, notificationIdForKey(arrival.key));
     const result = reconcileDeliveredKeys(new Set([arrival.key]), new Set(), registered);
     expect(result.notified.has(arrival.key)).toBe(true);
     expect(result.registered.has(arrival.key)).toBe(false);
   });
+});
 
-  it("does not infer delivery from a missing pending entry", () => {
+describe("reconcileOsBackgroundDelivered", () => {
+  it("infers delivery on Android when registered, due, and not pending", () => {
     const arrival = taskArrival(task({ id: "k_a", start_date: "2026-06-08", start_time: "09:00" }), 0)!;
-    const registered = registerOsNotification(new Map(), arrival.key, notificationId("start", "k_a"));
-    const result = reconcileDeliveredKeys(new Set(), new Set(), registered);
-    expect(result.notified.has(arrival.key)).toBe(false);
-    expect(result.registered.has(arrival.key)).toBe(true);
+    const registered = registerOsNotification(new Map(), arrival.key, notificationIdForKey(arrival.key));
+    const now = arrival.at.getTime() + 1000;
+    const delivered = reconcileOsBackgroundDelivered(registered, now, new Set(), true);
+    expect(delivered.has(arrival.key)).toBe(true);
+  });
+
+  it("does not infer delivery on desktop without explicit evidence", () => {
+    const arrival = taskArrival(task({ id: "k_a", start_date: "2026-06-08", start_time: "09:00" }), 0)!;
+    const registered = registerOsNotification(new Map(), arrival.key, notificationIdForKey(arrival.key));
+    const now = arrival.at.getTime() + 1000;
+    const delivered = reconcileOsBackgroundDelivered(registered, now, new Set(), false);
+    expect(delivered.size).toBe(0);
   });
 });
 
 describe("cancelStaleRegisteredPending", () => {
   it("cancels orphan pending ids when a task is completed", () => {
     const arrival = taskArrival(task({ id: "k_a", start_date: "2026-06-09", start_time: "09:00" }), 0)!;
-    const id = notificationId("start", "k_a");
+    const id = notificationIdForKey(arrival.key);
     const registered = registerOsNotification(new Map(), arrival.key, id);
     const completed = task({
       id: "k_a",
@@ -204,9 +216,24 @@ describe("cancelStaleRegisteredPending", () => {
     expect(result.registered.has(arrival.key)).toBe(false);
   });
 
+  it("cancels pending ids for registered keys whose tasks were deleted", () => {
+    const key = "start:k_gone:2026-06-09:09:00";
+    const id = notificationIdForKey(key);
+    const registered = registerOsNotification(new Map(), key, id);
+    const result = cancelStaleRegisteredPending(
+      registered,
+      new Set(),
+      [],
+      0,
+      new Set([id]),
+    );
+    expect(result.cancel).toEqual([id]);
+    expect(result.registered.has(key)).toBe(false);
+  });
+
   it("cancels orphan pending ids when the arrival kind changes", () => {
     const oldKey = arrivalKey("start", "k_a", new Date(2026, 5, 9, 9, 0, 0, 0));
-    const id = notificationId("start", "k_a");
+    const id = notificationIdForKey(oldKey);
     const registered = registerOsNotification(new Map(), oldKey, id);
     const dueOnly = task({ id: "k_a", due_date: "2026-06-09", due_time: "09:00" });
     const newArrival = taskArrival(dueOnly, 0)!;
@@ -223,7 +250,7 @@ describe("cancelStaleRegisteredPending", () => {
 
   it("keeps desired future registrations", () => {
     const arrival = taskArrival(task({ id: "k_a", start_date: "2026-06-09", start_time: "09:00" }), 0)!;
-    const id = notificationId("start", "k_a");
+    const id = notificationIdForKey(arrival.key);
     const registered = registerOsNotification(new Map(), arrival.key, id);
     const result = cancelStaleRegisteredPending(
       registered,
@@ -245,20 +272,30 @@ describe("scheduleSignature", () => {
   });
 });
 
-describe("notificationId", () => {
+describe("notificationIdForKey", () => {
   it("is stable and non-zero", () => {
-    const a = notificationId("start", "k_abc");
-    const b = notificationId("start", "k_abc");
+    const key = "start:k_abc:2026-06-08:09:00";
+    const a = notificationIdForKey(key);
+    const b = notificationIdForKey(key);
     expect(a).toBe(b);
     expect(a).not.toBe(0);
   });
 
-  it("differs by kind", () => {
-    expect(notificationId("start", "k_abc")).not.toBe(notificationId("due", "k_abc"));
+  it("differs when the arrival moment changes", () => {
+    const a = notificationIdForKey("start:k_abc:2026-06-08:09:00");
+    const b = notificationIdForKey("start:k_abc:2026-06-08:10:00");
+    expect(a).not.toBe(b);
   });
 
-  it("differs by task id", () => {
-    expect(notificationId("start", "k_abc")).not.toBe(notificationId("start", "k_xyz"));
+  it("differs by kind for the same task and moment", () => {
+    expect(notificationIdForKey("start:k_abc:2026-06-08:09:00"))
+      .not.toBe(notificationIdForKey("due:k_abc:2026-06-08:09:00"));
+  });
+});
+
+describe("notificationId", () => {
+  it("remains available for legacy callers", () => {
+    expect(notificationId("start", "k_abc")).not.toBe(0);
   });
 });
 

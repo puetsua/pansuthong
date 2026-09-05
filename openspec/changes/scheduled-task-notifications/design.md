@@ -35,7 +35,7 @@ Tasks store `start_date`/`start_time` and `due_date`/`due_time` as `YYYY-MM-DD` 
 
 ### 3. Hybrid scheduler
 
-- **Choice:** `ScheduledTaskNotifier` runs one serialized tick chain (interval, focus, visibility) so overlapping checks cannot double-send. Due arrivals are claimed synchronously before any await; delivery runs before OS sync cancels stale pending entries. Delivery reconciliation only marks arrivals when `active()` / `onNotificationReceived` provide explicit evidence — not when pending disappears. Registered OS ids are persisted and cancelled when no longer desired or eligible, including orphans from completed/deleted/kind-changed tasks.
+- **Choice:** `ScheduledTaskNotifier` runs one serialized tick chain (interval, focus, visibility) so overlapping checks cannot double-send. Due arrivals are claimed synchronously before any await; delivery runs before OS sync cancels stale pending entries. Delivery reconciliation marks arrivals when `active()` / `onNotificationReceived` provide explicit evidence, and on Android also when a registered arrival is due but no longer pending (OS fired while backgrounded). `cancelStaleRegisteredPending` runs against the full persisted registered map — never prune registered keys before cancel, or deleted tasks leave orphan `Schedule.at` entries. Registered OS ids are persisted and cancelled when no longer desired or eligible, including orphans from completed/deleted/kind-changed tasks.
 - **Why:** Polling alone misses sleep; OS schedule alone misses edits and may not persist when the process exits on desktop.
 - **Missed grace:** Notify on resume only if arrival was within the last hour (avoids spamming old tasks on first run).
 
@@ -46,12 +46,13 @@ Tasks store `start_date`/`start_time` and `due_date`/`due_time` as `YYYY-MM-DD` 
 
 ### 5. Stable notification IDs
 
-- **Choice:** 32-bit id from hashing `kind` + task id (required by the plugin for cancel/reschedule).
-- **Why:** Lets us replace pending OS notifications when tasks change.
+- **Choice:** 32-bit id from hashing the full arrival key (`kind` + task id + date + time) (required by the plugin for cancel/reschedule).
+- **Why:** Lets us replace pending OS notifications when tasks change without reusing an id across different arrival instants.
 
 ## Risks / Trade-offs
 
 - **[Risk] Desktop app closed** → OS schedule may not fire; documented limitation.
+- **[Risk] Desktop cold start after OS delivery** → tray cleared before open may re-notify within the 1h grace (Android uses background-delivery reconcile).
 - **[Risk] Permission denied** → silent no-op (same as estimate reminders).
 - **[Risk] Clock / DST** → use local `Date` construction from date+time fields (same as rest of app).
 
