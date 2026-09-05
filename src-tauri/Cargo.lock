@@ -2925,6 +2925,7 @@ dependencies = [
 name = "pansuthong"
 version = "0.1.0"
 dependencies = [
+ "android_system_properties",
  "chrono",
  "gtk",
  "notify",
