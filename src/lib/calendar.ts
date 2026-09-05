@@ -116,3 +116,13 @@ export function shiftMonth(yearMonth: string, delta: number): string {
 export function shiftWeek(iso: string, weeks: number): string {
   return addDaysIso(iso, weeks * 7);
 }
+
+/** YYYY-MM month key for an ISO date. */
+export function monthOf(iso: string): string {
+  return iso.slice(0, 7);
+}
+
+/** Move `focusIso` by `delta` months, keeping the day when possible (clamped). */
+export function shiftFocusMonth(focusIso: string, delta: number): string {
+  return dayjs(focusIso).add(delta, "month").format("YYYY-MM-DD");
+}

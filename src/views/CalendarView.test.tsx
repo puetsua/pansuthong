@@ -81,4 +81,36 @@ describe("CalendarView", () => {
     expect(screen.getAllByRole("checkbox").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /start timer/i })).toBeNull();
   });
+
+  it("keeps week view aligned after month navigation", () => {
+    const indexes = buildIndexes(doc, "2026-09-05");
+    render(
+      <MemoryRouter>
+        <CalendarView doc={doc} indexes={indexes} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByLabelText("Next month"));
+    fireEvent.click(screen.getByRole("button", { name: "Week" }));
+
+    // Oct 5 week (Mon Oct 5 – Sun Oct 11) — not September's week.
+    expect(screen.getByText(/Oct 5, 2026/i)).toBeTruthy();
+    expect(screen.queryByText(/Sep 5, 2026/i)).toBeNull();
+  });
+
+  it("keeps month view aligned after week navigation", () => {
+    const indexes = buildIndexes(doc, "2026-09-05");
+    render(
+      <MemoryRouter>
+        <CalendarView doc={doc} indexes={indexes} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Week" }));
+    for (let i = 0; i < 4; i++) fireEvent.click(screen.getByLabelText("Next week"));
+    fireEvent.click(screen.getByRole("button", { name: "Month" }));
+
+    expect(screen.getByText("Oct 2026")).toBeTruthy();
+    expect(screen.queryByText("Sep 2026")).toBeNull();
+  });
 });

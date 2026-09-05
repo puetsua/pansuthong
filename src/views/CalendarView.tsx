@@ -12,8 +12,8 @@ import {
   buildMonthGrid,
   buildWeekDays,
   monthChipSlice,
-  shiftMonth,
   shiftWeek,
+  shiftFocusMonth,
   weekStartIso,
 } from "../lib/calendar";
 import { addDaysIso, formatIsoDate } from "../lib/dates";
@@ -41,7 +41,7 @@ export function CalendarView({ doc, indexes }: Props) {
   const isMobile = useIsMobile();
   const [mode, setMode] = useState<CalendarMode>("month");
   const [focusIso, setFocusIso] = useState(today);
-  const [viewMonth, setViewMonth] = useState(() => today.slice(0, 7));
+  const viewMonth = focusIso.slice(0, 7);
   const { held, onCompleted, onReopened } = useHeldCompletions(doc.tasks);
 
   const weekStart = weekStartIso(focusIso, fdow);
@@ -64,13 +64,11 @@ export function CalendarView({ doc, indexes }: Props) {
 
   const goDay = (iso: string) => {
     setFocusIso(iso);
-    setViewMonth(iso.slice(0, 7));
     setMode("day");
   };
 
   const jumpToday = () => {
     setFocusIso(today);
-    setViewMonth(today.slice(0, 7));
   };
 
   const periodLabel = mode === "month"
@@ -80,13 +78,13 @@ export function CalendarView({ doc, indexes }: Props) {
       : formatDayTitle(focusIso, today, t, dateFmt, locale);
 
   const prevPeriod = () => {
-    if (mode === "month") setViewMonth(m => shiftMonth(m, -1));
+    if (mode === "month") setFocusIso(iso => shiftFocusMonth(iso, -1));
     else if (mode === "week") setFocusIso(iso => shiftWeek(iso, -1));
     else setFocusIso(iso => addDaysIso(iso, -1));
   };
 
   const nextPeriod = () => {
-    if (mode === "month") setViewMonth(m => shiftMonth(m, 1));
+    if (mode === "month") setFocusIso(iso => shiftFocusMonth(iso, 1));
     else if (mode === "week") setFocusIso(iso => shiftWeek(iso, 1));
     else setFocusIso(iso => addDaysIso(iso, 1));
   };

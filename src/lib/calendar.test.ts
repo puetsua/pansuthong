@@ -8,6 +8,7 @@ import {
   monthChipSlice,
   shiftMonth,
   shiftWeek,
+  shiftFocusMonth,
   summarizeCalendarDay,
   taskOnDate,
   weekStartIso,
@@ -118,6 +119,17 @@ describe("week indexing", () => {
   it("shifts by whole weeks", () => {
     expect(shiftWeek("2026-09-05", 1)).toBe("2026-09-12");
     expect(shiftWeek("2026-09-05", -1)).toBe("2026-08-29");
+  });
+});
+
+describe("shiftFocusMonth", () => {
+  it("keeps the day when the target month has enough days", () => {
+    expect(shiftFocusMonth("2026-09-05", 1)).toBe("2026-10-05");
+    expect(shiftFocusMonth("2026-09-05", -1)).toBe("2026-08-05");
+  });
+
+  it("clamps to the last day when the target month is shorter", () => {
+    expect(shiftFocusMonth("2026-01-31", 1)).toBe("2026-02-28");
   });
 });
 
