@@ -9,6 +9,7 @@ import {
   notificationId,
   pruneNotifiedKeys,
   saveNotifiedKeys,
+  shouldNotifyImmediately,
   taskArrival,
   taskArrivalKind,
   taskArrivalMoment,
@@ -84,6 +85,16 @@ describe("isArrivalDue", () => {
 
   it("is not due after grace expires", () => {
     expect(isArrivalDue(at, at.getTime() + 61 * 60_000)).toBe(false);
+  });
+});
+
+describe("shouldNotifyImmediately", () => {
+  it("skips when an OS-scheduled notification is still pending", () => {
+    const t = task({ id: "k_a", start_date: "2026-06-08", start_time: "09:00" });
+    const arrival = taskArrival(t, 0)!;
+    const now = arrival.at.getTime() + 1000;
+    const pendingIds = new Set([notificationId("start", "k_a")]);
+    expect(shouldNotifyImmediately(arrival, now, new Set(), pendingIds)).toBe(false);
   });
 });
 

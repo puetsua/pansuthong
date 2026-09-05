@@ -35,7 +35,7 @@ Tasks store `start_date`/`start_time` and `due_date`/`due_time` as `YYYY-MM-DD` 
 
 ### 3. Hybrid scheduler
 
-- **Choice:** `ScheduledTaskNotifier` polls every 60s while mounted, listens for `visibilitychange`/`focus`, and syncs OS `Schedule.at` notifications for arrivals in the next seven days. Immediate `sendNotification` when an arrival is due and not yet notified.
+- **Choice:** `ScheduledTaskNotifier` polls every 60s while mounted, listens for `visibilitychange`/`focus`, and syncs OS `Schedule.at` notifications for arrivals in the next seven days. Immediate `sendNotification` when an arrival is due and not yet notified, but skips the poll path when the same arrival still has a pending OS notification (avoids double-firing with the scheduler). `onNotificationReceived` marks arrivals delivered by the OS path.
 - **Why:** Polling alone misses sleep; OS schedule alone misses edits and may not persist when the process exits on desktop.
 - **Missed grace:** Notify on resume only if arrival was within the last hour (avoids spamming old tasks on first run).
 

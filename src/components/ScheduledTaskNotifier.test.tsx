@@ -9,6 +9,10 @@ const notification = vi.hoisted(() => ({
   sendNotification: vi.fn(),
   pending: vi.fn(),
   cancel: vi.fn(),
+  onNotificationReceived: vi.fn(),
+  channels: vi.fn(),
+  createChannel: vi.fn(),
+  Importance: { Default: 3 },
   Schedule: {
     at: vi.fn((date: Date) => ({ at: { date, repeating: false, allowWhileIdle: true } })),
   },
@@ -17,6 +21,11 @@ const notification = vi.hoisted(() => ({
 vi.mock("@tauri-apps/plugin-notification", () => ({
   ...notification,
   Schedule: notification.Schedule,
+  Importance: notification.Importance,
+}));
+
+vi.mock("../lib/platform", () => ({
+  isAndroid: vi.fn().mockResolvedValue(false),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -46,6 +55,9 @@ describe("ScheduledTaskNotifier", () => {
     notification.sendNotification.mockClear();
     notification.pending.mockResolvedValue([]);
     notification.cancel.mockResolvedValue(undefined);
+    notification.onNotificationReceived.mockResolvedValue({ unregister: vi.fn() });
+    notification.channels.mockResolvedValue([]);
+    notification.createChannel.mockResolvedValue(undefined);
     notification.Schedule.at.mockClear();
   });
 
@@ -116,5 +128,39 @@ describe("ScheduledTaskNotifier", () => {
     );
     await act(async () => { await Promise.resolve(); });
     expect(notification.sendNotification).not.toHaveBeenCalled();
+  });
+
+  it("marks notified when a scheduled notification is received", async () => {
+    let receivedCb: ((n: { extra?: Record<string, unknown> }) => void) | undefined;
+    notification.onNotificationReceived.mockImplementation(async (cb) => {
+      receivedCb = cb;
+      return { unregister: vi.fn() };
+    });
+
+    vi.setSystemTime(new Date(2026, 5, 8, 8, 55, 0, 0));
+    render(
+      <ScheduledTaskNotifier
+        tasks={[task({ start_date: "2026-06-08", start_time: "09:00" })]}
+        dayStartHour={0}
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+
+    const immediateBefore = notification.sendNotification.mock.calls.filter(
+      ([arg]) => typeof arg === "object" && arg != null && !("schedule" in arg),
+    );
+    expect(immediateBefore).toHaveLength(0);
+
+    vi.setSystemTime(new Date(2026, 5, 8, 9, 0, 0, 0));
+    receivedCb?.({ extra: { arrivalKey: "start:k_test:2026-06-08:09:00" } });
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+      await Promise.resolve();
+    });
+    const immediateAfter = notification.sendNotification.mock.calls.filter(
+      ([arg]) => typeof arg === "object" && arg != null && !("schedule" in arg),
+    );
+    expect(immediateAfter).toHaveLength(0);
   });
 });

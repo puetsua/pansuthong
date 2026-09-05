@@ -78,18 +78,34 @@ export function isArrivalDue(at: Date, now: number, graceMs = MISSED_GRACE_MS): 
   return now >= arrivalMs && now - arrivalMs <= graceMs;
 }
 
+/** Whether to send an immediate notification now (poll/resume path). */
+export function shouldNotifyImmediately(
+  arrival: TaskArrival,
+  now: number,
+  notified: ReadonlySet<string>,
+  pendingIds: ReadonlySet<number>,
+  graceMs = MISSED_GRACE_MS,
+): boolean {
+  if (notified.has(arrival.key)) return false;
+  if (!isArrivalDue(arrival.at, now, graceMs)) return false;
+  // An OS-scheduled notification still pending will deliver on its own.
+  if (pendingIds.has(notificationId(arrival.kind, arrival.task.id))) return false;
+  return true;
+}
+
 /** Arrivals that should notify immediately at `now`. */
 export function arrivalsDueNow(
   tasks: Task[],
   now: number,
   dayStartHour: number,
   notified: ReadonlySet<string>,
+  pendingIds: ReadonlySet<number> = new Set(),
 ): TaskArrival[] {
   const out: TaskArrival[] = [];
   for (const task of tasks) {
     const arrival = taskArrival(task, dayStartHour);
-    if (!arrival || notified.has(arrival.key)) continue;
-    if (isArrivalDue(arrival.at, now)) out.push(arrival);
+    if (!arrival) continue;
+    if (shouldNotifyImmediately(arrival, now, notified, pendingIds)) out.push(arrival);
   }
   return out;
 }
