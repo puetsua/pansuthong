@@ -99,6 +99,23 @@ function pointerReorder(fromName: string, moveClientY: number) {
   act(() => { dispatchPointer(window, "pointerup", moveClientY); });
 }
 
+describe("DashboardView — card header layout", () => {
+  it("keeps view toggle and remove control in the same header row container", () => {
+    renderView([
+      tag({ id: "t1", name: "運動", dashboard_view: "streak", dashboard_order: 0 }),
+    ]);
+    const head = document.querySelector(".dashboard-card-head");
+    expect(head).toBeTruthy();
+    const controls = head?.querySelector(".dashboard-card-controls");
+    expect(controls).toBeTruthy();
+    expect(controls?.querySelector(".te-segmented")).toBeTruthy();
+    expect(controls?.querySelector(".dashboard-remove")).toBeTruthy();
+    expect(controls?.children).toHaveLength(2);
+    expect(head?.children).toHaveLength(2);
+    expect(head?.querySelector(".dashboard-card-title")).toBeTruthy();
+  });
+});
+
 describe("DashboardView — tag order", () => {
   beforeEach(() => {
     vi.mocked(api.updateTag).mockClear();
