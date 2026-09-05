@@ -49,6 +49,7 @@
     "today": "今日",
     "inbox": "未分類",
     "upcoming": "即將到來",
+    "calendar": "日曆",
     "search": "搜尋",
     "tags": "標籤",
     "archived": "已封存",
@@ -94,6 +95,19 @@
     "next_other": "接下來 {{count}} 天",
     "empty_other": "接下來 {{count}} 天沒有項目。",
     "tomorrow": "明天"
+  },
+  "calendar": {
+    "hint": "點日曆展開議程。圓點=任務，虛線點=幽靈",
+    "today": "今天",
+    "prevMonth": "上個月",
+    "nextMonth": "下個月",
+    "gridAria": "月曆",
+    "dayAria": "{{date}}，{{count}} 項",
+    "legendAria": "月曆圖例",
+    "legendTask": "任務",
+    "legendGhost": "週期幽靈",
+    "legendBadge": "角標=當日數量",
+    "empty": "這天沒有排程。"
   },
   "inbox": {
     "subtitle": "沒有釘選標籤的任務",

@@ -60,6 +60,11 @@ export function Sidebar({ doc, indexes }: Props) {
           </NavLink>
         </li>
         <li>
+          <NavLink to="/calendar" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+            {t("nav.calendar")}
+          </NavLink>
+        </li>
+        <li>
           <NavLink to="/search" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
             {t("nav.search")}
           </NavLink>

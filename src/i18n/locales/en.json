@@ -50,6 +50,7 @@
     "today": "Today",
     "inbox": "Inbox",
     "upcoming": "Upcoming",
+    "calendar": "Calendar",
     "search": "Search",
     "tags": "Tags",
     "archived": "Archived",
@@ -98,6 +99,19 @@
     "empty_one": "Nothing in the next {{count}} day.",
     "empty_other": "Nothing in the next {{count}} days.",
     "tomorrow": "Tomorrow"
+  },
+  "calendar": {
+    "hint": "Tap a day to show its agenda. Solid dot = task, dashed dot = recurring ghost.",
+    "today": "Today",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "gridAria": "Month calendar",
+    "dayAria": "{{date}}, {{count}} items",
+    "legendAria": "Calendar legend",
+    "legendTask": "Task",
+    "legendGhost": "Recurring ghost",
+    "legendBadge": "Badge = daily count",
+    "empty": "Nothing scheduled on this day."
   },
   "inbox": {
     "subtitle": "Tasks with no pinned tag",
