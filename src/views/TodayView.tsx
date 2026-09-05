@@ -50,15 +50,15 @@ export function TodayView({ doc, indexes }: Props) {
         <AssignIdle tasks={doc.tasks} candidates={candidates} idleAnchorMs={idleAnchorMs}
                     onClose={() => setAssigning(false)} />
       ) : (
-        <Composer startDate={today} todayIso={today} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} />
+        <Composer startDate={today} todayIso={today} settings={doc.settings} tagsByName={indexes.tagsByName} allTags={indexes.tagsById} />
       )}
-      <RowList rows={todayRows} tags={indexes.tagsById} todayIso={today}
+      <RowList rows={todayRows} tags={indexes.tagsById} todayIso={today} settings={doc.settings}
                emptyText={t("today.empty")} onCompleted={onCompleted} onReopened={onReopened}
                onTimerStarted={() => setAssigning(false)} />
       {overdue.length > 0 && (
         <div className="overdue-group">
           <h3 className="overdue-heading">{t("today.overdue")} · {t("common.taskCount", { count: overdue.length })}</h3>
-          <TaskList tasks={overdue} tags={indexes.tagsById} todayIso={today}
+          <TaskList tasks={overdue} tags={indexes.tagsById} todayIso={today} settings={doc.settings}
                     onCompleted={onCompleted} onReopened={onReopened}
                     onTimerStarted={() => setAssigning(false)} />
         </div>

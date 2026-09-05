@@ -126,7 +126,7 @@ export function ArchivedView({ doc, indexes }: Props) {
         <p className="composer-error" role="alert">{t("archived.invalidRange")}</p>
       )}
 
-      <TaskList tasks={pageItems} tags={indexes.tagsById} todayIso={today}
+      <TaskList tasks={pageItems} tags={indexes.tagsById} todayIso={today} settings={doc.settings}
                 emptyText={filtering ? t("archived.emptyFiltered") : t("archived.emptyAll")}
                 archived />
 

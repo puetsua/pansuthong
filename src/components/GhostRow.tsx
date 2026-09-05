@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, Tag, Task } from "../lib/tauri";
+import { api, Tag, Task, Settings } from "../lib/tauri";
 import { GhostTask } from "../lib/recurrence";
 import { errorMessage } from "../lib/errors";
-import { readableTextColor } from "../lib/tags";
+import { tagPillStyle } from "../lib/tagColorDisplay";
+import { useThemeVariant } from "../lib/useThemeVariant";
 import { playCompletionSound } from "../lib/sound";
 import { TaskEditor } from "./TaskEditor";
 
 type Props = {
   ghost: GhostTask;
   tags: Map<string, Tag>;
+  settings?: Pick<Settings, "theme">;
   onCompleted?: (id: string) => void;
   onTimerStarted?: () => void;
 };
@@ -20,7 +22,8 @@ type Props = {
  * applies the action to the returned task. The de-emphasised styling + the
  * recurrence marker distinguish it from real rows.
  */
-export function GhostRow({ ghost, tags, onCompleted, onTimerStarted }: Props) {
+export function GhostRow({ ghost, tags, settings, onCompleted, onTimerStarted }: Props) {
+  const theme = useThemeVariant(settings);
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +85,7 @@ export function GhostRow({ ghost, tags, onCompleted, onTimerStarted }: Props) {
             <span className="task-title">{ghost.title}</span>
           </span>
           {ghostTags.map(t => (
-            <span key={t.id} className="task-tag" style={{ background: t.color, color: readableTextColor(t.color) }}>
+            <span key={t.id} className="task-tag" style={tagPillStyle(t.color, theme)}>
               {t.name}
             </span>
           ))}

@@ -41,7 +41,7 @@ export function UpcomingView({ doc, indexes }: Props) {
       {groups.map(g => (
         <div key={g.date} className="upcoming-group">
           <h3 className="upcoming-day">{g.label}</h3>
-          <RowList rows={g.rows} tags={indexes.tagsById} todayIso={today}
+          <RowList rows={g.rows} tags={indexes.tagsById} todayIso={today} settings={doc.settings}
                    onCompleted={onCompleted} onReopened={onReopened} />
         </div>
       ))}

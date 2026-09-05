@@ -15,7 +15,7 @@ const BLANK_TEMPLATE: TemplateTask = {
   created_at: "",
 };
 
-export function TemplatesView({ indexes }: Props) {
+export function TemplatesView({ doc, indexes }: Props) {
   const { t } = useTranslation();
   // null = closed; open the full template editor before anything is persisted
   // (same pattern as TagsView / Composer — create on Save, not on the link click).
@@ -45,7 +45,7 @@ export function TemplatesView({ indexes }: Props) {
       ) : (
         <div>
           {templates.map(tmpl => (
-            <TemplateRow key={tmpl.id} template={tmpl} tags={indexes.tagsById} todayIso={today} />
+            <TemplateRow key={tmpl.id} template={tmpl} tags={indexes.tagsById} todayIso={today} settings={doc.settings} />
           ))}
         </div>
       )}

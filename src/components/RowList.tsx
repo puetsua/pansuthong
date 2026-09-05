@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Tag } from "../lib/tauri";
+import { Tag, Settings } from "../lib/tauri";
 import { Row } from "../state/indexes";
 import { TaskRow } from "./TaskRow";
 import { GhostRow } from "./GhostRow";
@@ -8,6 +8,7 @@ type Props = {
   rows: Row[];
   tags: Map<string, Tag>;
   todayIso: string;
+  settings?: Pick<Settings, "theme">;
   emptyText?: string;
   // Forwarded to task rows so a view can hold a just-completed task for recovery (#recover).
   onCompleted?: (id: string) => void;
@@ -18,15 +19,15 @@ type Props = {
 /** Renders a merged task/ghost sequence (#9): real tasks and computed recurring
  *  ghosts interleaved in one sorted list, so a ghost shows where its promoted task
  *  would sit. */
-export function RowList({ rows, tags, todayIso, emptyText, onCompleted, onReopened, onTimerStarted }: Props) {
+export function RowList({ rows, tags, todayIso, settings, emptyText, onCompleted, onReopened, onTimerStarted }: Props) {
   const { t } = useTranslation();
   if (rows.length === 0) return <p className="task-empty">{emptyText ?? t("taskList.empty")}</p>;
   return (
     <div>
       {rows.map(row => row.kind === "ghost"
-        ? <GhostRow key={row.ghost.id} ghost={row.ghost} tags={tags}
+        ? <GhostRow key={row.ghost.id} ghost={row.ghost} tags={tags} settings={settings}
                     onCompleted={onCompleted} onTimerStarted={onTimerStarted} />
-        : <TaskRow key={row.task.id} task={row.task} tags={tags} todayIso={todayIso}
+        : <TaskRow key={row.task.id} task={row.task} tags={tags} todayIso={todayIso} settings={settings}
                    onCompleted={onCompleted} onReopened={onReopened}
                    onTimerStarted={onTimerStarted} />)}
     </div>
