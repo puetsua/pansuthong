@@ -66,6 +66,7 @@
     "noPinnedTags": "還沒有釘選的標籤。",
     "manageTags": "管理標籤",
     "editTag": "編輯 #{{name}}",
+    "addToDashboard": "加入儀表板",
     "releaseNotes": "查看 v{{version}} 版本資訊",
     "update": "更新",
     "updateTo": "更新至 v{{version}}"
@@ -256,6 +257,8 @@
     "empty": "還沒有標籤。先建立一個，再來這裡追蹤。",
     "noPins": "還沒加入任何項目。用上方「加入標籤」開始追蹤。",
     "addTag": "＋ 加入標籤",
+    "searchTags": "搜尋標籤...",
+    "noMatchingTags": "沒有符合的標籤",
     "remove": "移除",
     "viewLabel": "檢視",
     "view_heatmap": "熱圖",

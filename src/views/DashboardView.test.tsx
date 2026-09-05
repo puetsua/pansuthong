@@ -116,6 +116,36 @@ describe("DashboardView — card header layout", () => {
   });
 });
 
+describe("DashboardView — add tag picker", () => {
+  beforeEach(() => {
+    vi.mocked(api.updateTag).mockClear();
+    vi.mocked(api.updateTag).mockImplementation(async input =>
+      tag({ id: input.id, name: input.id }),
+    );
+  });
+
+  it("filters available tags in the picker and pins on select", () => {
+    renderView([
+      tag({ id: "t1", name: "work" }),
+      tag({ id: "t2", name: "home", dashboard_view: "heatmap" }),
+      tag({ id: "t3", name: "alpha" }),
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /add tag/i }));
+    fireEvent.change(screen.getByPlaceholderText(/search tags/i), { target: { value: "wo" } });
+    expect(screen.getByRole("option", { name: /work/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /alpha/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /^#?work$/i }));
+    expect(api.updateTag).toHaveBeenCalledWith({ id: "t1", dashboard_view: "heatmap" });
+  });
+
+  it("hides the add control when every tag is already pinned", () => {
+    renderView([tag({ id: "t1", name: "work", dashboard_view: "heatmap" })]);
+    expect(screen.queryByRole("button", { name: /add tag/i })).toBeNull();
+  });
+});
+
 describe("DashboardView — tag order", () => {
   beforeEach(() => {
     vi.mocked(api.updateTag).mockClear();

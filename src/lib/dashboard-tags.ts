@@ -1,4 +1,12 @@
-import type { Tag } from "./tauri";
+import { api, type DashboardView, type Tag } from "./tauri";
+
+/** Default dashboard card view when pinning a tag from the picker or sidebar. */
+export const DASHBOARD_PIN_VIEW: DashboardView = "heatmap";
+
+/** Pin a tag to the dashboard (heatmap view). */
+export function pinTagToDashboard(tag: Tag): Promise<Tag> {
+  return api.updateTag({ id: tag.id, dashboard_view: DASHBOARD_PIN_VIEW });
+}
 
 /** Sort pinned Dashboard tags: explicit `dashboard_order` first, then name. */
 export function sortDashboardPinnedTags(tags: Tag[]): Tag[] {

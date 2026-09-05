@@ -8,6 +8,20 @@ import { appVersion } from "../lib/platform";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { onUpdatePromptRequested, setPendingUpdate, type AppUpdate } from "../lib/updater";
 
+vi.mock("../lib/tauri", async orig => {
+  const actual = await orig<typeof import("../lib/tauri")>();
+  const stubTag = (id: string): Tag => ({ id, name: id, color: "#000", priority: 0 });
+  return {
+    ...actual,
+    api: {
+      ...actual.api,
+      updateTag: vi.fn(async (input: { id: string }) => stubTag(input.id)),
+    },
+  };
+});
+
+import { api } from "../lib/tauri";
+
 // The footer version label reads the app version and opens the release page.
 // This mock also stands in front of the `isAndroid` that `lib/updater` imports
 // from the same module, and does not provide it — fine only because Sidebar
@@ -112,6 +126,33 @@ describe("Sidebar — tag curation (#78)", () => {
     expect(screen.getByText(/No pinned tags/i)).toBeTruthy();
     const manage = screen.getByRole("link", { name: /manage tags/i });
     expect(manage.getAttribute("href")).toBe("/tags");
+  });
+});
+
+describe("Sidebar — dashboard pin (#201)", () => {
+  beforeEach(() => {
+    vi.mocked(api.updateTag).mockClear();
+    vi.mocked(api.updateTag).mockImplementation(async input =>
+      tag({ id: input.id, name: input.id }),
+    );
+  });
+
+  it("pins an unpinned tag from the context menu", () => {
+    renderSidebar([tag({ id: "t_pin", name: "work", pinned: true })]);
+
+    fireEvent.contextMenu(screen.getByText("work"));
+    fireEvent.click(screen.getByRole("menuitem", { name: /add to dashboard/i }));
+
+    expect(api.updateTag).toHaveBeenCalledWith({ id: "t_pin", dashboard_view: "heatmap" });
+  });
+
+  it("does not open a context menu for tags already on the dashboard", () => {
+    renderSidebar([
+      tag({ id: "t_pin", name: "work", pinned: true, dashboard_view: "heatmap" }),
+    ]);
+
+    fireEvent.contextMenu(screen.getByText("work"));
+    expect(screen.queryByRole("menuitem", { name: /add to dashboard/i })).toBeNull();
   });
 });
 

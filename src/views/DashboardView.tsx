@@ -10,7 +10,8 @@ import { computeTagAnalytics, recurringScheduledDates } from "../lib/tag-analyti
 import { formatDate } from "../lib/dates";
 import { currentLocale } from "../i18n";
 import { HeatmapGrid } from "../components/HeatmapGrid";
-import { dashboardOrderUpdates, sortDashboardPinnedTags } from "../lib/dashboard-tags";
+import { DashboardAddTagPopover } from "../components/DashboardAddTagPopover";
+import { dashboardOrderUpdates, pinTagToDashboard, sortDashboardPinnedTags } from "../lib/dashboard-tags";
 import { dashboardInsertIndexAtY, dashboardReorderAtIndex } from "../lib/dashboard-reorder";
 import { normalizeTagHashColor } from "../lib/tagColorDisplay";
 import { useThemeVariant } from "../lib/useThemeVariant";
@@ -61,6 +62,8 @@ export function DashboardView({ doc, indexes }: Props) {
 
   const setTagView = (tag: Tag, view: DashboardViewKind | null) =>
     void api.updateTag({ id: tag.id, dashboard_view: view });
+
+  const addTagToDashboard = (tag: Tag) => void pinTagToDashboard(tag);
 
   const persistOrder = async (ordered: Tag[]) => {
     setOrderedPinned(ordered);
@@ -180,16 +183,7 @@ export function DashboardView({ doc, indexes }: Props) {
           <p className="view-sub">{t("dashboard.subtitle")}</p>
         </div>
         {available.length > 0 && (
-          <label className="dashboard-add">
-            <select aria-label={t("dashboard.addTag")} value=""
-                    onChange={e => {
-                      const tag = available.find(x => x.id === e.currentTarget.value);
-                      if (tag) setTagView(tag, "heatmap");
-                    }}>
-              <option value="" disabled>{t("dashboard.addTag")}</option>
-              {available.map(tag => <option key={tag.id} value={tag.id}>#{tag.name}</option>)}
-            </select>
-          </label>
+          <DashboardAddTagPopover tags={available} settings={doc.settings} onSelect={addTagToDashboard} />
         )}
       </header>
 

@@ -67,6 +67,7 @@
     "noPinnedTags": "No pinned tags.",
     "manageTags": "Manage tags",
     "editTag": "Edit #{{name}}",
+    "addToDashboard": "Add to dashboard",
     "releaseNotes": "Release notes for v{{version}}",
     "update": "Update",
     "updateTo": "Update to v{{version}}"
@@ -262,6 +263,8 @@
     "empty": "No tags yet. Create a tag to track it here.",
     "noPins": "Nothing added yet. Use “Add tag” above to track a tag here.",
     "addTag": "＋ Add tag",
+    "searchTags": "Search tags...",
+    "noMatchingTags": "No matching tags",
     "remove": "Remove",
     "viewLabel": "View",
     "view_heatmap": "Heatmap",
