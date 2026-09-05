@@ -325,6 +325,10 @@
     "title": "Task estimate reached",
     "body": "You've tracked {{tracked}} on \"{{title}}\". Estimate: {{estimate}}."
   },
+  "scheduledTaskNotifier": {
+    "startTitle": "Scheduled task",
+    "dueTitle": "Task due"
+  },
   "afkTracking": {
     "title": "Away from keyboard",
     "body": "{{duration}} since you stepped away. Keep going, or discard and stop?",

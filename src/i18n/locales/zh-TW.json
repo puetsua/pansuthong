@@ -319,6 +319,10 @@
     "title": "已達預估時間",
     "body": "「{{title}}」已追蹤 {{tracked}}。預估：{{estimate}}。"
   },
+  "scheduledTaskNotifier": {
+    "startTitle": "排程任務",
+    "dueTitle": "任務到期"
+  },
   "afkTracking": {
     "title": "離開鍵盤",
     "body": "自你離開後已過 {{duration}}。要繼續計時，還是捨棄並停止？",
