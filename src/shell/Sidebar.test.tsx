@@ -62,20 +62,22 @@ const renderSidebar = (tags: Tag[]) => {
 };
 
 describe("Sidebar — primary nav order", () => {
-  it("places Search immediately below Upcoming, before Tags", () => {
+  it("places Search immediately below Calendar, before Tags", () => {
     renderSidebar([]);
     const links = screen.getAllByRole("link").map(a => a.getAttribute("href"));
     const upcoming = links.indexOf("/upcoming");
+    const calendar = links.indexOf("/calendar");
     const search = links.indexOf("/search");
     const tags = links.indexOf("/tags");
     expect(upcoming).toBeGreaterThanOrEqual(0);
-    expect(search).toBe(upcoming + 1);
+    expect(calendar).toBe(upcoming + 1);
+    expect(search).toBe(calendar + 1);
     expect(tags).toBeGreaterThan(search);
   });
 
   it("keeps primary nav text-only (icons belong on mobile bottom tabs)", () => {
     renderSidebar([]);
-    for (const name of [/today/i, /inbox/i, /upcoming/i]) {
+    for (const name of [/today/i, /inbox/i, /upcoming/i, /calendar/i]) {
       const link = screen.getByRole("link", { name });
       expect(link.querySelector("svg")).toBeNull();
     }
