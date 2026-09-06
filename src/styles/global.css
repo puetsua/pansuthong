@@ -582,12 +582,13 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 
 /* Month grid */
 .calendar-month { border: 1px solid var(--c-border); border-radius: var(--radius-md); overflow: hidden; }
-.calendar-weekdays, .calendar-month-week { display: grid; grid-template-columns: repeat(7, 1fr); }
+.calendar-weekdays, .calendar-month-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .calendar-weekday {
   text-align: center; font-size: 0.75rem; color: var(--c-text-muted); padding: var(--space-2) 0;
   border-bottom: 1px solid var(--c-border); background: var(--c-surface);
 }
 .calendar-month-cell {
+  min-width: 0;
   min-height: 6.5rem; padding: var(--space-1); border-right: 1px solid var(--c-border);
   border-bottom: 1px solid var(--c-border); display: flex; flex-direction: column; gap: 2px;
   background: var(--c-bg);
@@ -613,7 +614,7 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 }
 .calendar-month-line:hover { background: var(--c-surface); }
 .calendar-month-line-ghost { opacity: 0.55; font-style: italic; }
-.calendar-month-line-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-month-line-title { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-more-link {
   border: none; background: transparent; color: var(--c-text-muted); font-size: 0.7rem;
   text-align: left; padding: 0 2px; cursor: pointer;

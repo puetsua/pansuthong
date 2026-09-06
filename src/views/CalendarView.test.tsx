@@ -113,4 +113,27 @@ describe("CalendarView", () => {
     expect(screen.getByText(/October 2026/i)).toBeTruthy();
     expect(screen.queryByText("Sep 2026")).toBeNull();
   });
+
+  it("renders seven day cells per week row with long task titles", () => {
+    const longTitle = "抬腿捲腹 伸直抬腿 50下 深蹲 40下 日文練習30分鐘";
+    const heavyDoc: Document = {
+      ...doc,
+      tasks: Array.from({ length: 5 }, (_, i) =>
+        task({ id: `long_${i}`, title: longTitle, due_date: `2026-09-0${i + 1}` }),
+      ),
+    };
+    const indexes = buildIndexes(heavyDoc, "2026-09-05");
+    const { container } = render(
+      <MemoryRouter>
+        <CalendarView doc={heavyDoc} indexes={indexes} />
+      </MemoryRouter>,
+    );
+
+    const weeks = container.querySelectorAll(".calendar-month-week");
+    expect(weeks.length).toBeGreaterThan(0);
+    weeks.forEach(week => {
+      expect(week.querySelectorAll(".calendar-month-cell").length).toBe(7);
+    });
+    expect(screen.getAllByText(longTitle).length).toBeGreaterThan(0);
+  });
 });
