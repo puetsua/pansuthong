@@ -220,7 +220,6 @@ export function CalendarView({ doc, indexes }: Props) {
                           key={row.kind === "task" ? row.task.id : row.ghost.id}
                           row={row}
                           tags={indexes.tagsById}
-                          todayIso={today}
                         />
                       ))}
                   </div>

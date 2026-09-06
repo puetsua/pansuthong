@@ -701,10 +701,6 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 .calendar-week-row:hover { border-color: var(--c-accent); }
 .calendar-week-row-ghost { opacity: 0.62; }
 .calendar-week-row-ghost .calendar-week-row-title { font-style: italic; }
-.calendar-week-row .task-when {
-  display: block; margin-top: 2px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
 
 /* Day view */
 .calendar-day-header {

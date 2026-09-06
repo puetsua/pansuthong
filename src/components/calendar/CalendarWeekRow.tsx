@@ -1,49 +1,21 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
-import { Task, Tag, isDone } from "../../lib/tauri";
+import { Task, Tag } from "../../lib/tauri";
 import { chipLabel, isGhostRow } from "../../lib/calendar";
 import type { Row } from "../../state/indexes";
-import { formatIsoDate, formatTimeOfDay, isOverdue, daysBetweenIso } from "../../lib/dates";
-import { currentLocale } from "../../i18n";
-import { currentDateFormat, currentTimeFormat } from "../../lib/dates";
 import { TaskEditor } from "../TaskEditor";
 
 type Props = {
   row: Row;
   tags: Map<string, Tag>;
-  todayIso: string;
 };
 
-function whenMeta(row: Row, todayIso: string, t: TFunction): { text: string; late: boolean } | null {
-  if (row.kind !== "task") return null;
-  const task = row.task;
-  const locale = currentLocale();
-  const dateFmt = currentDateFormat();
-  const timeFmt = currentTimeFormat();
-  const dueT = task.due_time ? ` ${formatTimeOfDay(task.due_time, timeFmt, locale)}` : "";
-  const schedT = task.start_time ? ` ${formatTimeOfDay(task.start_time, timeFmt, locale)}` : "";
-  if (task.due_date === todayIso) return { text: t("taskRow.dueToday", { time: dueT }).trim(), late: false };
-  if (task.due_date && isOverdue(task.due_date, todayIso, isDone(task))) {
-    return { text: t("taskRow.overdue", { days: daysBetweenIso(task.due_date, todayIso) }), late: true };
-  }
-  if (task.due_date) {
-    return { text: t("taskRow.due", { date: formatIsoDate(task.due_date, dateFmt, locale), time: dueT }), late: false };
-  }
-  if (task.start_date === todayIso) return { text: t("taskRow.today", { time: schedT }).trim(), late: false };
-  if (task.start_date) {
-    return { text: t("taskRow.scheduled", { date: formatIsoDate(task.start_date, dateFmt, locale), time: schedT }), late: false };
-  }
-  return null;
-}
-
-/** Compact week-column row: title + optional when; no checkbox, timer, or tags. */
-export function CalendarWeekRow({ row, tags, todayIso }: Props) {
+/** Compact week-column row: title only; no checkbox, timer, tags, or when/due line. */
+export function CalendarWeekRow({ row, tags }: Props) {
   const { t } = useTranslation();
   const ghost = isGhostRow(row);
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState<Task | null>(null);
-  const when = whenMeta(row, todayIso, t);
   const title = chipLabel(row);
 
   const open = () => {
@@ -76,9 +48,6 @@ export function CalendarWeekRow({ row, tags, todayIso }: Props) {
           </span>
           <span className="calendar-week-row-title">{title}</span>
         </span>
-        {when?.text && (
-          <span className={when.late ? "task-when late" : "task-when"}>{when.text}</span>
-        )}
       </button>
       {editing && (
         <TaskEditor task={editing} allTags={tags} onClose={() => setEditing(null)} />
