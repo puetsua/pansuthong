@@ -69,4 +69,24 @@ describe("CalendarWeekRow", () => {
     expect(screen.queryByText(/到期/)).toBeNull();
     expect(screen.queryByText(/overdue/i)).toBeNull();
   });
+
+  it("does not render start/scheduled metadata under the title", () => {
+    const row: Row = {
+      kind: "task",
+      task: {
+        id: "k3",
+        title: "Plan sprint",
+        notes: "",
+        tag_ids: [],
+        created_at: "2026-01-01T00:00:00+08:00",
+        start_date: "2026-09-08",
+      },
+    };
+    const { container } = render(<CalendarWeekRow row={row} tags={tags} />);
+    expect(screen.getByText("Plan sprint")).toBeTruthy();
+    expect(container.querySelector(".task-when")).toBeNull();
+    expect(screen.queryByText(/scheduled/i)).toBeNull();
+    expect(screen.queryByText(/開始/)).toBeNull();
+    expect(screen.queryByText(/today/i)).toBeNull();
+  });
 });

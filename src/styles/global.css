@@ -646,7 +646,13 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   display: flex; width: 100%; flex: none;
 }
 .calendar-week-head-strip {
-  align-items: stretch; border-bottom: 1px solid var(--c-border);
+  --calendar-week-head-h: 70px;
+  align-items: stretch; overflow: hidden; position: relative;
+  height: var(--calendar-week-head-h); min-height: var(--calendar-week-head-h); max-height: var(--calendar-week-head-h);
+}
+.calendar-week-head-strip::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+  background: var(--c-border); pointer-events: none; z-index: 1;
 }
 .calendar-week-body-strip { align-items: stretch; }
 .calendar-week-head-cell, .calendar-week-body-cell {
@@ -655,35 +661,39 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 }
 .calendar-week-head-cell:last-child, .calendar-week-body-cell:last-child { border-right: none; }
 .calendar-week-head-cell {
-  display: flex; flex-direction: column; height: 4.875rem; box-sizing: border-box;
-  background: var(--c-surface); padding: 0;
+  display: flex; flex-direction: column; height: var(--calendar-week-head-h);
+  max-height: var(--calendar-week-head-h); min-height: var(--calendar-week-head-h);
+  box-sizing: border-box; background: var(--c-surface); padding: 0;
 }
 .calendar-week-body-cell {
   display: flex; flex-direction: column; padding: var(--space-1); box-sizing: border-box;
 }
 .calendar-week-col-head {
-  display: grid; grid-template-rows: 1.1em 1.75rem 1.1em; align-items: center; justify-items: center;
-  gap: 2px; box-sizing: border-box; width: 100%; height: 100%; margin: 0;
-  padding: var(--space-2) var(--space-1); border: none; background: transparent;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0; box-sizing: border-box; width: 100%; height: 100%; max-height: 100%; margin: 0;
+  padding: 8px 4px; border: none; background: transparent; overflow: hidden;
   color: var(--c-text); cursor: pointer; text-align: center;
-  font: inherit; appearance: none;
+  font: inherit; appearance: none; -webkit-appearance: none;
 }
 .calendar-week-col-head:hover { color: var(--c-accent); }
 .calendar-week-col-weekday {
-  font-size: 0.72rem; color: var(--c-text-muted); height: 1.1em; line-height: 1.1em;
+  flex: 0 0 11px; height: 11px; line-height: 11px; font-size: 11px;
+  color: var(--c-text-muted); margin: 0 0 2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
 .calendar-week-col-day {
+  flex: 0 0 28px; height: 28px; line-height: 28px; margin: 0 0 2px;
   font-size: 1.1rem; font-weight: 600; font-variant-numeric: tabular-nums;
-  height: 1.75rem; line-height: 1.75rem;
 }
 .calendar-week-col-day-today {
   background: var(--c-accent); color: var(--c-accent-contrast, #fff);
-  width: 1.75rem; height: 1.75rem; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
-  line-height: 1;
+  width: 28px; flex: 0 0 28px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  line-height: 1; box-sizing: border-box;
 }
 .calendar-week-col-count {
-  font-size: 0.68rem; color: var(--c-text-muted); height: 1.1em; line-height: 1.1em;
+  flex: 0 0 11px; height: 11px; line-height: 11px; font-size: 11px; margin: 0;
+  color: var(--c-text-muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
 .calendar-week-col-body {

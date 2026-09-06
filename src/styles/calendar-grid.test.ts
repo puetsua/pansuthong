@@ -28,11 +28,14 @@ describe("calendar grid CSS", () => {
     expect(css).not.toMatch(/\.calendar-week-grid\s*\{[^}]*grid-template-columns/);
   });
 
-  it("locks equal week header cell height (today badge only, no weekday suffix)", () => {
-    expect(css).toMatch(/\.calendar-week-head-cell\s*\{[^}]*height:\s*4\.875rem/);
-    expect(css).toMatch(/\.calendar-week-col-head\s*\{[^}]*grid-template-rows:\s*1\.1em 1\.75rem 1\.1em/);
-    expect(css).toMatch(/\.calendar-week-col-weekday\s*\{[^}]*height:\s*1\.1em/);
-    expect(css).toMatch(/\.calendar-week-col-count\s*\{[^}]*height:\s*1\.1em/);
+  it("locks equal week header height with px strip and shared bottom rule", () => {
+    expect(css).toMatch(/\.calendar-week-head-strip\s*\{[^}]*--calendar-week-head-h:\s*70px/);
+    expect(css).toMatch(/\.calendar-week-head-strip::after\s*\{[^}]*height:\s*1px/);
+    expect(css).not.toMatch(/\.calendar-week-head-strip\s*\{[^}]*border-bottom:/);
+    expect(css).toMatch(/\.calendar-week-head-cell\s*\{[^}]*height:\s*var\(--calendar-week-head-h\)/);
+    expect(css).toMatch(/\.calendar-week-col-head\s*\{[^}]*display:\s*flex/);
+    expect(css).toMatch(/\.calendar-week-col-day\s*\{[^}]*flex:\s*0 0 28px/);
+    expect(css).not.toMatch(/\.calendar-week-row \.task-when/);
   });
 
   it("allows month cells to shrink and clip overflow", () => {
@@ -56,6 +59,5 @@ describe("calendar grid CSS", () => {
     expect(css).toMatch(/\.calendar-line-title,\s*\.calendar-week-row-title\s*\{[^}]*text-overflow:\s*ellipsis/);
     expect(css).toMatch(/\.calendar-week-row\s*\{[^}]*display:\s*block/);
     expect(css).toMatch(/\.calendar-week-col-weekday\s*\{[^}]*white-space:\s*nowrap/);
-    expect(css).toMatch(/\.calendar-week-col-day\s*\{[^}]*height:\s*1\.75rem/);
   });
 });
