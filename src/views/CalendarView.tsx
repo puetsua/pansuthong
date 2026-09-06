@@ -204,7 +204,6 @@ export function CalendarView({ doc, indexes }: Props) {
                         row={row}
                         tags={indexes.tagsById}
                         todayIso={today}
-                        settings={doc.settings}
                       />
                     ))}
                 </div>

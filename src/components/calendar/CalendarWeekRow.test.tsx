@@ -24,13 +24,16 @@ describe("CalendarWeekRow", () => {
         occurrenceDate: "2026-09-05",
       },
     };
-    render(<CalendarWeekRow row={row} tags={tags} todayIso="2026-09-05" settings={{ theme: "auto" }} />);
+    const { container } = render(
+      <CalendarWeekRow row={row} tags={tags} todayIso="2026-09-05" />,
+    );
     expect(screen.queryByText(/recurring/i)).toBeNull();
     expect(screen.queryByText(/週期/i)).toBeNull();
-    expect(screen.getByText("Work")).toBeTruthy();
+    expect(screen.getByText("Morning stretch")).toBeTruthy();
+    expect(container.querySelector(".task-tag")).toBeNull();
   });
 
-  it("renders standard task-tag pills for tasks and ghosts", () => {
+  it("does not render tag chips on task rows", () => {
     const row: Row = {
       kind: "task",
       task: {
@@ -43,11 +46,9 @@ describe("CalendarWeekRow", () => {
       },
     };
     const { container } = render(
-      <CalendarWeekRow row={row} tags={tags} todayIso="2026-09-05" settings={{ theme: "auto" }} />,
+      <CalendarWeekRow row={row} tags={tags} todayIso="2026-09-05" />,
     );
-    const pill = container.querySelector(".task-tag");
-    expect(pill).toBeTruthy();
-    expect(pill?.classList.contains("task-tag")).toBe(true);
-    expect(container.querySelector(".calendar-week-row-tags")).toBeNull();
+    expect(screen.getByText("Reply email")).toBeTruthy();
+    expect(container.querySelector(".task-tag")).toBeNull();
   });
 });

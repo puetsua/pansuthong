@@ -1,30 +1,19 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { Task, Tag, Settings, isDone } from "../../lib/tauri";
+import { Task, Tag, isDone } from "../../lib/tauri";
 import { chipLabel, isGhostRow } from "../../lib/calendar";
 import type { Row } from "../../state/indexes";
 import { formatIsoDate, formatTimeOfDay, isOverdue, daysBetweenIso } from "../../lib/dates";
 import { currentLocale } from "../../i18n";
 import { currentDateFormat, currentTimeFormat } from "../../lib/dates";
-import { tagPillStyle } from "../../lib/tagColorDisplay";
-import { useThemeVariant } from "../../lib/useThemeVariant";
 import { TaskEditor } from "../TaskEditor";
 
 type Props = {
   row: Row;
   tags: Map<string, Tag>;
   todayIso: string;
-  settings?: Pick<Settings, "theme">;
 };
-
-function rowTags(row: Row, tags: Map<string, Tag>): Tag[] {
-  const ids = row.kind === "task" ? row.task.tag_ids : row.ghost.tag_ids;
-  return ids
-    .map(id => tags.get(id))
-    .filter((tag): tag is Tag => tag != null)
-    .sort((a, b) => b.priority - a.priority);
-}
 
 function whenMeta(row: Row, todayIso: string, t: TFunction): { text: string; late: boolean } | null {
   if (row.kind !== "task") return null;
@@ -48,16 +37,14 @@ function whenMeta(row: Row, todayIso: string, t: TFunction): { text: string; lat
   return null;
 }
 
-/** Compact week-column row: title + optional when/tags; no checkbox or timer. */
-export function CalendarWeekRow({ row, tags, todayIso, settings }: Props) {
+/** Compact week-column row: title + optional when; no checkbox, timer, or tags. */
+export function CalendarWeekRow({ row, tags, todayIso }: Props) {
   const { t } = useTranslation();
-  const theme = useThemeVariant(settings);
   const ghost = isGhostRow(row);
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState<Task | null>(null);
   const when = whenMeta(row, todayIso, t);
   const title = chipLabel(row);
-  const taskTags = rowTags(row, tags);
 
   const open = () => {
     if (row.kind === "task") setEditing(row.task);
@@ -87,11 +74,6 @@ export function CalendarWeekRow({ row, tags, todayIso, settings }: Props) {
           {ghost && <span className="task-recurring" aria-hidden="true">↻</span>}
           <span className="task-title">{title}</span>
         </span>
-        {taskTags.map(tag => (
-          <span key={tag.id} className="task-tag" style={tagPillStyle(tag.color, theme)}>
-            {tag.name}
-          </span>
-        ))}
         {when?.text && (
           <span className={when.late ? "task-when late" : "task-when"}>{when.text}</span>
         )}
