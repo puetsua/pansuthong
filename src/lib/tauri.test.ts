@@ -69,9 +69,9 @@ describe("api IPC wrappers — command names & arg keys", () => {
     expect(invokeMock).toHaveBeenCalledWith("session_idle_ms");
   });
 
-  it("discardRunningAfk → discard_running_afk { afk_start_ms }", async () => {
+  it("discardRunningAfk → discard_running_afk { afkStartMs }", async () => {
     await api.discardRunningAfk(1_700_000_000_000);
-    expect(invokeMock).toHaveBeenCalledWith("discard_running_afk", { afk_start_ms: 1_700_000_000_000 });
+    expect(invokeMock).toHaveBeenCalledWith("discard_running_afk", { afkStartMs: 1_700_000_000_000 });
   });
 
   it("deleteTask → delete_task { id }", async () => {
