@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Document, Tag } from "../lib/tauri";
@@ -6,6 +6,7 @@ import { Indexes, openCount } from "../state/indexes";
 import { normalizeTagHashColor } from "../lib/tagColorDisplay";
 import { useThemeVariant } from "../lib/useThemeVariant";
 import { TagEditor } from "../components/TagEditor";
+import { ContextMenu } from "../components/ContextMenu";
 import { AppVersionRow } from "./AppVersionRow";
 import { pinTagToDashboard } from "../lib/dashboard-tags";
 
@@ -26,14 +27,6 @@ export function Sidebar({ doc, indexes }: Props) {
   const location = useLocation();
   const [editor, setEditor] = useState<EditorState>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-
-  useEffect(() => {
-    if (!contextMenu) return;
-    const close = () => setContextMenu(null);
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [contextMenu]);
 
   // Only pinned tags appear in the sidebar; the full set lives on the Tags
   // screen, where tags are pinned/unpinned (#78).
@@ -131,29 +124,16 @@ export function Sidebar({ doc, indexes }: Props) {
       </div>
 
       {contextMenu && (
-        <>
-          <div
-            className="sidebar-ctx-backdrop"
-            onClick={() => setContextMenu(null)}
-            onContextMenu={e => { e.preventDefault(); setContextMenu(null); }}
-          />
-          <div
-            className="sidebar-ctx-menu"
-            role="menu"
-            style={{ top: contextMenu.y, left: contextMenu.x }}
-          >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                void pinTagToDashboard(contextMenu.tag);
-                setContextMenu(null);
-              }}
-            >
-              {t("sidebar.addToDashboard")}
-            </button>
-          </div>
-        </>
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          items={[{
+            id: "add-to-dashboard",
+            label: t("sidebar.addToDashboard"),
+            onSelect: () => { void pinTagToDashboard(contextMenu.tag); },
+          }]}
+        />
       )}
 
       {editor && (

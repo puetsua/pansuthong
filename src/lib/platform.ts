@@ -2,6 +2,24 @@ import { locale, type } from "@tauri-apps/plugin-os";
 import { getVersion } from "@tauri-apps/api/app";
 
 let cached: boolean | null = null;
+let cachedMac: boolean | null = null;
+
+/** True when running on macOS (modifier shortcuts use ⌘). */
+export async function isMacOS(): Promise<boolean> {
+  if (cachedMac === null) {
+    try {
+      cachedMac = (await type()) === "macos";
+    } catch {
+      cachedMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+    }
+  }
+  return cachedMac;
+}
+
+/** Modifier key label for shortcut hints (⌘ on macOS, Ctrl elsewhere). */
+export function modKeyLabel(isMac: boolean): string {
+  return isMac ? "⌘" : "Ctrl";
+}
 
 /** True when running on Linux (native GTK titlebar drag is used there). */
 export async function isLinux(): Promise<boolean> {
