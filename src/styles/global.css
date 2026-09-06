@@ -583,10 +583,10 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 /* Month grid */
 .calendar-month { border: 1px solid var(--c-border); border-radius: var(--radius-md); overflow: hidden; }
 /* Equal 7-day columns: flex + width:0 beats WebKitGTK fr track content sizing. */
-.calendar-weekdays, .calendar-month-week, .calendar-week-grid, .calendar-day-strip {
+.calendar-weekdays, .calendar-month-week, .calendar-day-strip {
   display: flex; width: 100%;
 }
-.calendar-weekday, .calendar-month-cell, .calendar-week-col, .calendar-day-strip-btn {
+.calendar-weekday, .calendar-month-cell, .calendar-day-strip-btn {
   flex: 1 1 0; width: 0; min-width: 0;
 }
 .calendar-weekday {
@@ -637,18 +637,25 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 }
 .calendar-more-link:hover { color: var(--c-accent); }
 
-/* Week grid (desktop) */
+/* Week grid (desktop): shared header row + body row so bodies align on WebKitGTK. */
 .calendar-week-grid {
-  gap: 0;
+  display: flex; flex-direction: column; width: 100%;
   border: 1px solid var(--c-border); border-radius: var(--radius-md); overflow: hidden;
 }
-.calendar-week-col { border-right: 1px solid var(--c-border); overflow: hidden; display: flex; flex-direction: column; }
-.calendar-week-col:last-child { border-right: none; }
+.calendar-week-head-row, .calendar-week-body-row { display: flex; width: 100%; }
+.calendar-week-head-cell, .calendar-week-body-cell {
+  flex: 1 1 0; width: 0; min-width: 0; overflow: hidden;
+  border-right: 1px solid var(--c-border);
+}
+.calendar-week-head-cell:last-child, .calendar-week-body-cell:last-child { border-right: none; }
+.calendar-week-head-row {
+  align-items: stretch; border-bottom: 1px solid var(--c-border); background: var(--c-surface);
+}
 .calendar-week-col-head {
-  display: grid; grid-template-rows: 1fr 1.75rem 1fr; align-items: center; justify-items: center;
-  height: 4.875rem; flex-shrink: 0; box-sizing: border-box; gap: 0;
-  padding: var(--space-2) var(--space-1); border: none; border-bottom: 1px solid var(--c-border);
-  background: var(--c-surface); color: var(--c-text); cursor: pointer; width: 100%;
+  display: grid; grid-template-rows: auto 1.75rem auto; align-items: center; justify-items: center;
+  gap: 2px; box-sizing: border-box; height: 100%; width: 100%;
+  padding: var(--space-2) var(--space-1); border: none; background: transparent;
+  color: var(--c-text); cursor: pointer; text-align: center;
 }
 .calendar-week-col-head:hover { color: var(--c-accent); }
 .calendar-week-col-weekday {

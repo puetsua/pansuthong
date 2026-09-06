@@ -6,33 +6,35 @@ import { describe, expect, it } from "vitest";
 describe("calendar grid CSS", () => {
   const css = readFileSync(resolve(__dirname, "global.css"), "utf-8");
 
-  const equalSevenCol = /\.calendar-weekdays,\s*\.calendar-month-week,\s*\.calendar-week-grid,\s*\.calendar-day-strip\s*\{[^}]*display:\s*flex/;
+  const equalMonthStrip = /\.calendar-weekdays,\s*\.calendar-month-week,\s*\.calendar-day-strip\s*\{[^}]*display:\s*flex/;
 
-  const equalChild = /\.calendar-weekday,\s*\.calendar-month-cell,\s*\.calendar-week-col,\s*\.calendar-day-strip-btn\s*\{[^}]*flex:\s*1 1 0[^}]*width:\s*0[^}]*min-width:\s*0/;
+  const equalMonthChild = /\.calendar-weekday,\s*\.calendar-month-cell,\s*\.calendar-day-strip-btn\s*\{[^}]*flex:\s*1 1 0[^}]*width:\s*0[^}]*min-width:\s*0/;
 
-  it("uses flex equal-width columns for all 7-day rows (WebKitGTK)", () => {
-    expect(css).toMatch(equalSevenCol);
-    expect(css).toMatch(equalChild);
+  it("uses flex equal-width columns for month and day-strip rows (WebKitGTK)", () => {
+    expect(css).toMatch(equalMonthStrip);
+    expect(css).toMatch(equalMonthChild);
     expect(css).not.toMatch(/\.calendar-month-week\s*\{[^}]*grid-template-columns:\s*repeat\(7/);
-    expect(css).not.toMatch(/\.calendar-week-grid\s*\{[^}]*grid-template-columns:\s*repeat\(7/);
     expect(css).not.toMatch(/\.calendar-day-strip\s*\{[^}]*grid-template-columns:\s*repeat\(7/);
+  });
+
+  it("uses shared week header and body rows for aligned task tops", () => {
+    expect(css).toMatch(/\.calendar-week-grid\s*\{[^}]*flex-direction:\s*column/);
+    expect(css).toMatch(/\.calendar-week-head-row,\s*\.calendar-week-body-row\s*\{[^}]*display:\s*flex/);
+    expect(css).toMatch(
+      /\.calendar-week-head-cell,\s*\.calendar-week-body-cell\s*\{[^}]*flex:\s*1 1 0[^}]*width:\s*0/,
+    );
+    expect(css).toMatch(/\.calendar-week-head-row\s*\{[^}]*align-items:\s*stretch/);
+    expect(css).not.toMatch(/\.calendar-week-col-head\s*\{[^}]*height:\s*4\.875rem/);
   });
 
   it("allows month cells to shrink and clip overflow", () => {
     expect(css).toMatch(/\.calendar-month-cell\s*\{[^}]*overflow:\s*hidden/);
   });
 
-  it("allows week columns and rows to shrink below content min-size", () => {
-    expect(css).toMatch(/\.calendar-week-col\s*\{[^}]*overflow:\s*hidden/);
+  it("allows week body cells and rows to shrink below content min-size", () => {
+    expect(css).toMatch(/\.calendar-week-body-cell\s*\{[^}]*overflow:\s*hidden/);
     expect(css).toMatch(/\.calendar-week-col-body\s*\{[^}]*min-width:\s*0/);
     expect(css).toMatch(/\.calendar-week-row\s*\{[^}]*min-width:\s*0/);
-  });
-
-  it("locks week column header height so task rows align across days", () => {
-    expect(css).toMatch(/\.calendar-week-col-head\s*\{[^}]*height:\s*4\.875rem/);
-    expect(css).toMatch(/\.calendar-week-col-head\s*\{[^}]*flex-shrink:\s*0/);
-    expect(css).toMatch(/\.calendar-week-col-weekday\s*\{[^}]*white-space:\s*nowrap/);
-    expect(css).toMatch(/\.calendar-week-col-day\s*\{[^}]*height:\s*1\.75rem/);
   });
 
   it("clips titles inside non-flex clip grid (WebKitGTK button workaround)", () => {
@@ -43,5 +45,7 @@ describe("calendar grid CSS", () => {
     );
     expect(css).toMatch(/\.calendar-line-title,\s*\.calendar-week-row-title\s*\{[^}]*text-overflow:\s*ellipsis/);
     expect(css).toMatch(/\.calendar-week-row\s*\{[^}]*display:\s*block/);
+    expect(css).toMatch(/\.calendar-week-col-weekday\s*\{[^}]*white-space:\s*nowrap/);
+    expect(css).toMatch(/\.calendar-week-col-day\s*\{[^}]*height:\s*1\.75rem/);
   });
 });

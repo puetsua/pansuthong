@@ -57,7 +57,7 @@ describe("CalendarView", () => {
 
   it("shows week columns in week mode", () => {
     const indexes = buildIndexes(doc, "2026-09-05");
-    render(
+    const { container } = render(
       <MemoryRouter>
         <CalendarView doc={doc} indexes={indexes} />
       </MemoryRouter>,
@@ -65,6 +65,8 @@ describe("CalendarView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Week" }));
     expect(screen.getByRole("grid", { name: /week calendar/i })).toBeTruthy();
+    expect(container.querySelectorAll(".calendar-week-head-cell").length).toBe(7);
+    expect(container.querySelectorAll(".calendar-week-body-cell").length).toBe(7);
     expect(screen.getByText("Reply email")).toBeTruthy();
     expect(screen.queryByRole("checkbox")).toBeNull();
   });

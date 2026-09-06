@@ -178,38 +178,49 @@ export function CalendarView({ doc, indexes }: Props) {
 
       {mode === "week" && !showNarrowWeek && (
         <div className="calendar-week-grid" role="grid" aria-label={t("calendar.weekAria")}>
-          {weekDays.map(cell => {
-            const rows = agendaRowsForDay(indexes, cell.iso);
-            const isToday = cell.iso === today;
-            const weekday = weekdayLabelForIso(cell.iso, t);
-            return (
-              <div key={cell.iso} className="calendar-week-col" role="gridcell">
-                <button type="button" className="calendar-week-col-head" onClick={() => goDay(cell.iso)}>
-                  <span className="calendar-week-col-weekday">
-                    {weekday}{isToday ? ` · ${t("calendar.todayShort")}` : ""}
-                  </span>
-                  <span className={`calendar-week-col-day${isToday ? " calendar-week-col-day-today" : ""}`}>
-                    {cell.day}
-                  </span>
-                  <span className="calendar-week-col-count">
-                    {t("common.taskCount", { count: rows.length })}
-                  </span>
-                </button>
-                <div className="calendar-week-col-body">
-                  {rows.length === 0
-                    ? <span className="calendar-week-empty" aria-hidden="true">—</span>
-                    : rows.map(row => (
-                      <CalendarWeekRow
-                        key={row.kind === "task" ? row.task.id : row.ghost.id}
-                        row={row}
-                        tags={indexes.tagsById}
-                        todayIso={today}
-                      />
-                    ))}
+          <div className="calendar-week-head-row" role="row">
+            {weekDays.map(cell => {
+              const rows = agendaRowsForDay(indexes, cell.iso);
+              const isToday = cell.iso === today;
+              const weekday = weekdayLabelForIso(cell.iso, t);
+              return (
+                <div key={cell.iso} className="calendar-week-head-cell" role="columnheader">
+                  <button type="button" className="calendar-week-col-head" onClick={() => goDay(cell.iso)}>
+                    <span className="calendar-week-col-weekday">
+                      {weekday}{isToday ? ` · ${t("calendar.todayShort")}` : ""}
+                    </span>
+                    <span className={`calendar-week-col-day${isToday ? " calendar-week-col-day-today" : ""}`}>
+                      {cell.day}
+                    </span>
+                    <span className="calendar-week-col-count">
+                      {t("common.taskCount", { count: rows.length })}
+                    </span>
+                  </button>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+          <div className="calendar-week-body-row" role="row">
+            {weekDays.map(cell => {
+              const rows = agendaRowsForDay(indexes, cell.iso);
+              return (
+                <div key={cell.iso} className="calendar-week-body-cell" role="gridcell">
+                  <div className="calendar-week-col-body">
+                    {rows.length === 0
+                      ? <span className="calendar-week-empty" aria-hidden="true">—</span>
+                      : rows.map(row => (
+                        <CalendarWeekRow
+                          key={row.kind === "task" ? row.task.id : row.ghost.id}
+                          row={row}
+                          tags={indexes.tagsById}
+                          todayIso={today}
+                        />
+                      ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
