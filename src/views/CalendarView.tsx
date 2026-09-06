@@ -185,10 +185,17 @@ export function CalendarView({ doc, indexes }: Props) {
               const weekday = weekdayLabelForIso(cell.iso, t);
               return (
                 <div key={`head-${cell.iso}`} className="calendar-week-head-cell" role="columnheader">
-                  <button type="button" className="calendar-week-col-head" onClick={() => goDay(cell.iso)}>
-                    <span className="calendar-week-col-weekday">
-                      {weekday}{isToday ? ` · ${t("calendar.todayShort")}` : ""}
-                    </span>
+                  <button
+                    type="button"
+                    className="calendar-week-col-head"
+                    onClick={() => goDay(cell.iso)}
+                    aria-label={
+                      isToday
+                        ? `${weekday} (${t("calendar.todayShort")}), ${formatIsoDate(cell.iso, dateFmt, locale)}`
+                        : formatIsoDate(cell.iso, dateFmt, locale)
+                    }
+                  >
+                    <span className="calendar-week-col-weekday">{weekday}</span>
                     <span className={`calendar-week-col-day${isToday ? " calendar-week-col-day-today" : ""}`}>
                       {cell.day}
                     </span>

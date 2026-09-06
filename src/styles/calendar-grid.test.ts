@@ -24,8 +24,15 @@ describe("calendar grid CSS", () => {
     expect(css).toMatch(/\.calendar-week-head-strip,\s*\.calendar-week-body-strip\s*\{[^}]*display:\s*flex/);
     expect(css).toMatch(equalWeekChild);
     expect(css).toMatch(/\.calendar-week-head-strip\s*\{[^}]*align-items:\s*stretch/);
-    expect(css).toMatch(/\.calendar-week-body-strip\s*\{[^}]*align-items:\s*flex-start/);
+    expect(css).toMatch(/\.calendar-week-body-strip\s*\{[^}]*align-items:\s*stretch/);
     expect(css).not.toMatch(/\.calendar-week-grid\s*\{[^}]*grid-template-columns/);
+  });
+
+  it("locks equal week header cell height (today badge only, no weekday suffix)", () => {
+    expect(css).toMatch(/\.calendar-week-head-cell\s*\{[^}]*height:\s*4\.875rem/);
+    expect(css).toMatch(/\.calendar-week-col-head\s*\{[^}]*grid-template-rows:\s*1\.1em 1\.75rem 1\.1em/);
+    expect(css).toMatch(/\.calendar-week-col-weekday\s*\{[^}]*height:\s*1\.1em/);
+    expect(css).toMatch(/\.calendar-week-col-count\s*\{[^}]*height:\s*1\.1em/);
   });
 
   it("allows month cells to shrink and clip overflow", () => {

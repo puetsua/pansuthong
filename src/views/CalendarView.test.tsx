@@ -73,6 +73,21 @@ describe("CalendarView", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
+  it("week header marks today on date badge only, not weekday line", () => {
+    const indexes = buildIndexes(doc, "2026-09-06");
+    const { container } = render(
+      <MemoryRouter>
+        <CalendarView doc={doc} indexes={indexes} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Week" }));
+    const todayBadge = container.querySelector(".calendar-week-col-day-today");
+    expect(todayBadge).toBeTruthy();
+    const todayHead = todayBadge?.closest(".calendar-week-head-cell");
+    const weekday = todayHead?.querySelector(".calendar-week-col-weekday");
+    expect(weekday?.textContent).not.toMatch(/今|Today/);
+  });
+
   it("shows checkboxes without timers in day mode", () => {
     const indexes = buildIndexes(doc, "2026-09-05");
     render(
