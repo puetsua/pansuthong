@@ -637,25 +637,31 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 }
 .calendar-more-link:hover { color: var(--c-accent); }
 
-/* Week grid (desktop): shared header row + body row so bodies align on WebKitGTK. */
+/* Week grid (desktop): one 7×2 grid so row-2 bodies share a single start line (WebKitGTK). */
 .calendar-week-grid {
-  display: flex; flex-direction: column; width: 100%;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: auto auto;
+  align-items: start;
+  width: 100%;
   border: 1px solid var(--c-border); border-radius: var(--radius-md); overflow: hidden;
 }
-.calendar-week-head-row, .calendar-week-body-row { display: flex; width: 100%; }
 .calendar-week-head-cell, .calendar-week-body-cell {
-  flex: 1 1 0; width: 0; min-width: 0; overflow: hidden;
+  min-width: 0; margin: 0; padding: 0; overflow: hidden;
   border-right: 1px solid var(--c-border);
 }
-.calendar-week-head-cell:last-child, .calendar-week-body-cell:last-child { border-right: none; }
-.calendar-week-head-row {
-  align-items: stretch; border-bottom: 1px solid var(--c-border); background: var(--c-surface);
+.calendar-week-head-cell:nth-child(7n), .calendar-week-body-cell:nth-child(7n) { border-right: none; }
+.calendar-week-head-cell {
+  grid-row: 1; background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
 }
+.calendar-week-body-cell { grid-row: 2; }
 .calendar-week-col-head {
   display: grid; grid-template-rows: auto 1.75rem auto; align-items: center; justify-items: center;
-  gap: 2px; box-sizing: border-box; height: 100%; width: 100%;
+  gap: 2px; box-sizing: border-box; width: 100%; margin: 0;
   padding: var(--space-2) var(--space-1); border: none; background: transparent;
   color: var(--c-text); cursor: pointer; text-align: center;
+  font: inherit; appearance: none;
 }
 .calendar-week-col-head:hover { color: var(--c-accent); }
 .calendar-week-col-weekday {
@@ -671,13 +677,18 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   width: 1.75rem; height: 1.75rem; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
   line-height: 1;
 }
-.calendar-week-col-count { font-size: 0.68rem; color: var(--c-text-muted); }
-.calendar-week-col-body { padding: var(--space-1); display: flex; flex-direction: column; gap: var(--space-1); min-height: 4rem; min-width: 0; overflow: hidden; }
-.calendar-week-empty { color: var(--c-text-muted); text-align: center; padding: var(--space-2) 0; }
+.calendar-week-col-count { font-size: 0.68rem; color: var(--c-text-muted); line-height: 1.25; }
+.calendar-week-col-body {
+  margin: 0; padding: var(--space-1); box-sizing: border-box;
+  display: flex; flex-direction: column; gap: var(--space-1);
+  min-height: 4rem; min-width: 0; overflow: hidden;
+}
+.calendar-week-empty { color: var(--c-text-muted); text-align: center; padding: var(--space-2) 0; margin: 0; }
 .calendar-week-row {
-  display: block; width: 100%; max-width: 100%; min-width: 0; overflow: hidden;
+  display: block; width: 100%; max-width: 100%; min-width: 0; margin: 0; overflow: hidden;
   border: 1px solid var(--c-border); border-radius: var(--radius-sm); background: var(--c-bg);
   padding: var(--space-1); text-align: left; cursor: pointer; color: var(--c-text);
+  font: inherit; appearance: none; box-sizing: border-box;
 }
 .calendar-week-row:hover { border-color: var(--c-accent); }
 .calendar-week-row-ghost { opacity: 0.62; }

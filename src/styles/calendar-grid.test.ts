@@ -17,21 +17,25 @@ describe("calendar grid CSS", () => {
     expect(css).not.toMatch(/\.calendar-day-strip\s*\{[^}]*grid-template-columns:\s*repeat\(7/);
   });
 
-  it("uses shared week header and body rows for aligned task tops", () => {
-    expect(css).toMatch(/\.calendar-week-grid\s*\{[^}]*flex-direction:\s*column/);
-    expect(css).toMatch(/\.calendar-week-head-row,\s*\.calendar-week-body-row\s*\{[^}]*display:\s*flex/);
+  it("uses a single 7x2 week grid so all body cells share one start line", () => {
     expect(css).toMatch(
-      /\.calendar-week-head-cell,\s*\.calendar-week-body-cell\s*\{[^}]*flex:\s*1 1 0[^}]*width:\s*0/,
+      /\.calendar-week-grid\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/,
     );
-    expect(css).toMatch(/\.calendar-week-head-row\s*\{[^}]*align-items:\s*stretch/);
-    expect(css).not.toMatch(/\.calendar-week-col-head\s*\{[^}]*height:\s*4\.875rem/);
+    expect(css).toMatch(/\.calendar-week-grid\s*\{[^}]*grid-template-rows:\s*auto auto/);
+    expect(css).toMatch(/\.calendar-week-head-cell\s*\{[^}]*grid-row:\s*1/);
+    expect(css).toMatch(/\.calendar-week-body-cell\s*\{[^}]*grid-row:\s*2/);
+    expect(css).not.toMatch(/calendar-week-head-row/);
+    expect(css).not.toMatch(/calendar-week-body-row/);
   });
 
   it("allows month cells to shrink and clip overflow", () => {
     expect(css).toMatch(/\.calendar-month-cell\s*\{[^}]*overflow:\s*hidden/);
   });
 
-  it("allows week body cells and rows to shrink below content min-size", () => {
+  it("zeros week body/card margins for aligned first-card tops", () => {
+    expect(css).toMatch(/\.calendar-week-col-body\s*\{[^}]*margin:\s*0/);
+    expect(css).toMatch(/\.calendar-week-row\s*\{[^}]*margin:\s*0/);
+    expect(css).toMatch(/\.calendar-week-col-head\s*\{[^}]*margin:\s*0/);
     expect(css).toMatch(/\.calendar-week-body-cell\s*\{[^}]*overflow:\s*hidden/);
     expect(css).toMatch(/\.calendar-week-col-body\s*\{[^}]*min-width:\s*0/);
     expect(css).toMatch(/\.calendar-week-row\s*\{[^}]*min-width:\s*0/);
