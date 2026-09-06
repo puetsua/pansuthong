@@ -65,6 +65,8 @@ describe("CalendarView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Week" }));
     expect(screen.getByRole("grid", { name: /week calendar/i })).toBeTruthy();
+    expect(container.querySelector(".calendar-week-head-strip")).toBeTruthy();
+    expect(container.querySelector(".calendar-week-body-strip")).toBeTruthy();
     expect(container.querySelectorAll(".calendar-week-head-cell").length).toBe(7);
     expect(container.querySelectorAll(".calendar-week-body-cell").length).toBe(7);
     expect(screen.getByText("Reply email")).toBeTruthy();
