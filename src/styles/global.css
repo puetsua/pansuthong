@@ -582,12 +582,19 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 
 /* Month grid */
 .calendar-month { border: 1px solid var(--c-border); border-radius: var(--radius-md); overflow: hidden; }
-.calendar-weekdays, .calendar-month-week { display: grid; grid-template-columns: repeat(7, 1fr); }
+/* Equal 7-day columns: flex + width:0 beats WebKitGTK fr track content sizing. */
+.calendar-weekdays, .calendar-month-week, .calendar-day-strip {
+  display: flex; width: 100%;
+}
+.calendar-weekday, .calendar-month-cell, .calendar-day-strip-btn {
+  flex: 1 1 0; width: 0; min-width: 0;
+}
 .calendar-weekday {
   text-align: center; font-size: 0.75rem; color: var(--c-text-muted); padding: var(--space-2) 0;
   border-bottom: 1px solid var(--c-border); background: var(--c-surface);
 }
 .calendar-month-cell {
+  overflow: hidden;
   min-height: 6.5rem; padding: var(--space-1); border-right: 1px solid var(--c-border);
   border-bottom: 1px solid var(--c-border); display: flex; flex-direction: column; gap: 2px;
   background: var(--c-bg);
@@ -605,52 +612,105 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   background: var(--c-accent); color: var(--c-accent-contrast, #fff);
   width: 1.5rem; height: 1.5rem; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
 }
-.calendar-month-lines { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.calendar-month-lines { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow: hidden; }
 .calendar-month-line {
-  display: flex; align-items: center; gap: 2px; width: 100%; min-width: 0;
+  display: block; width: 100%; max-width: 100%; min-width: 0; overflow: hidden;
   border: none; background: transparent; color: var(--c-text); text-align: left;
   font-size: 0.72rem; line-height: 1.25; padding: 1px 2px; border-radius: var(--radius-sm); cursor: pointer;
 }
 .calendar-month-line:hover { background: var(--c-surface); }
 .calendar-month-line-ghost { opacity: 0.55; font-style: italic; }
-.calendar-month-line-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Clip grid lives inside <button> so WebKitGTK can ellipsize long unbroken titles. */
+.calendar-line-clip {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px;
+  width: 100%; min-width: 0; overflow: hidden;
+}
+.calendar-line-prefix { display: flex; flex: none; }
+.calendar-line-title,
+.calendar-week-row-title {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  word-break: normal; overflow-wrap: normal;
+}
 .calendar-more-link {
   border: none; background: transparent; color: var(--c-text-muted); font-size: 0.7rem;
   text-align: left; padding: 0 2px; cursor: pointer;
 }
 .calendar-more-link:hover { color: var(--c-accent); }
 
-/* Week grid (desktop) */
+/* Week grid (desktop): head strip + body strip — one Y for all body tops (WebKitGTK). */
 .calendar-week-grid {
-  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0;
+  display: flex; flex-direction: column; width: 100%;
   border: 1px solid var(--c-border); border-radius: var(--radius-md); overflow: hidden;
 }
-.calendar-week-col { border-right: 1px solid var(--c-border); min-width: 0; display: flex; flex-direction: column; }
-.calendar-week-col:last-child { border-right: none; }
+.calendar-week-head-strip, .calendar-week-body-strip {
+  display: flex; width: 100%; flex: none;
+}
+.calendar-week-head-strip {
+  --calendar-week-head-h: 70px;
+  align-items: stretch; overflow: hidden; position: relative;
+  height: var(--calendar-week-head-h); min-height: var(--calendar-week-head-h); max-height: var(--calendar-week-head-h);
+}
+.calendar-week-head-strip::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+  background: var(--c-border); pointer-events: none; z-index: 1;
+}
+.calendar-week-body-strip { align-items: stretch; }
+.calendar-week-head-cell, .calendar-week-body-cell {
+  flex: 1 1 0; width: 0; min-width: 0; margin: 0; overflow: hidden;
+  border-right: 1px solid var(--c-border);
+}
+.calendar-week-head-cell:last-child, .calendar-week-body-cell:last-child { border-right: none; }
+.calendar-week-head-cell {
+  display: flex; flex-direction: column; height: var(--calendar-week-head-h);
+  max-height: var(--calendar-week-head-h); min-height: var(--calendar-week-head-h);
+  box-sizing: border-box; background: var(--c-surface); padding: 0;
+}
+.calendar-week-body-cell {
+  display: flex; flex-direction: column; padding: var(--space-1); box-sizing: border-box;
+}
 .calendar-week-col-head {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: var(--space-2) var(--space-1); border: none; border-bottom: 1px solid var(--c-border);
-  background: var(--c-surface); color: var(--c-text); cursor: pointer; width: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0; box-sizing: border-box; width: 100%; height: 100%; max-height: 100%; margin: 0;
+  padding: 8px 4px; border: none; background: transparent; overflow: hidden;
+  color: var(--c-text); cursor: pointer; text-align: center;
+  font: inherit; appearance: none; -webkit-appearance: none;
 }
 .calendar-week-col-head:hover { color: var(--c-accent); }
-.calendar-week-col-weekday { font-size: 0.72rem; color: var(--c-text-muted); }
-.calendar-week-col-day { font-size: 1.1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.calendar-week-col-weekday {
+  flex: 0 0 11px; height: 11px; line-height: 11px; font-size: 11px;
+  color: var(--c-text-muted); margin: 0 0 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.calendar-week-col-day {
+  flex: 0 0 28px; height: 28px; line-height: 28px; margin: 0 0 2px;
+  font-size: 1.1rem; font-weight: 600; font-variant-numeric: tabular-nums;
+}
 .calendar-week-col-day-today {
   background: var(--c-accent); color: var(--c-accent-contrast, #fff);
-  width: 1.75rem; height: 1.75rem; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; flex: 0 0 28px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  line-height: 1; box-sizing: border-box;
 }
-.calendar-week-col-count { font-size: 0.68rem; color: var(--c-text-muted); }
-.calendar-week-col-body { padding: var(--space-1); display: flex; flex-direction: column; gap: var(--space-1); min-height: 4rem; }
-.calendar-week-empty { color: var(--c-text-muted); text-align: center; padding: var(--space-2) 0; }
+.calendar-week-col-count {
+  flex: 0 0 11px; height: 11px; line-height: 11px; font-size: 11px; margin: 0;
+  color: var(--c-text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.calendar-week-col-body {
+  flex: 1; margin: 0; padding: 0; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: var(--space-1);
+  min-width: 0; overflow: hidden;
+}
+.calendar-week-empty { color: var(--c-text-muted); text-align: center; padding: var(--space-2) 0; margin: 0; }
 .calendar-week-row {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); width: 100%;
+  display: block; width: 100%; max-width: 100%; min-width: 0; margin: 0; overflow: hidden;
   border: 1px solid var(--c-border); border-radius: var(--radius-sm); background: var(--c-bg);
   padding: var(--space-1); text-align: left; cursor: pointer; color: var(--c-text);
+  font: inherit; appearance: none; box-sizing: border-box;
 }
 .calendar-week-row:hover { border-color: var(--c-accent); }
 .calendar-week-row-ghost { opacity: 0.62; }
-.calendar-week-row-ghost .task-title { font-style: italic; }
-.calendar-week-row-heading { flex: 1 1 100%; min-width: 0; }
+.calendar-week-row-ghost .calendar-week-row-title { font-style: italic; }
 
 /* Day view */
 .calendar-day-header {
@@ -662,7 +722,7 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 
 /* Narrow week/day strip */
 .calendar-day-strip {
-  display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+  gap: 2px;
   margin-bottom: var(--space-3); padding: var(--space-1); border: 1px solid var(--c-border);
   border-radius: var(--radius-md); background: var(--c-surface);
 }

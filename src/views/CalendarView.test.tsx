@@ -57,7 +57,7 @@ describe("CalendarView", () => {
 
   it("shows week columns in week mode", () => {
     const indexes = buildIndexes(doc, "2026-09-05");
-    render(
+    const { container } = render(
       <MemoryRouter>
         <CalendarView doc={doc} indexes={indexes} />
       </MemoryRouter>,
@@ -65,8 +65,27 @@ describe("CalendarView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Week" }));
     expect(screen.getByRole("grid", { name: /week calendar/i })).toBeTruthy();
+    expect(container.querySelector(".calendar-week-head-strip")).toBeTruthy();
+    expect(container.querySelector(".calendar-week-body-strip")).toBeTruthy();
+    expect(container.querySelectorAll(".calendar-week-head-cell").length).toBe(7);
+    expect(container.querySelectorAll(".calendar-week-body-cell").length).toBe(7);
     expect(screen.getByText("Reply email")).toBeTruthy();
     expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  it("week header marks today on date badge only, not weekday line", () => {
+    const indexes = buildIndexes(doc, "2026-09-06");
+    const { container } = render(
+      <MemoryRouter>
+        <CalendarView doc={doc} indexes={indexes} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Week" }));
+    const todayBadge = container.querySelector(".calendar-week-col-day-today");
+    expect(todayBadge).toBeTruthy();
+    const todayHead = todayBadge?.closest(".calendar-week-head-cell");
+    const weekday = todayHead?.querySelector(".calendar-week-col-weekday");
+    expect(weekday?.textContent).not.toMatch(/今|Today/);
   });
 
   it("shows checkboxes without timers in day mode", () => {
@@ -112,5 +131,28 @@ describe("CalendarView", () => {
 
     expect(screen.getByText(/October 2026/i)).toBeTruthy();
     expect(screen.queryByText("Sep 2026")).toBeNull();
+  });
+
+  it("renders seven day cells per week row with long task titles", () => {
+    const longTitle = "抬腿捲腹 伸直抬腿 50下 深蹲 40下 日文練習30分鐘";
+    const heavyDoc: Document = {
+      ...doc,
+      tasks: Array.from({ length: 5 }, (_, i) =>
+        task({ id: `long_${i}`, title: longTitle, due_date: `2026-09-0${i + 1}` }),
+      ),
+    };
+    const indexes = buildIndexes(heavyDoc, "2026-09-05");
+    const { container } = render(
+      <MemoryRouter>
+        <CalendarView doc={heavyDoc} indexes={indexes} />
+      </MemoryRouter>,
+    );
+
+    const weeks = container.querySelectorAll(".calendar-month-week");
+    expect(weeks.length).toBeGreaterThan(0);
+    weeks.forEach(week => {
+      expect(week.querySelectorAll(".calendar-month-cell").length).toBe(7);
+    });
+    expect(screen.getAllByText(longTitle).length).toBeGreaterThan(0);
   });
 });

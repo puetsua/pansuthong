@@ -24,13 +24,14 @@ describe("CalendarWeekRow", () => {
         occurrenceDate: "2026-09-05",
       },
     };
-    render(<CalendarWeekRow row={row} tags={tags} todayIso="2026-09-05" settings={{ theme: "auto" }} />);
+    const { container } = render(<CalendarWeekRow row={row} tags={tags} />);
     expect(screen.queryByText(/recurring/i)).toBeNull();
     expect(screen.queryByText(/週期/i)).toBeNull();
-    expect(screen.getByText("Work")).toBeTruthy();
+    expect(screen.getByText("Morning stretch")).toBeTruthy();
+    expect(container.querySelector(".task-tag")).toBeNull();
   });
 
-  it("renders standard task-tag pills for tasks and ghosts", () => {
+  it("does not render tag chips on task rows", () => {
     const row: Row = {
       kind: "task",
       task: {
@@ -42,12 +43,50 @@ describe("CalendarWeekRow", () => {
         due_date: "2026-09-05",
       },
     };
-    const { container } = render(
-      <CalendarWeekRow row={row} tags={tags} todayIso="2026-09-05" settings={{ theme: "auto" }} />,
-    );
-    const pill = container.querySelector(".task-tag");
-    expect(pill).toBeTruthy();
-    expect(pill?.classList.contains("task-tag")).toBe(true);
-    expect(container.querySelector(".calendar-week-row-tags")).toBeNull();
+    const { container } = render(<CalendarWeekRow row={row} tags={tags} />);
+    expect(screen.getByText("Reply email")).toBeTruthy();
+    expect(container.querySelector(".task-tag")).toBeNull();
+    expect(container.querySelector(".calendar-line-clip")).toBeTruthy();
+    expect(container.querySelector(".task-title")).toBeNull();
+  });
+
+  it("does not render when/due metadata under the title", () => {
+    const row: Row = {
+      kind: "task",
+      task: {
+        id: "k2",
+        title: "Daily Linux standup",
+        notes: "",
+        tag_ids: [],
+        created_at: "2026-01-01T00:00:00+08:00",
+        due_date: "2026-09-07",
+      },
+    };
+    const { container } = render(<CalendarWeekRow row={row} tags={tags} />);
+    expect(screen.getByText("Daily Linux standup")).toBeTruthy();
+    expect(container.querySelector(".task-when")).toBeNull();
+    expect(screen.queryByText(/due/i)).toBeNull();
+    expect(screen.queryByText(/到期/)).toBeNull();
+    expect(screen.queryByText(/overdue/i)).toBeNull();
+  });
+
+  it("does not render start/scheduled metadata under the title", () => {
+    const row: Row = {
+      kind: "task",
+      task: {
+        id: "k3",
+        title: "Plan sprint",
+        notes: "",
+        tag_ids: [],
+        created_at: "2026-01-01T00:00:00+08:00",
+        start_date: "2026-09-08",
+      },
+    };
+    const { container } = render(<CalendarWeekRow row={row} tags={tags} />);
+    expect(screen.getByText("Plan sprint")).toBeTruthy();
+    expect(container.querySelector(".task-when")).toBeNull();
+    expect(screen.queryByText(/scheduled/i)).toBeNull();
+    expect(screen.queryByText(/開始/)).toBeNull();
+    expect(screen.queryByText(/today/i)).toBeNull();
   });
 });
