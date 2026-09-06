@@ -643,19 +643,14 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 .calendar-week-col-body { padding: var(--space-1); display: flex; flex-direction: column; gap: var(--space-1); min-height: 4rem; }
 .calendar-week-empty { color: var(--c-text-muted); text-align: center; padding: var(--space-2) 0; }
 .calendar-week-row {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); width: 100%;
   border: 1px solid var(--c-border); border-radius: var(--radius-sm); background: var(--c-bg);
   padding: var(--space-1); text-align: left; cursor: pointer; color: var(--c-text);
 }
 .calendar-week-row:hover { border-color: var(--c-accent); }
-.calendar-week-row-ghost { opacity: 0.55; font-style: italic; }
-.calendar-week-row-title {
-  font-size: 0.78rem; line-height: 1.25; overflow: hidden; text-overflow: ellipsis;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-}
-.calendar-week-row-meta { font-size: 0.68rem; color: var(--c-text-muted); }
-.calendar-week-row-tags { display: flex; flex-wrap: wrap; gap: 2px; }
-.calendar-week-row-tags .task-tag { font-size: 0.62rem; padding: 0 4px; }
+.calendar-week-row-ghost { opacity: 0.62; }
+.calendar-week-row-ghost .task-title { font-style: italic; }
+.calendar-week-row-heading { flex: 1 1 100%; min-width: 0; }
 
 /* Day view */
 .calendar-day-header {
