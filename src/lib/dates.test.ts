@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addDaysIso, dateTimeKey, daysBetweenIso, earliestDateTimeKey, formatDate, formatDateTime, formatDatetimeLocalValue, formatIsoDate, formatIsoLocal, formatIsoLocalShort, formatTime, formatTimeOfDay, isOverdue, logicalDayOf, todayIso,
+  addDaysIso, dateTimeKey, daysBetweenIso, earliestDateTimeKey, formatDate, formatDateTime, formatDatetimeLocalValue, formatIsoDate, formatIsoYearMonth, formatIsoLocal, formatIsoLocalShort, formatTime, formatTimeOfDay, isOverdue, logicalDayOf, todayIso,
 } from "./dates";
 
 describe("todayIso (day-start hour)", () => {
@@ -166,6 +166,12 @@ describe("formatDate / formatTime", () => {
 
   it("formats a date-only ISO field without timezone drift", () => {
     expect(formatIsoDate("2026-06-12", "iso")).toBe("2026-06-12");
+    expect(formatIsoDate("2026-09-06", "minguo_zh")).toBe("民國115年9月6日");
+  });
+
+  it("formats year-month for calendar chrome", () => {
+    expect(formatIsoYearMonth("2026-09", "minguo_zh")).toBe("民國115年9月");
+    expect(formatIsoYearMonth("2026-10", "month_day_year")).toBe("October 2026");
   });
 
   it("formats date presets separately from time presets", () => {

@@ -41,7 +41,7 @@ export function ThemePreview({ tokens, onHover }: Props) {
         <div className="theme-preview-sidebar" data-token="--c-surface-2">
           <span className="tp-nav tp-nav-active" data-token="--c-accent-bg">{t("nav.today")}</span>
           <span className="tp-nav" data-token="--c-text-muted">{t("nav.inbox")}</span>
-          <span className="tp-nav" data-token="--c-text-muted">{t("nav.upcoming")}</span>
+          <span className="tp-nav" data-token="--c-text-muted">{t("nav.calendar")}</span>
         </div>
         <div className="theme-preview-main">
           {/* A normal task row */}

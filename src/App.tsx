@@ -11,7 +11,7 @@ import { useIsMobile } from "./lib/viewport";
 import { TodayView } from "./views/TodayView";
 import { InboxView } from "./views/InboxView";
 import { TagView } from "./views/TagView";
-import { UpcomingView } from "./views/UpcomingView";
+import { CalendarView } from "./views/CalendarView";
 import { SearchView } from "./views/SearchView";
 import { SettingsView } from "./views/SettingsView";
 import { TagsView } from "./views/TagsView";
@@ -167,7 +167,8 @@ export default function App() {
           <Route path="/today" element={<TodayView doc={doc} indexes={indexes} />} />
           <Route path="/inbox" element={<InboxView doc={doc} indexes={indexes} />} />
           <Route path="/tag/:id"     element={<TagView doc={doc} indexes={indexes} />} />
-          <Route path="/upcoming" element={<UpcomingView doc={doc} indexes={indexes} />} />
+          <Route path="/upcoming" element={<Navigate to="/calendar" replace />} />
+          <Route path="/calendar" element={<CalendarView doc={doc} indexes={indexes} />} />
           <Route path="/search" element={<SearchView doc={doc} indexes={indexes} />} />
           <Route path="/settings" element={<SettingsView doc={doc} />} />
           <Route path="/tags" element={<TagsView doc={doc} indexes={indexes} />} />

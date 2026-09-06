@@ -297,6 +297,37 @@ export function formatIsoDate(iso: string | undefined, format: DateFormat, local
   return formatDate(new Date(y, m - 1, d), format, locale);
 }
 
+/** Format `YYYY-MM` for calendar month chrome, honoring the date preset. */
+export function formatIsoYearMonth(yearMonth: string, format: DateFormat, locale = "en"): string {
+  const [y, m] = yearMonth.split("-").map(Number);
+  if (!y || !m) return yearMonth;
+  switch (format) {
+    case "minguo_zh":
+      return `${formatMinguoYear(y)}年${m}月`;
+    case "xiyuan_zh":
+      return `西元${y}年${m}月`;
+    case "gongyuan_zh":
+      return `公元${y}年${m}月`;
+    case "chinese":
+      return `${y}年${m}月`;
+    case "month_day_year":
+      return new Date(y, m - 1, 1).toLocaleDateString("en", { month: "long", year: "numeric" });
+    case "day_month_year":
+      return new Date(y, m - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    case "iso":
+      return yearMonth;
+    case "compact":
+      return `${y}${pad2(m)}`;
+    case "locale":
+    case "locale_short":
+    case "locale_long":
+    case "locale_full":
+      return new Date(y, m - 1, 1).toLocaleDateString(locale, { month: "long", year: "numeric" });
+    default:
+      return formatIsoDate(`${yearMonth}-01`, format, locale);
+  }
+}
+
 /** Format a date/time value according to the chosen presets. Returns an em dash for missing/invalid input. */
 export function formatDateTime(
   value: string | number | Date | undefined | null,

@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { ComponentType, SVGProps } from "react";
 import { Indexes, openCount } from "../state/indexes";
-import { InboxIcon, TodayIcon, UpcomingIcon } from "../components/NavIcons";
+import { InboxIcon, TodayIcon, CalendarIcon } from "../components/NavIcons";
 
 type Props = { indexes: Indexes };
 type IconComponent = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>;
@@ -10,7 +10,7 @@ type IconComponent = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>;
 const TABS: { to: string; labelKey: string; Icon: IconComponent }[] = [
   { to: "/today",    labelKey: "nav.today",    Icon: TodayIcon },
   { to: "/inbox",    labelKey: "nav.inbox",    Icon: InboxIcon },
-  { to: "/upcoming", labelKey: "nav.upcoming", Icon: UpcomingIcon },
+  { to: "/calendar", labelKey: "nav.calendar", Icon: CalendarIcon },
 ];
 
 export function BottomTabs({ indexes }: Props) {

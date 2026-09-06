@@ -10,7 +10,7 @@ type Props = { indexes: Indexes };
 const ROUTE_TITLE_KEYS: Record<string, string> = {
   "/today":    "nav.today",
   "/inbox":    "nav.inbox",
-  "/upcoming": "nav.upcoming",
+  "/calendar":  "nav.calendar",
   "/search":   "nav.search",
   "/templates": "nav.templates",
   "/dashboard": "nav.dashboard",
