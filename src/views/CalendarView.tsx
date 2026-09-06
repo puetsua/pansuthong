@@ -1,4 +1,3 @@
-import dayjs from "dayjs";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -16,8 +15,14 @@ import {
   shiftFocusMonth,
   weekStartIso,
 } from "../lib/calendar";
+import {
+  CALENDAR_WEEKDAY_KEYS,
+  calendarDayTitle,
+  calendarMonthTitle,
+  calendarWeekRange,
+  weekdayLabelForIso,
+} from "../lib/calendarFormat";
 import { addDaysIso, formatIsoDate } from "../lib/dates";
-import type { DateFormat } from "../lib/dates";
 import { dateFormat, firstDayOfWeek } from "../lib/settings";
 import { useIsMobile } from "../lib/viewport";
 import { Document } from "../lib/tauri";
@@ -25,12 +30,6 @@ import { Indexes } from "../state/indexes";
 import { useHeldCompletions } from "../state/heldCompletions";
 
 type Props = { doc: Document; indexes: Indexes };
-
-const WEEKDAY_KEYS = [
-  "taskEditor.weekdaySun", "taskEditor.weekdayMon", "taskEditor.weekdayTue",
-  "taskEditor.weekdayWed", "taskEditor.weekdayThu", "taskEditor.weekdayFri",
-  "taskEditor.weekdaySat",
-];
 
 export function CalendarView({ doc, indexes }: Props) {
   const { t } = useTranslation();
@@ -72,10 +71,10 @@ export function CalendarView({ doc, indexes }: Props) {
   };
 
   const periodLabel = mode === "month"
-    ? formatMonthTitle(viewMonth, locale, t)
+    ? calendarMonthTitle(viewMonth, dateFmt, locale)
     : mode === "week"
-      ? formatWeekRange(weekStart, locale, t)
-      : formatDayTitle(focusIso, today, t, dateFmt, locale);
+      ? calendarWeekRange(weekStart, dateFmt, locale, t)
+      : calendarDayTitle(focusIso, today, dateFmt, locale, t);
 
   const prevPeriod = () => {
     if (mode === "month") setFocusIso(iso => shiftFocusMonth(iso, -1));
@@ -127,7 +126,7 @@ export function CalendarView({ doc, indexes }: Props) {
       {mode === "month" && (
         <div className="calendar-month" role="grid" aria-label={t("calendar.gridAria")}>
           <div className="calendar-weekdays" role="row">
-            {Array.from({ length: 7 }, (_, i) => WEEKDAY_KEYS[(fdow + i) % 7]).map((key, i) => (
+            {Array.from({ length: 7 }, (_, i) => CALENDAR_WEEKDAY_KEYS[(fdow + i) % 7]).map((key, i) => (
               <span key={i} className="calendar-weekday" role="columnheader">{t(key).slice(0, 1)}</span>
             ))}
           </div>
@@ -182,7 +181,7 @@ export function CalendarView({ doc, indexes }: Props) {
           {weekDays.map(cell => {
             const rows = agendaRowsForDay(indexes, cell.iso);
             const isToday = cell.iso === today;
-            const weekday = dayjs(cell.iso).toDate().toLocaleDateString(locale, { weekday: "short" });
+            const weekday = weekdayLabelForIso(cell.iso, t);
             return (
               <div key={cell.iso} className="calendar-week-col" role="gridcell">
                 <button type="button" className="calendar-week-col-head" onClick={() => goDay(cell.iso)}>
@@ -246,7 +245,7 @@ export function CalendarView({ doc, indexes }: Props) {
             />
           )}
           <header className="calendar-day-header">
-            <h2>{formatDayTitle(focusIso, today, t, dateFmt, locale)}</h2>
+            <h2>{calendarDayTitle(focusIso, today, dateFmt, locale, t)}</h2>
             <span className="calendar-day-count">{t("common.taskCount", { count: dayRows.length })}</span>
           </header>
           <RowList rows={dayRows} tags={indexes.tagsById} todayIso={today} settings={doc.settings}
@@ -271,7 +270,7 @@ function CalendarDayStrip({ days, focusIso, todayIso, fdow, t, onSelect }: Strip
   return (
     <div className="calendar-day-strip" role="tablist" aria-label={t("calendar.dayStripAria")}>
       {days.map((cell, i) => {
-        const weekday = t(WEEKDAY_KEYS[(fdow + i) % 7]).slice(0, 1);
+        const weekday = t(CALENDAR_WEEKDAY_KEYS[(fdow + i) % 7]).slice(0, 1);
         const selected = cell.iso === focusIso;
         const isToday = cell.iso === todayIso;
         return (
@@ -294,40 +293,4 @@ function CalendarDayStrip({ days, focusIso, todayIso, fdow, t, onSelect }: Strip
       })}
     </div>
   );
-}
-
-function formatMonthTitle(yearMonth: string, locale: string, t: TFunction): string {
-  const [y, m] = yearMonth.split("-").map(Number);
-  const monthsShort = t("taskEditor.monthsShort", { returnObjects: true }) as string[];
-  const monthLabel = monthsShort[m - 1] ?? String(m);
-  if (locale.startsWith("zh")) return `${y}年${monthLabel}`;
-  return `${monthLabel} ${y}`;
-}
-
-function formatWeekRange(weekStart: string, locale: string, t: TFunction): string {
-  const end = addDaysIso(weekStart, 6);
-  if (locale.startsWith("zh")) {
-    const s = dayjs(weekStart);
-    const e = dayjs(end);
-    return `${s.month() + 1}月${s.date()}日 – ${e.month() + 1}月${e.date()}日`;
-  }
-  const s = formatIsoDate(weekStart, "month_day_year", locale);
-  const e = formatIsoDate(end, "month_day_year", locale);
-  return t("calendar.weekRange", { start: s, end: e });
-}
-
-function formatDayTitle(
-  iso: string,
-  todayIso: string,
-  t: TFunction,
-  dateFmt: DateFormat,
-  locale: string,
-): string {
-  const day = dayjs(iso);
-  const weekday = day.toDate().toLocaleDateString(locale, { weekday: "short" });
-  const base = locale.startsWith("zh")
-    ? `${day.month() + 1}月${day.date()}日 (${weekday})`
-    : `${formatIsoDate(iso, dateFmt, locale)} (${weekday})`;
-  if (iso === todayIso) return `${base} · ${t("calendar.today")}`;
-  return base;
 }

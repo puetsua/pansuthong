@@ -110,7 +110,7 @@ describe("CalendarView", () => {
     for (let i = 0; i < 4; i++) fireEvent.click(screen.getByLabelText("Next week"));
     fireEvent.click(screen.getByRole("button", { name: "Month" }));
 
-    expect(screen.getByText("Oct 2026")).toBeTruthy();
+    expect(screen.getByText(/October 2026/i)).toBeTruthy();
     expect(screen.queryByText("Sep 2026")).toBeNull();
   });
 });
