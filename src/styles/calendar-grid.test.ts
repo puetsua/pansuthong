@@ -28,6 +28,13 @@ describe("calendar grid CSS", () => {
     expect(css).toMatch(/\.calendar-week-row\s*\{[^}]*min-width:\s*0/);
   });
 
+  it("locks week column header height so task rows align across days", () => {
+    expect(css).toMatch(/\.calendar-week-col-head\s*\{[^}]*height:\s*4\.875rem/);
+    expect(css).toMatch(/\.calendar-week-col-head\s*\{[^}]*flex-shrink:\s*0/);
+    expect(css).toMatch(/\.calendar-week-col-weekday\s*\{[^}]*white-space:\s*nowrap/);
+    expect(css).toMatch(/\.calendar-week-col-day\s*\{[^}]*height:\s*1\.75rem/);
+  });
+
   it("clips titles inside non-flex clip grid (WebKitGTK button workaround)", () => {
     expect(css).toMatch(/\.calendar-month-line\s*\{[^}]*display:\s*block/);
     expect(css).toMatch(/\.calendar-month-line\s*\{[^}]*overflow:\s*hidden/);
