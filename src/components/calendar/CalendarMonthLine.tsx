@@ -43,8 +43,12 @@ export function CalendarMonthLine({ row, tags }: Props) {
         onClick={open}
         aria-label={t("taskRow.edit", { title })}
       >
-        {ghost && <span className="task-recurring" aria-hidden="true">↻</span>}
-        <span className="calendar-month-line-title">{title}</span>
+        <span className="calendar-line-clip">
+          <span className="calendar-line-prefix">
+            {ghost && <span className="task-recurring" aria-hidden="true">↻</span>}
+          </span>
+          <span className="calendar-line-title">{title}</span>
+        </span>
       </button>
       {editing && (
         <TaskEditor task={editing} allTags={tags} onClose={() => setEditing(null)} />

@@ -588,7 +588,7 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   border-bottom: 1px solid var(--c-border); background: var(--c-surface);
 }
 .calendar-month-cell {
-  min-width: 0;
+  min-width: 0; overflow: hidden;
   min-height: 6.5rem; padding: var(--space-1); border-right: 1px solid var(--c-border);
   border-bottom: 1px solid var(--c-border); display: flex; flex-direction: column; gap: 2px;
   background: var(--c-bg);
@@ -608,16 +608,21 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 }
 .calendar-month-lines { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow: hidden; }
 .calendar-month-line {
-  display: flex; align-items: center; gap: 2px; width: 100%; max-width: 100%; min-width: 0;
-  overflow: hidden;
+  display: block; width: 100%; max-width: 100%; min-width: 0; overflow: hidden;
   border: none; background: transparent; color: var(--c-text); text-align: left;
   font-size: 0.72rem; line-height: 1.25; padding: 1px 2px; border-radius: var(--radius-sm); cursor: pointer;
 }
 .calendar-month-line:hover { background: var(--c-surface); }
 .calendar-month-line-ghost { opacity: 0.55; font-style: italic; }
-.calendar-month-line-title {
-  flex: 1 1 0; min-width: 0; max-width: 100%; display: block;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+/* Clip grid lives inside <button> so WebKitGTK can ellipsize long unbroken titles. */
+.calendar-line-clip {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px;
+  width: 100%; min-width: 0; overflow: hidden;
+}
+.calendar-line-prefix { display: flex; flex: none; }
+.calendar-line-title,
+.calendar-week-row-title {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   word-break: normal; overflow-wrap: normal;
 }
 .calendar-more-link {
@@ -646,25 +651,19 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   width: 1.75rem; height: 1.75rem; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
 }
 .calendar-week-col-count { font-size: 0.68rem; color: var(--c-text-muted); }
-.calendar-week-col-body { padding: var(--space-1); display: flex; flex-direction: column; gap: var(--space-1); min-height: 4rem; min-width: 0; }
+.calendar-week-col-body { padding: var(--space-1); display: flex; flex-direction: column; gap: var(--space-1); min-height: 4rem; min-width: 0; overflow: hidden; }
 .calendar-week-empty { color: var(--c-text-muted); text-align: center; padding: var(--space-2) 0; }
 .calendar-week-row {
-  display: flex; flex-direction: column; align-items: stretch; gap: 2px;
-  width: 100%; max-width: 100%; min-width: 0; overflow: hidden;
+  display: block; width: 100%; max-width: 100%; min-width: 0; overflow: hidden;
   border: 1px solid var(--c-border); border-radius: var(--radius-sm); background: var(--c-bg);
   padding: var(--space-1); text-align: left; cursor: pointer; color: var(--c-text);
 }
 .calendar-week-row:hover { border-color: var(--c-accent); }
 .calendar-week-row-ghost { opacity: 0.62; }
-.calendar-week-row-ghost .task-title { font-style: italic; }
-.calendar-week-row-heading { width: 100%; max-width: 100%; min-width: 0; overflow: hidden; }
-.calendar-week-row .task-heading {
-  display: flex; width: 100%; max-width: 100%; min-width: 0; overflow: hidden;
-}
-.calendar-week-row .task-title {
-  flex: 1 1 0; min-width: 0; max-width: 100%; display: block;
+.calendar-week-row-ghost .calendar-week-row-title { font-style: italic; }
+.calendar-week-row .task-when {
+  display: block; margin-top: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  word-break: normal; overflow-wrap: normal;
 }
 
 /* Day view */

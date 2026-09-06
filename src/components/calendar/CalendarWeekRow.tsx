@@ -70,9 +70,11 @@ export function CalendarWeekRow({ row, tags, todayIso }: Props) {
         onClick={open}
         aria-label={t("taskRow.edit", { title })}
       >
-        <span className="task-heading calendar-week-row-heading">
-          {ghost && <span className="task-recurring" aria-hidden="true">↻</span>}
-          <span className="task-title">{title}</span>
+        <span className="calendar-line-clip">
+          <span className="calendar-line-prefix">
+            {ghost && <span className="task-recurring" aria-hidden="true">↻</span>}
+          </span>
+          <span className="calendar-week-row-title">{title}</span>
         </span>
         {when?.text && (
           <span className={when.late ? "task-when late" : "task-when"}>{when.text}</span>

@@ -12,8 +12,9 @@ describe("calendar grid CSS", () => {
     );
   });
 
-  it("allows month cells to shrink below content min-size", () => {
+  it("allows month cells to shrink and clip overflow", () => {
     expect(css).toMatch(/\.calendar-month-cell\s*\{[^}]*min-width:\s*0/);
+    expect(css).toMatch(/\.calendar-month-cell\s*\{[^}]*overflow:\s*hidden/);
   });
 
   it("week grid uses minmax(0, 1fr) for equal day columns", () => {
@@ -28,13 +29,13 @@ describe("calendar grid CSS", () => {
     expect(css).toMatch(/\.calendar-week-row\s*\{[^}]*min-width:\s*0/);
   });
 
-  it("truncates month and week task titles on one line", () => {
+  it("clips titles inside non-flex clip grid (WebKitGTK button workaround)", () => {
+    expect(css).toMatch(/\.calendar-month-line\s*\{[^}]*display:\s*block/);
     expect(css).toMatch(/\.calendar-month-line\s*\{[^}]*overflow:\s*hidden/);
-    expect(css).toMatch(/\.calendar-month-line-title\s*\{[^}]*text-overflow:\s*ellipsis/);
-    expect(css).toMatch(/\.calendar-month-line-title\s*\{[^}]*overflow-wrap:\s*normal/);
-    expect(css).toMatch(/\.calendar-week-row\s*\{[^}]*overflow:\s*hidden/);
-    expect(css).not.toMatch(/\.calendar-week-row\s*\{[^}]*flex-wrap:\s*wrap/);
-    expect(css).toMatch(/\.calendar-week-row \.task-title\s*\{[^}]*text-overflow:\s*ellipsis/);
-    expect(css).toMatch(/\.calendar-week-row \.task-title\s*\{[^}]*overflow-wrap:\s*normal/);
+    expect(css).toMatch(
+      /\.calendar-line-clip\s*\{[^}]*grid-template-columns:\s*auto minmax\(0,\s*1fr\)/,
+    );
+    expect(css).toMatch(/\.calendar-line-title,\s*\.calendar-week-row-title\s*\{[^}]*text-overflow:\s*ellipsis/);
+    expect(css).toMatch(/\.calendar-week-row\s*\{[^}]*display:\s*block/);
   });
 });

@@ -50,5 +50,7 @@ describe("CalendarWeekRow", () => {
     );
     expect(screen.getByText("Reply email")).toBeTruthy();
     expect(container.querySelector(".task-tag")).toBeNull();
+    expect(container.querySelector(".calendar-line-clip")).toBeTruthy();
+    expect(container.querySelector(".task-title")).toBeNull();
   });
 });
