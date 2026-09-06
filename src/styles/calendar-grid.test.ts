@@ -29,7 +29,12 @@ describe("calendar grid CSS", () => {
   });
 
   it("truncates month and week task titles on one line", () => {
+    expect(css).toMatch(/\.calendar-month-line\s*\{[^}]*overflow:\s*hidden/);
     expect(css).toMatch(/\.calendar-month-line-title\s*\{[^}]*text-overflow:\s*ellipsis/);
+    expect(css).toMatch(/\.calendar-month-line-title\s*\{[^}]*overflow-wrap:\s*normal/);
+    expect(css).toMatch(/\.calendar-week-row\s*\{[^}]*overflow:\s*hidden/);
+    expect(css).not.toMatch(/\.calendar-week-row\s*\{[^}]*flex-wrap:\s*wrap/);
     expect(css).toMatch(/\.calendar-week-row \.task-title\s*\{[^}]*text-overflow:\s*ellipsis/);
+    expect(css).toMatch(/\.calendar-week-row \.task-title\s*\{[^}]*overflow-wrap:\s*normal/);
   });
 });
