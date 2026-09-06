@@ -53,18 +53,26 @@ export function EditableContextMenu() {
     { id: "selectAll", label: t("contextMenu.selectAll"), shortcut: shortcut("A"), enabled: states.selectAll },
   ];
 
+  const items = actions.flatMap(a => {
+    const item = {
+      id: a.id,
+      label: a.label,
+      shortcut: a.shortcut,
+      disabled: !a.enabled,
+      onSelect: () => runEditableAction(menu.target, a.id),
+    };
+    if (a.id === "selectAll") {
+      return [{ type: "separator" as const, id: "sep-select-all" }, item];
+    }
+    return [item];
+  });
+
   return (
     <ContextMenu
       x={menu.x}
       y={menu.y}
       onClose={() => setMenu(null)}
-      items={actions.map(a => ({
-        id: a.id,
-        label: a.label,
-        shortcut: a.shortcut,
-        disabled: !a.enabled,
-        onSelect: () => runEditableAction(menu.target, a.id),
-      }))}
+      items={items}
     />
   );
 }

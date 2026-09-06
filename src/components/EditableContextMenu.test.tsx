@@ -44,6 +44,7 @@ describe("EditableContextMenu", () => {
     expect(screen.getByRole("menuitem", { name: /select all/i })).toBeTruthy();
     expect(screen.getByText("Ctrl+X")).toBeTruthy();
     expect(screen.getByText("Ctrl+C")).toBeTruthy();
+    expect(screen.getByRole("separator")).toBeTruthy();
   });
 
   it("closes on Escape", () => {

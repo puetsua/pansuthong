@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 export type ContextMenuItem = {
+  type?: "item";
   id: string;
   label: string;
   shortcut?: string;
@@ -8,10 +9,17 @@ export type ContextMenuItem = {
   onSelect: () => void;
 };
 
+export type ContextMenuSeparator = {
+  type: "separator";
+  id: string;
+};
+
+export type ContextMenuEntry = ContextMenuItem | ContextMenuSeparator;
+
 type Props = {
   x: number;
   y: number;
-  items: ContextMenuItem[];
+  items: ContextMenuEntry[];
   onClose: () => void;
 };
 
@@ -31,22 +39,27 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
         onContextMenu={e => { e.preventDefault(); onClose(); }}
       />
       <div className="ctx-menu" role="menu" style={{ top: y, left: x }}>
-        {items.map(item => (
-          <button
-            key={item.id}
-            type="button"
-            role="menuitem"
-            disabled={item.disabled}
-            onClick={() => {
-              if (item.disabled) return;
-              item.onSelect();
-              onClose();
-            }}
-          >
-            <span className="ctx-menu-label">{item.label}</span>
-            {item.shortcut && <span className="ctx-menu-shortcut">{item.shortcut}</span>}
-          </button>
-        ))}
+        {items.map(entry => {
+          if (entry.type === "separator") {
+            return <div key={entry.id} className="ctx-menu-separator" role="separator" />;
+          }
+          return (
+            <button
+              key={entry.id}
+              type="button"
+              role="menuitem"
+              disabled={entry.disabled}
+              onClick={() => {
+                if (entry.disabled) return;
+                entry.onSelect();
+                onClose();
+              }}
+            >
+              <span className="ctx-menu-label">{entry.label}</span>
+              {entry.shortcut && <span className="ctx-menu-shortcut">{entry.shortcut}</span>}
+            </button>
+          );
+        })}
       </div>
     </>
   );

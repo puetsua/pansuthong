@@ -2250,7 +2250,12 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   cursor: default;
 }
 .ctx-menu button:hover:not(:disabled),
-.sidebar-ctx-menu button:hover { background: var(--c-accent-bg); }
+.sidebar-ctx-menu button:hover:not(:disabled) { background: var(--c-accent-bg); }
+.ctx-menu-separator {
+  height: 1px;
+  margin: var(--space-1) 0;
+  background: var(--c-border);
+}
 .ctx-menu-shortcut {
   color: var(--c-text-muted);
   font-size: 0.8rem;
