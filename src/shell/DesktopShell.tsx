@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Document } from "../lib/tauri";
 import { Indexes } from "../state/indexes";
 import { ConflictBanner } from "../components/ConflictBanner";
+import { EditableContextMenu } from "../components/EditableContextMenu";
 import { DesktopTitlebar } from "./DesktopTitlebar";
 import { Sidebar } from "./Sidebar";
 
@@ -11,6 +12,7 @@ export function DesktopShell({ doc, indexes, children }: Props) {
   return (
     <div className="desktop-shell">
       <DesktopTitlebar />
+      <EditableContextMenu />
       <div className="desktop-body">
         <Sidebar doc={doc} indexes={indexes} />
         <main className="desktop-main">

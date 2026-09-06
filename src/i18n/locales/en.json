@@ -73,6 +73,12 @@
     "update": "Update",
     "updateTo": "Update to v{{version}}"
   },
+  "contextMenu": {
+    "cut": "Cut",
+    "copy": "Copy",
+    "paste": "Paste",
+    "selectAll": "Select all"
+  },
   "today": {
     "empty": "No tasks starting or due today.",
     "overdue": "Overdue",

@@ -72,6 +72,12 @@
     "update": "更新",
     "updateTo": "更新至 v{{version}}"
   },
+  "contextMenu": {
+    "cut": "剪下",
+    "copy": "複製",
+    "paste": "貼上",
+    "selectAll": "全選"
+  },
   "today": {
     "empty": "今天沒有要開始或到期的任務。",
     "overdue": "逾期",

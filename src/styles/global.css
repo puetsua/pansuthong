@@ -2211,11 +2211,13 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 
 .sidebar-tag-row { display: flex; align-items: center; position: relative; }
 .sidebar-tag-row .sidebar-link { flex: 1; min-width: 0; }
+.ctx-menu-backdrop,
 .sidebar-ctx-backdrop {
   position: fixed;
   inset: 0;
   z-index: 30;
 }
+.ctx-menu,
 .sidebar-ctx-menu {
   position: fixed;
   z-index: 31;
@@ -2226,8 +2228,12 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   border-radius: var(--radius-md);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
 }
+.ctx-menu button,
 .sidebar-ctx-menu button {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
   width: 100%;
   text-align: left;
   padding: var(--space-2) var(--space-3);
@@ -2238,7 +2244,18 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   font-size: 0.85rem;
   cursor: pointer;
 }
+.ctx-menu button:disabled,
+.sidebar-ctx-menu button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ctx-menu button:hover:not(:disabled),
 .sidebar-ctx-menu button:hover { background: var(--c-accent-bg); }
+.ctx-menu-shortcut {
+  color: var(--c-text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
 /* The edit pencil overlays the task count: hidden (count visible) until the row
    is hovered or the button is focused, then it appears in the count's place and
    hides the number beneath it. Touch devices (no hover) always show the pencil. */

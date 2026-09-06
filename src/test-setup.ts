@@ -21,7 +21,11 @@ if (typeof HTMLMediaElement !== "undefined") {
   HTMLMediaElement.prototype.play = () => Promise.resolve();
 }
 
-// jsdom implements neither URL.createObjectURL nor revokeObjectURL; attachment
+// jsdom doesn't implement document.execCommand; editable context menus use it for
+// Cut/Copy/Paste/Select all.
+if (typeof document !== "undefined" && !document.execCommand) {
+  document.execCommand = (() => true) as typeof document.execCommand;
+}
 // previews build an object URL from the blob's bytes and revoke it on cleanup.
 // Stub both so components that render attachments can mount/unmount in tests.
 if (typeof URL !== "undefined") {
