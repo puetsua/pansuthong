@@ -582,13 +582,19 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 
 /* Month grid */
 .calendar-month { border: 1px solid var(--c-border); border-radius: var(--radius-md); overflow: hidden; }
-.calendar-weekdays, .calendar-month-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+/* Equal 7-day columns: flex + width:0 beats WebKitGTK fr track content sizing. */
+.calendar-weekdays, .calendar-month-week, .calendar-week-grid, .calendar-day-strip {
+  display: flex; width: 100%;
+}
+.calendar-weekday, .calendar-month-cell, .calendar-week-col, .calendar-day-strip-btn {
+  flex: 1 1 0; width: 0; min-width: 0;
+}
 .calendar-weekday {
   text-align: center; font-size: 0.75rem; color: var(--c-text-muted); padding: var(--space-2) 0;
   border-bottom: 1px solid var(--c-border); background: var(--c-surface);
 }
 .calendar-month-cell {
-  min-width: 0; overflow: hidden;
+  overflow: hidden;
   min-height: 6.5rem; padding: var(--space-1); border-right: 1px solid var(--c-border);
   border-bottom: 1px solid var(--c-border); display: flex; flex-direction: column; gap: 2px;
   background: var(--c-bg);
@@ -633,10 +639,10 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 
 /* Week grid (desktop) */
 .calendar-week-grid {
-  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0;
+  gap: 0;
   border: 1px solid var(--c-border); border-radius: var(--radius-md); overflow: hidden;
 }
-.calendar-week-col { border-right: 1px solid var(--c-border); min-width: 0; display: flex; flex-direction: column; }
+.calendar-week-col { border-right: 1px solid var(--c-border); overflow: hidden; display: flex; flex-direction: column; }
 .calendar-week-col:last-child { border-right: none; }
 .calendar-week-col-head {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
@@ -676,7 +682,7 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 
 /* Narrow week/day strip */
 .calendar-day-strip {
-  display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+  gap: 2px;
   margin-bottom: var(--space-3); padding: var(--space-1); border: 1px solid var(--c-border);
   border-radius: var(--radius-md); background: var(--c-surface);
 }

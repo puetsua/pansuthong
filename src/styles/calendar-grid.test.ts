@@ -6,25 +6,24 @@ import { describe, expect, it } from "vitest";
 describe("calendar grid CSS", () => {
   const css = readFileSync(resolve(__dirname, "global.css"), "utf-8");
 
-  it("month grid uses minmax(0, 1fr) so content cannot expand day columns", () => {
-    expect(css).toMatch(
-      /\.calendar-weekdays,\s*\.calendar-month-week\s*\{[^}]*grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/,
-    );
+  const equalSevenCol = /\.calendar-weekdays,\s*\.calendar-month-week,\s*\.calendar-week-grid,\s*\.calendar-day-strip\s*\{[^}]*display:\s*flex/;
+
+  const equalChild = /\.calendar-weekday,\s*\.calendar-month-cell,\s*\.calendar-week-col,\s*\.calendar-day-strip-btn\s*\{[^}]*flex:\s*1 1 0[^}]*width:\s*0[^}]*min-width:\s*0/;
+
+  it("uses flex equal-width columns for all 7-day rows (WebKitGTK)", () => {
+    expect(css).toMatch(equalSevenCol);
+    expect(css).toMatch(equalChild);
+    expect(css).not.toMatch(/\.calendar-month-week\s*\{[^}]*grid-template-columns:\s*repeat\(7/);
+    expect(css).not.toMatch(/\.calendar-week-grid\s*\{[^}]*grid-template-columns:\s*repeat\(7/);
+    expect(css).not.toMatch(/\.calendar-day-strip\s*\{[^}]*grid-template-columns:\s*repeat\(7/);
   });
 
   it("allows month cells to shrink and clip overflow", () => {
-    expect(css).toMatch(/\.calendar-month-cell\s*\{[^}]*min-width:\s*0/);
     expect(css).toMatch(/\.calendar-month-cell\s*\{[^}]*overflow:\s*hidden/);
   });
 
-  it("week grid uses minmax(0, 1fr) for equal day columns", () => {
-    expect(css).toMatch(
-      /\.calendar-week-grid\s*\{[^}]*grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/,
-    );
-  });
-
   it("allows week columns and rows to shrink below content min-size", () => {
-    expect(css).toMatch(/\.calendar-week-col\s*\{[^}]*min-width:\s*0/);
+    expect(css).toMatch(/\.calendar-week-col\s*\{[^}]*overflow:\s*hidden/);
     expect(css).toMatch(/\.calendar-week-col-body\s*\{[^}]*min-width:\s*0/);
     expect(css).toMatch(/\.calendar-week-row\s*\{[^}]*min-width:\s*0/);
   });
