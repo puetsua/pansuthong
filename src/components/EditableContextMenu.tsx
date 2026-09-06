@@ -5,6 +5,8 @@ import {
   findEditableTarget,
   getEditableActionStates,
   runEditableAction,
+  snapshotEditableSelection,
+  clearEditableSelectionSnapshot,
   type EditableAction,
 } from "../lib/editableContextMenu";
 import { isMacOS, modKeyLabel } from "../lib/platform";
@@ -28,17 +30,30 @@ export function EditableContextMenu() {
   }, []);
 
   useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 2) return;
+      const target = findEditableTarget(e.target);
+      if (target) snapshotEditableSelection(target);
+    };
     const onContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
       const target = findEditableTarget(e.target);
       if (target) {
+        // Capture again while the engine may still expose the range; pointerdown
+        // snapshot is the fallback when WebKitGTK clears it before this event.
+        snapshotEditableSelection(target);
+        e.preventDefault();
         setMenu({ x: e.clientX, y: e.clientY, target });
       } else {
+        e.preventDefault();
         setMenu(null);
       }
     };
+    document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("contextmenu", onContextMenu, true);
-    return () => document.removeEventListener("contextmenu", onContextMenu, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("contextmenu", onContextMenu, true);
+    };
   }, []);
 
   if (!menu) return null;
@@ -67,11 +82,16 @@ export function EditableContextMenu() {
     return [item];
   });
 
+  const closeMenu = () => {
+    clearEditableSelectionSnapshot(menu.target);
+    setMenu(null);
+  };
+
   return (
     <ContextMenu
       x={menu.x}
       y={menu.y}
-      onClose={() => setMenu(null)}
+      onClose={closeMenu}
       items={items}
     />
   );

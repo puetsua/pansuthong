@@ -3,6 +3,8 @@ import {
   findEditableTarget,
   getEditableActionStates,
   runEditableAction,
+  snapshotEditableSelection,
+  clearEditableSelectionSnapshot,
 } from "./editableContextMenu";
 
 describe("findEditableTarget", () => {
@@ -76,6 +78,28 @@ describe("getEditableActionStates", () => {
     input.remove();
   });
 
+  it("uses a pointerdown snapshot when the live selection was cleared", () => {
+    const input = document.createElement("input");
+    input.value = "hello";
+    document.body.appendChild(input);
+    input.setSelectionRange(0, 5);
+    snapshotEditableSelection(input);
+    input.setSelectionRange(5, 5);
+
+    expect(getEditableActionStates(input)).toMatchObject({
+      cut: true,
+      copy: true,
+    });
+
+    clearEditableSelectionSnapshot(input);
+    expect(getEditableActionStates(input)).toMatchObject({
+      cut: false,
+      copy: false,
+    });
+
+    input.remove();
+  });
+
   it("disables cut and paste on read-only inputs", () => {
     const input = document.createElement("input");
     input.value = "hello";
@@ -104,6 +128,25 @@ describe("runEditableAction", () => {
 
     expect(document.activeElement).toBe(input);
     expect(exec).toHaveBeenCalledWith("selectAll");
+
+    exec.mockRestore();
+    input.remove();
+  });
+
+  it("restores a collapsed selection before copy", () => {
+    const input = document.createElement("input");
+    input.value = "hello";
+    document.body.appendChild(input);
+    input.setSelectionRange(0, 5);
+    snapshotEditableSelection(input);
+    input.setSelectionRange(5, 5);
+    const exec = vi.spyOn(document, "execCommand").mockReturnValue(true);
+
+    runEditableAction(input, "copy");
+
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(5);
+    expect(exec).toHaveBeenCalledWith("copy");
 
     exec.mockRestore();
     input.remove();

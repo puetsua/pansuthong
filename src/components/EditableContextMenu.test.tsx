@@ -47,6 +47,22 @@ describe("EditableContextMenu", () => {
     expect(screen.getByRole("separator")).toBeTruthy();
   });
 
+  it("enables cut/copy from a pointerdown snapshot when contextmenu clears the selection", () => {
+    const input = document.createElement("input");
+    input.value = "hello";
+    root.appendChild(input);
+    input.setSelectionRange(0, 5);
+
+    fireEvent.pointerDown(input, { button: 2 });
+    input.setSelectionRange(5, 5);
+    fireEvent.contextMenu(input);
+
+    const cut = screen.getByRole("menuitem", { name: /cut/i }) as HTMLButtonElement;
+    const copy = screen.getByRole("menuitem", { name: /copy/i }) as HTMLButtonElement;
+    expect(cut.disabled).toBe(false);
+    expect(copy.disabled).toBe(false);
+  });
+
   it("closes on Escape", () => {
     const input = document.createElement("input");
     input.value = "x";
