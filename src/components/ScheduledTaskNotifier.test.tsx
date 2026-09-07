@@ -137,7 +137,24 @@ describe("ScheduledTaskNotifier", () => {
     expect(permissionWaits).toBeGreaterThan(0);
   });
 
-  it("schedules upcoming OS notifications", async () => {
+  it("does not schedule upcoming OS notifications on desktop", async () => {
+    vi.setSystemTime(new Date(2026, 5, 8, 8, 0, 0, 0));
+    render(
+      <ScheduledTaskNotifier
+        tasks={[task({ start_date: "2026-06-08", start_time: "09:00" })]}
+        dayStartHour={0}
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+    expect(notification.Schedule.at).not.toHaveBeenCalled();
+    const scheduled = notification.sendNotification.mock.calls.filter(
+      ([arg]) => typeof arg === "object" && arg != null && "schedule" in arg,
+    );
+    expect(scheduled).toHaveLength(0);
+  });
+
+  it("schedules upcoming OS notifications on Android", async () => {
+    platform.isAndroid.mockResolvedValue(true);
     vi.setSystemTime(new Date(2026, 5, 8, 8, 0, 0, 0));
     render(
       <ScheduledTaskNotifier
@@ -153,6 +170,7 @@ describe("ScheduledTaskNotifier", () => {
   });
 
   it("does not re-schedule when the upcoming set is unchanged", async () => {
+    platform.isAndroid.mockResolvedValue(true);
     vi.setSystemTime(new Date(2026, 5, 8, 8, 0, 0, 0));
     render(
       <ScheduledTaskNotifier
@@ -396,7 +414,8 @@ describe("ScheduledTaskNotifier", () => {
     expect(immediateAfter).toHaveLength(0);
   });
 
-  it("re-runs OS sync on resume", async () => {
+  it("re-runs OS sync on resume (Android)", async () => {
+    platform.isAndroid.mockResolvedValue(true);
     vi.setSystemTime(new Date(2026, 5, 8, 8, 0, 0, 0));
     const { rerender } = render(
       <ScheduledTaskNotifier
@@ -419,5 +438,35 @@ describe("ScheduledTaskNotifier", () => {
     expect(notification.sendNotification.mock.calls.some(
       ([arg]) => typeof arg === "object" && arg != null && "schedule" in arg && arg.body === "Other",
     )).toBe(true);
+  });
+
+  it("does not burst-notify future start-date tasks on desktop (#213)", async () => {
+    vi.setSystemTime(new Date(2026, 8, 7, 10, 0, 0, 0));
+    const existing = [
+      task({ id: "k_past", title: "REPRO213 past-start", start_date: "2026-09-06" }),
+      task({ id: "k_a", title: "REPRO213 future-a", start_date: "2026-09-09" }),
+      task({ id: "k_b", title: "REPRO213 future-b", start_date: "2026-09-12" }),
+    ];
+    const { rerender } = render(
+      <ScheduledTaskNotifier tasks={existing} dayStartHour={0} />,
+    );
+    await act(async () => { await Promise.resolve(); });
+
+    rerender(
+      <ScheduledTaskNotifier
+        tasks={[...existing, task({ id: "k_c", title: "REPRO213 future-c", start_date: "2026-09-10" })]}
+        dayStartHour={0}
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+
+    const immediate = notification.sendNotification.mock.calls.filter(
+      ([arg]) => typeof arg === "object" && arg != null && !("schedule" in arg),
+    );
+    expect(immediate).toHaveLength(0);
+    const scheduled = notification.sendNotification.mock.calls.filter(
+      ([arg]) => typeof arg === "object" && arg != null && "schedule" in arg,
+    );
+    expect(scheduled).toHaveLength(0);
   });
 });

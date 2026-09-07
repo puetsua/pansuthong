@@ -211,7 +211,11 @@ export function ScheduledTaskNotifier({ tasks, dayStartHour }: Props) {
       const granted = await ensureNotificationPermission();
       if (!granted || cancelled) return;
 
-      const upcoming = upcomingArrivals(tasksRef.current, now, dayStartRef.current);
+      // Desktop tauri-plugin-notification ignores Schedule.at and shows immediately (#213).
+      const useOsSchedule = await isAndroid();
+      const upcoming = useOsSchedule
+        ? upcomingArrivals(tasksRef.current, now, dayStartRef.current)
+        : [];
       const desiredFutureKeys = new Set(upcoming.map(a => a.key));
 
       try {
@@ -228,6 +232,8 @@ export function ScheduledTaskNotifier({ tasks, dayStartHour }: Props) {
       } catch {
         // pending/cancel may be unavailable on some platforms.
       }
+
+      if (!useOsSchedule) return;
 
       const sig = scheduleSignature(upcoming);
       if (sig === lastScheduleSigRef.current) return;
