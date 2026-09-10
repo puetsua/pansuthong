@@ -27,6 +27,13 @@ describe("parseComposer", () => {
     expect(parseComposer("Call due today", TODAY).due_date).toBe(TODAY);
   });
 
+  it("due-only ISO date sets due_date only, not start_date (#215)", () => {
+    const p = parseComposer("REPRO215 due-only due 2026-09-12", TODAY);
+    expect(p.title).toBe("REPRO215 due-only");
+    expect(p.due_date).toBe("2026-09-12");
+    expect(p.start_date).toBeUndefined();
+  });
+
   it("due tomorrow", () => {
     expect(parseComposer("Ship due tomorrow", TODAY).due_date).toBe("2026-05-29");
   });
