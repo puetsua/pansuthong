@@ -107,6 +107,7 @@
        style="fill:url(#grad-bg)"
        ry="200" />
   </g>
+  <g transform="translate(512,512) scale(0.78) translate(-512,-512)">
   <!-- Layer: soft shadow under the tag (offset duplicate — easy to nudge/hide) -->
   <g
      inkscape:groupmode="layer"
@@ -164,5 +165,6 @@
        stroke-linejoin="round"
        d="M 416.88,544.8 L 493.14,621.06 L 625.98,488.22"
        style="stroke:#9b4dff;stroke-opacity:1" />
+  </g>
   </g>
 </svg>
