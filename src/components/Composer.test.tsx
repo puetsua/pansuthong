@@ -65,4 +65,29 @@ describe("Composer", () => {
     await waitFor(() => expect(addTask).toHaveBeenCalledTimes(1));
     expect(addTask.mock.calls[0][0].tag_ids).toEqual(["t_home"]);
   });
+
+  it("applies Today view startDate for plain quick-add", async () => {
+    render(<Composer tagsByName={tags} startDate="2026-09-10" todayIso="2026-09-10" />);
+
+    add("buy milk");
+
+    await waitFor(() => expect(addTask).toHaveBeenCalledTimes(1));
+    expect(addTask.mock.calls[0][0]).toMatchObject({
+      title: "buy milk",
+      start_date: "2026-09-10",
+    });
+  });
+
+  it("does not apply Today startDate when only due is parsed (#215)", async () => {
+    render(<Composer tagsByName={tags} startDate="2026-09-10" todayIso="2026-09-10" />);
+
+    add("REPRO215 due-only due 2026-09-12");
+
+    await waitFor(() => expect(addTask).toHaveBeenCalledTimes(1));
+    expect(addTask.mock.calls[0][0]).toMatchObject({
+      title: "REPRO215 due-only",
+      due_date: "2026-09-12",
+      start_date: undefined,
+    });
+  });
 });

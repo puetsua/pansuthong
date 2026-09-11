@@ -62,9 +62,14 @@ export function Composer({ startDate, todayIso: today = todayIso(), settings, ta
         ? [contextTagId, ...resolvedTagIds]
         : resolvedTagIds;
 
+      // Today view passes `startDate` so plain quick-adds land on today. A parsed
+      // due-only line must not inherit that default — start stays unset (#215).
+      const implicitStart =
+        parsed.start_date ?? (parsed.due_date != null ? undefined : startDate);
+
       await api.addTask({
         title: parsed.title,
-        start_date: parsed.start_date ?? startDate,
+        start_date: implicitStart,
         due_date: parsed.due_date,
         tag_ids: tagIds,
         estimated_seconds: parsed.estimated_seconds,
