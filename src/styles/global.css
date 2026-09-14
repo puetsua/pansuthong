@@ -201,11 +201,14 @@ button {
   gap: var(--space-2);
   margin-bottom: var(--space-3);
 }
-.composer input {
+.composer-combo {
   flex: 1;
-  /* Let the input shrink below its intrinsic (placeholder-driven) width so the
-     buttons beside it never overflow a phone-width row. */
   min-width: 0;
+  position: relative;
+}
+.composer-combo input {
+  width: 100%;
+  box-sizing: border-box;
   background: var(--c-surface);
   color: var(--c-text);
   border: 1px solid var(--c-border);
@@ -213,7 +216,8 @@ button {
   padding: var(--space-2) var(--space-3);
   outline: none;
 }
-.composer input:focus { border-color: var(--c-accent); box-shadow: 0 0 0 2px var(--c-accent-bg); }
+.composer-combo input:focus { border-color: var(--c-accent); box-shadow: 0 0 0 2px var(--c-accent-bg); }
+.composer-tag-menu { z-index: 20; }
 .composer button {
   background: var(--c-accent);
   color: white;
@@ -1539,7 +1543,7 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
     flex: 1 1 auto;
     min-width: 0;
   }
-  .composer input,
+  .composer-combo input,
   .search-input {
     font-size: 16px;  /* prevents iOS/Android auto-zoom */
   }

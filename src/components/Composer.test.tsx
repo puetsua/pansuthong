@@ -17,6 +17,11 @@ const tags = new Map<string, Tag>([
   ["home", { id: "t_home", name: "home", color: "#ef4444", priority: 1 }],
 ]);
 
+const allTagsById = new Map<string, Tag>([
+  ["t_work", tags.get("work")!],
+  ["t_home", tags.get("home")!],
+]);
+
 const addTask = vi.mocked(api.addTask);
 
 const add = (text: string) => {
@@ -89,5 +94,42 @@ describe("Composer", () => {
       due_date: "2026-09-12",
       start_date: undefined,
     });
+  });
+
+  it("shows tag suggestions after # and selects an existing tag (#222)", () => {
+    render(<Composer tagsByName={tags} allTags={allTagsById} />);
+
+    const field = screen.getByLabelText("New task") as HTMLInputElement;
+    fireEvent.change(field, { target: { value: "Buy milk #wo" } });
+    field.selectionStart = field.selectionEnd = field.value.length;
+    fireEvent.select(field);
+
+    expect(screen.getByRole("listbox")).toBeTruthy();
+    expect(screen.getByRole("option", { name: /create/i }).getAttribute("aria-selected")).toBe("true");
+
+    fireEvent.keyDown(field, { key: "ArrowDown" });
+    expect(screen.getByRole("option", { name: /work/i }).getAttribute("aria-selected")).toBe("true");
+
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(field.value).toBe("Buy milk #work");
+  });
+
+  it("confirms create-new on Enter without replacing the fragment (#222)", async () => {
+    vi.mocked(api.addTag).mockResolvedValue({ id: "t_novel", name: "novel", color: "#000", priority: 0 });
+    render(<Composer tagsByName={tags} allTags={allTagsById} />);
+
+    const field = screen.getByLabelText("New task") as HTMLInputElement;
+    fireEvent.change(field, { target: { value: "Buy milk #novel" } });
+    field.selectionStart = field.selectionEnd = field.value.length;
+    fireEvent.select(field);
+
+    expect(screen.getByRole("listbox")).toBeTruthy();
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(field.value).toBe("Buy milk #novel");
+    expect(screen.queryByRole("listbox")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(addTask).toHaveBeenCalledTimes(1));
+    expect(addTask.mock.calls[0][0].title).toBe("Buy milk");
   });
 });
