@@ -125,7 +125,7 @@ export function UpdatePrompt() {
     if (phase?.kind !== "downloading") return;
     dialogRef.current
       ?.querySelector<HTMLElement>(".upd-progress")
-      ?.focus({ preventScroll: true, focusVisible: false });
+      ?.focus({ preventScroll: true });
   }, [phase?.kind]);
 
   if (!phase) return null;

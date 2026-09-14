@@ -117,9 +117,7 @@ describe("UpdatePrompt", () => {
     fireEvent.click(await screen.findByText("Update"));
     const status = await screen.findByRole("status");
     await waitFor(() => expect(document.activeElement).toBe(status));
-    expect(focusSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ focusVisible: false, preventScroll: true }),
-    );
+    expect(focusSpy).toHaveBeenCalledWith(expect.objectContaining({ preventScroll: true }));
     focusSpy.mockRestore();
   });
 });
