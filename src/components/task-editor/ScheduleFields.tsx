@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { EditorForm } from "../../state/taskUpdate";
+import { NullableDateInput } from "./NullableDateInput";
 
 type Props = {
   form: EditorForm;
@@ -18,12 +19,15 @@ export function ScheduleFields({ form, dateError, estimateError, showEstimate, s
         <label className="te-field">
           <span>{t("taskEditor.startDate")}</span>
           <div className="te-datetime">
-            <input type="date" value={form.start_date}
-                   onChange={e => { const v = e.currentTarget.value; setForm(f => ({
-                     ...f,
-                     start_date: v,
-                     start_time: v ? f.start_time : "",
-                   })); }} />
+            <NullableDateInput
+              aria-label={t("taskEditor.startDate")}
+              value={form.start_date}
+              onChange={v => setForm(f => ({
+                ...f,
+                start_date: v,
+                start_time: v ? f.start_time : "",
+              }))}
+            />
             <input type="time" aria-label={t("taskEditor.startTime")} className="te-time"
                    value={form.start_time} disabled={!form.start_date}
                    onChange={e => set("start_time", e.currentTarget.value)} />
