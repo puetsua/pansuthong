@@ -123,7 +123,9 @@ export function UpdatePrompt() {
   // status region so Tab cannot leak into the app behind an undismissable prompt.
   useEffect(() => {
     if (phase?.kind !== "downloading") return;
-    dialogRef.current?.querySelector<HTMLElement>(".upd-progress")?.focus();
+    dialogRef.current
+      ?.querySelector<HTMLElement>(".upd-progress")
+      ?.focus({ preventScroll: true, focusVisible: false });
   }, [phase?.kind]);
 
   if (!phase) return null;
