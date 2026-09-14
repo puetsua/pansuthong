@@ -162,6 +162,35 @@ describe("TaskEditor unset start date (#217)", () => {
   });
 });
 
+describe("TaskEditor clear due date (#221)", () => {
+  it("clears a prefilled due date with Backspace and saves without due_date", async () => {
+    const onClose = vi.fn();
+    render(
+      <TaskEditor
+        task={{ ...baseTask, id: "", title: "Daily Linux standup", due_date: "2026-09-14" }}
+        allTags={tags}
+        creating
+        onClose={onClose}
+      />,
+    );
+
+    const due = screen.getByLabelText("Due Date") as HTMLInputElement;
+    expect(due.type).toBe("date");
+    Object.defineProperty(due, "selectionStart", { configurable: true, value: null });
+    Object.defineProperty(due, "selectionEnd", { configurable: true, value: null });
+    fireEvent.keyDown(due, { key: "Backspace" });
+
+    fireEvent.click(button(/add task/i));
+
+    await waitFor(() =>
+      expect(api.addTask).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Daily Linux standup", due_date: undefined }),
+      ),
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+});
+
 describe("TaskEditor date validation (#51)", () => {
   it("blocks Save when the due date precedes the scheduled date", () => {
     render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);

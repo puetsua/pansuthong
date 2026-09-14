@@ -2,6 +2,15 @@ import { useEffect, useRef, useState } from "react";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** WebKitGTK `type=date` often ignores Backspace/Delete; treat as clear when whole field (#221). */
+function shouldClearDateOnDeleteKey(el: HTMLInputElement): boolean {
+  const v = el.value;
+  if (!v) return false;
+  const start = el.selectionStart ?? 0;
+  const end = el.selectionEnd ?? v.length;
+  return start === 0 && end === v.length;
+}
+
 type Props = {
   value: string;
   onChange: (value: string) => void;
@@ -43,6 +52,13 @@ export function NullableDateInput({ value, onChange, "aria-label": ariaLabel }: 
         }}
         onBlur={e => {
           if (!e.currentTarget.value) setPicking(false);
+        }}
+        onKeyDown={e => {
+          if (e.key !== "Backspace" && e.key !== "Delete") return;
+          if (!shouldClearDateOnDeleteKey(e.currentTarget)) return;
+          e.preventDefault();
+          onChange("");
+          setPicking(false);
         }}
       />
     );
