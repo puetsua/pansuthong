@@ -239,6 +239,8 @@ jobs:
           java-version: "21"
 
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       # Build scripts (proc-macro2, serde, …) compile for the host and need a C
       # linker. Install it explicitly so the job doesn't rely on the runner image
