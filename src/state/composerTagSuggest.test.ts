@@ -4,6 +4,7 @@ import {
   formatComposerTagToken,
   getActiveTagFragment,
   replaceComposerTagToken,
+  appendTrailingSpaceAfterFragment,
   tokenEndAt,
 } from "./composerTagSuggest";
 import type { Tag } from "../lib/tauri";
@@ -100,18 +101,40 @@ describe("buildComposerTagOptions", () => {
 });
 
 describe("replaceComposerTagToken", () => {
-  it("replaces partial token with full tag name", () => {
+  it("replaces partial token with full tag name and trailing space", () => {
     const input = "Review #wo due fri";
     const fragment = getActiveTagFragment(input, 9)!;
     const { value, caret } = replaceComposerTagToken(input, fragment, "work");
     expect(value).toBe("Review #work due fri");
-    expect(caret).toBe(12);
+    expect(caret).toBe(13);
+    expect(getActiveTagFragment(value, caret)).toBeNull();
   });
 
   it("quotes spaced tag names", () => {
     const input = "Plan #we";
     const fragment = getActiveTagFragment(input, input.length)!;
-    const { value } = replaceComposerTagToken(input, fragment, "weekend chores");
-    expect(value).toBe('Plan #"weekend chores"');
+    const { value, caret } = replaceComposerTagToken(input, fragment, "weekend chores");
+    expect(value).toBe('Plan #"weekend chores" ');
+    expect(caret).toBe(value.length);
+    expect(getActiveTagFragment(value, caret)).toBeNull();
+  });
+});
+
+describe("appendTrailingSpaceAfterFragment", () => {
+  it("appends a space after the token and moves caret past it", () => {
+    const input = "Buy milk #novel";
+    const fragment = getActiveTagFragment(input, input.length)!;
+    const { value, caret } = appendTrailingSpaceAfterFragment(input, fragment);
+    expect(value).toBe("Buy milk #novel ");
+    expect(caret).toBe(value.length);
+    expect(getActiveTagFragment(value, caret)).toBeNull();
+  });
+
+  it("advances caret when whitespace already follows the token", () => {
+    const input = "Buy milk #novel due";
+    const fragment = getActiveTagFragment(input, 14)!;
+    const { value, caret } = appendTrailingSpaceAfterFragment(input, fragment);
+    expect(value).toBe(input);
+    expect(caret).toBe(16);
   });
 });

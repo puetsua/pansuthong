@@ -95,12 +95,30 @@ export function buildComposerTagOptions(
   return options;
 }
 
+/** Insert a trailing space after the active `#` token and place the caret after it. */
+export function appendTrailingSpaceAfterFragment(
+  input: string,
+  fragment: ActiveTagFragment,
+): { value: string; caret: number } {
+  const insertAt = fragment.tokenEnd;
+  if (insertAt < input.length && /\s/.test(input[insertAt])) {
+    return { value: input, caret: insertAt + 1 };
+  }
+  const value = input.slice(0, insertAt) + " " + input.slice(insertAt);
+  return { value, caret: insertAt + 1 };
+}
+
 export function replaceComposerTagToken(
   input: string,
   fragment: ActiveTagFragment,
   tagName: string,
 ): { value: string; caret: number } {
   const token = formatComposerTagToken(tagName);
-  const value = input.slice(0, fragment.start) + token + input.slice(fragment.tokenEnd);
-  return { value, caret: fragment.start + token.length };
+  const replaced = input.slice(0, fragment.start) + token + input.slice(fragment.tokenEnd);
+  const nextFragment: ActiveTagFragment = {
+    start: fragment.start,
+    tokenEnd: fragment.start + token.length,
+    rawFragment: token.slice(1),
+  };
+  return appendTrailingSpaceAfterFragment(replaced, nextFragment);
 }

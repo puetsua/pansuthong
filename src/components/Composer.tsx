@@ -15,6 +15,7 @@ import { ComposerPreview } from "./ComposerPreview";
 import { TaskEditor } from "./TaskEditor";
 import { resolveTagIds } from "../state/quickAdd";
 import {
+  appendTrailingSpaceAfterFragment,
   buildComposerTagOptions,
   getActiveTagFragment,
   replaceComposerTagToken,
@@ -117,9 +118,8 @@ export function Composer({ startDate, todayIso: today = todayIso(), settings, ta
       applyInput(value, nextCaret);
       return;
     }
-    setMenuSuppress({ start: fragment.start, token: tokenSnapshot });
-    setHighlight(0);
-    inputRef.current?.focus();
+    const { value, caret: nextCaret } = appendTrailingSpaceAfterFragment(input, fragment);
+    applyInput(value, nextCaret);
   };
 
   const onInputChange = (value: string, el: HTMLInputElement) => {

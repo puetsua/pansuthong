@@ -111,7 +111,8 @@ describe("Composer", () => {
     expect(screen.getByRole("option", { name: /work/i }).getAttribute("aria-selected")).toBe("true");
 
     fireEvent.keyDown(field, { key: "Enter" });
-    expect(field.value).toBe("Buy milk #work");
+    expect(field.value).toBe("Buy milk #work ");
+    expect(screen.queryByRole("listbox")).toBeNull();
   });
 
   it("confirms create-new on Enter without replacing the fragment (#222)", async () => {
@@ -125,7 +126,7 @@ describe("Composer", () => {
 
     expect(screen.getByRole("listbox")).toBeTruthy();
     fireEvent.keyDown(field, { key: "Enter" });
-    expect(field.value).toBe("Buy milk #novel");
+    expect(field.value).toBe("Buy milk #novel ");
     expect(screen.queryByRole("listbox")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
