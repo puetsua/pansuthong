@@ -24,4 +24,34 @@ describe("NullableDateInput (#217)", () => {
     expect(input.type).toBe("date");
     expect(input.value).toBe("2026-09-20");
   });
+
+  it("clears on Backspace when the whole field is selected (#221)", () => {
+    const onChange = vi.fn();
+    render(<NullableDateInput aria-label="Due Date" value="2026-09-14" onChange={onChange} />);
+    const input = screen.getByLabelText("Due Date") as HTMLInputElement;
+    Object.defineProperty(input, "selectionStart", { configurable: true, value: 0 });
+    Object.defineProperty(input, "selectionEnd", { configurable: true, value: input.value.length });
+    fireEvent.keyDown(input, { key: "Backspace" });
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("clears on Delete when selection APIs are missing (#221 WebKitGTK)", () => {
+    const onChange = vi.fn();
+    render(<NullableDateInput aria-label="Due Date" value="2026-09-14" onChange={onChange} />);
+    const input = screen.getByLabelText("Due Date") as HTMLInputElement;
+    Object.defineProperty(input, "selectionStart", { configurable: true, value: null });
+    Object.defineProperty(input, "selectionEnd", { configurable: true, value: null });
+    fireEvent.keyDown(input, { key: "Delete" });
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("does not clear on Backspace when only part of the date is selected", () => {
+    const onChange = vi.fn();
+    render(<NullableDateInput aria-label="Due Date" value="2026-09-14" onChange={onChange} />);
+    const input = screen.getByLabelText("Due Date") as HTMLInputElement;
+    Object.defineProperty(input, "selectionStart", { configurable: true, value: 0 });
+    Object.defineProperty(input, "selectionEnd", { configurable: true, value: 2 });
+    fireEvent.keyDown(input, { key: "Backspace" });
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

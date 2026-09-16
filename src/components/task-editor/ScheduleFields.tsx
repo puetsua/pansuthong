@@ -36,12 +36,15 @@ export function ScheduleFields({ form, dateError, estimateError, showEstimate, s
         <label className="te-field">
           <span>{t("taskEditor.dueDate")}</span>
           <div className="te-datetime">
-            <input type="date" value={form.due_date}
-                   onChange={e => { const v = e.currentTarget.value; setForm(f => ({
-                     ...f,
-                     due_date: v,
-                     due_time: v ? f.due_time : "",
-                   })); }} />
+            <NullableDateInput
+              aria-label={t("taskEditor.dueDate")}
+              value={form.due_date}
+              onChange={v => setForm(f => ({
+                ...f,
+                due_date: v,
+                due_time: v ? f.due_time : "",
+              }))}
+            />
             <input type="time" aria-label={t("taskEditor.dueTime")} className="te-time"
                    value={form.due_time} disabled={!form.due_date}
                    onChange={e => set("due_time", e.currentTarget.value)} />
