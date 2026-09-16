@@ -1623,8 +1623,11 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   color: var(--c-text-muted);
   outline: none;
 }
+/* Focus sink for the download-phase Tab trap (#220); not an interactive control. */
+.upd-progress:focus,
 .upd-progress:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--c-accent);
+  outline: none;
+  box-shadow: none;
 }
 .upd-progress-track {
   height: 6px;

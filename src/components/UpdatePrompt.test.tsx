@@ -108,6 +108,18 @@ describe("UpdatePrompt", () => {
     // Status region is the download focus landing (tabIndex=0) for the Tab trap.
     expect(screen.getByRole("status").tabIndex).toBe(0);
   });
+
+  it("parks focus on the status region without a focus-visible ring", async () => {
+    checkMock.mockResolvedValue(fakeUpdate());
+    installMock.mockReturnValue(new Promise(() => {}));
+    const focusSpy = vi.spyOn(HTMLElement.prototype, "focus");
+    render(<UpdatePrompt />);
+    fireEvent.click(await screen.findByText("Update"));
+    const status = await screen.findByRole("status");
+    await waitFor(() => expect(document.activeElement).toBe(status));
+    expect(focusSpy).toHaveBeenCalledWith(expect.objectContaining({ preventScroll: true }));
+    focusSpy.mockRestore();
+  });
 });
 
 // Reopening from the sidebar's Update button, which only exists because the
