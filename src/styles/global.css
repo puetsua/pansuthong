@@ -1708,7 +1708,12 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .te-row .te-field { flex: 1; min-width: 0; }
 /* Date + optional time-of-day pair (#93). */
 .te-datetime { display: flex; gap: var(--space-1); }
-.te-datetime input[type="date"] { flex: 1; min-width: 0; }
+.te-datetime input[type="date"],
+.te-datetime input.te-date-unset { flex: 1; min-width: 0; }
+.te-datetime input.te-date-unset {
+  color: var(--c-text-muted);
+  cursor: pointer;
+}
 .te-datetime input.te-time { flex: 0 0 auto; width: auto; }
 .te-datetime input.te-time:disabled { opacity: 0.5; }
 /* Time-tracking section in the task editor (#81). */

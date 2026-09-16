@@ -135,6 +135,33 @@ describe("TaskEditor archive (#23)", () => {
   });
 });
 
+describe("TaskEditor unset start date (#217)", () => {
+  it("shows an empty start field for due-only tasks and keeps start_date null on save", async () => {
+    const onClose = vi.fn();
+    render(
+      <TaskEditor
+        task={{ ...baseTask, due_date: "2026-09-20" }}
+        allTags={tags}
+        onClose={onClose}
+      />,
+    );
+
+    const start = screen.getByLabelText("Start Date") as HTMLInputElement;
+    expect(start.type).toBe("text");
+    expect(start.className).toContain("te-date-unset");
+    expect(start.value).toBe("");
+
+    fireEvent.click(button("Save"));
+
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "k_1", start_date: null, due_date: "2026-09-20" }),
+      ),
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+});
+
 describe("TaskEditor date validation (#51)", () => {
   it("blocks Save when the due date precedes the scheduled date", () => {
     render(<TaskEditor task={baseTask} allTags={tags} onClose={vi.fn()} />);
