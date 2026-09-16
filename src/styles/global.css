@@ -218,7 +218,8 @@ button {
 }
 .composer-combo input:focus { border-color: var(--c-accent); box-shadow: 0 0 0 2px var(--c-accent-bg); }
 .composer-tag-menu { z-index: 20; }
-.composer button {
+/* Submit only — tag typeahead options are nested `.te-opt` buttons (#222). */
+.composer > button[type="submit"] {
   background: var(--c-accent);
   color: white;
   border-radius: var(--radius-md);
