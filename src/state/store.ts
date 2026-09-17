@@ -195,28 +195,47 @@ export function useDocument(): DocState {
   // Settings emit settings-changed (not store-changed), so they never push —
   // device-local config is not in the synced replica. All `saf*` calls are
   // inert stubs on desktop (#Phase 4B).
+  //
+  // Resume: `visibilitychange` alone is unreliable on Android WebView after a
+  // long background / screen-off with the activity kept (#218). Mirror
+  // ScheduledTaskNotifier — also listen for `window` `focus` — and throttle so
+  // focus ticks do not thrash SAF I/O (pull itself is hash-idempotent).
   useEffect(() => {
     let active = true;
     let pushTimer: ReturnType<typeof setTimeout> | undefined;
     let unlisten: (() => void) | undefined;
+    let lastKickMs = 0;
+    const RESUME_SYNC_MIN_MS = 15_000;
 
     const onChange = () => {
       clearTimeout(pushTimer);
       pushTimer = setTimeout(() => { void api.safPush().catch(() => {}); }, 1000);
     };
-    const onVisible = () => { if (!document.hidden) void api.safSyncNow().catch(() => {}); };
+
+    const kickSafSync = (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastKickMs < RESUME_SYNC_MIN_MS) return;
+      lastKickMs = now;
+      void api.safSyncNow().catch(() => {});
+    };
+
+    const onResume = () => {
+      if (document.visibilityState === "visible") kickSafSync();
+    };
 
     void isAndroid().then((android) => {
       if (!android || !active) return;
-      void api.safSyncNow().catch(() => {}); // pull-then-push on launch
-      document.addEventListener("visibilitychange", onVisible);
+      kickSafSync(true); // pull-then-push on launch
+      document.addEventListener("visibilitychange", onResume);
+      window.addEventListener("focus", onResume);
       void listen("store-changed", onChange).then((un) => { if (active) unlisten = un; else un(); });
     });
 
     return () => {
       active = false;
       clearTimeout(pushTimer);
-      document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("focus", onResume);
       unlisten?.();
     };
   }, []);

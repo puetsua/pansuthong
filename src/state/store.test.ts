@@ -4,19 +4,34 @@ import { Document } from "../lib/tauri";
 
 // Capture reload listeners so tests can fire a reload, and mock the IPC
 // document fetch so we drive load success/failure deterministically (#42).
+// Android SAF also listens for store-changed (debounced push), so fan out.
+let storeChangedCbs: Array<() => void> = [];
 let storeChangedCb: (() => void) | undefined;
 let settingsChangedCb: (() => void) | undefined;
 const unlistenFn = vi.fn();
+const platform = vi.hoisted(() => ({
+  isAndroid: vi.fn(),
+}));
 vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn((event: string, cb: () => void) => {
-    if (event === "store-changed") storeChangedCb = cb;
+    if (event === "store-changed") {
+      storeChangedCbs.push(cb);
+      storeChangedCb = () => { for (const c of storeChangedCbs) c(); };
+    }
     if (event === "settings-changed") settingsChangedCb = cb;
     return Promise.resolve(unlistenFn);
   }),
 }));
 vi.mock("../lib/tauri", () => ({
-  api: { getDocument: vi.fn(), tryOpenData: vi.fn(), openDefaultStore: vi.fn() },
+  api: {
+    getDocument: vi.fn(),
+    tryOpenData: vi.fn(),
+    openDefaultStore: vi.fn(),
+    safSyncNow: vi.fn(),
+    safPush: vi.fn(),
+  },
 }));
+vi.mock("../lib/platform", () => platform);
 
 import { api } from "../lib/tauri";
 import { useDocument } from "./store";
@@ -24,6 +39,8 @@ import { useDocument } from "./store";
 const getDocument = vi.mocked(api.getDocument);
 const tryOpenData = vi.mocked(api.tryOpenData);
 const openDefaultStore = vi.mocked(api.openDefaultStore);
+const safSyncNow = vi.mocked(api.safSyncNow);
+const safPush = vi.mocked(api.safPush);
 
 function makeDoc(theme: "auto" | "light" | "dark" = "auto"): Document {
   return {
@@ -43,11 +60,18 @@ function makeDocWithDayStart(hour: number): Document {
 }
 
 beforeEach(() => {
+  storeChangedCbs = [];
   storeChangedCb = undefined;
   settingsChangedCb = undefined;
   getDocument.mockReset();
   tryOpenData.mockReset();
   openDefaultStore.mockReset();
+  safSyncNow.mockReset();
+  safPush.mockReset();
+  platform.isAndroid.mockReset();
+  platform.isAndroid.mockResolvedValue(false);
+  safSyncNow.mockResolvedValue({ linked: false });
+  safPush.mockResolvedValue({ linked: false });
 });
 
 describe("useDocument", () => {
@@ -276,5 +300,67 @@ describe("useDocument cloud-folder pending retries", () => {
     expect(result.current.waitingForData).toBe(false);
     expect(result.current.showFallback).toBe(false);
     expect(result.current.gaveUp).toBe(false);
+  });
+});
+
+describe("useDocument Android SAF resume sync (#218)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    platform.isAndroid.mockResolvedValue(true);
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    getDocument.mockResolvedValue(makeDoc());
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function mountAndroid() {
+    const rendered = renderHook(() => useDocument());
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    return rendered;
+  }
+
+  it("pulls from the SAF folder on launch", async () => {
+    await mountAndroid();
+    expect(safSyncNow).toHaveBeenCalledTimes(1);
+  });
+
+  it("pulls again on window focus after the throttle window", async () => {
+    await mountAndroid();
+    expect(safSyncNow).toHaveBeenCalledTimes(1);
+
+    // Immediate focus is suppressed — launch already kicked sync.
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+    expect(safSyncNow).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+    expect(safSyncNow).toHaveBeenCalledTimes(2);
+  });
+
+  it("pulls on visibilitychange when becoming visible after the throttle window", async () => {
+    await mountAndroid();
+    expect(safSyncNow).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
+    expect(safSyncNow).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not pull on resume while the document is hidden", async () => {
+    await mountAndroid();
+    expect(safSyncNow).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(safSyncNow).toHaveBeenCalledTimes(1);
   });
 });
