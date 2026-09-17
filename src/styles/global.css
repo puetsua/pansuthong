@@ -263,6 +263,12 @@ button {
   user-select: none;
   background: var(--c-surface-2);
   border-bottom: 1px solid var(--c-border);
+  /* Above portaled overlays (.modal-backdrop 100, AFK 110, theme-confirm 1000)
+     so the strip keeps hit-testing for drag while modals are open (#232/#233).
+     Portals append under <body>; position+z-index lets this compete at the root
+     stacking context. Keep the desktop `top` inset on overlays as well. */
+  position: relative;
+  z-index: 1100;
 }
 .desktop-titlebar-drag {
   flex: 1;
@@ -304,7 +310,8 @@ button {
   color: #fff;
 }
 
-/* Full-viewport fixed layers portaled to <body> must not cover the titlebar. */
+/* Full-viewport fixed layers portaled to <body> must not cover the titlebar.
+   Paired with .desktop-titlebar z-index so the strip stays hittable for drag. */
 :root[data-shell="desktop"] .modal-backdrop,
 :root[data-shell="desktop"] .te-confirm,
 :root[data-shell="desktop"] .te-lightbox,
