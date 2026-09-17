@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { Document } from "../lib/tauri";
+import { Document, type SyncStatus } from "../lib/tauri";
 
 // Capture reload listeners so tests can fire a reload, and mock the IPC
 // document fetch so we drive load success/failure deterministically (#42).
@@ -70,8 +70,16 @@ beforeEach(() => {
   safPush.mockReset();
   platform.isAndroid.mockReset();
   platform.isAndroid.mockResolvedValue(false);
-  safSyncNow.mockResolvedValue({ linked: false });
-  safPush.mockResolvedValue({ linked: false });
+  const unlinked: SyncStatus = {
+    linked: false,
+    folder_label: null,
+    permission_ok: false,
+    last_synced_ms: null,
+    last_error: null,
+    conflict_count: 0,
+  };
+  safSyncNow.mockResolvedValue(unlinked);
+  safPush.mockResolvedValue(unlinked);
 });
 
 describe("useDocument", () => {
