@@ -391,6 +391,24 @@ export function todayIso(now: Date = new Date(), dayStartHour = 0): string {
 }
 
 /**
+ * Milliseconds until the next local-time logical-day rollover at `dayStartHour`
+ * (0 = midnight). The delay includes 1ms past the boundary so a timer callback
+ * runs after `todayIso` would already return the new day.
+ */
+export function msUntilNextLogicalDayBoundary(now: Date = new Date(), dayStartHour = 0): number {
+  const hour = dayStartHour % 24;
+  const next = new Date(now);
+  next.setSeconds(0, 0);
+  next.setMilliseconds(0);
+  next.setHours(hour, 0, 0, 0);
+  if (next.getTime() <= now.getTime()) {
+    next.setDate(next.getDate() + 1);
+    next.setHours(hour, 0, 0, 0);
+  }
+  return next.getTime() - now.getTime() + 1;
+}
+
+/**
  * The logical day (YYYY-MM-DD) a stored local-offset timestamp belongs to, honoring
  * `dayStartHour`. Reads the wall-clock date and hour written in the string itself
  * (not the runner's timezone), so it stays consistent with how `completed_at` /

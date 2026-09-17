@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addDaysIso, dateTimeKey, daysBetweenIso, earliestDateTimeKey, formatDate, formatDateTime, formatDatetimeLocalValue, formatIsoDate, formatIsoYearMonth, formatIsoLocal, formatIsoLocalShort, formatTime, formatTimeOfDay, isOverdue, logicalDayOf, todayIso,
+  addDaysIso, dateTimeKey, daysBetweenIso, earliestDateTimeKey, formatDate, formatDateTime, formatDatetimeLocalValue, formatIsoDate, formatIsoYearMonth, formatIsoLocal, formatIsoLocalShort, formatTime, formatTimeOfDay, isOverdue, logicalDayOf, msUntilNextLogicalDayBoundary, todayIso,
 } from "./dates";
 
 describe("todayIso (day-start hour)", () => {
@@ -23,6 +23,27 @@ describe("todayIso (day-start hour)", () => {
 
   it("treats the rest of the day (up to midnight) as the same logical day", () => {
     expect(todayIso(new Date(2026, 5, 2, 23, 59, 0), 4)).toBe("2026-06-02");
+  });
+});
+
+describe("msUntilNextLogicalDayBoundary", () => {
+  it("counts down to the next midnight with the default hour", () => {
+    const now = new Date(2026, 6, 30, 23, 59, 30);
+    expect(msUntilNextLogicalDayBoundary(now, 0)).toBe(30_001);
+  });
+
+  it("counts down to the configured day-start hour", () => {
+    const now = new Date(2026, 6, 30, 3, 59, 30);
+    expect(msUntilNextLogicalDayBoundary(now, 4)).toBe(30_001);
+  });
+
+  it("schedules the following day when the start hour already passed today", () => {
+    const now = new Date(2026, 6, 30, 5, 0, 0);
+    const ms = msUntilNextLogicalDayBoundary(now, 4);
+    const at = new Date(now.getTime() + ms);
+    expect(at.getDate()).toBe(31);
+    expect(at.getHours()).toBe(4);
+    expect(at.getMinutes()).toBe(0);
   });
 });
 
