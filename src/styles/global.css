@@ -238,6 +238,16 @@ button {
 .composer-error { color: var(--c-danger); margin: var(--space-1) 0 0; font-size: 0.85rem; flex-basis: 100%; }
 .composer-hint { color: var(--c-text-muted); margin: var(--space-1) 0 0; font-size: 0.8rem; flex-basis: 100%; }
 
+/* Desktop custom titlebar height; 0 on mobile (no titlebar). Portaled overlays inset
+   by this amount so the drag region stays interactive (#232). Keep in sync with
+   TITLEBAR_HEIGHT_PX in src-tauri/src/linux_desktop.rs. */
+:root {
+  --desktop-titlebar-height: 0px;
+}
+:root[data-shell="desktop"] {
+  --desktop-titlebar-height: 32px;
+}
+
 .desktop-shell {
   display: flex;
   flex-direction: column;
@@ -247,7 +257,7 @@ button {
   overflow-x: hidden;
 }
 .desktop-titlebar {
-  flex: 0 0 32px;
+  flex: 0 0 var(--desktop-titlebar-height);
   display: flex;
   align-items: stretch;
   user-select: none;
@@ -293,6 +303,16 @@ button {
   background: var(--c-danger);
   color: #fff;
 }
+
+/* Full-viewport fixed layers portaled to <body> must not cover the titlebar. */
+:root[data-shell="desktop"] .modal-backdrop,
+:root[data-shell="desktop"] .te-confirm,
+:root[data-shell="desktop"] .te-lightbox,
+:root[data-shell="desktop"] .ctx-menu-backdrop,
+:root[data-shell="desktop"] .sidebar-ctx-backdrop {
+  top: var(--desktop-titlebar-height);
+}
+
 .desktop-body {
   flex: 1;
   min-height: 0;

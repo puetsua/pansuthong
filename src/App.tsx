@@ -7,7 +7,7 @@ import { osLocale } from "./lib/platform";
 import { DesktopShell } from "./shell/DesktopShell";
 import { DesktopTitlebar } from "./shell/DesktopTitlebar";
 import { MobileShell } from "./shell/MobileShell";
-import { useIsMobile } from "./lib/viewport";
+import { useDocumentShellAttribute, useIsMobile } from "./lib/viewport";
 import { TodayView } from "./views/TodayView";
 import { InboxView } from "./views/InboxView";
 import { TagView } from "./views/TagView";
@@ -34,6 +34,7 @@ export default function App() {
   const { t } = useTranslation();
   const { doc, indexes, error, reloadError, dismissReloadError, waitingForData, retryCount, nextRetryIn, showFallback, gaveUp, createNewData } = useDocument();
   const isMobile = useIsMobile();
+  useDocumentShellAttribute();
   const didShowWindow = useRef(false);
 
   // Apply the chosen UI language ("auto" follows the OS locale) whenever the
