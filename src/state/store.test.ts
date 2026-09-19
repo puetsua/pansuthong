@@ -208,6 +208,19 @@ describe("useDocument day rollover", () => {
     expect(result.current.indexes?.todayIso).toBe("2026-07-31");
   });
 
+  it("advances on window focus when the boundary was crossed with timers suspended", async () => {
+    vi.setSystemTime(new Date(2026, 6, 30, 23, 0, 0));
+    getDocument.mockResolvedValue(makeDoc());
+
+    const { result } = await mountSettled();
+    expect(result.current.indexes?.todayIso).toBe("2026-07-30");
+
+    vi.setSystemTime(new Date(2026, 6, 31, 9, 0, 0));
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+
+    expect(result.current.indexes?.todayIso).toBe("2026-07-31");
+  });
+
   // The document loads a moment after the first render, so `day_start_hour` arrives
   // late. If the day were held in state and corrected by an effect, the first
   // committed frame would show the day computed with the default hour.

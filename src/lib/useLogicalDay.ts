@@ -1,24 +1,21 @@
 import { useEffect, useState } from "react";
-import { todayIso } from "./dates";
+import { msUntilNextLogicalDayBoundary, todayIso } from "./dates";
 
 /**
- * How often the logical day is re-derived from the clock. The answer is recomputed
- * from scratch each tick rather than scheduled at the boundary, so DST shifts, a
- * manually changed system clock, and an edited `day_start_hour` all self-correct
- * within one tick instead of needing their own arithmetic (#148).
+ * Upper bound between timer wake-ups when the next rollover is far away. Each wake
+ * re-derives the logical day from the clock so DST shifts, a manually changed system
+ * clock, and an edited `day_start_hour` self-correct without bespoke arithmetic (#148).
  */
-const CHECK_MS = 60_000;
+const MAX_CHECK_MS = 60_000;
 
 /**
  * The current logical day (YYYY-MM-DD), advancing on its own as wall-clock time
  * crosses `dayStartHour`. Without this the day is sampled once when the indexes are
- * built and an app left open overnight keeps showing yesterday's Today view.
+ * built and an app left open overnight keeps showing yesterday's Today view (#235).
  *
- * The once-a-minute check sets state unconditionally and lets React bail out when the
- * string is unchanged, so it costs a comparison per minute and re-renders exactly once
- * per rollover. The visibility listener covers the case the interval is worst at —
- * timers are throttled or suspended while the machine sleeps, so a boundary crossed
- * overnight would otherwise wait up to a tick after resume.
+ * A timeout is scheduled for the next rollover (midnight or the configured day-start
+ * hour) and capped wake-ups handle clock drift. `focus` and `visibilitychange` cover
+ * sleep/throttling where timers were suspended overnight.
  */
 export function useLogicalDay(dayStartHour: number): string {
   // Derived during render, not held in state, so a changed `dayStartHour` takes effect
@@ -34,7 +31,18 @@ export function useLogicalDay(dayStartHour: number): string {
   const [, observe] = useState(day);
 
   useEffect(() => {
+    let boundaryTimer: ReturnType<typeof setTimeout> | undefined;
+
     const sync = () => observe(todayIso(new Date(), dayStartHour));
+
+    const schedule = () => {
+      clearTimeout(boundaryTimer);
+      const ms = msUntilNextLogicalDayBoundary(new Date(), dayStartHour);
+      boundaryTimer = setTimeout(() => {
+        sync();
+        schedule();
+      }, Math.min(ms, MAX_CHECK_MS));
+    };
 
     // Realign the bail-out baseline first. It was seeded on an earlier render, which
     // may have used a different `dayStartHour` — the document carries the setting and
@@ -42,14 +50,18 @@ export function useLogicalDay(dayStartHour: number): string {
     // the *next* day's value, which would make React bail out on the tick that
     // actually crosses the boundary and swallow the rollover entirely.
     sync();
+    schedule();
 
-    const id = setInterval(sync, CHECK_MS);
-    const onVisible = () => { if (!document.hidden) sync(); };
-    document.addEventListener("visibilitychange", onVisible);
+    const onResume = () => {
+      if (!document.hidden) sync();
+    };
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("focus", onResume);
 
     return () => {
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
+      clearTimeout(boundaryTimer);
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("focus", onResume);
     };
   }, [dayStartHour]);
 
