@@ -91,3 +91,22 @@ file, validating attachment names with the same guard used on desktop.
 #### Scenario: Resolved conflict is removed from the SAF folder
 - **WHEN** a conflict is resolved or dismissed on Android
 - **THEN** the corresponding conflict copy is also removed from the SAF folder so it does not reappear on the next pull
+
+### Requirement: Sync on Android resume
+
+The system SHALL run `saf_sync_now` when the Android app launches and when it
+returns to the foreground after being backgrounded or screen-off with the
+activity kept, so peer updates in the SAF folder appear without a process
+restart. Resume detection SHALL not rely on Page Visibility alone: a window
+focus signal MAY also trigger sync. Resume kicks SHALL be throttled so
+repeated focus events do not thrash SAF I/O.
+
+#### Scenario: Foreground resume pulls peer updates
+- **WHEN** the Android app returns to the foreground after another device wrote
+  newer replicas into the linked SAF folder
+- **THEN** `saf_sync_now` runs (pull then push) and the UI reloads if the pull
+  imported changes
+
+#### Scenario: Rapid focus does not re-open SAF repeatedly
+- **WHEN** multiple focus / visibility events arrive within the throttle window
+- **THEN** only one resume sync kick is issued for that window
