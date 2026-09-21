@@ -59,7 +59,10 @@ export function NullableDateInputInDom({ value, onChange, "aria-label": ariaLabe
       close();
     };
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        close();
+      }
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
