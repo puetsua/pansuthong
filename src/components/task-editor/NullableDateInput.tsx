@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { dismissOpenDatePickersIn } from "../../lib/nativeDatePicker";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -30,6 +31,8 @@ export function NullableDateInput({ value, onChange, "aria-label": ariaLabel }: 
     if (!picking || value) return;
     const el = dateRef.current;
     if (!el) return;
+    const editor = el.closest(".task-editor");
+    if (editor) dismissOpenDatePickersIn(editor, el);
     el.focus({ preventScroll: true });
     try {
       el.showPicker();
