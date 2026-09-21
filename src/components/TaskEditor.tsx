@@ -23,7 +23,6 @@ import { ConfirmDialog, SaveChangesDialog } from "./task-editor/dialogs";
 import { NotesField, type NotesMode } from "./task-editor/NotesField";
 import { RecurrenceFields } from "./task-editor/RecurrenceFields";
 import { ScheduleFields } from "./task-editor/ScheduleFields";
-import { handleEditorDatePickerPointerDownCapture } from "../lib/nativeDatePicker";
 
 // The editor edits either a real task (absolute dates) or a template (relative
 // offsets), fixed by `kind`. A task is never converted in place; "Save as
@@ -479,7 +478,6 @@ export function TaskEditor(props: Props) {
     <div className="modal-backdrop">
       <div className="task-editor" ref={dialogRef} role="dialog" aria-modal="true"
            aria-label={heading} tabIndex={-1}
-           onPointerDownCapture={e => handleEditorDatePickerPointerDownCapture(e.target)}
            onClick={e => e.stopPropagation()}>
         <div className="te-header">
           <div className="te-title-actions">

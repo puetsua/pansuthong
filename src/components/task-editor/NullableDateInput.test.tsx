@@ -1,8 +1,21 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { NullableDateInput } from "./NullableDateInput";
+import { resetLinuxDesktopCacheForTests, primeLinuxDesktopCacheForTests } from "../../lib/useLinuxDesktop";
+
+const platform = vi.hoisted(() => ({
+  isLinux: vi.fn().mockResolvedValue(false),
+}));
+
+vi.mock("../../lib/platform", () => platform);
 
 describe("NullableDateInput (#217)", () => {
+  beforeEach(() => {
+    resetLinuxDesktopCacheForTests();
+    primeLinuxDesktopCacheForTests(false);
+    platform.isLinux.mockResolvedValue(false);
+  });
+
   it("renders an unset text field when value is empty", () => {
     render(<NullableDateInput aria-label="Start Date" value="" onChange={vi.fn()} />);
     const input = screen.getByLabelText("Start Date") as HTMLInputElement;
@@ -53,5 +66,37 @@ describe("NullableDateInput (#217)", () => {
     Object.defineProperty(input, "selectionEnd", { configurable: true, value: 2 });
     fireEvent.keyDown(input, { key: "Backspace" });
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("NullableDateInput Linux in-DOM picker (#237)", () => {
+  beforeEach(() => {
+    resetLinuxDesktopCacheForTests();
+    primeLinuxDesktopCacheForTests(true);
+    platform.isLinux.mockResolvedValue(true);
+  });
+
+  it("never renders type=date and opens an in-DOM popover", () => {
+    render(<NullableDateInput aria-label="Due Date" value="2026-09-25" onChange={vi.fn()} />);
+    const input = screen.getByLabelText("Due Date") as HTMLInputElement;
+    expect(input.type).toBe("text");
+    expect(input.getAttribute("type")).toBe("text");
+    fireEvent.click(input);
+    expect(screen.getByRole("dialog", { name: "Due Date" })).toBeTruthy();
+  });
+
+  it("closes the due popover when start field is opened", () => {
+    const { rerender } = render(
+      <>
+        <NullableDateInput aria-label="Due Date" value="2026-09-25" onChange={vi.fn()} />
+        <NullableDateInput aria-label="Start Date" value="" onChange={vi.fn()} />
+      </>,
+    );
+    fireEvent.click(screen.getByLabelText("Due Date"));
+    expect(screen.getByRole("dialog", { name: "Due Date" })).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Start Date"));
+    expect(screen.queryByRole("dialog", { name: "Due Date" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Start Date" })).toBeTruthy();
+    rerender(<></>);
   });
 });

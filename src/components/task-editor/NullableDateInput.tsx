@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { dismissOpenDatePickersIn } from "../../lib/nativeDatePicker";
+import { usePreferInDomTaskEditorDatePicker } from "../../lib/useLinuxDesktop";
+import { NullableDateInputInDom } from "./NullableDateInputInDom";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -18,12 +20,7 @@ type Props = {
   "aria-label": string;
 };
 
-/**
- * Optional calendar date (YYYY-MM-DD or ""). WebKitGTK renders "today" for
- * `<input type="date" value="">` even when the value is empty; use a plain text
- * field until a date is set or the user opens the native picker (#217).
- */
-export function NullableDateInput({ value, onChange, "aria-label": ariaLabel }: Props) {
+function NullableDateInputNative({ value, onChange, "aria-label": ariaLabel }: Props) {
   const [picking, setPicking] = useState(false);
   const dateRef = useRef<HTMLInputElement>(null);
 
@@ -80,4 +77,15 @@ export function NullableDateInput({ value, onChange, "aria-label": ariaLabel }: 
       onClick={() => setPicking(true)}
     />
   );
+}
+
+/**
+ * Optional calendar date (YYYY-MM-DD or ""). Linux desktop uses an in-DOM popover
+ * instead of native `type=date` (WebKitGTK modal picker blocks Cancel, #237).
+ * Other platforms keep the native control with empty-state text field (#217).
+ */
+export function NullableDateInput(props: Props) {
+  const preferInDom = usePreferInDomTaskEditorDatePicker();
+  if (preferInDom) return <NullableDateInputInDom {...props} />;
+  return <NullableDateInputNative {...props} />;
 }
