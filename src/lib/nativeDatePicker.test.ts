@@ -5,12 +5,16 @@ import {
   handleEditorDatePickerPointerDownCapture,
 } from "./nativeDatePicker";
 
+function stubHidePicker(input: HTMLInputElement, fn: () => void): void {
+  Object.defineProperty(input, "hidePicker", { configurable: true, value: fn });
+}
+
 describe("nativeDatePicker (#237)", () => {
   it("calls hidePicker and blur when dismissing one input", () => {
     const input = document.createElement("input");
     input.type = "date";
-    const hidePicker = vi.fn();
-    input.hidePicker = hidePicker;
+    const hidePicker = vi.fn<() => void>();
+    stubHidePicker(input, hidePicker);
     const blur = vi.spyOn(input, "blur");
 
     dismissNativeDatePicker(input);
@@ -35,8 +39,8 @@ describe("nativeDatePicker (#237)", () => {
     document.body.append(editor);
 
     due.focus();
-    const dueHide = vi.fn();
-    due.hidePicker = dueHide;
+    const dueHide = vi.fn<() => void>();
+    stubHidePicker(due, dueHide);
     const dueBlur = vi.spyOn(due, "blur");
 
     handleEditorDatePickerPointerDownCapture(startUnset);
@@ -60,8 +64,8 @@ describe("nativeDatePicker (#237)", () => {
     editor.append(due);
     document.body.append(editor);
 
-    const hidePicker = vi.fn();
-    due.hidePicker = hidePicker;
+    const hidePicker = vi.fn<() => void>();
+    stubHidePicker(due, hidePicker);
     const blur = vi.spyOn(due, "blur");
 
     handleEditorDatePickerPointerDownCapture(due);
@@ -81,15 +85,17 @@ describe("nativeDatePicker (#237)", () => {
     wrap.append(a, b);
     document.body.append(wrap);
 
-    a.hidePicker = vi.fn();
-    b.hidePicker = vi.fn();
+    const aHide = vi.fn<() => void>();
+    const bHide = vi.fn<() => void>();
+    stubHidePicker(a, aHide);
+    stubHidePicker(b, bHide);
     vi.spyOn(a, "blur");
     vi.spyOn(b, "blur");
 
     dismissOpenDatePickersIn(wrap, b);
 
-    expect(a.hidePicker).toHaveBeenCalled();
-    expect(b.hidePicker).not.toHaveBeenCalled();
+    expect(aHide).toHaveBeenCalled();
+    expect(bHide).not.toHaveBeenCalled();
 
     document.body.removeChild(wrap);
   });

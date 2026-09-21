@@ -1,10 +1,18 @@
-/** Dismiss the platform native picker for `<input type="date">` (WebKitGTK #237). */
-export function dismissNativeDatePicker(input: HTMLInputElement): void {
+type InputWithHidePicker = HTMLInputElement & { hidePicker?: () => void };
+
+function callHidePickerIfSupported(input: HTMLInputElement): void {
+  const hidePicker = (input as InputWithHidePicker).hidePicker;
+  if (typeof hidePicker !== "function") return;
   try {
-    input.hidePicker?.();
+    hidePicker.call(input);
   } catch {
     // hidePicker unsupported or not allowed (e.g. jsdom)
   }
+}
+
+/** Dismiss the platform native picker for `<input type="date">` (WebKitGTK #237). */
+export function dismissNativeDatePicker(input: HTMLInputElement): void {
+  callHidePickerIfSupported(input);
   input.blur();
 }
 
