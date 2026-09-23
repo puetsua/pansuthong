@@ -1744,7 +1744,79 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 /* Date + optional time-of-day pair (#93). */
 .te-datetime { display: flex; gap: var(--space-1); }
 .te-datetime input[type="date"],
-.te-datetime input.te-date-unset { flex: 1; min-width: 0; }
+.te-datetime input.te-date-unset,
+.te-datetime .te-date-popover-root { flex: 1; min-width: 0; }
+.te-datetime .te-date-popover-root { position: relative; }
+.te-datetime .te-date-popover-root > input { width: 100%; }
+.te-date-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 16rem;
+  padding: var(--space-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+.te-date-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+.te-date-popover-month {
+  flex: 1;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+.te-date-popover-nav {
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.te-date-popover-nav:hover { border-color: var(--c-accent); color: var(--c-accent); }
+.te-date-popover-weekdays,
+.te-date-popover-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.te-date-popover-weekday {
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  padding: 2px 0;
+}
+.te-date-popover-day {
+  min-height: 1.75rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--c-text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+.te-date-popover-day:hover { border-color: var(--c-accent); color: var(--c-accent); }
+.te-date-popover-day-out { opacity: 0.45; }
+.te-date-popover-day-today { box-shadow: inset 0 0 0 1px var(--c-accent); }
+.te-date-popover-day-selected {
+  background: var(--c-accent);
+  color: var(--c-on-accent, #fff);
+}
 .te-datetime input.te-date-unset {
   color: var(--c-text-muted);
   cursor: pointer;
