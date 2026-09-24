@@ -18,7 +18,7 @@ import { formatDurationShort } from "../lib/time";
 import { useIdleAnchor } from "../lib/useIdleAnchor";
 import { recurrenceStreak, type HeatCell, type Heatmap } from "../lib/recurrence-heatmap";
 import { computeTagAnalytics, recurringScheduledDates } from "../lib/tag-analytics";
-import { normalizeTagHashColor } from "../lib/tagColorDisplay";
+import { tagPillStyle } from "../lib/tagColorDisplay";
 import { useThemeVariant } from "../lib/useThemeVariant";
 
 type Props = { doc: Document; indexes: Indexes };
@@ -71,7 +71,9 @@ export function TagView({ doc, indexes }: Props) {
     <section>
       <header className="view-header">
         <div className="view-title-row">
-          <h1><span style={{ color: normalizeTagHashColor(tag.color, theme) }}>#</span>{tag.name}</h1>
+          <h1>
+            <span className="task-tag" style={tagPillStyle(tag.color, theme)}>{tag.name}</span>
+          </h1>
           <button type="button" className="link-button tag-edit-link"
                   onClick={() => setEditing(true)}>{t("tagView.editTag")}</button>
         </div>

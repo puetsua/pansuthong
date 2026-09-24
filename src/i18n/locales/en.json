@@ -235,7 +235,7 @@
     "due": "due {{date}}"
   },
   "composer": {
-    "placeholder": "What needs doing?  (try: #work due fri ~1h Reply to Anna)",
+    "placeholder": "What needs doing? (try: due fri ~1h Reply to Anna — type # before a tag name)",
     "aria": "New task",
     "add": "Add",
     "expand": "Add task with more options…",

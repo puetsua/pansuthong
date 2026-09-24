@@ -21,7 +21,7 @@ import {
   replaceComposerTagToken,
   type ComposerTagOption,
 } from "../state/composerTagSuggest";
-import { normalizeTagHashColor } from "../lib/tagColorDisplay";
+import { tagPillStyle } from "../lib/tagColorDisplay";
 import { useThemeVariant } from "../lib/useThemeVariant";
 
 type Props = {
@@ -233,14 +233,9 @@ export function Composer({ startDate, todayIso: today = todayIso(), settings, ta
                       onMouseDown={e => e.preventDefault()}
                       onClick={() => commitTagOption(opt)}
                     >
-                      <span
-                        className="sidebar-hash"
-                        aria-hidden="true"
-                        style={{ color: normalizeTagHashColor(opt.tag.color, theme) }}
-                      >
-                        #
+                      <span className="task-tag" style={tagPillStyle(opt.tag.color, theme)}>
+                        {opt.tag.name}
                       </span>
-                      {opt.tag.name}
                     </button>
                   </li>
                 );

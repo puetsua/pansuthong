@@ -1,7 +1,7 @@
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Settings, Tag } from "../lib/tauri";
-import { normalizeTagHashColor } from "../lib/tagColorDisplay";
+import { tagPillStyle } from "../lib/tagColorDisplay";
 import { useThemeVariant } from "../lib/useThemeVariant";
 
 type Props = {
@@ -105,8 +105,9 @@ export function DashboardAddTagPopover({ tags, settings, onSelect }: Props) {
                     onMouseDown={e => e.preventDefault()}
                     onClick={() => select(tag)}
                   >
-                    <span className="sidebar-hash" aria-hidden="true" style={{ color: normalizeTagHashColor(tag.color, theme) }}>#</span>
-                    {tag.name}
+                    <span className="task-tag" style={tagPillStyle(tag.color, theme)}>
+                      {tag.name}
+                    </span>
                   </button>
                 </li>
               );

@@ -79,7 +79,7 @@ function pickTitle(pathname: string, indexes: Indexes, t: TFunction): string {
   const tagMatch = pathname.match(/^\/tag\/(.+)$/);
   if (tagMatch) {
     const tag = indexes.tagsById.get(tagMatch[1]);
-    return tag ? `#${tag.name}` : t("nav.tag");
+    return tag ? tag.name : t("nav.tag");
   }
   if (pathname.startsWith("/conflicts/")) return t("nav.conflict");
   return t("nav.appName");

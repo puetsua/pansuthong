@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Document, Tag } from "../lib/tauri";
 import { Indexes, openCount } from "../state/indexes";
-import { normalizeTagHashColor } from "../lib/tagColorDisplay";
+import { tagPillStyle } from "../lib/tagColorDisplay";
 import { useThemeVariant } from "../lib/useThemeVariant";
 import { TagEditor } from "../components/TagEditor";
 import { ContextMenu } from "../components/ContextMenu";
@@ -80,8 +80,9 @@ export function Sidebar({ doc, indexes }: Props) {
             }}
           >
             <NavLink to={`/tag/${t2.id}`} className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
-              <span className="sidebar-hash" aria-hidden="true" style={{ color: normalizeTagHashColor(t2.color, theme) }}>#</span>
-              {t2.name}
+              <span className="task-tag sidebar-tag-pill" style={tagPillStyle(t2.color, theme)}>
+                {t2.name}
+              </span>
               <span className="sidebar-count">{indexes.byTag.get(t2.id)?.length ?? 0}</span>
             </NavLink>
             <button type="button" className="sidebar-icon-btn tag-edit-btn" aria-label={t("sidebar.editTag", { name: t2.name })}
