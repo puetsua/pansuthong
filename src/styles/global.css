@@ -2456,6 +2456,7 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 
 /* Tag view header: title + an "Edit tag" action on the same row. */
 .view-title-row { display: flex; align-items: center; gap: var(--space-3); }
+.view-header .view-title-row { margin-bottom: var(--space-2); }
 .view-title-row h1 { margin-bottom: 0; }
 .tag-edit-link { margin-left: auto; flex-shrink: 0; }
 .tag-view-tabs {
