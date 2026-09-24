@@ -147,6 +147,8 @@ button {
 .task-row[data-done="true"] .task-title { color: var(--c-text-subtle); text-decoration: line-through; }
 .task-title { flex: 1; word-break: break-word; }
 .task-tag   { font-size: 0.7rem; padding: 1px 6px; border-radius: 3px; font-weight: 600; white-space: nowrap; }
+/* Title-scale soft pills (tag view header, dashboard card name) — colors still from tagPillStyle. */
+.task-tag.task-tag-title { font-size: 0.95rem; padding: 3px 10px; border-radius: 6px; }
 .task-recurring { color: var(--c-text-muted); flex: none; line-height: 1; }
 .task-when  { color: var(--c-text-muted); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
 .task-when.late { color: var(--c-danger); font-weight: 600; }

@@ -184,6 +184,13 @@ export function tagPillStyle(hex: string, theme: ThemeVariant): CSSProperties {
   return { background: bg, color: fg, border: `1px solid ${border}` };
 }
 
+export type TagPillScale = "chip" | "title";
+
+/** className to pair with `tagPillStyle` — chip = default; title = tag view / dashboard headings. */
+export function tagPillClassName(scale: TagPillScale = "chip"): string {
+  return scale === "title" ? "task-tag task-tag-title" : "task-tag";
+}
+
 /** Test helpers */
 export const _tagColorDisplayTest = {
   parseHex,

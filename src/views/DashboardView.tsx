@@ -13,7 +13,7 @@ import { HeatmapGrid } from "../components/HeatmapGrid";
 import { DashboardAddTagPopover } from "../components/DashboardAddTagPopover";
 import { dashboardOrderUpdates, pinTagToDashboard, sortDashboardPinnedTags } from "../lib/dashboard-tags";
 import { dashboardInsertIndexAtY, dashboardReorderAtIndex } from "../lib/dashboard-reorder";
-import { tagPillStyle } from "../lib/tagColorDisplay";
+import { tagPillClassName, tagPillStyle } from "../lib/tagColorDisplay";
 import { useThemeVariant } from "../lib/useThemeVariant";
 
 type Props = { doc: Document; indexes: Indexes };
@@ -278,7 +278,7 @@ function DashboardCard({ tag, settings, indexes, tasks, todayIso, days, dayStart
             </span>
           </button>
           <span className="dashboard-card-name">
-            <span className="task-tag" style={tagPillStyle(tag.color, theme)}>{tag.name}</span>
+            <span className={tagPillClassName("title")} style={tagPillStyle(tag.color, theme)}>{tag.name}</span>
           </span>
         </div>
         <div className="dashboard-card-controls">
