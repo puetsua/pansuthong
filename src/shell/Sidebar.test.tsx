@@ -115,7 +115,7 @@ describe("Sidebar — tag curation (#78)", () => {
       tag({ id: "t_legacy", name: "legacy" }), // pinned absent => hidden
     ]);
 
-    // The name renders plain; the colored "#" is a separate decorative glyph (#68).
+    // Tag names render as soft pills in the sidebar (#239).
     expect(screen.getByText("work")).toBeTruthy();
     expect(screen.queryByText("someday")).toBeNull();
     expect(screen.queryByText("legacy")).toBeNull();

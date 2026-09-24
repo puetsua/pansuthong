@@ -1,7 +1,7 @@
 import { KeyboardEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tag, Settings } from "../lib/tauri";
-import { tagPillStyle, normalizeTagHashColor } from "../lib/tagColorDisplay";
+import { tagPillStyle } from "../lib/tagColorDisplay";
 import { useThemeVariant } from "../lib/useThemeVariant";
 import { defaultTagColor } from "../lib/settings";
 
@@ -145,10 +145,11 @@ export function TagInput({
                 return (
                   <li key={opt.tag.id} role="option" aria-selected={isActive}>
                     <button type="button" className={cls}
-                            style={{ color: normalizeTagHashColor(opt.tag.color, theme) }}
                             onMouseDown={e => e.preventDefault()}
                             onClick={() => commit(opt)}>
-                      {opt.tag.name}
+                      <span className="task-tag" style={tagPillStyle(opt.tag.color, theme)}>
+                        {opt.tag.name}
+                      </span>
                     </button>
                   </li>
                 );

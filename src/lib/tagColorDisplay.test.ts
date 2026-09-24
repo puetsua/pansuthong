@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeTagColor,
   normalizeTagHashColor,
+  tagPillClassName,
   _tagColorDisplayTest,
 } from "./tagColorDisplay";
 
@@ -102,5 +103,16 @@ describe("normalizeTagHashColor", () => {
     const hex = "#ff0000";
     expect(normalizeTagHashColor(hex, "light")).toBe(normalizeTagColor(hex, "light").fg);
     expect(normalizeTagHashColor(hex, "dark")).toBe(normalizeTagColor(hex, "dark").fg);
+  });
+});
+
+describe("tagPillClassName", () => {
+  it("defaults to chip scale", () => {
+    expect(tagPillClassName()).toBe("task-tag");
+    expect(tagPillClassName("chip")).toBe("task-tag");
+  });
+
+  it("uses title modifier for heading pills", () => {
+    expect(tagPillClassName("title")).toBe("task-tag task-tag-title");
   });
 });

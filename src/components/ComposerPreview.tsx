@@ -32,7 +32,7 @@ export function ComposerPreview({ parsed, tagsByName, settings }: Props) {
         return (
           <span key={name} className="composer-chip"
                 style={pill}>
-            #{name}{isNew && <span className="composer-new">{t("composerPreview.new")}</span>}
+            {name}{isNew && <span className="composer-new">{t("composerPreview.new")}</span>}
           </span>
         );
       })}
