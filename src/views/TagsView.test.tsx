@@ -42,7 +42,7 @@ describe("TagsView — pin toggle (#78)", () => {
   it("pins an unpinned tag", async () => {
     renderView([tag({ id: "t_a", name: "work", pinned: false })]);
 
-    fireEvent.click(screen.getByRole("button", { name: /pin #work to sidebar/i }));
+    fireEvent.click(screen.getByRole("button", { name: /pin work to sidebar/i }));
 
     await waitFor(() =>
       expect(api.updateTag).toHaveBeenCalledWith({ id: "t_a", pinned: true }),
@@ -52,7 +52,7 @@ describe("TagsView — pin toggle (#78)", () => {
   it("unpins a pinned tag", async () => {
     renderView([tag({ id: "t_a", name: "work", pinned: true })]);
 
-    fireEvent.click(screen.getByRole("button", { name: /unpin #work from sidebar/i }));
+    fireEvent.click(screen.getByRole("button", { name: /unpin work from sidebar/i }));
 
     await waitFor(() =>
       expect(api.updateTag).toHaveBeenCalledWith({ id: "t_a", pinned: false }),
@@ -61,7 +61,7 @@ describe("TagsView — pin toggle (#78)", () => {
 
   it("marks the pin control pressed for a pinned tag", () => {
     renderView([tag({ id: "t_a", name: "work", pinned: true })]);
-    const btn = screen.getByRole("button", { name: /unpin #work from sidebar/i });
+    const btn = screen.getByRole("button", { name: /unpin work from sidebar/i });
     expect(btn.getAttribute("aria-pressed")).toBe("true");
   });
 });
@@ -78,7 +78,7 @@ describe("TagsView — tag name links to its task list (#91)", () => {
 
     // The row's controls are siblings of the link, not nested in it.
     const link = screen.getByRole("link", { name: /work/i });
-    const pin = screen.getByRole("button", { name: /pin #work to sidebar/i });
+    const pin = screen.getByRole("button", { name: /pin work to sidebar/i });
     expect(link.contains(pin)).toBe(false);
 
     fireEvent.click(pin);
