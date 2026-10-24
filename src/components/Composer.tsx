@@ -136,6 +136,11 @@ export function Composer({ startDate, todayIso: today = todayIso(), settings, ta
   };
 
   const onInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && e.nativeEvent.isComposing) {
+      e.preventDefault();
+      return;
+    }
+
     if (!showTagMenu || options.length === 0) return;
 
     if (e.key === "ArrowDown") {
@@ -157,10 +162,17 @@ export function Composer({ startDate, todayIso: today = todayIso(), settings, ta
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!parsed.title) return;
+    const rawInput = input;
+    const submitted = parseComposer(rawInput, today);
+    if (!submitted.title) return;
+
+    setInput("");
+    setCaret(0);
+    setMenuSuppress(null);
+    setError(null);
 
     try {
-      const resolvedTagIds = await resolveTagIds(parsed.tag_names, tagsByName, api.addTag, defaultTagColor());
+      const resolvedTagIds = await resolveTagIds(submitted.tag_names, tagsByName, api.addTag, defaultTagColor());
       // Auto-tag with the current tag view's tag so the task stays in view,
       // without duplicating a tag the user also typed explicitly (#106).
       const tagIds = contextTagId && !resolvedTagIds.includes(contextTagId)
@@ -170,21 +182,18 @@ export function Composer({ startDate, todayIso: today = todayIso(), settings, ta
       // Today view passes `startDate` so plain quick-adds land on today. A parsed
       // due-only line must not inherit that default — start stays unset (#215).
       const implicitStart =
-        parsed.start_date ?? (parsed.due_date != null ? undefined : startDate);
+        submitted.start_date ?? (submitted.due_date != null ? undefined : startDate);
 
       await api.addTask({
-        title: parsed.title,
+        title: submitted.title,
         start_date: implicitStart,
-        due_date: parsed.due_date,
+        due_date: submitted.due_date,
         tag_ids: tagIds,
-        estimated_seconds: parsed.estimated_seconds,
+        estimated_seconds: submitted.estimated_seconds,
       });
-      setInput("");
-      setCaret(0);
-      setMenuSuppress(null);
-      setError(null);
     } catch (err) {
       setError(errorMessage(err));
+      setInput(prev => (prev === "" ? rawInput : prev));
     }
   };
 

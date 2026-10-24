@@ -115,6 +115,32 @@ describe("Composer", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
+  it("snapshots and clears before add resolves so rapid Enter does not merge titles (#241)", async () => {
+    const resolvers: Array<() => void> = [];
+    addTask.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolvers.push(() => resolve({ id: "t_new", title: "", notes: "", tag_ids: [], created_at: "" }));
+        }),
+    );
+
+    render(<Composer tagsByName={tags} />);
+    const field = screen.getByLabelText("New task") as HTMLInputElement;
+    const form = field.closest("form")!;
+
+    fireEvent.change(field, { target: { value: "WQA-02" } });
+    fireEvent.submit(form);
+
+    fireEvent.change(field, { target: { value: "WQA-03" } });
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(addTask).toHaveBeenCalledTimes(2));
+    expect(addTask.mock.calls[0][0].title).toBe("WQA-02");
+    expect(addTask.mock.calls[1][0].title).toBe("WQA-03");
+
+    resolvers.forEach(r => r());
+  });
+
   it("confirms create-new on Enter without replacing the fragment (#222)", async () => {
     vi.mocked(api.addTag).mockResolvedValue({ id: "t_novel", name: "novel", color: "#000", priority: 0 });
     render(<Composer tagsByName={tags} allTags={allTagsById} />);
