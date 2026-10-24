@@ -51,8 +51,9 @@ pub struct Settings {
     /// config.json files predating i18n still load.
     #[serde(default = "default_language")]
     pub language: String,
-    /// Play a short completion sound when a task is marked done (#80). Device-local
-    /// and frontend-driven (a WebView `<audio>` through the media volume); the Rust
+    /// Play a short completion sound when a task is marked done (#80). Device-local;
+    /// Linux desktop plays via a native command (#242), other platforms use WebView
+    /// `<audio>` through the media volume. The Rust
     /// side only persists the preference. Defaults to `true`; `#[serde(default)]`
     /// so older config.json files predating the sound still load (defaulting on).
     #[serde(default = "default_sound_on_complete")]
