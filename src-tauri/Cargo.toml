@@ -65,4 +65,6 @@ tauri-plugin-android-updater = { path = "plugins/android-updater" }
 gtk = { version = "0.18", features = ["v3_24"] }
 webkit2gtk = "2.0"
 x11-dl = "2.21"
+# Completion chime on Linux desktop (#242) — avoids WebKit/GStreamer in the renderer.
+rodio = { version = "0.19", default-features = false, features = ["lewton"] }
 

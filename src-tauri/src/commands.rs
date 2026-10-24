@@ -1641,6 +1641,13 @@ pub fn session_idle_ms() -> Option<u64> {
     crate::idle::session_idle_ms()
 }
 
+/// Play the task-completion chime on Linux desktop (#242). No-op on other targets;
+/// the frontend uses WebView `<audio>` elsewhere.
+#[tauri::command]
+pub fn play_completion_sound() {
+    crate::completion_sound::play();
+}
+
 /// Close every running interval at `afk_start_ms`, dropping an entry that started
 /// at or after that instant so we never persist a zero-length row. One choice
 /// applies to every task that was timing during the AFK span (#170).

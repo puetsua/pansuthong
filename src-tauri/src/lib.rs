@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod completion_sound;
 pub mod config;
 pub mod conflict;
 pub mod db;
@@ -345,6 +346,7 @@ pub fn run() {
             commands::update_time_entry,
             commands::delete_time_entry,
             commands::session_idle_ms,
+            commands::play_completion_sound,
             commands::discard_running_afk,
             commands::add_template,
             commands::update_template,
