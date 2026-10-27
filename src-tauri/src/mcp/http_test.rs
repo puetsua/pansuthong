@@ -2,7 +2,8 @@
 
 use super::auth::{ExpectedToken, bearer_auth, origin_gate};
 use super::jsonrpc_http::{
-    json_content_type_gate, rewrite_jsonrpc_http_errors, tools_call_shape_gate,
+    MCP_MAX_REQUEST_BODY_BYTES, json_content_type_gate, rewrite_jsonrpc_http_errors,
+    tools_call_shape_gate,
 };
 use super::generate_mcp_token;
 use crate::commands::NewTaskInput;
@@ -68,6 +69,79 @@ fn mcp_tools_create_and_list_via_shared_ops() {
     .unwrap();
     assert_eq!(found.tasks.len(), 1);
     assert_eq!(found.tasks[0].title, "from mcp test");
+}
+
+#[test]
+fn mcp_http_large_tools_call_bodies() {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(async {
+        mcp_http_large_tools_call_bodies_async().await;
+    });
+}
+
+async fn mcp_http_large_tools_call_bodies_async() {
+    let token = generate_mcp_token();
+    let (url, ct, server) = spawn_ping_mcp_router(&token).await;
+    let client = reqwest::Client::new();
+    let accept = "application/json, text/event-stream";
+    let auth = format!("Bearer {token}");
+
+    // ~2 MiB payload must pass the shape gate and reach rmcp (under the 4 MiB server limit).
+    let pad_len = 2 * 1024 * 1024;
+    let pad = "x".repeat(pad_len);
+    let large_ok = json!({
+        "jsonrpc": "2.0",
+        "id": 20,
+        "method": "tools/call",
+        "params": {
+            "name": "ping",
+            "arguments": { "pad": pad }
+        }
+    });
+    let ok_res = client
+        .post(&url)
+        .header("Authorization", &auth)
+        .header("Accept", accept)
+        .json(&large_ok)
+        .send()
+        .await
+        .unwrap();
+    let ok_status = ok_res.status();
+    let ok_body = ok_res.text().await.unwrap();
+    assert!(
+        ok_status.is_success(),
+        "2 MiB tools/call should succeed, got {ok_status} {ok_body}"
+    );
+
+    // 5 MiB exceeds MCP_MAX_REQUEST_BODY_BYTES → 413 / -32600 at the gate.
+    let oversize = 5 * 1024 * 1024;
+    let mut huge_body = Vec::with_capacity(oversize + 256);
+    huge_body.extend_from_slice(b"{\"jsonrpc\":\"2.0\",\"id\":21,\"method\":\"tools/call\",\"params\":{\"name\":\"ping\",\"arguments\":{\"pad\":\"");
+    huge_body.extend(std::iter::repeat_n(b'z', oversize));
+    huge_body.extend_from_slice(b"\"}}}");
+    assert!(
+        huge_body.len() > MCP_MAX_REQUEST_BODY_BYTES,
+        "test body must exceed server limit"
+    );
+    let too_large = client
+        .post(&url)
+        .header("Authorization", &auth)
+        .header("Accept", accept)
+        .header("Content-Type", "application/json")
+        .body(huge_body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(too_large.status(), 413);
+    let text = too_large.text().await.unwrap();
+    assert!(text.contains("-32600"), "413 must be JSON-RPC invalid request: {text}");
+    assert!(text.contains("\"id\":null"), "413 body must include id null: {text}");
+
+    ct.cancel();
+    server.abort();
 }
 
 #[test]

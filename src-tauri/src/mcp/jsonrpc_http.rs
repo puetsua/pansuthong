@@ -15,6 +15,9 @@ use std::borrow::Cow;
 
 const JSON: &str = "application/json";
 
+/// Same limit as rmcp `StreamableHttpServerConfig` default (`DEFAULT_MAX_REQUEST_BODY_BYTES`).
+pub const MCP_MAX_REQUEST_BODY_BYTES: usize = 4 * 1024 * 1024;
+
 /// Transport-layer JSON-RPC errors always expose `"id": null` (gate cannot trust client ids).
 #[derive(Serialize)]
 struct TransportJsonRpcError {
@@ -51,6 +54,49 @@ fn invalid_params_response(
     transport_error_response(status, ErrorData::invalid_params(message, None))
 }
 
+fn payload_too_large_response() -> Response<Body> {
+    invalid_request_response(
+        StatusCode::PAYLOAD_TOO_LARGE,
+        format!(
+            "Payload Too Large: request body exceeds {} bytes",
+            MCP_MAX_REQUEST_BODY_BYTES
+        ),
+    )
+}
+
+enum RequestBodyReadError {
+    TooLarge,
+}
+
+async fn read_request_body_limited(
+    body: Body,
+) -> Result<axum::body::Bytes, RequestBodyReadError> {
+    match to_bytes(body, MCP_MAX_REQUEST_BODY_BYTES).await {
+        Ok(bytes) => Ok(bytes),
+        Err(_) => Err(RequestBodyReadError::TooLarge),
+    }
+}
+
+/// Reject `list_tasks` argument shapes rmcp would surface as a tool `isError` result.
+fn list_tasks_limit_argument_invalid(name: &str, arguments: Option<&Value>) -> Option<String> {
+    if name != "list_tasks" {
+        return None;
+    }
+    let limit = arguments.and_then(|a| a.get("limit"))?;
+    match limit {
+        Value::Number(n) => {
+            if n.as_u64().is_some_and(|u| u >= 1) {
+                return None;
+            }
+            if n.as_i64().is_some_and(|i| i <= 0) {
+                return Some("limit must be at least 1".into());
+            }
+            Some("list_tasks limit must be a positive integer".into())
+        }
+        _ => Some("list_tasks limit must be a positive integer".into()),
+    }
+}
+
 fn tools_call_params_invalid(params: &Value) -> Option<String> {
     let obj = match params {
         Value::Object(map) => map,
@@ -78,8 +124,16 @@ fn tools_call_shape_error(body: &Value) -> Option<String> {
     if params.is_none() || params.is_some_and(|p| p.is_null()) {
         return Some("tools/call requires params".into());
     }
-    if let Some(msg) = tools_call_params_invalid(params.unwrap()) {
+    let params = params.unwrap();
+    if let Some(msg) = tools_call_params_invalid(params) {
         return Some(msg);
+    }
+    if let Some(obj) = params.as_object() {
+        if let Some(name) = obj.get("name").and_then(Value::as_str) {
+            if let Some(msg) = list_tasks_limit_argument_invalid(name, obj.get("arguments")) {
+                return Some(msg);
+            }
+        }
     }
     // Reject shapes rmcp would route as CustomRequest instead of CallToolRequest.
     if serde_json::from_value::<CallToolRequest>(body.clone()).is_err() {
@@ -102,11 +156,12 @@ pub async fn tools_call_shape_gate(
         return next.run(req).await;
     }
     let (parts, body) = req.into_parts();
-    let bytes = to_bytes(body, 1_048_576).await.unwrap_or_default();
-    if bytes.is_empty() {
-        let req = Request::from_parts(parts, Body::from(bytes));
-        return next.run(req).await;
-    }
+    let bytes = match read_request_body_limited(body).await {
+        Ok(bytes) => bytes,
+        Err(RequestBodyReadError::TooLarge) => {
+            return payload_too_large_response().into_response();
+        }
+    };
     if let Ok(value) = serde_json::from_slice::<Value>(&bytes) {
         if let Some(message) = tools_call_shape_error(&value) {
             return invalid_params_response(StatusCode::BAD_REQUEST, message).into_response();
@@ -151,7 +206,22 @@ pub async fn rewrite_jsonrpc_http_errors(
         return res;
     }
     let (parts, body) = res.into_parts();
-    let bytes = to_bytes(body, 1_048_576).await.unwrap_or_default();
+    let bytes = match to_bytes(body, MCP_MAX_REQUEST_BODY_BYTES).await {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            return transport_error_response(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                ErrorData::invalid_request(
+                    format!(
+                        "Payload Too Large: response body exceeds {} bytes",
+                        MCP_MAX_REQUEST_BODY_BYTES
+                    ),
+                    None,
+                ),
+            )
+            .into_response();
+        }
+    };
     let message = String::from_utf8_lossy(&bytes).into_owned();
     let error = if status == StatusCode::NOT_ACCEPTABLE || status == StatusCode::PAYLOAD_TOO_LARGE {
         ErrorData::invalid_request(message, None)
@@ -223,5 +293,36 @@ mod tests {
             let got = tools_call_shape_error(&body).is_some();
             assert_eq!(got, expect_err, "body={body}");
         }
+    }
+
+    #[test]
+    fn list_tasks_limit_argument_validation() {
+        let bad = [
+            json!({
+                "method": "tools/call",
+                "params": { "name": "list_tasks", "arguments": { "limit": -1 } }
+            }),
+            json!({
+                "method": "tools/call",
+                "params": { "name": "list_tasks", "arguments": { "limit": "5" } }
+            }),
+            json!({
+                "method": "tools/call",
+                "params": { "name": "list_tasks", "arguments": { "limit": 0 } }
+            }),
+        ];
+        for body in bad {
+            assert!(
+                tools_call_shape_error(&body).is_some(),
+                "expected shape error for {body}"
+            );
+        }
+        let ok = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": { "name": "list_tasks", "arguments": { "limit": 5 } }
+        });
+        assert!(tools_call_shape_error(&ok).is_none());
     }
 }
