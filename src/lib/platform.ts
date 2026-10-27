@@ -30,6 +30,12 @@ export async function isLinux(): Promise<boolean> {
   }
 }
 
+/** Test-only: reset memoized OS detection between vitest cases. */
+export function __resetPlatformCacheForTests(): void {
+  cached = null;
+  cachedMac = null;
+}
+
 /** True when running on Android (the desktop sync-folder picker is hidden there). */
 export async function isAndroid(): Promise<boolean> {
   if (cached === null) {

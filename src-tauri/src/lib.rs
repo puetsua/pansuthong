@@ -1,6 +1,13 @@
 pub mod commands;
 pub mod completion_sound;
 pub mod config;
+#[cfg(desktop)]
+pub mod logical_day;
+#[cfg(desktop)]
+pub mod mcp;
+pub mod task_ops;
+#[cfg(desktop)]
+pub mod task_query;
 pub mod conflict;
 pub mod db;
 pub mod error;
@@ -184,6 +191,14 @@ pub fn run() {
             // command (rendered as blob: URLs), so there is no asset-protocol path
             // scope to maintain here.
             app.manage(crate::config::ConfigState::new(&default_dir, config));
+
+            #[cfg(desktop)]
+            {
+                app.manage(crate::mcp::McpRuntime::default());
+                let config_state = app.state::<crate::config::ConfigState>();
+                let mcp = app.state::<crate::mcp::McpRuntime>();
+                mcp.sync_from_settings(app.handle(), &config_state);
+            }
 
             let handle = app.handle().clone();
             let sync_handle = crate::sync::start(handle, path.clone()).ok();
@@ -369,6 +384,10 @@ pub fn run() {
             commands::saf_push,
             commands::saf_sync_now,
             commands::saf_status,
+            #[cfg(desktop)]
+            commands::get_mcp_status,
+            #[cfg(desktop)]
+            commands::regenerate_mcp_token,
         ])
         .run(context)
         .expect("error while running tauri application");

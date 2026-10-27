@@ -59,7 +59,7 @@ pub(crate) mod iso_secs {
     /// where the file is later read. Falls back to the raw integer string for an
     /// out-of-range instant (chrono can't represent it), which still round-trips
     /// through the integer arm of `deserialize`.
-    pub(super) fn to_iso(ms: i64) -> String {
+    pub(crate) fn to_iso(ms: i64) -> String {
         match Local.timestamp_millis_opt(ms).single() {
             Some(dt) => dt.to_rfc3339_opts(SecondsFormat::Secs, false),
             None => ms.to_string(),

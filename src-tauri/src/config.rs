@@ -104,6 +104,15 @@ pub struct Settings {
     /// them; the frontend resolves/renders. `None` = no custom presets.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_presets: Option<Vec<ThemePreset>>,
+    /// Built-in MCP server (#246). Device-local; never synced.
+    #[serde(default)]
+    pub mcp_enabled: bool,
+    /// TCP port for the local MCP HTTP endpoint (1024..=65535).
+    #[serde(default = "default_mcp_port")]
+    pub mcp_port: u32,
+    /// Bearer token for MCP clients. Generated on first enable; regenerate revokes old clients.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_token: Option<String>,
 }
 
 /// A user-defined theme (#15). Opaque to Rust beyond shape validation: an id, a
@@ -162,6 +171,12 @@ fn default_date_time_format() -> String {
     "locale".into()
 }
 
+pub const MCP_PORT_DEFAULT: u32 = 7373;
+
+fn default_mcp_port() -> u32 {
+    MCP_PORT_DEFAULT
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -182,6 +197,9 @@ impl Default for Settings {
             time_format: None,
             theme_preset: None,
             custom_presets: None,
+            mcp_enabled: false,
+            mcp_port: default_mcp_port(),
+            mcp_token: None,
         }
     }
 }

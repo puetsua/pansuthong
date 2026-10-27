@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { Document } from "../lib/tauri";
-import { isAndroid } from "../lib/platform";
+import { __resetPlatformCacheForTests, isAndroid } from "../lib/platform";
 import { SettingsView } from "./SettingsView";
 
 vi.mock("../lib/platform", () => ({
@@ -37,6 +37,8 @@ vi.mock("../lib/tauri", async (importOriginal) => {
       safPickFolder: vi.fn(),
       safSyncNow: vi.fn(),
       safClearFolder: vi.fn(),
+      getMcpStatus: vi.fn().mockResolvedValue({ status: "off" }),
+      regenerateMcpToken: vi.fn().mockResolvedValue("test-token"),
     },
   };
 });
@@ -78,6 +80,25 @@ beforeEach(() => {
     last_synced_ms: null,
     conflict_count: 0,
     last_error: null,
+  });
+});
+
+describe("SettingsView MCP server", () => {
+  beforeEach(() => {
+    __resetPlatformCacheForTests();
+  });
+
+  it("shows the MCP section on desktop", async () => {
+    render(<SettingsView doc={doc} />);
+    expect(screen.getByRole("heading", { name: /MCP server/i })).toBeTruthy();
+  });
+
+  it("hides the MCP section on Android", async () => {
+    vi.mocked(isAndroid).mockResolvedValue(true);
+    render(<SettingsView doc={doc} />);
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: /MCP server/i })).toBeNull();
+    });
   });
 });
 

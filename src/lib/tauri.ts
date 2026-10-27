@@ -29,7 +29,13 @@ export type Settings = {
   // these opaquely. Absent = built-in default preset, no customs.
   theme_preset?: string; // active preset id (built-in or custom); default "default"
   custom_presets?: ThemePreset[]; // user-defined, device-local named themes
+  mcp_enabled?: boolean; // built-in MCP server (#246); desktop only, device-local
+  mcp_port?: number; // local MCP HTTP port; 1024..65535, default 7373
+  mcp_token?: string; // bearer token for MCP clients; never synced
 };
+
+export type McpStatusKind = "off" | "listening" | "port_in_use" | "error";
+export type McpStatus = { status: McpStatusKind; message?: string };
 
 /** A user-defined theme (#15): a full light + dark token set, keyed by CSS custom
  *  property name (e.g. "--c-accent") -> hex. Imported/exported as JSON. */
@@ -313,6 +319,8 @@ export const api = {
   // Partial<Settings> so a new setting added to Settings is accepted here
   // automatically instead of silently dropping off this hand-maintained list.
   updateSettings: (input: Partial<Settings>) => invoke<void>("update_settings", { input }),
+  getMcpStatus: () => invoke<McpStatus>("get_mcp_status"),
+  regenerateMcpToken: () => invoke<string>("regenerate_mcp_token"),
   listConflicts:    ()             => invoke<string[]>("list_conflicts"),
   readConflict:     (path: string) => invoke<TaskDiff[]>("read_conflict", { conflictPath: path }),
   resolveConflict:  (path: string, decisions: Decision[]) =>
