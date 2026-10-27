@@ -24,7 +24,7 @@ use rmcp::{
         wrapper::Parameters,
     },
     model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, ServerCapabilities,
+        CallToolRequestParams, CallToolResponse, Implementation, ServerCapabilities,
         ServerConfig,
     },
     service::RequestContext,
@@ -406,6 +406,7 @@ impl ServerHandler for PansuthongMcp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::model::{CallToolResult, ContentBlock};
     use serde_json::Value;
 
     fn list_tasks_schema() -> Value {
