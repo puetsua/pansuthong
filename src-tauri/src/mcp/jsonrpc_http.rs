@@ -161,11 +161,20 @@ fn tools_call_shape_error(body: &Value) -> Option<String> {
 /// JSON-RPC id (string or number); such errors are returned in-band with HTTP 200.
 struct GateError {
     id: Option<Value>,
+    /// Object without an `id` member: a JSON-RPC notification, which never gets a response body.
+    notification: bool,
     error: ErrorData,
 }
 
 impl GateError {
     fn into_response(self) -> Response<Body> {
+        if self.notification {
+            // Same as rmcp for accepted notifications: 202, empty body.
+            return Response::builder()
+                .status(StatusCode::ACCEPTED)
+                .body(Body::empty())
+                .expect("valid response");
+        }
         match self.id {
             Some(id) => jsonrpc_error_response(StatusCode::OK, id, self.error),
             None => transport_error_response(StatusCode::BAD_REQUEST, self.error),
@@ -184,6 +193,7 @@ fn gate_check(value: &Value) -> Option<GateError> {
         };
         return Some(GateError {
             id: None,
+            notification: false,
             error: ErrorData::invalid_request(msg, None),
         });
     };
@@ -191,14 +201,17 @@ fn gate_check(value: &Value) -> Option<GateError> {
         Some(id @ (Value::String(_) | Value::Number(_))) => Some(id.clone()),
         _ => None,
     };
+    let notification = !obj.contains_key("id");
     if obj.get("jsonrpc").and_then(Value::as_str) != Some("2.0") {
         return Some(GateError {
             id,
+            notification,
             error: ErrorData::invalid_request("jsonrpc must be exactly \"2.0\"", None),
         });
     }
     tools_call_shape_error(value).map(|message| GateError {
         id,
+        notification,
         error: ErrorData::invalid_params(message, None),
     })
 }

@@ -276,6 +276,18 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
         assert_eq!(v["id"], serde_json::Value::Null, "{v}");
     }
 
+    // A notification (no id) with bad params is accepted silently: 202, no body.
+    let res = client
+        .post(&url)
+        .header("Authorization", &auth)
+        .header("Accept", accept)
+        .json(&json!({"jsonrpc": "2.0", "method": "tools/call", "params": {}}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 202);
+    assert!(res.text().await.unwrap().is_empty());
+
     let not_acceptable = client
         .post(&url)
         .header("Authorization", &auth)
