@@ -189,6 +189,14 @@ pub fn resolve_tag_names(
     Ok(out)
 }
 
+pub fn estimated_seconds_from_minutes(minutes: Option<i64>) -> Result<Option<i64>> {
+    match minutes {
+        None => Ok(None),
+        Some(m) if m <= 0 => Err(AppError::Invalid("estimated_minutes must be positive".into())),
+        Some(m) => Ok(Some(m * 60)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -335,13 +343,5 @@ mod tests {
             "history: {:?}",
             history
         );
-    }
-}
-
-pub fn estimated_seconds_from_minutes(minutes: Option<i64>) -> Result<Option<i64>> {
-    match minutes {
-        None => Ok(None),
-        Some(m) if m <= 0 => Err(AppError::Invalid("estimated_minutes must be positive".into())),
-        Some(m) => Ok(Some(m * 60)),
     }
 }

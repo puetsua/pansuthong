@@ -1585,8 +1585,10 @@ mod tests {
         // A peer replica written by a future schema must make open fail rather than
         // silently drop unknown data.
         let peer = dir.path().join("tasks_future.json");
-        let mut doc = Document::default();
-        doc.version = CURRENT_VERSION + 1;
+        let doc = Document {
+            version: CURRENT_VERSION + 1,
+            ..Document::default()
+        };
         fs::write(&peer, serde_json::to_vec_pretty(&doc).unwrap()).unwrap();
 
         // The bad peer is skipped defensively (decode error), so the store still

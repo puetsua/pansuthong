@@ -1,40 +1,15 @@
 //! HTTP integration: MCP initialize + tools/list + create/list over Streamable HTTP.
 
-use super::auth::{ExpectedToken, bearer_auth, origin_gate};
-use super::jsonrpc_http::{
-    MCP_MAX_REQUEST_BODY_BYTES, json_content_type_gate, rewrite_jsonrpc_http_errors,
-    tools_call_shape_gate,
-};
 use super::generate_mcp_token;
+use super::jsonrpc_http::MCP_MAX_REQUEST_BODY_BYTES;
+use super::server::{RunningServer, ServeOptions, WriteGate, mcp_router, serve};
 use crate::commands::NewTaskInput;
 use crate::config::Settings;
 use crate::store::AppState;
 use crate::task_ops::add_task_record;
 use crate::task_query::{ListTasksQuery, list_tasks as query_list_tasks};
-use axum::{Router, middleware};
-use rmcp::transport::streamable_http_server::{
-    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
-};
 use serde_json::json;
-use std::sync::{Arc, Mutex};
-use tokio_util::sync::CancellationToken;
-
-/// Shared test harness: real store + config, no Tauri event loop.
-struct TestHarness {
-    state: AppState,
-    settings: Settings,
-}
-
-#[derive(Clone)]
-struct TestMcpHost {
-    harness: Arc<Mutex<TestHarness>>,
-}
-
-impl TestMcpHost {
-    fn new(harness: Arc<Mutex<TestHarness>>) -> Self {
-        Self { harness }
-    }
-}
+use std::sync::Arc;
 
 // Minimal stand-in: exercise the same task ops the MCP tools use (see task_query tests).
 #[test]
@@ -84,7 +59,7 @@ fn mcp_http_large_tools_call_bodies() {
 
 async fn mcp_http_large_tools_call_bodies_async() {
     let token = generate_mcp_token();
-    let (url, ct, server) = spawn_ping_mcp_router(&token).await;
+    let (url, server) = spawn_ping_mcp_router(&token).await;
     let client = reqwest::Client::new();
     let accept = "application/json, text/event-stream";
     let auth = format!("Bearer {token}");
@@ -140,8 +115,7 @@ async fn mcp_http_large_tools_call_bodies_async() {
     assert!(text.contains("-32600"), "413 must be JSON-RPC invalid request: {text}");
     assert!(text.contains("\"id\":null"), "413 body must include id null: {text}");
 
-    ct.cancel();
-    server.abort();
+    server.begin_shutdown().await.await.unwrap();
 }
 
 #[test]
@@ -157,7 +131,7 @@ fn mcp_http_tools_call_invalid_params_and_transport_gates() {
 
 async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
     let token = generate_mcp_token();
-    let (url, ct, server) = spawn_ping_mcp_router(&token).await;
+    let (url, server) = spawn_ping_mcp_router(&token).await;
     let client = reqwest::Client::new();
     let accept = "application/json, text/event-stream";
     let auth = format!("Bearer {token}");
@@ -303,8 +277,7 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
     assert!(body406.contains("-32600"), "406 must map to invalid request: {body406}");
     assert!(body406.contains("\"id\":null"), "406 body must include id null: {body406}");
 
-    ct.cancel();
-    server.abort();
+    server.begin_shutdown().await.await.unwrap();
 }
 
 #[test]
@@ -320,11 +293,12 @@ fn mcp_http_initialize_tools_list_and_auth() {
 
 async fn spawn_ping_mcp_router(
     token: &str,
-) -> (String, CancellationToken, tokio::task::JoinHandle<()>) {
+) -> (String, RunningServer) {
     use rmcp::{ErrorData as McpError, ServerHandler, model::CallToolResult, tool, tool_handler, tool_router};
 
     #[derive(Clone)]
     struct PingMcp {
+        #[allow(dead_code)]
         tool_router: rmcp::handler::server::router::tool::ToolRouter<Self>,
     }
 
@@ -345,52 +319,17 @@ async fn spawn_ping_mcp_router(
     #[tool_handler]
     impl ServerHandler for PingMcp {}
 
-    let ct = CancellationToken::new();
-    let ct_wait = ct.clone();
-    let service = StreamableHttpService::new(
-        || Ok(PingMcp::new()),
-        LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default()
-            .with_cancellation_token(ct.child_token())
-            .with_legacy_session_mode(false)
-            .with_json_response(true),
-    );
-    let router = Router::new()
-        .nest_service("/mcp", service)
-        .layer(middleware::from_fn(rewrite_jsonrpc_http_errors))
-        .layer(middleware::from_fn(tools_call_shape_gate))
-        .layer(middleware::from_fn(json_content_type_gate))
-        .layer(middleware::from_fn_with_state(
-            ExpectedToken::new(token),
-            bearer_auth,
-        ))
-        .layer(middleware::from_fn(origin_gate));
-
+    // The production router and accept loop, so these tests cover the real gates.
+    let opts = ServeOptions::default();
+    let router = mcp_router(|| Ok(PingMcp::new()), token, &opts);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(listener, router)
-            .with_graceful_shutdown(async move {
-                ct_wait.cancelled().await;
-            })
-            .await
-            .unwrap();
-    });
-    (format!("http://{}/mcp", addr), ct, server)
+    let server = serve(listener, router, Arc::new(WriteGate::default()), opts).unwrap();
+    (format!("http://{}/mcp", server.local_addr()), server)
 }
 
 async fn mcp_http_initialize_tools_list_and_auth_async() {
     let token = generate_mcp_token();
-    let dir = tempfile::tempdir().unwrap();
-    let state = AppState::open(dir.path().join("tasks_test.db")).unwrap();
-    let settings = Settings::default();
-    let harness = Arc::new(Mutex::new(TestHarness {
-        state,
-        settings,
-    }));
-    let _host = TestMcpHost::new(harness.clone());
-
-    let (url, ct, server) = spawn_ping_mcp_router(&token).await;
+    let (url, server) = spawn_ping_mcp_router(&token).await;
 
     let client = reqwest::Client::new();
     let accept = "application/json, text/event-stream";
@@ -497,6 +436,5 @@ async fn mcp_http_initialize_tools_list_and_auth_async() {
         .unwrap();
     assert!(localhost.status().is_success());
 
-    ct.cancel();
-    server.abort();
+    server.begin_shutdown().await.await.unwrap();
 }
