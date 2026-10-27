@@ -220,8 +220,14 @@ impl McpRuntime {
                 )
             });
             let for_sink = app.clone();
+            // Like `store_notify`: the supervisor runs on Tokio, and WebKitGTK only
+            // delivers reliably when the emit is scheduled on the main thread.
             let sink: StatusSink = Arc::new(move |status| {
-                let _ = for_sink.emit(MCP_STATUS_CHANGED, status);
+                let app = for_sink.clone();
+                let status = status.clone();
+                let _ = for_sink.run_on_main_thread(move || {
+                    let _ = app.emit(MCP_STATUS_CHANGED, status);
+                });
             });
             let (controller, supervisor) =
                 McpController::new(make_router, sink, ServeOptions::default());
