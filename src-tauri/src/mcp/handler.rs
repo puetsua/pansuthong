@@ -119,7 +119,10 @@ pub struct CreateTaskArgs {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct UpdateTaskArgs {
     pub id: String,
-    pub title: Option<String>,
+    /// New title. Omit to leave unchanged; null is rejected (a task always has a title).
+    #[serde(default, deserialize_with = "double_option")]
+    #[schemars(with = "String")]
+    pub title: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub notes: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
@@ -130,9 +133,25 @@ pub struct UpdateTaskArgs {
     pub start_date: Option<Option<NaiveDate>>,
     #[serde(default, deserialize_with = "double_option")]
     pub start_time: Option<Option<String>>,
-    pub tags: Option<Vec<String>>,
+    /// Replace the tag set with these tag names. Omit to leave unchanged; null clears all tags.
+    #[serde(default, deserialize_with = "double_option")]
+    pub tags: Option<Option<Vec<String>>>,
     #[serde(default, deserialize_with = "double_option")]
     pub estimated_minutes: Option<Option<i64>>,
+}
+
+/// `title: null` is invalid (-32602); absent leaves the title unchanged.
+fn update_title_arg(title: Option<Option<String>>) -> Result<Option<String>, McpError> {
+    match title {
+        None => Ok(None),
+        Some(None) => Err(McpError::invalid_params("title cannot be null", None)),
+        Some(Some(t)) => Ok(Some(t)),
+    }
+}
+
+/// `tags: null` clears all tags (empty list); absent leaves tags unchanged.
+fn update_tag_names_arg(tags: Option<Option<Vec<String>>>) -> Option<Vec<String>> {
+    tags.map(Option::unwrap_or_default)
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -260,13 +279,16 @@ impl PansuthongMcp {
         Ok(Json(task_to_mcp(&task, &tags_by_id)))
     }
 
-    #[tool(description = "Update a task. Pass null to clear an optional field.")]
+    #[tool(
+        description = "Update a task. Pass null to clear an optional field; tags: null clears all tags. title cannot be null."
+    )]
     async fn update_task(
         &self,
         Parameters(args): Parameters<UpdateTaskArgs>,
     ) -> Result<Json<McpTask>, McpError> {
+        let title = update_title_arg(args.title)?;
         let state = self.state();
-        let tag_ids = if let Some(names) = args.tags {
+        let tag_ids = if let Some(names) = update_tag_names_arg(args.tags) {
             let tags = query_list_tags(state.inner());
             Some(resolve_tag_names(&names, &tags).map_err(mcp_err)?)
         } else {
@@ -281,7 +303,7 @@ impl PansuthongMcp {
         };
         let input = UpdateTaskInput {
             id: args.id,
-            title: args.title,
+            title,
             due_date: args.due_date,
             due_time: args.due_time,
             start_date: args.start_date,
@@ -355,6 +377,39 @@ mod tests {
 
     fn list_tasks_schema() -> Value {
         serde_json::to_value(schemars::schema_for!(ListTasksArgs)).unwrap()
+    }
+
+    fn update_args(json: Value) -> UpdateTaskArgs {
+        serde_json::from_value(json).unwrap()
+    }
+
+    #[test]
+    fn update_task_title_null_is_invalid_params() {
+        let absent = update_args(serde_json::json!({"id": "t"}));
+        assert_eq!(update_title_arg(absent.title).unwrap(), None);
+        let set = update_args(serde_json::json!({"id": "t", "title": "x"}));
+        assert_eq!(update_title_arg(set.title).unwrap(), Some("x".into()));
+        let null = update_args(serde_json::json!({"id": "t", "title": null}));
+        let err = update_title_arg(null.title).unwrap_err();
+        assert_eq!(err.code, McpError::invalid_params("", None).code);
+    }
+
+    #[test]
+    fn update_task_tags_null_clears_all_tags() {
+        let absent = update_args(serde_json::json!({"id": "t"}));
+        assert_eq!(update_tag_names_arg(absent.tags), None);
+        let null = update_args(serde_json::json!({"id": "t", "tags": null}));
+        assert_eq!(update_tag_names_arg(null.tags), Some(vec![]));
+        let set = update_args(serde_json::json!({"id": "t", "tags": ["a"]}));
+        assert_eq!(update_tag_names_arg(set.tags), Some(vec!["a".to_string()]));
+    }
+
+    #[test]
+    fn update_task_schema_keeps_title_non_nullable() {
+        let schema = serde_json::to_value(schemars::schema_for!(UpdateTaskArgs)).unwrap();
+        assert_eq!(schema["properties"]["title"]["type"], "string", "{schema}");
+        let required = schema["required"].as_array().unwrap();
+        assert!(!required.iter().any(|v| v == "title"), "{required:?}");
     }
 
     #[test]
