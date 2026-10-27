@@ -308,6 +308,106 @@ describe("TaskEditor Markdown notes (#70)", () => {
   });
 });
 
+describe("TaskEditor GFM task lists in notes preview (#245)", () => {
+  const taskListNotes = [
+    "## 衣物",
+    "- [ ] 內衣褲",
+    "- [x] 睡衣",
+    "- 睡衣可以在飯店借（一般項目）",
+    "  - [ ] 嵌套項目",
+  ].join("\n");
+
+  const taskChecks = () =>
+    Array.from(document.querySelectorAll<HTMLInputElement>(".te-md-task-check"));
+
+  it("renders interactive checkboxes without literal bracket markers", () => {
+    const task: Task = { ...baseTask, notes: taskListNotes };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    const checks = taskChecks();
+    expect(checks).toHaveLength(3);
+    expect(checks[0].checked).toBe(false);
+    expect(checks[1].checked).toBe(true);
+    expect(checks[2].checked).toBe(false);
+    expect(screen.queryByText("[ ]")).toBeNull();
+    expect(screen.queryByText("[x]")).toBeNull();
+    expect(screen.getByText("睡衣可以在飯店借（一般項目）").closest("li")?.className).not.toContain("task-list-item");
+    expect(screen.getByText("嵌套項目").closest("ul")).toBeTruthy();
+  });
+
+  const notesPreview = () => document.querySelector(".te-notes-preview")!;
+
+  it("keeps non-task GFM syntax as visible literal text (0.32.1 preview)", () => {
+    const notes = [
+      "| col | val |",
+      "| --- | --- |",
+      "| a | b |",
+      "",
+      "before ~~strike~~ after",
+      "",
+      "foot[^1]",
+      "",
+      "[^1]: the note",
+      "",
+      "https://example.com",
+    ].join("\n");
+    const task: Task = { ...baseTask, notes };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    const text = notesPreview().textContent ?? "";
+    expect(text).toContain("| col | val |");
+    expect(text).toContain("| --- | --- |");
+    expect(text).toContain("| a | b |");
+    expect(text).toContain("before ~~strike~~ after");
+    expect(text).toContain("foot[^1]");
+    expect(text).toContain("[^1]: the note");
+    expect(text).toContain("https://example.com");
+    expect(notesPreview().querySelector("table")).toBeNull();
+    expect(notesPreview().querySelector("del")).toBeNull();
+    expect(notesPreview().querySelector("a")).toBeNull();
+  });
+
+  it("keeps ordered-list numbering for numbered task items", () => {
+    const task: Task = { ...baseTask, notes: "1. [ ] numbered\n2. [x] done" };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    const ol = notesPreview().querySelector("ol.contains-task-list");
+    expect(ol).not.toBeNull();
+    const items = ol!.querySelectorAll("li.task-list-item.te-md-task-item");
+    expect(items).toHaveLength(2);
+    expect(taskChecks()).toHaveLength(2);
+  });
+
+  it("marks task list rows for hanging-indent layout", () => {
+    const task: Task = { ...baseTask, notes: "- [ ] line one\n  continues" };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    expect(notesPreview().querySelector("li.te-md-task-item")).not.toBeNull();
+  });
+
+  it("toggles the matching line by source position and saves only on Save", async () => {
+    const notes = "- [ ] buy milk\n- [ ] buy milk";
+    const task: Task = { ...baseTask, notes };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    const checks = taskChecks();
+    expect(checks).toHaveLength(2);
+    fireEvent.click(checks[1]);
+
+    expect(api.updateTask).not.toHaveBeenCalled();
+    fireEvent.click(button("Split"));
+    expect((screen.getByLabelText("Markdown notes") as HTMLTextAreaElement).value)
+      .toBe("- [ ] buy milk\n- [x] buy milk");
+
+    fireEvent.click(button("Save"));
+    await waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "k_1", notes: "- [ ] buy milk\n- [x] buy milk" }),
+      ),
+    );
+  });
+});
+
 const imgAtt = {
   id: "att_1", name: "shot.png", path: "attachments_dev/attachment_att_1_shot.png",
   mime_type: "image/png", size: 1234, created_at: "1970-01-01T00:00:00Z",
