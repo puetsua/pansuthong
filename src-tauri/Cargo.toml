@@ -37,7 +37,6 @@ tauri-plugin-mcp-bridge = "0.12"
 # dependency and it links the same way for desktop and the aarch64-linux-android
 # target (verify Android locally: `cargo check --target aarch64-linux-android`).
 rusqlite = { version = "0.32", features = ["bundled"] }
-rmcp = { version = "3", features = ["server", "transport-streamable-http-server", "schemars"] }
 
 [dev-dependencies]
 reqwest = { version = "0.13.5", features = ["json", "rustls"] }
@@ -65,6 +64,8 @@ base64 = "0.23.1"
 getrandom = "0.3.4"
 tokio-util = { version = "0.7.20", features = ["rt"] }
 schemars = "1.2.3"
+# Built-in MCP server (#246); desktop only like the rest of the HTTP stack above.
+rmcp = { version = "3", features = ["server", "transport-streamable-http-server", "schemars"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_system_properties = "0.1"

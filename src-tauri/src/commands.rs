@@ -2216,6 +2216,7 @@ pub fn update_settings(
     config: State<'_, ConfigState>,
     app: AppHandle,
 ) -> Result<()> {
+    #[cfg(desktop)]
     let mcp_sync = crate::mcp::runtime::settings_patch_affects_mcp(&input);
     config.update_settings(|s| {
         if let Some(t) = input.theme {
