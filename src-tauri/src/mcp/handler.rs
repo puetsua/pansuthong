@@ -1,8 +1,11 @@
 use crate::commands::{NewTaskInput, UpdateTaskInput};
 use crate::config::ConfigState;
 use crate::error::AppError;
-use crate::mcp::json::{McpTask, task_to_mcp};
+use crate::mcp::json::{
+    DeleteTaskOutput, ListTagsOutput, ListTasksOutput, McpTask, tag_to_mcp_ref, task_to_mcp,
+};
 use crate::store::AppState;
+use crate::store_notify;
 use crate::task_ops::{
     add_task_record, delete_task_record, estimated_seconds_from_minutes, resolve_tag_names,
     set_task_done_record, update_task_record,
@@ -18,15 +21,13 @@ use rmcp::{
         router::tool::ToolRouter,
         wrapper::Parameters,
     },
-    model::{CallToolResult, ContentBlock},
+    model::{Implementation, ServerConfig},
     tool, tool_handler, tool_router,
 };
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
-use tauri::{AppHandle, Emitter, Manager};
-
-const STORE_CHANGED: &str = "store-changed";
+use tauri::{AppHandle, Manager};
 
 fn mcp_err(e: AppError) -> McpError {
     McpError::invalid_params(e.to_string(), None)
@@ -55,8 +56,9 @@ impl PansuthongMcp {
         self.app.state::<ConfigState>().settings()
     }
 
-    fn emit_changed(&self) {
-        let _ = self.app.emit(STORE_CHANGED, ());
+    /// Same notification path as Tauri commands after a document mutation.
+    fn notify_document_changed(&self) {
+        store_notify::emit_store_changed(&self.app);
     }
 }
 
@@ -120,21 +122,15 @@ pub struct DeleteTaskArgs {
     pub id: String,
 }
 
-#[derive(Debug, Serialize, JsonSchema)]
-struct McpTagRef {
-    id: String,
-    name: String,
-    color: String,
-    priority: i64,
-}
-
 #[tool_router]
 impl PansuthongMcp {
-    #[tool(description = "List tasks with optional view and filters.")]
+    #[tool(
+        description = "List tasks with optional view and filters. view=all returns active (non-archived) tasks and excludes completed/archived ones; use view=completed for finished tasks."
+    )]
     async fn list_tasks(
         &self,
         Parameters(args): Parameters<ListTasksArgs>,
-    ) -> Result<Json<Vec<McpTask>>, McpError> {
+    ) -> Result<Json<ListTasksOutput>, McpError> {
         let state = self.state();
         let settings = self.settings();
         let tasks = query_list_tasks(
@@ -148,7 +144,8 @@ impl PansuthongMcp {
                 query: args.query,
                 limit: args.limit,
             },
-        );
+        )
+        .map_err(mcp_err)?;
         let tags = query_list_tags(state.inner());
         let tags_by_id: HashMap<&str, &crate::model::Tag> = tags
             .iter()
@@ -158,7 +155,7 @@ impl PansuthongMcp {
             .iter()
             .map(|t| task_to_mcp(t, &tags_by_id))
             .collect();
-        Ok(Json(out))
+        Ok(Json(ListTasksOutput { tasks: out }))
     }
 
     #[tool(description = "Fetch one task by id.")]
@@ -179,18 +176,13 @@ impl PansuthongMcp {
     }
 
     #[tool(description = "List all tags (id and name).")]
-    async fn list_tags(&self) -> Result<Json<Vec<McpTagRef>>, McpError> {
+    async fn list_tags(&self) -> Result<Json<ListTagsOutput>, McpError> {
         let state = self.state();
         let out = query_list_tags(state.inner())
             .into_iter()
-            .map(|t| McpTagRef {
-                id: t.id,
-                name: t.name,
-                color: t.color,
-                priority: t.priority,
-            })
+            .map(|t| tag_to_mcp_ref(&t))
             .collect();
-        Ok(Json(out))
+        Ok(Json(ListTagsOutput { tags: out }))
     }
 
     #[tool(description = "Create a task. Tag names must already exist.")]
@@ -218,7 +210,7 @@ impl PansuthongMcp {
             estimated_seconds,
         };
         let task = add_task_record(state.inner(), input).map_err(mcp_err)?;
-        self.emit_changed();
+        self.notify_document_changed();
         let tags = query_list_tags(state.inner());
         let tags_by_id: HashMap<&str, &crate::model::Tag> = tags
             .iter()
@@ -260,7 +252,7 @@ impl PansuthongMcp {
             estimated_seconds,
         };
         let task = update_task_record(state.inner(), input).map_err(mcp_err)?;
-        self.emit_changed();
+        self.notify_document_changed();
         let tags = query_list_tags(state.inner());
         let tags_by_id: HashMap<&str, &crate::model::Tag> = tags
             .iter()
@@ -276,7 +268,7 @@ impl PansuthongMcp {
     ) -> Result<Json<McpTask>, McpError> {
         let state = self.state();
         let task = set_task_done_record(state.inner(), &args.id, args.done).map_err(mcp_err)?;
-        self.emit_changed();
+        self.notify_document_changed();
         let tags = query_list_tags(state.inner());
         let tags_by_id: HashMap<&str, &crate::model::Tag> = tags
             .iter()
@@ -289,14 +281,26 @@ impl PansuthongMcp {
     async fn delete_task(
         &self,
         Parameters(args): Parameters<DeleteTaskArgs>,
-    ) -> Result<CallToolResult, McpError> {
+    ) -> Result<Json<DeleteTaskOutput>, McpError> {
+        let id = args.id;
         let state = self.state();
-        let orphaned = delete_task_record(state.inner(), &args.id).map_err(mcp_err)?;
+        let orphaned = delete_task_record(state.inner(), &id).map_err(mcp_err)?;
         crate::commands::gc_attachment_files(state.inner(), &orphaned);
-        self.emit_changed();
-        Ok(CallToolResult::success(vec![ContentBlock::text("ok")]))
+        self.notify_document_changed();
+        Ok(Json(DeleteTaskOutput {
+            deleted: true,
+            id,
+        }))
     }
 }
 
 #[tool_handler]
-impl ServerHandler for PansuthongMcp {}
+impl ServerHandler for PansuthongMcp {
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::default().with_server_info(Implementation::new(
+            "pansuthong",
+            env!("CARGO_PKG_VERSION"),
+        ))
+    }
+}
+

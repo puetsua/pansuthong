@@ -19,6 +19,7 @@ pub mod model;
 pub mod parse;
 pub mod safsync;
 pub mod store;
+pub mod store_notify;
 pub mod sync;
 
 use crate::store::AppState;

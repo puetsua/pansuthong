@@ -1,10 +1,33 @@
 //! Task list filters for MCP — mirrors frontend view membership in `state/indexes.ts`.
 
 use crate::config::Settings;
+use crate::error::{AppError, Result};
 use crate::logical_day::{add_days_iso, logical_day_of, today_iso};
 use crate::model::{Tag, Task};
 use crate::store::AppState;
 use chrono::{Local, NaiveDate};
+
+/// `list_tasks` view parameter values accepted by the MCP tool and query layer.
+pub const LIST_TASK_VIEWS: &[&str] =
+    &["today", "inbox", "upcoming", "completed", "all"];
+
+/// Validate an optional view name; `None` means `all`.
+pub fn validate_list_view(view: Option<&str>) -> Result<&'static str> {
+    match view {
+        None => Ok("all"),
+        Some(v) => match v {
+            "today" => Ok("today"),
+            "inbox" => Ok("inbox"),
+            "upcoming" => Ok("upcoming"),
+            "completed" => Ok("completed"),
+            "all" => Ok("all"),
+            _ => Err(AppError::Invalid(format!(
+                "invalid view \"{v}\". Valid views: {}",
+                LIST_TASK_VIEWS.join(", ")
+            ))),
+        },
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct ListTasksQuery {
@@ -18,9 +41,10 @@ pub struct ListTasksQuery {
 
 const DEFAULT_LIMIT: u32 = 50;
 
-pub fn list_tasks(state: &AppState, settings: &Settings, q: ListTasksQuery) -> Vec<Task> {
+pub fn list_tasks(state: &AppState, settings: &Settings, q: ListTasksQuery) -> Result<Vec<Task>> {
+    let view = validate_list_view(q.view.as_deref())?;
     let limit = q.limit.unwrap_or(DEFAULT_LIMIT).min(500) as usize;
-    state.read(|d| {
+    Ok(state.read(|d| {
         let dsh = settings.day_start_hour;
         let today = today_iso(Local::now(), dsh);
         let horizon = settings.upcoming_days.max(1);
@@ -33,7 +57,6 @@ pub fn list_tasks(state: &AppState, settings: &Settings, q: ListTasksQuery) -> V
             .map(|t| (t.name.to_lowercase(), t))
             .collect();
 
-        let view = q.view.as_deref().unwrap_or("all");
         let mut tasks: Vec<Task> = d
             .tasks
             .iter()
@@ -78,7 +101,7 @@ pub fn list_tasks(state: &AppState, settings: &Settings, q: ListTasksQuery) -> V
             tasks.truncate(limit);
         }
         tasks
-    })
+    }))
 }
 
 fn in_inbox(t: &Task, tags_by_id: &std::collections::HashMap<&str, &Tag>) -> bool {
@@ -188,6 +211,13 @@ mod tests {
     }
 
     #[test]
+    fn invalid_view_is_rejected() {
+        let err = validate_list_view(Some("bogus")).unwrap_err();
+        assert!(err.to_string().contains("invalid view"));
+        assert!(err.to_string().contains("today"));
+    }
+
+    #[test]
     fn unknown_tag_name_yields_empty_list() {
         let state = open_store(vec![], vec![]);
         let settings = Settings::default();
@@ -198,7 +228,8 @@ mod tests {
                 tag: Some("nope".into()),
                 ..Default::default()
             },
-        );
+        )
+        .unwrap();
         assert!(out.is_empty());
     }
 
@@ -239,7 +270,8 @@ mod tests {
                 view: Some("inbox".into()),
                 ..Default::default()
             },
-        );
+        )
+        .unwrap();
         assert!(inbox.is_empty());
     }
 
@@ -273,7 +305,8 @@ mod tests {
                 view: Some("upcoming".into()),
                 ..Default::default()
             },
-        );
+        )
+        .unwrap();
         assert_eq!(out.len(), 1);
     }
 }

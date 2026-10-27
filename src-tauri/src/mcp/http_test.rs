@@ -1,10 +1,9 @@
 //! HTTP integration: MCP initialize + tools/list + create/list over Streamable HTTP.
 
-use super::auth::{ExpectedToken, bearer_auth};
-use super::handler::PansuthongMcp;
+use super::auth::{ExpectedToken, bearer_auth, origin_gate};
 use super::generate_mcp_token;
 use crate::commands::NewTaskInput;
-use crate::config::{Config, ConfigState, Settings};
+use crate::config::Settings;
 use crate::store::AppState;
 use crate::task_ops::add_task_record;
 use crate::task_query::{ListTasksQuery, list_tasks as query_list_tasks};
@@ -62,7 +61,8 @@ fn mcp_tools_create_and_list_via_shared_ops() {
             query: Some("mcp test".into()),
             ..Default::default()
         },
-    );
+    )
+    .unwrap();
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].title, "from mcp test");
 }
@@ -130,7 +130,8 @@ async fn mcp_http_initialize_tools_list_and_auth_async() {
         .layer(middleware::from_fn_with_state(
             ExpectedToken::new(&token),
             bearer_auth,
-        ));
+        ))
+        .layer(middleware::from_fn(origin_gate));
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -189,6 +190,42 @@ async fn mcp_http_initialize_tools_list_and_auth_async() {
 
     let bad = client.post(&url).json(&json!({})).send().await.unwrap();
     assert_eq!(bad.status(), 401);
+
+    let forbidden = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Origin", "http://evil.example")
+        .header("Accept", accept)
+        .json(&json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "ping",
+            "params": {}
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(forbidden.status(), 403);
+
+    let localhost = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Origin", "http://localhost:7373")
+        .header("Accept", accept)
+        .json(&json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": { "name": "test", "version": "0" }
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert!(localhost.status().is_success());
 
     ct.cancel();
     server.abort();

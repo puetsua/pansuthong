@@ -21,7 +21,7 @@ const STORE_CHANGED: &str = "store-changed";
 const SETTINGS_CHANGED: &str = "settings-changed";
 
 fn emit_changed(app: &AppHandle) {
-    let _ = app.emit(STORE_CHANGED, ());
+    crate::store_notify::emit_store_changed(app);
 }
 
 fn emit_settings_changed(app: &AppHandle) {

@@ -1,7 +1,7 @@
 //! Lifecycle for the desktop MCP HTTP server.
 
 use crate::config::ConfigState;
-use crate::mcp::auth::{ExpectedToken, bearer_auth};
+use crate::mcp::auth::{ExpectedToken, bearer_auth, origin_gate};
 use crate::mcp::handler::PansuthongMcp;
 use axum::{Router, middleware};
 use rmcp::transport::streamable_http_server::{
@@ -126,7 +126,8 @@ impl McpRuntime {
 
             let router = Router::new()
                 .nest_service("/mcp", service)
-                .layer(middleware::from_fn_with_state(expected, bearer_auth));
+                .layer(middleware::from_fn_with_state(expected, bearer_auth))
+                .layer(middleware::from_fn(origin_gate));
 
             let addr = format!("127.0.0.1:{port}");
             let listener = match tokio::net::TcpListener::bind(&addr).await {

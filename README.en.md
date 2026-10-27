@@ -57,6 +57,8 @@ Pansuthong can expose a local MCP server so Cursor or Claude Desktop can list an
 
 The server binds to `127.0.0.1` only; it is off by default and stops when the app quits.
 
+Tool results use object-shaped `structuredContent` (for example `list_tasks` returns `{ "tasks": [...] }` and `list_tags` returns `{ "tags": [...] }`). MCP writes update the same store as the UI and emit `store-changed` so the open window reloads.
+
 Contributor and agent docs live under [`docs/`](./docs/)—start with [`AGENTS.md`](./AGENTS.md) and [`docs/llm-navigation.md`](./docs/llm-navigation.md). Toolchain notes: [`docs/agent/commands-toolchain.md`](./docs/agent/commands-toolchain.md).
 
 ## License

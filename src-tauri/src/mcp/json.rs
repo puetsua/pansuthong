@@ -5,6 +5,30 @@ use schemars::JsonSchema;
 use serde::Serialize;
 
 #[derive(Serialize, JsonSchema)]
+pub struct ListTasksOutput {
+    pub tasks: Vec<McpTask>,
+}
+
+#[derive(Serialize, JsonSchema)]
+pub struct ListTagsOutput {
+    pub tags: Vec<McpTagRef>,
+}
+
+#[derive(Serialize, JsonSchema)]
+pub struct McpTagRef {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    pub priority: i64,
+}
+
+#[derive(Serialize, JsonSchema)]
+pub struct DeleteTaskOutput {
+    pub deleted: bool,
+    pub id: String,
+}
+
+#[derive(Serialize, JsonSchema)]
 pub struct McpTask {
     pub id: String,
     pub title: String,
@@ -21,6 +45,15 @@ pub struct McpTask {
     pub done: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<String>,
+}
+
+pub fn tag_to_mcp_ref(tag: &Tag) -> McpTagRef {
+    McpTagRef {
+        id: tag.id.clone(),
+        name: tag.name.clone(),
+        color: tag.color.clone(),
+        priority: tag.priority,
+    }
 }
 
 pub fn task_to_mcp(task: &Task, tags_by_id: &std::collections::HashMap<&str, &Tag>) -> McpTask {
