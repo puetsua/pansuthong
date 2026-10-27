@@ -23,7 +23,12 @@ use rmcp::{
         router::tool::ToolRouter,
         wrapper::Parameters,
     },
-    model::{Implementation, ServerCapabilities, ServerConfig},
+    model::{
+        CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, ServerCapabilities,
+        ServerConfig,
+    },
+    service::RequestContext,
+    RoleServer,
     tool, tool_handler, tool_router,
 };
 use schemars::JsonSchema;
@@ -364,8 +369,31 @@ impl PansuthongMcp {
     }
 }
 
+/// rmcp reports argument deserialization failures as in-band `isError` results; surface them as
+/// JSON-RPC -32602 instead, consistent with the other argument validation errors.
+fn argument_failure_to_error(res: CallToolResponse) -> Result<CallToolResponse, McpError> {
+    if let CallToolResponse::Complete(r) = &res {
+        if r.is_error == Some(true) {
+            let text = r.content.first().and_then(|c| c.as_text()).map(|t| t.text.as_str());
+            if let Some(text) = text.filter(|t| t.starts_with("failed to deserialize parameters:")) {
+                return Err(McpError::invalid_params(text.to_string(), None));
+            }
+        }
+    }
+    Ok(res)
+}
+
 #[tool_handler]
 impl ServerHandler for PansuthongMcp {
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let tcc = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        argument_failure_to_error(self.tool_router.call(tcc).await?)
+    }
+
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new(
@@ -452,5 +480,22 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn argument_deserialization_failures_become_invalid_params() {
+        let in_band = |text: &str| {
+            CallToolResponse::from(CallToolResult::error(vec![ContentBlock::text(text)]))
+        };
+        let err = argument_failure_to_error(in_band(
+            "failed to deserialize parameters: missing field `id`",
+        ))
+        .unwrap_err();
+        assert_eq!(err.code, McpError::invalid_params("", None).code);
+        assert!(err.message.contains("missing field `id`"));
+        // Other tool-level errors stay in-band.
+        assert!(argument_failure_to_error(in_band("boom")).is_ok());
+        let ok = CallToolResponse::from(CallToolResult::success(vec![]));
+        assert!(argument_failure_to_error(ok).is_ok());
     }
 }
