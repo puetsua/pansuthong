@@ -259,6 +259,23 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
         }
     }
 
+    // Malformed JSON, trailing garbage, and an empty body are HTTP 400 Parse errors.
+    for body in ["not-json", r#"{"jsonrpc":"2.0","id":1,"method":"ping"} x"#, ""] {
+        let res = client
+            .post(&url)
+            .header("Authorization", &auth)
+            .header("Accept", accept)
+            .header("Content-Type", "application/json")
+            .body(body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(res.status(), 400, "{body:?}");
+        let v: serde_json::Value = res.json().await.unwrap();
+        assert_eq!(v["error"]["code"], -32700, "{v}");
+        assert_eq!(v["id"], serde_json::Value::Null, "{v}");
+    }
+
     let not_acceptable = client
         .post(&url)
         .header("Authorization", &auth)

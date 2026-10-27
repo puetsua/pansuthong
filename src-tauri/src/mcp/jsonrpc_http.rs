@@ -218,9 +218,18 @@ pub async fn tools_call_shape_gate(
             return payload_too_large_response().into_response();
         }
     };
-    if let Ok(value) = serde_json::from_slice::<Value>(&bytes) {
-        if let Some(err) = gate_check(&value) {
-            return err.into_response().into_response();
+    match serde_json::from_slice::<Value>(&bytes) {
+        Ok(value) => {
+            if let Some(err) = gate_check(&value) {
+                return err.into_response().into_response();
+            }
+        }
+        Err(e) => {
+            return transport_error_response(
+                StatusCode::BAD_REQUEST,
+                ErrorData::parse_error(format!("Parse error: {e}"), None),
+            )
+            .into_response();
         }
     }
     let req = Request::from_parts(parts, Body::from(bytes));
