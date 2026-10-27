@@ -1,7 +1,9 @@
 //! HTTP integration: MCP initialize + tools/list + create/list over Streamable HTTP.
 
 use super::auth::{ExpectedToken, bearer_auth, origin_gate};
-use super::jsonrpc_http::{json_content_type_gate, rewrite_jsonrpc_http_errors};
+use super::jsonrpc_http::{
+    json_content_type_gate, rewrite_jsonrpc_http_errors, tools_call_shape_gate,
+};
 use super::generate_mcp_token;
 use crate::commands::NewTaskInput;
 use crate::config::Settings;
@@ -69,6 +71,77 @@ fn mcp_tools_create_and_list_via_shared_ops() {
 }
 
 #[test]
+fn mcp_http_tools_call_invalid_params_and_transport_gates() {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(async {
+        mcp_http_tools_call_invalid_params_and_transport_gates_async().await;
+    });
+}
+
+async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
+    let token = generate_mcp_token();
+    let (url, ct, server) = spawn_ping_mcp_router(&token).await;
+    let client = reqwest::Client::new();
+    let accept = "application/json, text/event-stream";
+    let auth = format!("Bearer {token}");
+
+    let malformed = [
+        json!({"jsonrpc": "2.0", "id": 9, "method": "tools/call"}),
+        json!({"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": null}),
+        json!({"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {}}),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": "tools/call",
+            "params": { "name": "ping", "arguments": "x" }
+        }),
+    ];
+    for body in malformed {
+        let res = client
+            .post(&url)
+            .header("Authorization", &auth)
+            .header("Accept", accept)
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        let text = res.text().await.unwrap();
+        assert!(
+            text.contains("-32602"),
+            "expected invalid params for {body}, got: {text}"
+        );
+        assert!(
+            text.contains("\"id\":null"),
+            "gate errors must include id null, got: {text}"
+        );
+    }
+
+    let not_acceptable = client
+        .post(&url)
+        .header("Authorization", &auth)
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "tools/list",
+            "params": {}
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(not_acceptable.status(), 406);
+    let body406 = not_acceptable.text().await.unwrap();
+    assert!(body406.contains("-32600"), "406 must map to invalid request: {body406}");
+    assert!(body406.contains("\"id\":null"), "406 body must include id null: {body406}");
+
+    ct.cancel();
+    server.abort();
+}
+
+#[test]
 fn mcp_http_initialize_tools_list_and_auth() {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -79,17 +152,9 @@ fn mcp_http_initialize_tools_list_and_auth() {
     });
 }
 
-async fn mcp_http_initialize_tools_list_and_auth_async() {
-    let token = generate_mcp_token();
-    let dir = tempfile::tempdir().unwrap();
-    let state = AppState::open(dir.path().join("tasks_test.db")).unwrap();
-    let settings = Settings::default();
-    let harness = Arc::new(Mutex::new(TestHarness {
-        state,
-        settings,
-    }));
-
-    // Use a lightweight ping tool server: protocol + auth only; task tools are covered above.
+async fn spawn_ping_mcp_router(
+    token: &str,
+) -> (String, CancellationToken, tokio::task::JoinHandle<()>) {
     use rmcp::{ErrorData as McpError, ServerHandler, model::CallToolResult, tool, tool_handler, tool_router};
 
     #[derive(Clone)]
@@ -114,8 +179,6 @@ async fn mcp_http_initialize_tools_list_and_auth_async() {
     #[tool_handler]
     impl ServerHandler for PingMcp {}
 
-    let _host = TestMcpHost::new(harness.clone());
-
     let ct = CancellationToken::new();
     let ct_wait = ct.clone();
     let service = StreamableHttpService::new(
@@ -129,9 +192,10 @@ async fn mcp_http_initialize_tools_list_and_auth_async() {
     let router = Router::new()
         .nest_service("/mcp", service)
         .layer(middleware::from_fn(rewrite_jsonrpc_http_errors))
+        .layer(middleware::from_fn(tools_call_shape_gate))
         .layer(middleware::from_fn(json_content_type_gate))
         .layer(middleware::from_fn_with_state(
-            ExpectedToken::new(&token),
+            ExpectedToken::new(token),
             bearer_auth,
         ))
         .layer(middleware::from_fn(origin_gate));
@@ -146,9 +210,23 @@ async fn mcp_http_initialize_tools_list_and_auth_async() {
             .await
             .unwrap();
     });
+    (format!("http://{}/mcp", addr), ct, server)
+}
+
+async fn mcp_http_initialize_tools_list_and_auth_async() {
+    let token = generate_mcp_token();
+    let dir = tempfile::tempdir().unwrap();
+    let state = AppState::open(dir.path().join("tasks_test.db")).unwrap();
+    let settings = Settings::default();
+    let harness = Arc::new(Mutex::new(TestHarness {
+        state,
+        settings,
+    }));
+    let _host = TestMcpHost::new(harness.clone());
+
+    let (url, ct, server) = spawn_ping_mcp_router(&token).await;
 
     let client = reqwest::Client::new();
-    let url = format!("http://{}/mcp", addr);
     let accept = "application/json, text/event-stream";
 
     let init = client
@@ -192,6 +270,10 @@ async fn mcp_http_initialize_tools_list_and_auth_async() {
     assert!(
         bad_body.contains("jsonrpc") && bad_body.contains("-32700"),
         "malformed JSON should return JSON-RPC parse error, got: {bad_body}"
+    );
+    assert!(
+        bad_body.contains("\"id\":null"),
+        "parse error body must include id null, got: {bad_body}"
     );
 
     let tools = client

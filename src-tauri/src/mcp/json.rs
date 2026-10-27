@@ -7,7 +7,7 @@ use serde::Serialize;
 #[derive(Serialize, JsonSchema)]
 pub struct ListTasksOutput {
     pub tasks: Vec<McpTask>,
-    /// True when a `limit` was applied and more tasks matched the filters.
+    /// True when more tasks matched than returned (default cap or explicit `limit`).
     pub truncated: bool,
 }
 

@@ -236,7 +236,8 @@ impl AppState {
                 return Err(e);
             }
         };
-        if content_hash(&before) == content_hash(&g.doc) {
+        let after_hash = content_hash(&g.doc);
+        if content_hash(&before) == after_hash {
             return Ok(value);
         }
         let ts = crate::model::now_ms();
@@ -256,7 +257,7 @@ impl AppState {
         if let Err(e) = crate::history::append_history(&inner.path, &history) {
             eprintln!("warning: failed to append history: {e}");
         }
-        g.own_hash = content_hash(&g.doc);
+        g.own_hash = after_hash;
         g.peers_hash = peers_content_hash(&g.path);
         Ok(value)
     }

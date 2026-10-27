@@ -73,7 +73,7 @@ pub struct ListTasksArgs {
     pub due_after: Option<NaiveDate>,
     /// Case-insensitive substring match in title or notes.
     pub query: Option<String>,
-    /// Maximum rows to return. Omit to return all matches (subject to server caps).
+    /// Maximum rows to return (1..=500). Omit to use the server default cap (500).
     pub limit: Option<u32>,
     /// Skip this many rows before applying `limit`.
     pub offset: Option<u32>,
@@ -134,12 +134,18 @@ pub struct DeleteTaskArgs {
 #[tool_router]
 impl PansuthongMcp {
     #[tool(
-        description = "List tasks with optional view and filters. view=all returns active (non-archived) tasks and excludes completed/archived ones; use view=completed for finished tasks."
+        description = "List tasks with optional view and filters. view=all returns active (non-archived) tasks and excludes completed/archived ones; use view=completed for finished tasks. Returns at most 500 tasks per call (set limit 1..500); truncated is true when more matches exist."
     )]
     async fn list_tasks(
         &self,
         Parameters(args): Parameters<ListTasksArgs>,
     ) -> Result<Json<ListTasksOutput>, McpError> {
+        if args.limit == Some(0) {
+            return Err(McpError::invalid_params(
+                "limit must be at least 1",
+                None,
+            ));
+        }
         let state = self.state();
         let settings = self.settings();
         let listed = query_list_tasks(

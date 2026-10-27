@@ -18,6 +18,7 @@ export function McpSection({ settings, applySettings }: Props) {
   const [showToken, setShowToken] = useState(false);
   const [portDraft, setPortDraft] = useState(String(settings.mcp_port ?? MCP_PORT_DEFAULT));
   const [busy, setBusy] = useState(false);
+  const [portErr, setPortErr] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const enabled = settings.mcp_enabled ?? false;
@@ -84,23 +85,26 @@ export function McpSection({ settings, applySettings }: Props) {
   const commitPort = async () => {
     const raw = portDraft.trim();
     if (raw === "") {
-      setErr(t("settings.mcp.portInvalid", { min: MCP_PORT_MIN, max: MCP_PORT_MAX }));
+      setPortErr(t("settings.mcp.portInvalid", { min: MCP_PORT_MIN, max: MCP_PORT_MAX }));
       setPortDraft(String(port));
       return;
     }
     const n = Number(raw);
     if (!Number.isFinite(n) || n < MCP_PORT_MIN || n > MCP_PORT_MAX || !Number.isInteger(n)) {
-      setErr(t("settings.mcp.portInvalid", { min: MCP_PORT_MIN, max: MCP_PORT_MAX }));
+      setPortErr(t("settings.mcp.portInvalid", { min: MCP_PORT_MIN, max: MCP_PORT_MAX }));
       setPortDraft(String(port));
       return;
     }
-    if (n === port) return;
-    setErr(null);
+    if (n === port) {
+      setPortErr(null);
+      return;
+    }
+    setPortErr(null);
     try {
       await applySettings({ mcp_port: n });
       await refreshStatus();
     } catch (e) {
-      setErr(String(e));
+      setPortErr(String(e));
       setPortDraft(String(port));
     }
   };
@@ -146,9 +150,15 @@ export function McpSection({ settings, applySettings }: Props) {
           max={MCP_PORT_MAX}
           value={portDraft}
           disabled={!enabled}
-          onChange={e => setPortDraft(e.currentTarget.value)}
+          onChange={e => {
+            setPortErr(null);
+            setPortDraft(e.currentTarget.value);
+          }}
           onBlur={() => { void commitPort(); }}
         />
+        {portErr && (
+          <p className="composer-error mcp-port-error" role="alert">{portErr}</p>
+        )}
       </label>
 
       <label className="te-field">

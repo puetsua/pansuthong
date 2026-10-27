@@ -11,6 +11,9 @@ use chrono::{Local, NaiveDate};
 pub const LIST_TASK_VIEWS: &[&str] =
     &["today", "inbox", "upcoming", "completed", "all"];
 
+/// Default and maximum page size for `list_tasks` when `limit` is omitted or above the cap.
+pub const LIST_TASKS_DEFAULT_LIMIT: u32 = 500;
+
 /// Validate an optional view name; `None` means `all`.
 pub fn validate_list_view(view: Option<&str>) -> Result<&'static str> {
     match view {
@@ -36,7 +39,7 @@ pub struct ListTasksQuery {
     pub due_before: Option<NaiveDate>,
     pub due_after: Option<NaiveDate>,
     pub query: Option<String>,
-    /// Maximum rows to return. When omitted, all matching tasks are returned.
+    /// Maximum rows to return. When omitted, [`LIST_TASKS_DEFAULT_LIMIT`] applies.
     pub limit: Option<u32>,
     /// Skip this many matching rows before applying `limit`.
     pub offset: Option<u32>,
@@ -44,14 +47,20 @@ pub struct ListTasksQuery {
 
 pub struct ListTasksResult {
     pub tasks: Vec<Task>,
-    /// True when more tasks matched than returned (only when `limit` is set).
+    /// True when more tasks matched than returned.
     pub truncated: bool,
 }
 
 pub fn list_tasks(state: &AppState, settings: &Settings, q: ListTasksQuery) -> Result<ListTasksResult> {
     let view = validate_list_view(q.view.as_deref())?;
     let offset = q.offset.unwrap_or(0) as usize;
-    let limit = q.limit.map(|l| l.min(500) as usize);
+    if q.limit == Some(0) {
+        return Err(AppError::Invalid("limit must be at least 1".into()));
+    }
+    let limit = q
+        .limit
+        .unwrap_or(LIST_TASKS_DEFAULT_LIMIT)
+        .min(LIST_TASKS_DEFAULT_LIMIT) as usize;
     Ok(state.read(|d| {
         let dsh = settings.day_start_hour;
         let today = today_iso(Local::now(), dsh);
@@ -105,10 +114,7 @@ pub fn list_tasks(state: &AppState, settings: &Settings, q: ListTasksQuery) -> R
             });
         }
 
-        let truncated = match limit {
-            Some(lim) => tasks.len() > offset + lim,
-            None => false,
-        };
+        let truncated = tasks.len() > offset + limit;
         if offset > 0 {
             if offset >= tasks.len() {
                 tasks.clear();
@@ -116,9 +122,7 @@ pub fn list_tasks(state: &AppState, settings: &Settings, q: ListTasksQuery) -> R
                 tasks = tasks.into_iter().skip(offset).collect();
             }
         }
-        if let Some(lim) = limit {
-            tasks.truncate(lim);
-        }
+        tasks.truncate(limit);
         ListTasksResult { tasks, truncated }
     }))
 }
@@ -363,5 +367,57 @@ mod tests {
         .unwrap();
         assert_eq!(out.tasks.len(), 2);
         assert!(out.truncated);
+    }
+
+    #[test]
+    fn list_tasks_default_cap_truncates_at_500() {
+        let tasks: Vec<Task> = (0..502)
+            .map(|i| Task {
+                id: new_task_id(),
+                title: format!("t{i}"),
+                due_date: None,
+                due_time: None,
+                start_date: None,
+                start_time: None,
+                notes: "".into(),
+                attachments: vec![],
+                tag_ids: vec![],
+                estimated_seconds: None,
+                created_at: 0,
+                completed_at: None,
+                updated_at: 0,
+                time_entries: vec![],
+            })
+            .collect();
+        let state = open_store(tasks, vec![]);
+        let settings = Settings::default();
+        let out = list_tasks(
+            &state,
+            &settings,
+            ListTasksQuery {
+                view: Some("all".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(out.tasks.len(), LIST_TASKS_DEFAULT_LIMIT as usize);
+        assert!(out.truncated);
+    }
+
+    #[test]
+    fn list_tasks_rejects_limit_zero() {
+        let state = open_store(vec![], vec![]);
+        let settings = Settings::default();
+        match list_tasks(
+            &state,
+            &settings,
+            ListTasksQuery {
+                limit: Some(0),
+                ..Default::default()
+            },
+        ) {
+            Err(e) => assert!(e.to_string().contains("limit must be at least 1")),
+            Ok(_) => panic!("limit 0 must be rejected"),
+        }
     }
 }

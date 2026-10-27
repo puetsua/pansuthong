@@ -3,7 +3,9 @@
 use crate::config::ConfigState;
 use crate::mcp::auth::{ExpectedToken, bearer_auth, origin_gate};
 use crate::mcp::handler::PansuthongMcp;
-use crate::mcp::jsonrpc_http::{json_content_type_gate, rewrite_jsonrpc_http_errors};
+use crate::mcp::jsonrpc_http::{
+    json_content_type_gate, rewrite_jsonrpc_http_errors, tools_call_shape_gate,
+};
 use axum::{Router, middleware};
 use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
@@ -156,6 +158,7 @@ impl McpRuntime {
             let router = Router::new()
                 .nest_service("/mcp", service)
                 .layer(middleware::from_fn(rewrite_jsonrpc_http_errors))
+                .layer(middleware::from_fn(tools_call_shape_gate))
                 .layer(middleware::from_fn(json_content_type_gate))
                 .layer(middleware::from_fn_with_state(expected, bearer_auth))
                 .layer(middleware::from_fn(origin_gate));
