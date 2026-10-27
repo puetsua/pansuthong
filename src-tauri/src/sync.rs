@@ -11,7 +11,6 @@ const DEBOUNCE_MS: u64 = 250;
 /// on cloud-sync folders (e.g. Google Drive) when a change is pulled down from
 /// another device, so we also poll to guarantee those updates are picked up.
 const POLL_INTERVAL_MS: u64 = 2000;
-const STORE_CHANGED: &str = "store-changed";
 const CONFLICTS_DETECTED: &str = "conflicts-detected";
 
 pub struct SyncHandle {
@@ -76,7 +75,7 @@ pub fn start(app: AppHandle, data_path: PathBuf) -> notify::Result<SyncHandle> {
 fn process_change(app: &AppHandle, data_path: &Path) {
     if let Some(state) = app.try_state::<AppState>() {
         if reload_if_changed(&state, data_path) {
-            let _ = app.emit(STORE_CHANGED, ());
+            crate::store_notify::emit_store_changed(app);
         }
     }
 

@@ -821,13 +821,13 @@ mod tests {
     #[test]
     fn remote_has_tasks_detects_presence_via_enumeration() {
         let present = FakeBackend::with(&[("tasks.json", b"{\"tasks\":[],\"tags\":[]}")]);
-        assert_eq!(remote_has_tasks(&present).unwrap(), true);
+        assert!(remote_has_tasks(&present).unwrap());
 
         let present_db = FakeBackend::with(&[("tasks_peer.db", b"not-a-real-db-but-name-counts")]);
-        assert_eq!(remote_has_tasks(&present_db).unwrap(), true);
+        assert!(remote_has_tasks(&present_db).unwrap());
 
         let absent = FakeBackend::with(&[("notes.txt", b"x")]);
-        assert_eq!(remote_has_tasks(&absent).unwrap(), false);
+        assert!(!remote_has_tasks(&absent).unwrap());
     }
 
     #[test]
@@ -1104,7 +1104,7 @@ mod tests {
                 Ok(())
             })
             .unwrap();
-        let synced_hash = state.read(|d| content_hash(d));
+        let synced_hash = state.read(content_hash);
 
         // Remote moved ahead (another device); this device has NO un-synced edits.
         let mut remote_doc = state.read(|d| d.clone());
@@ -1348,7 +1348,7 @@ mod tests {
                 Ok(())
             })
             .unwrap();
-        let synced_hash = state.read(|d| content_hash(d));
+        let synced_hash = state.read(content_hash);
 
         // Remote: same task, attachment removed + tombstoned, newer edit.
         let mut remote_doc = state.read(|d| d.clone());

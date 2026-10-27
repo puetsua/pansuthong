@@ -1,12 +1,16 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { Document } from "../lib/tauri";
-import { isAndroid } from "../lib/platform";
+import { api, Document, type McpStatus } from "../lib/tauri";
+import { __resetPlatformCacheForTests, isAndroid } from "../lib/platform";
 import { SettingsView } from "./SettingsView";
 
-vi.mock("../lib/platform", () => ({
-  isAndroid: vi.fn().mockResolvedValue(false),
-}));
+vi.mock("../lib/platform", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/platform")>();
+  return {
+    ...actual,
+    isAndroid: vi.fn().mockResolvedValue(false),
+  };
+});
 
 const {
   pickDataFolder,
@@ -37,6 +41,9 @@ vi.mock("../lib/tauri", async (importOriginal) => {
       safPickFolder: vi.fn(),
       safSyncNow: vi.fn(),
       safClearFolder: vi.fn(),
+      getMcpStatus: vi.fn().mockResolvedValue({ status: "off" }),
+      regenerateMcpToken: vi.fn().mockResolvedValue("test-token"),
+      onMcpStatusChanged: vi.fn().mockResolvedValue(() => {}),
     },
   };
 });
@@ -78,6 +85,105 @@ beforeEach(() => {
     last_synced_ms: null,
     conflict_count: 0,
     last_error: null,
+  });
+});
+
+describe("SettingsView MCP server", () => {
+  beforeEach(() => {
+    __resetPlatformCacheForTests();
+  });
+
+  it("shows the MCP section on desktop", async () => {
+    render(<SettingsView doc={doc} />);
+    expect(screen.getByRole("heading", { name: /MCP server/i })).toBeTruthy();
+  });
+
+  const mcpDoc: Document = {
+    ...doc,
+    settings: { ...doc.settings, mcp_enabled: true, mcp_port: 7373, mcp_token: "tok" },
+  };
+
+  it("shows the port-in-use status under the Port field", async () => {
+    vi.mocked(api.getMcpStatus).mockResolvedValue({ status: "port_in_use", message: "7373 is taken" });
+    render(<SettingsView doc={mcpDoc} />);
+    const note = await screen.findByText(/Port in use.*7373 is taken/, { selector: ".mcp-port-error" });
+    expect(note.getAttribute("role")).toBe("alert");
+    expect(note.closest("label")?.querySelector("input")?.getAttribute("inputmode")).toBe("numeric");
+  });
+
+  it("updates the status from mcp-status-changed events", async () => {
+    vi.mocked(api.getMcpStatus).mockResolvedValue({ status: "listening" });
+    let push: ((s: McpStatus) => void) | undefined;
+    vi.mocked(api.onMcpStatusChanged).mockImplementation(async (cb) => {
+      push = cb;
+      return () => {};
+    });
+    render(<SettingsView doc={mcpDoc} />);
+    await screen.findByText(/Listening/);
+    await waitFor(() => expect(push).toBeDefined());
+    act(() => push!({ status: "port_in_use", message: "taken" }));
+    await screen.findByText(/Port in use.*taken/, { selector: ".mcp-port-error" });
+    expect(screen.getAllByText(/Port in use/)).toHaveLength(1);
+  });
+
+  it("prefers the port validation error over the port-in-use status", async () => {
+    vi.mocked(api.getMcpStatus).mockResolvedValue({ status: "port_in_use", message: "7373 is taken" });
+    render(<SettingsView doc={mcpDoc} />);
+    const note = await screen.findByText(/Port in use/, { selector: ".mcp-port-error" });
+    const input = note.closest("label")!.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "80" } });
+    fireEvent.blur(input);
+    const alerts = await screen.findAllByText(/Port must be an integer/, { selector: ".mcp-port-error" });
+    expect(alerts).toHaveLength(1);
+    expect(document.querySelectorAll(".mcp-port-error")).toHaveLength(1);
+  });
+
+  it("keeps a rejected port in the field and drops its message once the saved port is restored", async () => {
+    vi.mocked(api.getMcpStatus).mockResolvedValue({ status: "port_in_use", message: "7373 is taken" });
+    render(<SettingsView doc={mcpDoc} />);
+    const note = await screen.findByText(/Port in use/, { selector: ".mcp-port-error" });
+    const input = note.closest("label")!.querySelector("input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "80" } });
+    fireEvent.blur(input);
+    await screen.findByText(/Port must be an integer/, { selector: ".mcp-port-error" });
+    expect(input.value).toBe("80");
+    expect(document.querySelectorAll(".mcp-port-error")).toHaveLength(1);
+    fireEvent.change(input, { target: { value: "7373" } });
+    fireEvent.blur(input);
+    await screen.findByText(/Port in use.*7373 is taken/, { selector: ".mcp-port-error" });
+    expect(screen.queryByText(/Port must be an integer/)).toBeNull();
+    expect(document.querySelectorAll(".mcp-port-error")).toHaveLength(1);
+    expect(api.updateSettings).not.toHaveBeenCalled();
+  });
+
+  it.each(["1e4", "1.0", "+5000", "5000x", "0x1F90", " 80 "])(
+    "rejects non-digit or out-of-range port input %j",
+    async (value) => {
+      vi.mocked(api.getMcpStatus).mockResolvedValue({ status: "listening" });
+      render(<SettingsView doc={mcpDoc} />);
+      const input = (await screen.findByDisplayValue("7373")) as HTMLInputElement;
+      fireEvent.change(input, { target: { value } });
+      fireEvent.blur(input);
+      await screen.findByText(/Port must be an integer/);
+      expect(api.updateSettings).not.toHaveBeenCalled();
+    },
+  );
+
+  it("accepts a plain digit port", async () => {
+    vi.mocked(api.getMcpStatus).mockResolvedValue({ status: "listening" });
+    render(<SettingsView doc={mcpDoc} />);
+    const input = (await screen.findByDisplayValue("7373")) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: " 5000 " } });
+    fireEvent.blur(input);
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ mcp_port: 5000 }));
+  });
+
+  it("hides the MCP section on Android", async () => {
+    vi.mocked(isAndroid).mockResolvedValue(true);
+    render(<SettingsView doc={doc} />);
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: /MCP server/i })).toBeNull();
+    });
   });
 });
 

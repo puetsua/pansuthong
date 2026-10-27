@@ -46,6 +46,19 @@ npm run tauri android dev  # Android emulator or USB device
 
 Stack: Tauri 2 (Rust) · React 19 · TypeScript · Vite.
 
+### MCP server (desktop)
+
+Pansuthong can expose a local MCP server so Cursor or Claude Desktop can list and edit tasks while the app is running.
+
+1. Open **Settings → MCP server**, turn **Enable** on, and note the port (default **7373**) and token.
+2. **Cursor:** click **Copy config** and paste into your MCP settings, or add the JSON it copies under `mcpServers.pansuthong`.
+3. **Claude Desktop:** use [mcp-remote](https://www.npmjs.com/package/mcp-remote), for example:
+   `npx mcp-remote http://127.0.0.1:7373/mcp --header "Authorization: Bearer YOUR_TOKEN"`
+
+The server binds to `127.0.0.1` only; it is off by default and stops when the app quits.
+
+Tool results use object-shaped `structuredContent` (for example `list_tasks` returns `{ "tasks": [...] }` and `list_tags` returns `{ "tags": [...] }`). MCP writes update the same store as the UI and emit `store-changed` so the open window reloads.
+
 Contributor and agent docs live under [`docs/`](./docs/)—start with [`AGENTS.md`](./AGENTS.md) and [`docs/llm-navigation.md`](./docs/llm-navigation.md). Toolchain notes: [`docs/agent/commands-toolchain.md`](./docs/agent/commands-toolchain.md).
 
 ## License

@@ -1083,6 +1083,19 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   padding: 4px 10px;
   line-height: 1.2;
 }
+.settings-view .mcp-token-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.settings-view .mcp-token-input {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+}
+.settings-view .mcp-actions {
+  margin-top: var(--space-2);
+}
 .settings-view .weight-input,
 .settings-view .select-input {
   min-height: 30px;

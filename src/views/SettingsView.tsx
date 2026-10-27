@@ -17,6 +17,7 @@ import {
   UpcomingSection,
   WeekStartSection,
 } from "../components/settings/sections";
+import { McpSection } from "../components/settings/McpSection";
 
 type Props = { doc: Document };
 
@@ -54,6 +55,7 @@ export function SettingsView({ doc }: Props) {
       <ReminderSection settings={doc.settings} applySettings={applySettings} />
       <AttachmentCapSection settings={doc.settings} applySettings={applySettings} />
       <NewTagWeightSection settings={doc.settings} applySettings={applySettings} />
+      <McpSection settings={doc.settings} applySettings={applySettings} />
       <DataFolderSection settings={doc.settings} />
     </section>
   );

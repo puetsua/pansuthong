@@ -324,7 +324,7 @@ fn diff_entities<T>(
     history: EntityHistory<T>,
 ) -> Vec<HistoryEntry>
 where
-    T: Serialize,
+    T: Serialize + PartialEq,
 {
     let before_map = before
         .iter()
@@ -361,7 +361,9 @@ where
                 history.deleted.1,
                 (history.stamp)(old),
             )),
-            (Some(old), Some(new)) if to_value(old) != to_value(new) => {
+            // `!=` first: serializing every unchanged entity to a `Value` on every
+            // write was the costliest part of a write on a large document (#249 N5).
+            (Some(old), Some(new)) if old != new && to_value(old) != to_value(new) => {
                 let (event, summary) = (history.update_kind)(old, new);
                 entries.push(entry(
                     timestamp,
@@ -946,7 +948,7 @@ mod tests {
             "One".into(),
             "Created task",
         );
-        append_history(&data, &[first.clone()]).unwrap();
+        append_history(&data, std::slice::from_ref(&first)).unwrap();
 
         let mut again = first.clone();
         again.timestamp = 2_000;

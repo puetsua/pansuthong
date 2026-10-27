@@ -109,6 +109,32 @@ describe("useDocument", () => {
     await waitFor(() => expect(result.current.doc).toBe(doc2));
   });
 
+  // Concurrent MCP writers fire store-changed many times a second. Each reload
+  // fetches the whole document, so they must not pile up (#249 N5): at most one
+  // fetch in flight, and one trailing fetch covering every event that arrived
+  // during it.
+  it("coalesces a burst of store-changed events into one in-flight and one trailing reload", async () => {
+    const doc1 = makeDoc("auto");
+    getDocument.mockResolvedValue(doc1);
+    const { result } = renderHook(() => useDocument());
+    await waitFor(() => expect(result.current.doc).toBe(doc1));
+    expect(getDocument).toHaveBeenCalledTimes(1);
+
+    const pending: Array<(d: Document) => void> = [];
+    getDocument.mockImplementation(() => new Promise<Document>((resolve) => { pending.push(resolve); }));
+    await act(async () => { for (let i = 0; i < 20; i++) storeChangedCb?.(); });
+    expect(getDocument).toHaveBeenCalledTimes(2);
+
+    const stale = makeDoc("light");
+    const latest = makeDoc("dark");
+    await act(async () => { pending[0](stale); });
+    expect(getDocument).toHaveBeenCalledTimes(3);
+    await act(async () => { pending[1](latest); });
+
+    await waitFor(() => expect(result.current.doc).toBe(latest));
+    expect(getDocument).toHaveBeenCalledTimes(3);
+  });
+
   it("reloads when a settings-changed event fires", async () => {
     const doc1 = makeDoc("auto");
     const doc2 = makeDoc("light");

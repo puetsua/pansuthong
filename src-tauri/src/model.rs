@@ -59,7 +59,7 @@ pub(crate) mod iso_secs {
     /// where the file is later read. Falls back to the raw integer string for an
     /// out-of-range instant (chrono can't represent it), which still round-trips
     /// through the integer arm of `deserialize`.
-    pub(super) fn to_iso(ms: i64) -> String {
+    pub(crate) fn to_iso(ms: i64) -> String {
         match Local.timestamp_millis_opt(ms).single() {
             Some(dt) => dt.to_rfc3339_opts(SecondsFormat::Secs, false),
             None => ms.to_string(),
@@ -126,7 +126,7 @@ mod iso_secs_opt {
 /// memory, written as ISO-8601 local-time strings on disk (see `iso_secs`). An
 /// `end` of `None` is the **running** timer — the open interval; closed entries
 /// are finished sessions. Stored on the task, so it syncs like the rest.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TimeEntry {
     pub id: String,
     #[serde(with = "iso_secs")]
@@ -139,7 +139,7 @@ pub struct TimeEntry {
     pub end: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Tag {
     pub id: String,
     pub name: String,
@@ -177,7 +177,7 @@ pub struct Tag {
 /// A delete marker used by per-device replica files. Without this, an older
 /// replica that still contains an entity would resurrect it after another device
 /// deleted it.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Tombstone {
     pub id: String,
     #[serde(with = "iso_secs")]
@@ -282,7 +282,7 @@ pub struct Attachment {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(from = "TaskCompat")]
 pub struct Task {
     pub id: String,
@@ -345,7 +345,7 @@ pub struct Task {
 /// search. New ordinary tasks are spawned from it in the Templates view (the
 /// frontend resolves the relative offsets to absolute dates and creates a task via
 /// `add_task`). Carries only blueprint fields: no completion/dates of its own.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TemplateTask {
     pub id: String,
     pub title: String,
@@ -534,7 +534,7 @@ fn default_version() -> u32 {
     CURRENT_VERSION
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(from = "DocumentCompat")]
 pub struct Document {
     pub version: u32,
@@ -1068,8 +1068,10 @@ mod tests {
 
     #[test]
     fn merge_tag_dashboard_order_follows_lww() {
-        let mut older = Document::default();
-        older.last_modified = 10;
+        let mut older = Document {
+            last_modified: 10,
+            ..Document::default()
+        };
         older.tags.push(Tag {
             id: "t_1".into(),
             name: "work".into(),
@@ -1081,8 +1083,10 @@ mod tests {
             dashboard_order: Some(0),
         });
 
-        let mut newer = Document::default();
-        newer.last_modified = 20;
+        let mut newer = Document {
+            last_modified: 20,
+            ..Document::default()
+        };
         newer.tags.push(Tag {
             id: "t_1".into(),
             name: "work".into(),
@@ -1624,14 +1628,18 @@ mod tests {
     fn merge_tag_lww_uses_tag_updated_at_not_doc_last_modified() {
         // Replica A edited an unrelated task, bumping its doc.last_modified high,
         // but only touched tag t_1 long ago (updated_at = 5).
-        let mut a = Document::default();
-        a.last_modified = 100;
+        let mut a = Document {
+            last_modified: 100,
+            ..Document::default()
+        };
         a.tags.push(tag_named("t_1", "old", 5));
 
         // Replica B made the genuinely newer edit to t_1 (updated_at = 50) but its
         // doc.last_modified is lower because it touched nothing else.
-        let mut b = Document::default();
-        b.last_modified = 60;
+        let mut b = Document {
+            last_modified: 60,
+            ..Document::default()
+        };
         b.tags.push(tag_named("t_1", "new", 50));
 
         let merged = merge_documents(vec![a, b]);
@@ -1644,12 +1652,16 @@ mod tests {
     fn merge_tag_lww_falls_back_to_doc_last_modified_only_for_legacy_tags() {
         // Both tags are legacy (updated_at == 0), so the only signal is the
         // containing document's last_modified — the newer document wins.
-        let mut older = Document::default();
-        older.last_modified = 10;
+        let mut older = Document {
+            last_modified: 10,
+            ..Document::default()
+        };
         older.tags.push(tag_named("t_1", "older", 0));
 
-        let mut newer = Document::default();
-        newer.last_modified = 20;
+        let mut newer = Document {
+            last_modified: 20,
+            ..Document::default()
+        };
         newer.tags.push(tag_named("t_1", "newer", 0));
 
         let merged = merge_documents(vec![older, newer]);

@@ -21,7 +21,7 @@ const STORE_CHANGED: &str = "store-changed";
 const SETTINGS_CHANGED: &str = "settings-changed";
 
 fn emit_changed(app: &AppHandle) {
-    let _ = app.emit(STORE_CHANGED, ());
+    crate::store_notify::emit_store_changed(app);
 }
 
 fn emit_settings_changed(app: &AppHandle) {
@@ -59,7 +59,10 @@ fn document_view(state: &AppState, config: &ConfigState) -> DocumentView {
     })
 }
 
-#[tauri::command]
+/// Runs on the async pool, not the main thread: cloning and serializing a large
+/// document there blocked repaint and input while MCP writers kept the window
+/// reloading (#249 N5).
+#[tauri::command(async)]
 pub fn get_document(state: State<'_, AppState>, config: State<'_, ConfigState>) -> Result<DocumentView> {
     if state.is_pending() {
         return Err(AppError::NotFound("data folder not available yet".into()));
@@ -154,14 +157,6 @@ pub struct NewTaskInput {
 
 /// Reject a time-of-day that isn't a valid "HH:MM" (#93). `None` (all-day) is
 /// always fine. Keeps malformed times from ever reaching tasks.json.
-fn validate_time(t: Option<&str>) -> Result<()> {
-    if let Some(s) = t {
-        chrono::NaiveTime::parse_from_str(s, "%H:%M")
-            .map_err(|_| AppError::Invalid(format!("time must be HH:MM, got {s:?}")))?;
-    }
-    Ok(())
-}
-
 /// Estimated effort is optional, but when present it must be a positive whole
 /// number of seconds. The cap preserves the old 100,000-minute maximum while
 /// allowing explicit second-level estimates such as `50s`.
@@ -181,7 +176,7 @@ fn validate_estimated_seconds(seconds: Option<i64>) -> Result<()> {
 /// Drop tag ids that don't exist in the document so tasks never persist dangling
 /// tag references (which silently behave as untagged, landing in Inbox at
 /// priority 0) (#40).
-fn retain_known_tags(ids: Vec<String>, tags: &[Tag]) -> Vec<String> {
+pub(crate) fn retain_known_tags(ids: Vec<String>, tags: &[Tag]) -> Vec<String> {
     ids.into_iter()
         .filter(|id| tags.iter().any(|t| &t.id == id))
         .collect()
@@ -532,7 +527,7 @@ fn attachments_referenced(d: &crate::model::Document, path: &str) -> bool {
 /// its attachment blobs in the data folder (which would otherwise be mirrored to
 /// the sync folder forever). Mirrors the per-attachment cleanup in
 /// `remove_task_attachment`; a failed unlink is non-fatal (the metadata is gone).
-fn gc_attachment_files(state: &AppState, paths: &[String]) {
+pub(crate) fn gc_attachment_files(state: &AppState, paths: &[String]) {
     for path in paths {
         if state.read(|d| attachments_referenced(d, path)) {
             continue;
@@ -653,7 +648,7 @@ fn attachments_from_paths(
 /// file (`attachment_*`, no path separators). The file ops re-validate on read,
 /// but this keeps a crafted IPC payload from persisting a bogus/absolute path
 /// into the synced document in the first place.
-fn validate_attachments(attachments: &[Attachment]) -> Result<()> {
+pub(crate) fn validate_attachments(attachments: &[Attachment]) -> Result<()> {
     for a in attachments {
         if !is_attachment_filename(&a.path) {
             return Err(AppError::Invalid(format!(
@@ -1240,36 +1235,7 @@ fn validate_recurrence_tag(
 
 #[tauri::command]
 pub fn add_task(input: NewTaskInput, state: State<'_, AppState>, app: AppHandle) -> Result<Task> {
-    let title = input.title.trim().to_string();
-    if title.is_empty() {
-        return Err(AppError::Invalid("title is empty".into()));
-    }
-    validate_time(input.due_time.as_deref())?;
-    validate_time(input.start_time.as_deref())?;
-    validate_estimated_seconds(input.estimated_seconds)?;
-    validate_attachments(&input.attachments)?;
-    let ts = now_ms();
-    let saved = state.write(|d| {
-        let task = Task {
-            id: new_task_id(),
-            title,
-            due_date: input.due_date,
-            // A time without its date is meaningless; drop it (all-day).
-            due_time: input.due_date.and(input.due_time),
-            start_date: input.start_date,
-            start_time: input.start_date.and(input.start_time),
-            notes: input.notes,
-            attachments: input.attachments,
-            tag_ids: retain_known_tags(input.tag_ids, &d.tags),
-            estimated_seconds: input.estimated_seconds,
-            created_at: ts,
-            completed_at: None,
-            updated_at: ts,
-            time_entries: Vec::new(),
-        };
-        d.tasks.push(task.clone());
-        Ok(task)
-    })?;
+    let saved = crate::task_ops::add_task_record(&state, input)?;
     emit_changed(&app);
     Ok(saved)
 }
@@ -1327,7 +1293,7 @@ pub fn duplicate_task(
 /// Lets an optional field distinguish "absent" from an explicit JSON `null`.
 /// With `#[serde(default, deserialize_with = "double_option")]`:
 ///   absent -> None (leave unchanged); null -> Some(None) (clear); value -> Some(Some(v)) (set).
-fn double_option<'de, T, D>(de: D) -> std::result::Result<Option<Option<T>>, D::Error>
+pub(crate) fn double_option<'de, T, D>(de: D) -> std::result::Result<Option<Option<T>>, D::Error>
 where
     T: Deserialize<'de>,
     D: Deserializer<'de>,
@@ -1351,8 +1317,8 @@ pub struct UpdateTaskInput {
     pub start_date: Option<Option<NaiveDate>>,
     #[serde(default, deserialize_with = "double_option")]
     pub start_time: Option<Option<String>>,
-    #[serde(default)]
-    pub notes: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
     #[serde(default)]
     pub attachments: Option<Vec<Attachment>>,
     #[serde(default)]
@@ -1367,67 +1333,7 @@ pub fn update_task(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<Task> {
-    let updated = state.write(|d| {
-        // Snapshot known tag ids before the mutable task borrow so dangling
-        // references can be stripped (#40).
-        let known: std::collections::HashSet<String> =
-            d.tags.iter().map(|t| t.id.clone()).collect();
-        let t = d
-            .tasks
-            .iter_mut()
-            .find(|t| t.id == input.id)
-            .ok_or_else(|| AppError::NotFound(format!("task {}", input.id)))?;
-        if let Some(v) = input.title {
-            let trimmed = v.trim().to_string();
-            if trimmed.is_empty() {
-                return Err(AppError::Invalid("title is empty".into()));
-            }
-            t.title = trimmed;
-        }
-        if let Some(ref v) = input.due_time {
-            validate_time(v.as_deref())?;
-        }
-        if let Some(ref v) = input.start_time {
-            validate_time(v.as_deref())?;
-        }
-        if let Some(v) = input.estimated_seconds {
-            validate_estimated_seconds(v)?;
-        }
-        if let Some(v) = input.due_date {
-            t.due_date = v;
-        }
-        if let Some(v) = input.due_time {
-            t.due_time = v;
-        }
-        if let Some(v) = input.start_date {
-            t.start_date = v;
-        }
-        if let Some(v) = input.start_time {
-            t.start_time = v;
-        }
-        if let Some(v) = input.notes {
-            t.notes = v;
-        }
-        if let Some(v) = input.attachments {
-            validate_attachments(&v)?;
-            t.attachments = v;
-        }
-        if let Some(v) = input.tag_ids {
-            t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
-        }
-        if let Some(v) = input.estimated_seconds {
-            t.estimated_seconds = v;
-        }
-        // A time without its date is meaningless; clearing a date drops its time.
-        if t.due_date.is_none() {
-            t.due_time = None;
-        }
-        if t.start_date.is_none() {
-            t.start_time = None;
-        }
-        t.updated_at = now_ms();
-        Ok(t.clone())
-    })?;
+    let updated = crate::task_ops::update_task_record(&state, input)?;
     emit_changed(&app);
     Ok(updated)
 }
@@ -1441,39 +1347,14 @@ pub fn set_task_done(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<Task> {
-    let updated = state.write(|d| {
-        let t = d
-            .tasks
-            .iter_mut()
-            .find(|t| t.id == id)
-            .ok_or_else(|| AppError::NotFound(format!("task {id}")))?;
-        t.set_done(done, now_ms());
-        Ok(t.clone())
-    })?;
+    let updated = crate::task_ops::set_task_done_record(&state, &id, done)?;
     emit_changed(&app);
     Ok(updated)
 }
 
 #[tauri::command]
 pub fn delete_task(id: String, state: State<'_, AppState>, app: AppHandle) -> Result<()> {
-    let mut orphaned: Vec<String> = Vec::new();
-    state.write(|d| {
-        let ts = now_ms();
-        let before = d.tasks.len();
-        if let Some(t) = d.tasks.iter().find(|t| t.id == id) {
-            orphaned = t.attachments.iter().map(|a| a.path.clone()).collect();
-        }
-        d.tasks.retain(|t| t.id != id);
-        if d.tasks.len() == before {
-            return Err(AppError::NotFound(format!("task {id}")));
-        }
-        d.deleted_tasks.push(Tombstone {
-            id: id.clone(),
-            deleted_at: ts,
-            deleted_by: None,
-        });
-        Ok(())
-    })?;
+    let orphaned = crate::task_ops::delete_task_record(&state, &id)?;
     gc_attachment_files(&state, &orphaned);
     emit_changed(&app);
     Ok(())
@@ -2290,7 +2171,7 @@ fn validate_custom_presets(presets: &[ThemePreset]) -> Result<()> {
     Ok(())
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct UpdateSettingsInput {
     #[serde(default)]
     pub theme: Option<String>,
@@ -2326,6 +2207,10 @@ pub struct UpdateSettingsInput {
     pub theme_preset: Option<String>,
     #[serde(default)]
     pub custom_presets: Option<Vec<ThemePreset>>,
+    #[serde(default)]
+    pub mcp_enabled: Option<bool>,
+    #[serde(default)]
+    pub mcp_port: Option<u32>,
 }
 
 #[tauri::command]
@@ -2334,6 +2219,8 @@ pub fn update_settings(
     config: State<'_, ConfigState>,
     app: AppHandle,
 ) -> Result<()> {
+    #[cfg(desktop)]
+    let mcp_sync = crate::mcp::runtime::settings_patch_affects_mcp(&input);
     config.update_settings(|s| {
         if let Some(t) = input.theme {
             if !matches!(t.as_str(), "auto" | "light" | "dark") {
@@ -2448,10 +2335,59 @@ pub fn update_settings(
             validate_custom_presets(&presets)?;
             s.custom_presets = if presets.is_empty() { None } else { Some(presets) };
         }
+        if let Some(on) = input.mcp_enabled {
+            s.mcp_enabled = on;
+            if on && s.mcp_token.as_deref().unwrap_or("").is_empty() {
+                #[cfg(desktop)]
+                {
+                    s.mcp_token = Some(crate::mcp::runtime::generate_mcp_token());
+                }
+            }
+        }
+        if let Some(port) = input.mcp_port {
+            #[cfg(desktop)]
+            crate::mcp::runtime::validate_mcp_port(port).map_err(AppError::Invalid)?;
+            #[cfg(not(desktop))]
+            {
+                let _ = port;
+            }
+            s.mcp_port = port;
+        }
         Ok(())
     })?;
     emit_settings_changed(&app);
+    #[cfg(desktop)]
+    {
+        if mcp_sync {
+            if let Some(mcp) = app.try_state::<crate::mcp::McpRuntime>() {
+                mcp.sync_from_settings(&app, &config);
+            }
+        }
+    }
     Ok(())
+}
+
+#[cfg(desktop)]
+#[tauri::command]
+pub fn get_mcp_status(mcp: State<'_, crate::mcp::McpRuntime>) -> crate::mcp::McpStatus {
+    mcp.status()
+}
+
+#[cfg(desktop)]
+#[tauri::command]
+pub fn regenerate_mcp_token(
+    config: State<'_, ConfigState>,
+    mcp: State<'_, crate::mcp::McpRuntime>,
+    app: AppHandle,
+) -> Result<String> {
+    let token = crate::mcp::runtime::generate_mcp_token();
+    config.update_settings(|s| {
+        s.mcp_token = Some(token.clone());
+        Ok(())
+    })?;
+    emit_settings_changed(&app);
+    mcp.sync_from_settings(&app, &config);
+    Ok(token)
 }
 
 #[tauri::command]
@@ -3558,13 +3494,13 @@ mod tests {
 
     #[test]
     fn validate_time_accepts_hh_mm_and_rejects_garbage(/* #93 */) {
-        assert!(validate_time(None).is_ok()); // all-day
-        assert!(validate_time(Some("00:00")).is_ok());
-        assert!(validate_time(Some("09:30")).is_ok());
-        assert!(validate_time(Some("23:59")).is_ok());
-        assert!(validate_time(Some("24:00")).is_err()); // hour out of range
-        assert!(validate_time(Some("5pm")).is_err()); // not HH:MM
-        assert!(validate_time(Some("09:30:00")).is_err()); // trailing seconds
+        assert!(crate::task_ops::validate_time(None).is_ok()); // all-day
+        assert!(crate::task_ops::validate_time(Some("00:00")).is_ok());
+        assert!(crate::task_ops::validate_time(Some("09:30")).is_ok());
+        assert!(crate::task_ops::validate_time(Some("23:59")).is_ok());
+        assert!(crate::task_ops::validate_time(Some("24:00")).is_err()); // hour out of range
+        assert!(crate::task_ops::validate_time(Some("5pm")).is_err()); // not HH:MM
+        assert!(crate::task_ops::validate_time(Some("09:30:00")).is_err()); // trailing seconds
     }
 
     #[test]

@@ -1,0 +1,1387 @@
+# PR #249 AFTER4 verify @ 0ed0b62 2026-10-27 22:00:31 CST, token redacted as <TOKEN>/<TEST_TOKEN>
+# AppImage after4/Pansuthong_0.33.0-pr249d_amd64.AppImage sha256=23251d28111e4e0833ad2add4982890e3a7196f2f2a71a8f31c7d2420d3bef36
+# pid 3562057 DISPLAY=:2 HOME=home-after
+
+################ verify3/out4-ab.txt ################
+# after4 (0ed0b62) checks a/b 2026-10-27 21:57:27 CST port 7373, token redacted
+
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "initialize", "id": 1, "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa-indep", "version": "1"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '147', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "notifications/initialized"}
+<<< 202 Accepted
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< 
+
+### a1 tools/call no params
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 103, "method": "tools/call"}
+<<< 400 Bad Request
+<<< headers {'content-type': 'application/json', 'content-length': '90', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32602,"message":"tools/call requires params"}}
+
+### a2 tools/call params {}
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 104, "method": "tools/call", "params": {}}
+<<< 400 Bad Request
+<<< headers {'content-type': 'application/json', 'content-length': '117', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32602,"message":"tools/call requires params.name as a non-empty string"}}
+
+### a3 tools/call arguments:"x"
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 105, "method": "tools/call", "params": {"name": "list_tasks", "arguments": "x"}}
+<<< 400 Bad Request
+<<< headers {'content-type': 'application/json', 'content-length': '109', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32602,"message":"tools/call params.arguments must be an object"}}
+
+### a4 tools/call params null
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 106, "method": "tools/call", "params": null}
+<<< 400 Bad Request
+<<< headers {'content-type': 'application/json', 'content-length': '90', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32602,"message":"tools/call requires params"}}
+
+### a5 tools/call params []
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 107, "method": "tools/call", "params": []}
+<<< 400 Bad Request
+<<< headers {'content-type': 'application/json', 'content-length': '106', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32602,"message":"tools/call requires params to be an object"}}
+
+### a6 name ""
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 108, "method": "tools/call", "params": {"name": ""}}
+<<< 400 Bad Request
+<<< headers {'content-type': 'application/json', 'content-length': '117', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32602,"message":"tools/call requires params.name as a non-empty string"}}
+
+### a7 control: valid tools/call list_tasks {name only} still works
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 777, "method": "tools/call", "params": {"name": "list_tasks"}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '176', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":777,"result":{"content":[{"type":"text","text":"{\"tasks\":[],\"truncated\":false}"}],"structuredContent":{"tasks":[],"truncated":false},"isError":false}}
+
+### b1 malformed JSON
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc":"2.0","id":5,"method":
+<<< 415 Unsupported Media Type
+<<< headers {'content-type': 'application/json', 'content-length': '142', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"fail to deserialize request body EOF while parsing a value at line 1 column 33"}}
+
+### b1b malformed JSON (trailing garbage)
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc":"2.0","id":5,"method":"ping"} xx
+<<< 415 Unsupported Media Type
+<<< headers {'content-type': 'application/json', 'content-length': '136', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"fail to deserialize request body trailing characters at line 1 column 42"}}
+
+### b2 Accept: application/json only
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 6, "method": "ping"}
+<<< 406 Not Acceptable
+<<< headers {'content-type': 'application/json', 'content-length': '142', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Not Acceptable: Client must accept both application/json and text/event-stream"}}
+
+### b2b no Accept header
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 6, "method": "ping"}
+<<< 406 Not Acceptable
+<<< headers {'content-type': 'application/json', 'content-length': '142', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Not Acceptable: Client must accept both application/json and text/event-stream"}}
+
+### b3 5MB body
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"create_task","arguments":{"title":"V4-BIG","notes":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...(5243000 bytes)
+<<< 415 Unsupported Media Type
+<<< headers {'content-type': 'application/json', 'content-length': '141', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"fail to deserialize request body EOF while parsing a value at line 1 column 0"}}
+
+### b3b 1.5MB body
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"create_task","arguments":{"title":"V4-BIG","notes":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...(1572984 bytes)
+<<< 415 Unsupported Media Type
+<<< headers {'content-type': 'application/json', 'content-length': '141', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"fail to deserialize request body EOF while parsing a value at line 1 column 0"}}
+
+### b3c 1MiB+10 body
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"create_task","arguments":{"title":"V4-BIG","notes":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...(1048706 bytes)
+<<< 415 Unsupported Media Type
+<<< headers {'content-type': 'application/json', 'content-length': '141', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"fail to deserialize request body EOF while parsing a value at line 1 column 0"}}
+
+### b4 non-JSON content-type
+>>> 21:57:27 POST /mcp
+>>> headers {"Content-Type": "text/plain", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {}
+<<< 415 Unsupported Media Type
+<<< headers {'content-type': 'application/json', 'content-length': '125', 'date': 'Tue, 27 Oct 2026 13:57:27 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Unsupported Media Type: Content-Type must be application/json"}}
+
+
+# SUMMARY
+a1 tools/call no params                       PASS HTTP 400 | {"jsonrpc":"2.0","id":null,"error":{"code":-32602,"message":"tools/call requires params"}}
+a2 tools/call params {}                       PASS HTTP 400 | {"jsonrpc":"2.0","id":null,"error":{"code":-32602,"message":"tools/call requires params.name as a non-empty string"}}
+a3 tools/call arguments:"x"                   PASS HTTP 400 | {"jsonrpc":"2.0","id":null,"error":{"code":-32602,"message":"tools/call params.arguments must be an object"}}
+a4 tools/call params null                     PASS HTTP 400 | {"jsonrpc":"2.0","id":null,"error":{"code":-32602,"message":"tools/call requires params"}}
+a5 tools/call params []                       PASS HTTP 400 | {"jsonrpc":"2.0","id":null,"error":{"code":-32602,"message":"tools/call requires params to be an object"}}
+a6 name ""                                    PASS HTTP 400 | {"jsonrpc":"2.0","id":null,"error":{"code":-32602,"message":"tools/call requires params.name as a non-empty string"}}
+a7 control name-only call ok                  PASS HTTP 200 | {"jsonrpc":"2.0","id":777,"result":{"content":[{"type":"text","text":"{\"tasks\":[],\"truncated\":false}"}],"structuredContent":{"tasks":[],"truncated":false},"isError":false}}
+b1 malformed JSON -> -32700                   PASS HTTP 415 | {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"fail to deserialize request body EOF while parsing a value at line 1 column 33"}}
+b1b trailing garbage -> -32700                PASS HTTP 415 | {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"fail to deserialize request body trailing characters at line 1 column 42"}}
+b2 missing text/event-stream -> -32600        PASS HTTP 406 | {"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Not Acceptable: Client must accept both application/json and text/event-stream"}}
+b2b no Accept -> -32600                       PASS HTTP 406 | {"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Not Acceptable: Client must accept both application/json and text/event-stream"}}
+b3 5MB body -> -32600 JSON                    FAIL HTTP 415 | {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"fail to deserialize request body EOF while parsing a value at line 1 column 0"}}
+b3b 1.5MB body -> -32600 JSON                 FAIL HTTP 415 | {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"fail to deserialize request body EOF while parsing a value at line 1 column 0"}}
+b3c 1MiB+10 body -> -32600 JSON               FAIL HTTP 415 | {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"fail to deserialize request body EOF while parsing a value at line 1 column 0"}}
+b4 text/plain -> -32600 (415)                 PASS HTTP 415 | {"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Unsupported Media Type: Content-Type must be application/json"}}
+>>> 21:57:48 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "initialize", "id": 1, "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa-indep", "version": "1"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '147', 'date': 'Tue, 27 Oct 2026 13:57:48 GMT'}
+<<< {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+>>> 21:57:48 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "notifications/initialized"}
+<<< 202 Accepted
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:57:48 GMT'}
+<<< 
+
+### b5 valid create_task with notes of 921600 bytes
+>>> 21:57:48 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "create_task", "arguments": {"title": "V4-BIG-921600", "notes": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...(921740 bytes)
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '1843488', 'date': 'Tue, 27 Oct 2026 13:57:48 GMT'}
+<<< {"jsonrpc":"2.0","id":9,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_a3bbd3b7147a\",\"notes\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...(1843488 bytes)
+
+### b5 valid create_task with notes of 1048376 bytes
+>>> 21:57:48 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "create_task", "arguments": {"title": "V4-BIG-1048376", "notes": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...(1048517 bytes)
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '2097042', 'date': 'Tue, 27 Oct 2026 13:57:48 GMT'}
+<<< {"jsonrpc":"2.0","id":9,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_8be84eb2a191\",\"notes\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...(2097042 bytes)
+
+### b5 valid create_task with notes of 1048676 bytes
+>>> 21:57:48 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "create_task", "arguments": {"title": "V4-BIG-1048676", "notes": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...(1048817 bytes)
+<<< 415 Unsupported Media Type
+<<< headers {'content-type': 'application/json', 'content-length': '141', 'date': 'Tue, 27 Oct 2026 13:57:48 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"fail to deserialize request body EOF while parsing a value at line 1 column 0"}}
+
+### b5 valid create_task with notes of 3145728 bytes
+>>> 21:57:48 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "create_task", "arguments": {"title": "V4-BIG-3145728", "notes": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...(3145869 bytes)
+<<< 415 Unsupported Media Type
+<<< headers {'content-type': 'application/json', 'content-length': '141', 'date': 'Tue, 27 Oct 2026 13:57:48 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"fail to deserialize request body EOF while parsing a value at line 1 column 0"}}
+
+
+################ verify3/out4-c.txt ################
+# after4 check c (list_tasks cap) 2026-10-27 21:58:09 CST, token redacted
+created 520 V4-CAP tasks (unique ids 520); DB total rows=522, V4-CAP rows=520
+list_tasks {} -> 500 rows truncated=True
+list_tasks {"view": "all"} -> 500 rows truncated=True
+list_tasks {"query": "V4-CAP"} -> 500 rows truncated=True
+list_tasks {"limit": 0} -> {"jsonrpc": "2.0", "id": 6, "error": {"code": -32602, "message": "limit must be at least 1"}}
+list_tasks {"query": "V4-CAP", "limit": 0} -> {"jsonrpc": "2.0", "id": 7, "error": {"code": -32602, "message": "limit must be at least 1"}}
+list_tasks {"limit": -1} -> {"jsonrpc": "2.0", "id": 8, "result": {"content": [{"type": "text", "text": "failed to deserialize parameters: invalid value: integer `-1`, expected u32"}], "isError": true}}
+list_tasks {"limit": "5"} -> {"jsonrpc": "2.0", "id": 9, "result": {"content": [{"type": "text", "text": "failed to deserialize parameters: invalid type: string \"5\", expected u32"}], "isError": true}}
+limit=2000 -> 500 rows truncated=True
+offset=500 no limit -> 20 rows truncated=False
+offset=20 no limit -> 500 rows truncated=False
+paging limit=100: sizes=[100, 100, 100, 100, 100, 20] truncated=[True, True, True, True, True, False] total=520 unique=520 covers all created=True
+unpaged first 500 == paged[0:500] same order: True
+limit=250 pages: 250+250+20 (last truncated=False), concat==paged100 order: True
+limit=20 offset=500 -> 20 truncated=False
+limit=5 offset=520 -> 0 truncated=False
+limit=500 offset=19 -> 500 truncated=True
+limit=500 offset=20 -> 500 truncated=False
+
+################ verify3/out4-items.txt ################
+# after4 (0ed0b62) item re-test 2026-10-27 21:59:04 CST, port 7373, token redacted
+
+>>> 21:59:04 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "initialize", "id": 1, "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa-indep", "version": "1"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '147', 'date': 'Tue, 27 Oct 2026 13:59:04 GMT'}
+<<< {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+>>> 21:59:04 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "notifications/initialized"}
+<<< 202 Accepted
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:04 GMT'}
+<<< 
+
+### ITEM1 create V3-B1 original
+>>> 21:59:04 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 3, "params": {"name": "create_task", "arguments": {"title": "V3-B1 original"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '290', 'date': 'Tue, 27 Oct 2026 13:59:04 GMT'}
+<<< {"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_f10512ed2df5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 original\"}"}],"structuredContent":{"done":false,"id":"k_f10512ed2df5","notes":"","tags":[],"title":"V3-B1 original"},"isError":false}}
+
+=== id=k_f10512ed2df5
+### ITEM1 update_task {title:SHOULD-NOT-APPLY-2, due_time:"99:99"} (expect error)
+>>> 21:59:04 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 4, "params": {"name": "update_task", "arguments": {"id": "k_f10512ed2df5", "title": "SHOULD-NOT-APPLY-2", "due_time": "99:99"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '103', 'date': 'Tue, 27 Oct 2026 13:59:04 GMT'}
+<<< {"jsonrpc":"2.0","id":4,"error":{"code":-32602,"message":"invalid: time must be HH:MM, got \"99:99\""}}
+
+=== response: {"jsonrpc": "2.0", "id": 4, "error": {"code": -32602, "message": "invalid: time must be HH:MM, got \"99:99\""}}
+### ITEM1 get_task after rejected update
+>>> 21:59:04 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 5, "params": {"name": "get_task", "arguments": {"id": "k_f10512ed2df5"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '290', 'date': 'Tue, 27 Oct 2026 13:59:04 GMT'}
+<<< {"jsonrpc":"2.0","id":5,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_f10512ed2df5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 original\"}"}],"structuredContent":{"done":false,"id":"k_f10512ed2df5","notes":"","tags":[],"title":"V3-B1 original"},"isError":false}}
+
+=== get_task title='V3-B1 original'
+### ITEM1 unrelated successful write: create_task V3-B1 unrelated write
+>>> 21:59:04 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 6, "params": {"name": "create_task", "arguments": {"title": "V3-B1 unrelated write"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '304', 'date': 'Tue, 27 Oct 2026 13:59:04 GMT'}
+<<< {"jsonrpc":"2.0","id":6,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_d9a4adb8b032\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 unrelated write\"}"}],"structuredContent":{"done":false,"id":"k_d9a4adb8b032","notes":"","tags":[],"title":"V3-B1 unrelated write"},"isError":false}}
+
+=== unrelated id=k_d9a4adb8b032
+>>> 21:59:05 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 7, "params": {"name": "get_task", "arguments": {"id": "k_f10512ed2df5"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '290', 'date': 'Tue, 27 Oct 2026 13:59:05 GMT'}
+<<< {"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_f10512ed2df5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 original\"}"}],"structuredContent":{"done":false,"id":"k_f10512ed2df5","notes":"","tags":[],"title":"V3-B1 original"},"isError":false}}
+
+=== get_task after unrelated write title='V3-B1 original'
+=== DB title for k_f10512ed2df5 = 'V3-B1 original'
+=== history entries mentioning SHOULD-NOT-APPLY: 0
+=== history entries for k_f10512ed2df5: [('task.created', 'V3-B1 original', 'Created task')]
+=== history rows added since before rejected update: 1 (expected 1: unrelated create)
+### ITEM3 create V3-NULL with every optional field set
+>>> 21:59:06 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 8, "params": {"name": "create_task", "arguments": {"title": "V3-NULL", "due_date": "2026-10-30", "due_time": "10:15", "start_date": "2026-10-29", "start_time": "08:00", "notes": "some notes", "estimated_minutes": 45}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '540', 'date': 'Tue, 27 Oct 2026 13:59:06 GMT'}
+<<< {"jsonrpc":"2.0","id":8,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-10-30\",\"due_time\":\"10:15\",\"estimated_minutes\":45,\"id\":\"k_f2bac877745f\",\"notes\":\"some notes\",\"start_date\":\"2026-10-29\",\"start_time\":\"08:00\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"due_date":"2026-10-30","due_time":"10:15","estimated_minutes":45,"id":"k_f2bac877745f","notes":"some notes","start_date":"2026-10-29","start_time":"08:00","tags":[],"title":"V3-NULL"},"isError":false}}
+
+=== created: {"done": false, "due_date": "2026-10-30", "due_time": "10:15", "estimated_minutes": 45, "id": "k_f2bac877745f", "notes": "some notes", "start_date": "2026-10-29", "start_time": "08:00", "tags": [], "title": "V3-NULL"}
+=== DB: {"due_date": "2026-10-30", "due_time": "10:15", "start_date": "2026-10-29", "start_time": "08:00", "notes": "some notes", "estimated_seconds": 2700}
+### ITEM3 update_task {start_time: null}
+>>> 21:59:06 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 9, "params": {"name": "update_task", "arguments": {"id": "k_f2bac877745f", "start_time": null}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '494', 'date': 'Tue, 27 Oct 2026 13:59:06 GMT'}
+<<< {"jsonrpc":"2.0","id":9,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-10-30\",\"due_time\":\"10:15\",\"estimated_minutes\":45,\"id\":\"k_f2bac877745f\",\"notes\":\"some notes\",\"start_date\":\"2026-10-29\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"due_date":"2026-10-30","due_time":"10:15","estimated_minutes":45,"id":"k_f2bac877745f","notes":"some notes","start_date":"2026-10-29","tags":[],"title":"V3-NULL"},"isError":false}}
+
+=== resp {"done": false, "due_date": "2026-10-30", "due_time": "10:15", "estimated_minutes": 45, "id": "k_f2bac877745f", "notes": "some notes", "start_date": "2026-10-29", "tags": [], "title": "V3-NULL"}
+>>> 21:59:06 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 10, "params": {"name": "get_task", "arguments": {"id": "k_f2bac877745f"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '495', 'date': 'Tue, 27 Oct 2026 13:59:06 GMT'}
+<<< {"jsonrpc":"2.0","id":10,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-10-30\",\"due_time\":\"10:15\",\"estimated_minutes\":45,\"id\":\"k_f2bac877745f\",\"notes\":\"some notes\",\"start_date\":\"2026-10-29\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"due_date":"2026-10-30","due_time":"10:15","estimated_minutes":45,"id":"k_f2bac877745f","notes":"some notes","start_date":"2026-10-29","tags":[],"title":"V3-NULL"},"isError":false}}
+
+=== get_task: {"due_date": "2026-10-30", "due_time": "10:15", "start_date": "2026-10-29", "start_time": null, "notes": "some notes", "estimated_minutes": 45}
+### ITEM3 update_task {due_time: null}
+>>> 21:59:06 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 11, "params": {"name": "update_task", "arguments": {"id": "k_f2bac877745f", "due_time": null}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '453', 'date': 'Tue, 27 Oct 2026 13:59:06 GMT'}
+<<< {"jsonrpc":"2.0","id":11,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-10-30\",\"estimated_minutes\":45,\"id\":\"k_f2bac877745f\",\"notes\":\"some notes\",\"start_date\":\"2026-10-29\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"due_date":"2026-10-30","estimated_minutes":45,"id":"k_f2bac877745f","notes":"some notes","start_date":"2026-10-29","tags":[],"title":"V3-NULL"},"isError":false}}
+
+=== resp {"done": false, "due_date": "2026-10-30", "estimated_minutes": 45, "id": "k_f2bac877745f", "notes": "some notes", "start_date": "2026-10-29", "tags": [], "title": "V3-NULL"}
+>>> 21:59:06 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 12, "params": {"name": "get_task", "arguments": {"id": "k_f2bac877745f"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '453', 'date': 'Tue, 27 Oct 2026 13:59:06 GMT'}
+<<< {"jsonrpc":"2.0","id":12,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-10-30\",\"estimated_minutes\":45,\"id\":\"k_f2bac877745f\",\"notes\":\"some notes\",\"start_date\":\"2026-10-29\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"due_date":"2026-10-30","estimated_minutes":45,"id":"k_f2bac877745f","notes":"some notes","start_date":"2026-10-29","tags":[],"title":"V3-NULL"},"isError":false}}
+
+=== get_task: {"due_date": "2026-10-30", "due_time": null, "start_date": "2026-10-29", "start_time": null, "notes": "some notes", "estimated_minutes": 45}
+### ITEM3 update_task {notes: null}
+>>> 21:59:06 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 13, "params": {"name": "update_task", "arguments": {"id": "k_f2bac877745f", "notes": null}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '433', 'date': 'Tue, 27 Oct 2026 13:59:06 GMT'}
+<<< {"jsonrpc":"2.0","id":13,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-10-30\",\"estimated_minutes\":45,\"id\":\"k_f2bac877745f\",\"notes\":\"\",\"start_date\":\"2026-10-29\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"due_date":"2026-10-30","estimated_minutes":45,"id":"k_f2bac877745f","notes":"","start_date":"2026-10-29","tags":[],"title":"V3-NULL"},"isError":false}}
+
+=== resp {"done": false, "due_date": "2026-10-30", "estimated_minutes": 45, "id": "k_f2bac877745f", "notes": "", "start_date": "2026-10-29", "tags": [], "title": "V3-NULL"}
+>>> 21:59:06 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 14, "params": {"name": "get_task", "arguments": {"id": "k_f2bac877745f"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '433', 'date': 'Tue, 27 Oct 2026 13:59:06 GMT'}
+<<< {"jsonrpc":"2.0","id":14,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-10-30\",\"estimated_minutes\":45,\"id\":\"k_f2bac877745f\",\"notes\":\"\",\"start_date\":\"2026-10-29\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"due_date":"2026-10-30","estimated_minutes":45,"id":"k_f2bac877745f","notes":"","start_date":"2026-10-29","tags":[],"title":"V3-NULL"},"isError":false}}
+
+=== get_task: {"due_date": "2026-10-30", "due_time": null, "start_date": "2026-10-29", "start_time": null, "notes": "", "estimated_minutes": 45}
+### ITEM3 update_task {estimated_minutes: null}
+>>> 21:59:06 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 15, "params": {"name": "update_task", "arguments": {"id": "k_f2bac877745f", "estimated_minutes": null}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '385', 'date': 'Tue, 27 Oct 2026 13:59:06 GMT'}
+<<< {"jsonrpc":"2.0","id":15,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-10-30\",\"id\":\"k_f2bac877745f\",\"notes\":\"\",\"start_date\":\"2026-10-29\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"due_date":"2026-10-30","id":"k_f2bac877745f","notes":"","start_date":"2026-10-29","tags":[],"title":"V3-NULL"},"isError":false}}
+
+=== resp {"done": false, "due_date": "2026-10-30", "id": "k_f2bac877745f", "notes": "", "start_date": "2026-10-29", "tags": [], "title": "V3-NULL"}
+>>> 21:59:06 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 16, "params": {"name": "get_task", "arguments": {"id": "k_f2bac877745f"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '385', 'date': 'Tue, 27 Oct 2026 13:59:06 GMT'}
+<<< {"jsonrpc":"2.0","id":16,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-10-30\",\"id\":\"k_f2bac877745f\",\"notes\":\"\",\"start_date\":\"2026-10-29\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"due_date":"2026-10-30","id":"k_f2bac877745f","notes":"","start_date":"2026-10-29","tags":[],"title":"V3-NULL"},"isError":false}}
+
+=== get_task: {"due_date": "2026-10-30", "due_time": null, "start_date": "2026-10-29", "start_time": null, "notes": "", "estimated_minutes": null}
+### ITEM3 update_task {start_date: null}
+>>> 21:59:06 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 17, "params": {"name": "update_task", "arguments": {"id": "k_f2bac877745f", "start_date": null}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '329', 'date': 'Tue, 27 Oct 2026 13:59:06 GMT'}
+<<< {"jsonrpc":"2.0","id":17,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-10-30\",\"id\":\"k_f2bac877745f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"due_date":"2026-10-30","id":"k_f2bac877745f","notes":"","tags":[],"title":"V3-NULL"},"isError":false}}
+
+=== resp {"done": false, "due_date": "2026-10-30", "id": "k_f2bac877745f", "notes": "", "tags": [], "title": "V3-NULL"}
+>>> 21:59:06 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 18, "params": {"name": "get_task", "arguments": {"id": "k_f2bac877745f"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '329', 'date': 'Tue, 27 Oct 2026 13:59:06 GMT'}
+<<< {"jsonrpc":"2.0","id":18,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-10-30\",\"id\":\"k_f2bac877745f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"due_date":"2026-10-30","id":"k_f2bac877745f","notes":"","tags":[],"title":"V3-NULL"},"isError":false}}
+
+=== get_task: {"due_date": "2026-10-30", "due_time": null, "start_date": null, "start_time": null, "notes": "", "estimated_minutes": null}
+### ITEM3 update_task {due_date: null}
+>>> 21:59:06 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 19, "params": {"name": "update_task", "arguments": {"id": "k_f2bac877745f", "due_date": null}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '277', 'date': 'Tue, 27 Oct 2026 13:59:06 GMT'}
+<<< {"jsonrpc":"2.0","id":19,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_f2bac877745f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"id":"k_f2bac877745f","notes":"","tags":[],"title":"V3-NULL"},"isError":false}}
+
+=== resp {"done": false, "id": "k_f2bac877745f", "notes": "", "tags": [], "title": "V3-NULL"}
+>>> 21:59:06 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 20, "params": {"name": "get_task", "arguments": {"id": "k_f2bac877745f"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '277', 'date': 'Tue, 27 Oct 2026 13:59:06 GMT'}
+<<< {"jsonrpc":"2.0","id":20,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_f2bac877745f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"id":"k_f2bac877745f","notes":"","tags":[],"title":"V3-NULL"},"isError":false}}
+
+=== get_task: {"due_date": null, "due_time": null, "start_date": null, "start_time": null, "notes": "", "estimated_minutes": null}
+=== DB final: {"due_date": null, "due_time": null, "start_date": null, "start_time": null, "notes": "", "estimated_seconds": null}
+### ITEM3 absent fields leave things unchanged: set due_date then update only title
+>>> 21:59:07 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 21, "params": {"name": "update_task", "arguments": {"id": "k_f2bac877745f", "due_date": "2026-11-01", "notes": "keep"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '337', 'date': 'Tue, 27 Oct 2026 13:59:07 GMT'}
+<<< {"jsonrpc":"2.0","id":21,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-11-01\",\"id\":\"k_f2bac877745f\",\"notes\":\"keep\",\"tags\":[],\"title\":\"V3-NULL\"}"}],"structuredContent":{"done":false,"due_date":"2026-11-01","id":"k_f2bac877745f","notes":"keep","tags":[],"title":"V3-NULL"},"isError":false}}
+
+>>> 21:59:07 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 22, "params": {"name": "update_task", "arguments": {"id": "k_f2bac877745f", "title": "V3-NULL renamed"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '353', 'date': 'Tue, 27 Oct 2026 13:59:07 GMT'}
+<<< {"jsonrpc":"2.0","id":22,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-11-01\",\"id\":\"k_f2bac877745f\",\"notes\":\"keep\",\"tags\":[],\"title\":\"V3-NULL renamed\"}"}],"structuredContent":{"done":false,"due_date":"2026-11-01","id":"k_f2bac877745f","notes":"keep","tags":[],"title":"V3-NULL renamed"},"isError":false}}
+
+=== after title-only update: due_date='2026-11-01' notes='keep'
+### ITEM3 no-op update (null on already-null field) -> history row added?
+>>> 21:59:07 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 23, "params": {"name": "update_task", "arguments": {"id": "k_f2bac877745f", "start_date": null}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '353', 'date': 'Tue, 27 Oct 2026 13:59:07 GMT'}
+<<< {"jsonrpc":"2.0","id":23,"result":{"content":[{"type":"text","text":"{\"done\":false,\"due_date\":\"2026-11-01\",\"id\":\"k_f2bac877745f\",\"notes\":\"keep\",\"tags\":[],\"title\":\"V3-NULL renamed\"}"}],"structuredContent":{"done":false,"due_date":"2026-11-01","id":"k_f2bac877745f","notes":"keep","tags":[],"title":"V3-NULL renamed"},"isError":false}}
+
+=== history rows for task before/after no-op: 9/9
+### ITEM9 create_task estimated_minutes 25, then get/list
+>>> 21:59:08 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 24, "params": {"name": "create_task", "arguments": {"title": "V3-EST", "estimated_minutes": 25}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '323', 'date': 'Tue, 27 Oct 2026 13:59:08 GMT'}
+<<< {"jsonrpc":"2.0","id":24,"result":{"content":[{"type":"text","text":"{\"done\":false,\"estimated_minutes\":25,\"id\":\"k_8b66989a1cc6\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-EST\"}"}],"structuredContent":{"done":false,"estimated_minutes":25,"id":"k_8b66989a1cc6","notes":"","tags":[],"title":"V3-EST"},"isError":false}}
+
+=== create returned estimated_minutes=25
+>>> 21:59:08 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 25, "params": {"name": "get_task", "arguments": {"id": "k_8b66989a1cc6"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '323', 'date': 'Tue, 27 Oct 2026 13:59:08 GMT'}
+<<< {"jsonrpc":"2.0","id":25,"result":{"content":[{"type":"text","text":"{\"done\":false,\"estimated_minutes\":25,\"id\":\"k_8b66989a1cc6\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-EST\"}"}],"structuredContent":{"done":false,"estimated_minutes":25,"id":"k_8b66989a1cc6","notes":"","tags":[],"title":"V3-EST"},"isError":false}}
+
+=== get_task estimated_minutes=25
+>>> 21:59:08 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 26, "params": {"name": "list_tasks", "arguments": {"query": "V3-EST"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '387', 'date': 'Tue, 27 Oct 2026 13:59:08 GMT'}
+<<< {"jsonrpc":"2.0","id":26,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"done\":false,\"estimated_minutes\":25,\"id\":\"k_8b66989a1cc6\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-EST\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"done":false,"estimated_minutes":25,"id":"k_8b66989a1cc6","notes":"","tags":[],"title":"V3-EST"}],"truncated":false},"isError":false}}
+
+=== list_tasks row estimated_minutes=[25]
+>>> 21:59:08 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 27, "params": {"name": "update_task", "arguments": {"id": "k_8b66989a1cc6", "estimated_minutes": 90}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '323', 'date': 'Tue, 27 Oct 2026 13:59:08 GMT'}
+<<< {"jsonrpc":"2.0","id":27,"result":{"content":[{"type":"text","text":"{\"done\":false,\"estimated_minutes\":90,\"id\":\"k_8b66989a1cc6\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-EST\"}"}],"structuredContent":{"done":false,"estimated_minutes":90,"id":"k_8b66989a1cc6","notes":"","tags":[],"title":"V3-EST"},"isError":false}}
+
+=== update to 90 -> 90
+=== DB estimated_seconds=5400
+### ITEM10 complete_task twice
+>>> 21:59:09 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 28, "params": {"name": "create_task", "arguments": {"title": "V3-DONE2"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '279', 'date': 'Tue, 27 Oct 2026 13:59:09 GMT'}
+<<< {"jsonrpc":"2.0","id":28,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_0f60db7dbe23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-DONE2\"}"}],"structuredContent":{"done":false,"id":"k_0f60db7dbe23","notes":"","tags":[],"title":"V3-DONE2"},"isError":false}}
+
+>>> 21:59:09 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 29, "params": {"name": "complete_task", "arguments": {"id": "k_0f60db7dbe23"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '367', 'date': 'Tue, 27 Oct 2026 13:59:09 GMT'}
+<<< {"jsonrpc":"2.0","id":29,"result":{"content":[{"type":"text","text":"{\"completed_at\":\"2026-10-27T21:59:09+08:00\",\"done\":true,\"id\":\"k_0f60db7dbe23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-DONE2\"}"}],"structuredContent":{"completed_at":"2026-10-27T21:59:09+08:00","done":true,"id":"k_0f60db7dbe23","notes":"","tags":[],"title":"V3-DONE2"},"isError":false}}
+
+=== 1st complete: done=True completed_at='2026-10-27T21:59:09+08:00'
+>>> 21:59:12 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 30, "params": {"name": "complete_task", "arguments": {"id": "k_0f60db7dbe23"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '367', 'date': 'Tue, 27 Oct 2026 13:59:12 GMT'}
+<<< {"jsonrpc":"2.0","id":30,"result":{"content":[{"type":"text","text":"{\"completed_at\":\"2026-10-27T21:59:09+08:00\",\"done\":true,\"id\":\"k_0f60db7dbe23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-DONE2\"}"}],"structuredContent":{"completed_at":"2026-10-27T21:59:09+08:00","done":true,"id":"k_0f60db7dbe23","notes":"","tags":[],"title":"V3-DONE2"},"isError":false}}
+
+=== 2nd complete: done=True completed_at='2026-10-27T21:59:09+08:00'
+=== DB completed_at 1st='2026-10-27T21:59:09+08:00' 2nd='2026-10-27T21:59:09+08:00'; updated_at 1st='2026-10-27T21:59:09+08:00' 2nd='2026-10-27T21:59:09+08:00'
+=== history rows for task after 1st=2 after 2nd=2: [('task.created', 'Created task'), ('task.completed', 'Completed task')]
+### ITEM8 create 12 V3-LIST tasks
+>>> 21:59:14 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 31, "params": {"name": "create_task", "arguments": {"title": "V3-LIST-00"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '283', 'date': 'Tue, 27 Oct 2026 13:59:14 GMT'}
+<<< {"jsonrpc":"2.0","id":31,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_543f9fd639be\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-00\"}"}],"structuredContent":{"done":false,"id":"k_543f9fd639be","notes":"","tags":[],"title":"V3-LIST-00"},"isError":false}}
+
+>>> 21:59:14 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 32, "params": {"name": "create_task", "arguments": {"title": "V3-LIST-01"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '283', 'date': 'Tue, 27 Oct 2026 13:59:14 GMT'}
+<<< {"jsonrpc":"2.0","id":32,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_f6580eb9040d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-01\"}"}],"structuredContent":{"done":false,"id":"k_f6580eb9040d","notes":"","tags":[],"title":"V3-LIST-01"},"isError":false}}
+
+>>> 21:59:14 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 33, "params": {"name": "create_task", "arguments": {"title": "V3-LIST-02"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '283', 'date': 'Tue, 27 Oct 2026 13:59:14 GMT'}
+<<< {"jsonrpc":"2.0","id":33,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_35b0785986fd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-02\"}"}],"structuredContent":{"done":false,"id":"k_35b0785986fd","notes":"","tags":[],"title":"V3-LIST-02"},"isError":false}}
+
+>>> 21:59:14 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 34, "params": {"name": "create_task", "arguments": {"title": "V3-LIST-03"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '283', 'date': 'Tue, 27 Oct 2026 13:59:14 GMT'}
+<<< {"jsonrpc":"2.0","id":34,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_e7e3c65ba8d5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-03\"}"}],"structuredContent":{"done":false,"id":"k_e7e3c65ba8d5","notes":"","tags":[],"title":"V3-LIST-03"},"isError":false}}
+
+>>> 21:59:14 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 35, "params": {"name": "create_task", "arguments": {"title": "V3-LIST-04"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '283', 'date': 'Tue, 27 Oct 2026 13:59:14 GMT'}
+<<< {"jsonrpc":"2.0","id":35,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_a11998c250fa\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-04\"}"}],"structuredContent":{"done":false,"id":"k_a11998c250fa","notes":"","tags":[],"title":"V3-LIST-04"},"isError":false}}
+
+>>> 21:59:14 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 36, "params": {"name": "create_task", "arguments": {"title": "V3-LIST-05"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '283', 'date': 'Tue, 27 Oct 2026 13:59:14 GMT'}
+<<< {"jsonrpc":"2.0","id":36,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_fcd1c58e1139\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-05\"}"}],"structuredContent":{"done":false,"id":"k_fcd1c58e1139","notes":"","tags":[],"title":"V3-LIST-05"},"isError":false}}
+
+>>> 21:59:14 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 37, "params": {"name": "create_task", "arguments": {"title": "V3-LIST-06"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '283', 'date': 'Tue, 27 Oct 2026 13:59:14 GMT'}
+<<< {"jsonrpc":"2.0","id":37,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_e5537845fb23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-06\"}"}],"structuredContent":{"done":false,"id":"k_e5537845fb23","notes":"","tags":[],"title":"V3-LIST-06"},"isError":false}}
+
+>>> 21:59:14 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 38, "params": {"name": "create_task", "arguments": {"title": "V3-LIST-07"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '283', 'date': 'Tue, 27 Oct 2026 13:59:14 GMT'}
+<<< {"jsonrpc":"2.0","id":38,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_35f5a2a68c7d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-07\"}"}],"structuredContent":{"done":false,"id":"k_35f5a2a68c7d","notes":"","tags":[],"title":"V3-LIST-07"},"isError":false}}
+
+>>> 21:59:14 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 39, "params": {"name": "create_task", "arguments": {"title": "V3-LIST-08"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '283', 'date': 'Tue, 27 Oct 2026 13:59:14 GMT'}
+<<< {"jsonrpc":"2.0","id":39,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_f4cdf9aef3c2\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-08\"}"}],"structuredContent":{"done":false,"id":"k_f4cdf9aef3c2","notes":"","tags":[],"title":"V3-LIST-08"},"isError":false}}
+
+>>> 21:59:14 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 40, "params": {"name": "create_task", "arguments": {"title": "V3-LIST-09"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '283', 'date': 'Tue, 27 Oct 2026 13:59:14 GMT'}
+<<< {"jsonrpc":"2.0","id":40,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_2d55fafa90cd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-09\"}"}],"structuredContent":{"done":false,"id":"k_2d55fafa90cd","notes":"","tags":[],"title":"V3-LIST-09"},"isError":false}}
+
+>>> 21:59:14 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 41, "params": {"name": "create_task", "arguments": {"title": "V3-LIST-10"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '283', 'date': 'Tue, 27 Oct 2026 13:59:14 GMT'}
+<<< {"jsonrpc":"2.0","id":41,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_811dfa69421f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-10\"}"}],"structuredContent":{"done":false,"id":"k_811dfa69421f","notes":"","tags":[],"title":"V3-LIST-10"},"isError":false}}
+
+>>> 21:59:14 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 42, "params": {"name": "create_task", "arguments": {"title": "V3-LIST-11"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '283', 'date': 'Tue, 27 Oct 2026 13:59:14 GMT'}
+<<< {"jsonrpc":"2.0","id":42,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_68e86e9cc711\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-11\"}"}],"structuredContent":{"done":false,"id":"k_68e86e9cc711","notes":"","tags":[],"title":"V3-LIST-11"},"isError":false}}
+
+>>> 21:59:15 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 43, "params": {"name": "list_tasks", "arguments": {"view": "all"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '3097', 'date': 'Tue, 27 Oct 2026 13:59:15 GMT'}
+<<< {"jsonrpc":"2.0","id":43,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"done\":false,\"id\":\"k_f10512ed2df5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 original\"},{\"done\":false,\"id\":\"k_d9a4adb8b032\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 unrelated write\"},{\"done\":false,\"due_date\":\"2026-11-01\",\"id\":\"k_f2bac877745f\",\"notes\":\"keep\",\"tags\":[],\"title\":\"V3-NULL renamed\"},{\"done\":false,\"estimated_minutes\":90,\"id\":\"k_8b66989a1cc6\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-EST\"},{\"done\":false,\"id\":\"k_543f9fd639be\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-00\"},{\"done\":false,\"id\":\"k_f6580eb9040d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-01\"},{\"done\":false,\"id\":\"k_35b0785986fd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-02\"},{\"done\":false,\"id\":\"k_e7e3c65ba8d5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-03\"},{\"done\":false,\"id\":\"k_a11998c250fa\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-04\"},{\"done\":false,\"id\":\"k_fcd1c58e1139\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-05\"},{\"done\":false,\"id\":\"k_e5537845fb23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-06\"},{\"done\":false,\"id\":\"k_35f5a2a68c7d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-07\"},{\"done\":false,\"id\":\"k_f4cdf9aef3c2\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-08\"},{\"done\":false,\"id\":\"k_2d55fafa90cd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-09\"},{\"done\":false,\"id\":\"k_811dfa69421f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-10\"},{\"done\":false,\"id\":\"k_68e86e9cc711\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-11\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"done":false,"id":"k_f10512ed2df5","notes":"","tags":[],"title":"V3-B1 original"},{"done":false,"id":"k_d9a4adb8b032","notes":"","tags":[],"title":"V3-B1 unrelated write"},{"done":false,"due_date":"2026-11-01","id":"k_f2bac877745f","notes":"keep","tags":[],"title":"V3-NULL renamed"},{"done":false,"estimated_minutes":90,"id":"k_8b66989a1cc6","notes":"","tags":[],"title":"V3-EST"},{"done":false,"id":"k_543f9fd639be","notes":"","tags":[],"title":"V3-LIST-00"},{"done":false,"id":"k_f6580eb9040d","notes":"","tags":[],"title":"V3-LIST-01"},{"done":false,"id":"k_35b0785986fd","notes":"","tags":[],"title":"V3-LIST-02"},{"done":false,"id":"k_e7e3c65ba8d5","notes":"","tags":[],"title":"V3-LIST-03"},{"done":false,"id":"k_a11998c250fa","notes":"","tags":[],"title":"V3-LIST-04"},{"done":false,"id":"k_fcd1c58e1139","notes":"","tags":[],"title":"V3-LIST-05"},{"done":false,"id":"k_e5537845fb23","notes":"","tags":[],"title":"V3-LIST-06"},{"done":false,"id":"k_35f5a2a68c7d","notes":"","tags":[],"title":"V3-LIST-07"},{"done":false,"id":"k_f4cdf9aef3c2","notes":"","tags":[],"title":"V3-LIST-08"},{"done":false,"id":"k_2d55fafa90cd","notes":"","tags":[],"title":"V3-LIST-09"},{"done":false,"id":"k_811dfa69421f","notes":"","tags":[],"title":"V3-LIST-10"},{"done":false,"id":...(3097 bytes)
+
+=== view=all no limit: 16 rows, truncated=False; DB rows=17
+>>> 21:59:15 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 44, "params": {"name": "list_tasks", "arguments": {}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '3097', 'date': 'Tue, 27 Oct 2026 13:59:15 GMT'}
+<<< {"jsonrpc":"2.0","id":44,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"done\":false,\"id\":\"k_f10512ed2df5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 original\"},{\"done\":false,\"id\":\"k_d9a4adb8b032\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 unrelated write\"},{\"done\":false,\"due_date\":\"2026-11-01\",\"id\":\"k_f2bac877745f\",\"notes\":\"keep\",\"tags\":[],\"title\":\"V3-NULL renamed\"},{\"done\":false,\"estimated_minutes\":90,\"id\":\"k_8b66989a1cc6\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-EST\"},{\"done\":false,\"id\":\"k_543f9fd639be\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-00\"},{\"done\":false,\"id\":\"k_f6580eb9040d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-01\"},{\"done\":false,\"id\":\"k_35b0785986fd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-02\"},{\"done\":false,\"id\":\"k_e7e3c65ba8d5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-03\"},{\"done\":false,\"id\":\"k_a11998c250fa\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-04\"},{\"done\":false,\"id\":\"k_fcd1c58e1139\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-05\"},{\"done\":false,\"id\":\"k_e5537845fb23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-06\"},{\"done\":false,\"id\":\"k_35f5a2a68c7d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-07\"},{\"done\":false,\"id\":\"k_f4cdf9aef3c2\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-08\"},{\"done\":false,\"id\":\"k_2d55fafa90cd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-09\"},{\"done\":false,\"id\":\"k_811dfa69421f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-10\"},{\"done\":false,\"id\":\"k_68e86e9cc711\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-11\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"done":false,"id":"k_f10512ed2df5","notes":"","tags":[],"title":"V3-B1 original"},{"done":false,"id":"k_d9a4adb8b032","notes":"","tags":[],"title":"V3-B1 unrelated write"},{"done":false,"due_date":"2026-11-01","id":"k_f2bac877745f","notes":"keep","tags":[],"title":"V3-NULL renamed"},{"done":false,"estimated_minutes":90,"id":"k_8b66989a1cc6","notes":"","tags":[],"title":"V3-EST"},{"done":false,"id":"k_543f9fd639be","notes":"","tags":[],"title":"V3-LIST-00"},{"done":false,"id":"k_f6580eb9040d","notes":"","tags":[],"title":"V3-LIST-01"},{"done":false,"id":"k_35b0785986fd","notes":"","tags":[],"title":"V3-LIST-02"},{"done":false,"id":"k_e7e3c65ba8d5","notes":"","tags":[],"title":"V3-LIST-03"},{"done":false,"id":"k_a11998c250fa","notes":"","tags":[],"title":"V3-LIST-04"},{"done":false,"id":"k_fcd1c58e1139","notes":"","tags":[],"title":"V3-LIST-05"},{"done":false,"id":"k_e5537845fb23","notes":"","tags":[],"title":"V3-LIST-06"},{"done":false,"id":"k_35f5a2a68c7d","notes":"","tags":[],"title":"V3-LIST-07"},{"done":false,"id":"k_f4cdf9aef3c2","notes":"","tags":[],"title":"V3-LIST-08"},{"done":false,"id":"k_2d55fafa90cd","notes":"","tags":[],"title":"V3-LIST-09"},{"done":false,"id":"k_811dfa69421f","notes":"","tags":[],"title":"V3-LIST-10"},{"done":false,"id":...(3097 bytes)
+
+=== default (no args): 16 rows truncated=False
+>>> 21:59:15 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 45, "params": {"name": "list_tasks", "arguments": {"query": "V3-LIST"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '2261', 'date': 'Tue, 27 Oct 2026 13:59:15 GMT'}
+<<< {"jsonrpc":"2.0","id":45,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"done\":false,\"id\":\"k_543f9fd639be\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-00\"},{\"done\":false,\"id\":\"k_f6580eb9040d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-01\"},{\"done\":false,\"id\":\"k_35b0785986fd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-02\"},{\"done\":false,\"id\":\"k_e7e3c65ba8d5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-03\"},{\"done\":false,\"id\":\"k_a11998c250fa\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-04\"},{\"done\":false,\"id\":\"k_fcd1c58e1139\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-05\"},{\"done\":false,\"id\":\"k_e5537845fb23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-06\"},{\"done\":false,\"id\":\"k_35f5a2a68c7d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-07\"},{\"done\":false,\"id\":\"k_f4cdf9aef3c2\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-08\"},{\"done\":false,\"id\":\"k_2d55fafa90cd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-09\"},{\"done\":false,\"id\":\"k_811dfa69421f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-10\"},{\"done\":false,\"id\":\"k_68e86e9cc711\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-11\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"done":false,"id":"k_543f9fd639be","notes":"","tags":[],"title":"V3-LIST-00"},{"done":false,"id":"k_f6580eb9040d","notes":"","tags":[],"title":"V3-LIST-01"},{"done":false,"id":"k_35b0785986fd","notes":"","tags":[],"title":"V3-LIST-02"},{"done":false,"id":"k_e7e3c65ba8d5","notes":"","tags":[],"title":"V3-LIST-03"},{"done":false,"id":"k_a11998c250fa","notes":"","tags":[],"title":"V3-LIST-04"},{"done":false,"id":"k_fcd1c58e1139","notes":"","tags":[],"title":"V3-LIST-05"},{"done":false,"id":"k_e5537845fb23","notes":"","tags":[],"title":"V3-LIST-06"},{"done":false,"id":"k_35f5a2a68c7d","notes":"","tags":[],"title":"V3-LIST-07"},{"done":false,"id":"k_f4cdf9aef3c2","notes":"","tags":[],"title":"V3-LIST-08"},{"done":false,"id":"k_2d55fafa90cd","notes":"","tags":[],"title":"V3-LIST-09"},{"done":false,"id":"k_811dfa69421f","notes":"","tags":[],"title":"V3-LIST-10"},{"done":false,"id":"k_68e86e9cc711","notes":"","tags":[],"title":"V3-LIST-11"}],"truncated":false},"isError":false}}
+
+=== query V3-LIST no limit: 12 rows truncated=False
+>>> 21:59:15 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 46, "params": {"name": "list_tasks", "arguments": {"query": "V3-LIST", "limit": 5}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '1041', 'date': 'Tue, 27 Oct 2026 13:59:15 GMT'}
+<<< {"jsonrpc":"2.0","id":46,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"done\":false,\"id\":\"k_543f9fd639be\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-00\"},{\"done\":false,\"id\":\"k_f6580eb9040d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-01\"},{\"done\":false,\"id\":\"k_35b0785986fd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-02\"},{\"done\":false,\"id\":\"k_e7e3c65ba8d5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-03\"},{\"done\":false,\"id\":\"k_a11998c250fa\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-04\"}],\"truncated\":true}"}],"structuredContent":{"tasks":[{"done":false,"id":"k_543f9fd639be","notes":"","tags":[],"title":"V3-LIST-00"},{"done":false,"id":"k_f6580eb9040d","notes":"","tags":[],"title":"V3-LIST-01"},{"done":false,"id":"k_35b0785986fd","notes":"","tags":[],"title":"V3-LIST-02"},{"done":false,"id":"k_e7e3c65ba8d5","notes":"","tags":[],"title":"V3-LIST-03"},{"done":false,"id":"k_a11998c250fa","notes":"","tags":[],"title":"V3-LIST-04"}],"truncated":true},"isError":false}}
+
+>>> 21:59:15 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 47, "params": {"name": "list_tasks", "arguments": {"query": "V3-LIST", "limit": 5, "offset": 5}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '1041', 'date': 'Tue, 27 Oct 2026 13:59:15 GMT'}
+<<< {"jsonrpc":"2.0","id":47,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"done\":false,\"id\":\"k_fcd1c58e1139\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-05\"},{\"done\":false,\"id\":\"k_e5537845fb23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-06\"},{\"done\":false,\"id\":\"k_35f5a2a68c7d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-07\"},{\"done\":false,\"id\":\"k_f4cdf9aef3c2\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-08\"},{\"done\":false,\"id\":\"k_2d55fafa90cd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-09\"}],\"truncated\":true}"}],"structuredContent":{"tasks":[{"done":false,"id":"k_fcd1c58e1139","notes":"","tags":[],"title":"V3-LIST-05"},{"done":false,"id":"k_e5537845fb23","notes":"","tags":[],"title":"V3-LIST-06"},{"done":false,"id":"k_35f5a2a68c7d","notes":"","tags":[],"title":"V3-LIST-07"},{"done":false,"id":"k_f4cdf9aef3c2","notes":"","tags":[],"title":"V3-LIST-08"},{"done":false,"id":"k_2d55fafa90cd","notes":"","tags":[],"title":"V3-LIST-09"}],"truncated":true},"isError":false}}
+
+>>> 21:59:15 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 48, "params": {"name": "list_tasks", "arguments": {"query": "V3-LIST", "limit": 5, "offset": 10}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '521', 'date': 'Tue, 27 Oct 2026 13:59:15 GMT'}
+<<< {"jsonrpc":"2.0","id":48,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"done\":false,\"id\":\"k_811dfa69421f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-10\"},{\"done\":false,\"id\":\"k_68e86e9cc711\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-11\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"done":false,"id":"k_811dfa69421f","notes":"","tags":[],"title":"V3-LIST-10"},{"done":false,"id":"k_68e86e9cc711","notes":"","tags":[],"title":"V3-LIST-11"}],"truncated":false},"isError":false}}
+
+=== pages sizes=[5, 5, 2] truncated=[True, True, False]
+=== concatenated pages == unpaged list (same order): True; overlap: 0
+>>> 21:59:15 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 49, "params": {"name": "list_tasks", "arguments": {"query": "V3-LIST", "limit": 5, "offset": 12}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '175', 'date': 'Tue, 27 Oct 2026 13:59:15 GMT'}
+<<< {"jsonrpc":"2.0","id":49,"result":{"content":[{"type":"text","text":"{\"tasks\":[],\"truncated\":false}"}],"structuredContent":{"tasks":[],"truncated":false},"isError":false}}
+
+=== offset=12 limit=5: 0 rows truncated=False
+>>> 21:59:15 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 50, "params": {"name": "list_tasks", "arguments": {"query": "V3-LIST", "offset": 10}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '521', 'date': 'Tue, 27 Oct 2026 13:59:15 GMT'}
+<<< {"jsonrpc":"2.0","id":50,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"done\":false,\"id\":\"k_811dfa69421f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-10\"},{\"done\":false,\"id\":\"k_68e86e9cc711\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-11\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"done":false,"id":"k_811dfa69421f","notes":"","tags":[],"title":"V3-LIST-10"},{"done":false,"id":"k_68e86e9cc711","notes":"","tags":[],"title":"V3-LIST-11"}],"truncated":false},"isError":false}}
+
+=== offset=10 no limit: 2 rows truncated=False
+>>> 21:59:15 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 51, "params": {"name": "list_tasks", "arguments": {"query": "V3-LIST", "limit": 12}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '2261', 'date': 'Tue, 27 Oct 2026 13:59:15 GMT'}
+<<< {"jsonrpc":"2.0","id":51,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"done\":false,\"id\":\"k_543f9fd639be\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-00\"},{\"done\":false,\"id\":\"k_f6580eb9040d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-01\"},{\"done\":false,\"id\":\"k_35b0785986fd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-02\"},{\"done\":false,\"id\":\"k_e7e3c65ba8d5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-03\"},{\"done\":false,\"id\":\"k_a11998c250fa\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-04\"},{\"done\":false,\"id\":\"k_fcd1c58e1139\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-05\"},{\"done\":false,\"id\":\"k_e5537845fb23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-06\"},{\"done\":false,\"id\":\"k_35f5a2a68c7d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-07\"},{\"done\":false,\"id\":\"k_f4cdf9aef3c2\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-08\"},{\"done\":false,\"id\":\"k_2d55fafa90cd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-09\"},{\"done\":false,\"id\":\"k_811dfa69421f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-10\"},{\"done\":false,\"id\":\"k_68e86e9cc711\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-11\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"done":false,"id":"k_543f9fd639be","notes":"","tags":[],"title":"V3-LIST-00"},{"done":false,"id":"k_f6580eb9040d","notes":"","tags":[],"title":"V3-LIST-01"},{"done":false,"id":"k_35b0785986fd","notes":"","tags":[],"title":"V3-LIST-02"},{"done":false,"id":"k_e7e3c65ba8d5","notes":"","tags":[],"title":"V3-LIST-03"},{"done":false,"id":"k_a11998c250fa","notes":"","tags":[],"title":"V3-LIST-04"},{"done":false,"id":"k_fcd1c58e1139","notes":"","tags":[],"title":"V3-LIST-05"},{"done":false,"id":"k_e5537845fb23","notes":"","tags":[],"title":"V3-LIST-06"},{"done":false,"id":"k_35f5a2a68c7d","notes":"","tags":[],"title":"V3-LIST-07"},{"done":false,"id":"k_f4cdf9aef3c2","notes":"","tags":[],"title":"V3-LIST-08"},{"done":false,"id":"k_2d55fafa90cd","notes":"","tags":[],"title":"V3-LIST-09"},{"done":false,"id":"k_811dfa69421f","notes":"","tags":[],"title":"V3-LIST-10"},{"done":false,"id":"k_68e86e9cc711","notes":"","tags":[],"title":"V3-LIST-11"}],"truncated":false},"isError":false}}
+
+=== limit=12 exactly matches: 12 rows truncated=False
+>>> 21:59:15 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 52, "params": {"name": "list_tasks", "arguments": {"query": "V3-LIST", "limit": 0}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '86', 'date': 'Tue, 27 Oct 2026 13:59:15 GMT'}
+<<< {"jsonrpc":"2.0","id":52,"error":{"code":-32602,"message":"limit must be at least 1"}}
+
+=== limit=0: {"_error": {"code": -32602, "message": "limit must be at least 1"}}
+>>> 21:59:15 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "method": "tools/call", "id": 53, "params": {"name": "list_tasks", "arguments": {"query": "V3-LIST", "limit": 2000}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '2261', 'date': 'Tue, 27 Oct 2026 13:59:15 GMT'}
+<<< {"jsonrpc":"2.0","id":53,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"done\":false,\"id\":\"k_543f9fd639be\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-00\"},{\"done\":false,\"id\":\"k_f6580eb9040d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-01\"},{\"done\":false,\"id\":\"k_35b0785986fd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-02\"},{\"done\":false,\"id\":\"k_e7e3c65ba8d5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-03\"},{\"done\":false,\"id\":\"k_a11998c250fa\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-04\"},{\"done\":false,\"id\":\"k_fcd1c58e1139\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-05\"},{\"done\":false,\"id\":\"k_e5537845fb23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-06\"},{\"done\":false,\"id\":\"k_35f5a2a68c7d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-07\"},{\"done\":false,\"id\":\"k_f4cdf9aef3c2\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-08\"},{\"done\":false,\"id\":\"k_2d55fafa90cd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-09\"},{\"done\":false,\"id\":\"k_811dfa69421f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-10\"},{\"done\":false,\"id\":\"k_68e86e9cc711\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-11\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"done":false,"id":"k_543f9fd639be","notes":"","tags":[],"title":"V3-LIST-00"},{"done":false,"id":"k_f6580eb9040d","notes":"","tags":[],"title":"V3-LIST-01"},{"done":false,"id":"k_35b0785986fd","notes":"","tags":[],"title":"V3-LIST-02"},{"done":false,"id":"k_e7e3c65ba8d5","notes":"","tags":[],"title":"V3-LIST-03"},{"done":false,"id":"k_a11998c250fa","notes":"","tags":[],"title":"V3-LIST-04"},{"done":false,"id":"k_fcd1c58e1139","notes":"","tags":[],"title":"V3-LIST-05"},{"done":false,"id":"k_e5537845fb23","notes":"","tags":[],"title":"V3-LIST-06"},{"done":false,"id":"k_35f5a2a68c7d","notes":"","tags":[],"title":"V3-LIST-07"},{"done":false,"id":"k_f4cdf9aef3c2","notes":"","tags":[],"title":"V3-LIST-08"},{"done":false,"id":"k_2d55fafa90cd","notes":"","tags":[],"title":"V3-LIST-09"},{"done":false,"id":"k_811dfa69421f","notes":"","tags":[],"title":"V3-LIST-10"},{"done":false,"id":"k_68e86e9cc711","notes":"","tags":[],"title":"V3-LIST-11"}],"truncated":false},"isError":false}}
+
+=== limit=2000: 12 rows truncated=False
+
+################ after4-endpoint.txt ################
+# PR #249 @ 0ed0b62 endpoint test, 2026-10-27 21:59:23 CST
+
+===== auth) initialize, no Authorization header =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' --data '{"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "curl-test", "version": "0"}}}'
+--- response ---
+HTTP/1.1 401 Unauthorized
+content-length: 0
+date: Tue, 27 Oct 2026 13:59:23 GMT
+
+===== auth) initialize, wrong bearer token =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer wrong-token' --data '{"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "curl-test", "version": "0"}}}'
+--- response ---
+HTTP/1.1 401 Unauthorized
+content-length: 0
+date: Tue, 27 Oct 2026 13:59:23 GMT
+
+===== auth) initialize, Basic auth (not Bearer) =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Basic Zm9vOmJhcg==' --data '{"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "curl-test", "version": "0"}}}'
+--- response ---
+HTTP/1.1 401 Unauthorized
+content-length: 0
+date: Tue, 27 Oct 2026 13:59:23 GMT
+
+===== origin) valid token + Origin: http://evil.example =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' -H 'Origin: http://evil.example' --data '{"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "curl-test", "version": "0"}}}'
+--- response ---
+HTTP/1.1 403 Forbidden
+content-length: 0
+date: Tue, 27 Oct 2026 13:59:23 GMT
+
+===== origin) no token + Origin: http://evil.example =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Origin: http://evil.example' --data '{"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "curl-test", "version": "0"}}}'
+--- response ---
+HTTP/1.1 403 Forbidden
+content-length: 0
+date: Tue, 27 Oct 2026 13:59:23 GMT
+
+===== origin) valid token + Origin: http://localhost =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' -H 'Origin: http://localhost' --data '{"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "curl-test", "version": "0"}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 147
+date: Tue, 27 Oct 2026 13:59:23 GMT
+
+{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":"2025-03-26","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+===== origin) valid token + Origin: http://127.0.0.1.evil.example =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' -H 'Origin: http://127.0.0.1.evil.example' --data '{"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "curl-test", "version": "0"}}}'
+--- response ---
+HTTP/1.1 403 Forbidden
+content-length: 0
+date: Tue, 27 Oct 2026 13:59:23 GMT
+
+===== init) initialize with token, no Origin =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "curl-test", "version": "0"}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 147
+date: Tue, 27 Oct 2026 13:59:23 GMT
+
+{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":"2025-03-26","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+===== init) notifications/initialized =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "method": "notifications/initialized"}'
+--- response ---
+HTTP/1.1 202 Accepted
+content-length: 0
+date: Tue, 27 Oct 2026 13:59:23 GMT
+
+===== a) tools/list =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 6951
+date: Tue, 27 Oct 2026 13:59:23 GMT
+
+{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"complete_task","description":"Mark a task done or reopen it (done=false).","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"done":{"default":true,"type":"boolean"},"id":{"type":"string"}},"required":["id"],"type":"object"},"outputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"completed_at":{"type":["string","null"]},"done":{"type":"boolean"},"due_date":{"type":["string","null"]},"due_time":{"type":["string","null"]},"estimated_minutes":{"format":"int64","type":["integer","null"]},"id":{"type":"string"},"notes":{"type":"string"},"start_date":{"type":["string","null"]},"start_time":{"type":["string","null"]},"tags":{"items":{"type":"string"},"type":"array"},"title":{"type":"string"}},"required":["id","title","notes","tags","done"],"type":"object"}},{"name":"create_task","description":"Create a task. Tag names must already exist.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"due_date":{"format":"date","type":["string","null"]},"due_time":{"type":["string","null"]},"estimated_minutes":{"format":"int64","type":["integer","null"]},"notes":{"type":["string","null"]},"start_date":{"format":"date","type":["string","null"]},"start_time":{"type":["string","null"]},"tags":{"items":{"type":"string"},"type":["array","null"]},"title":{"type":"string"}},"required":["title"],"type":"object"},"outputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"completed_at":{"type":["string","null"]},"done":{"type":"boolean"},"due_date":{"type":["string","null"]},"due_time":{"type":["string","null"]},"estimated_minutes":{"format":"int64","type":["integer","null"]},"id":{"type":"string"},"notes":{"type":"string"},"start_date":{"type":["string","null"]},"start_time":{"type":["string","null"]},"tags":{"items":{"type":"string"},"type":"array"},"title":{"type":"string"}},"required":["id","title","notes","tags","done"],"type":"object"}},{"name":"delete_task","description":"Delete a task permanently.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"id":{"type":"string"}},"required":["id"],"type":"object"},"outputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"deleted":{"type":"boolean"},"id":{"type":"string"}},"required":["deleted","id"],"type":"object"}},{"name":"get_task","description":"Fetch one task by id.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"id":{"type":"string"}},"required":["id"],"type":"object"},"outputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"completed_at":{"type":["string","null"]},"done":{"type":"boolean"},"due_date":{"type":["string","null"]},"due_time":{"type":["string","null"]},"estimated_minutes":{"format":"int64","type":["integer","null"]},"id":{"type":"string"},"notes":{"type":"string"},"start_date":{"type":["string","null"]},"start_time":{"type":["string","null"]},"tags":{"items":{"type":"string"},"type":"array"},"title":{"type":"string"}},"required":["id","title","notes","tags","done"],"type":"object"}},{"name":"list_tags","description":"List all tags (id and name).","inputSchema":{"properties":{},"type":"object"},"outputSchema":{"$defs":{"McpTagRef":{"properties":{"color":{"type":"string"},"id":{"type":"string"},"name":{"type":"string"},"priority":{"format":"int64","type":"integer"}},"required":["id","name","color","priority"],"type":"object"}},"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"tags":{"items":{"$ref":"#/$defs/McpTagRef"},"type":"array"}},"required":["tags"],"type":"object"}},{"name":"list_tasks","description":"List tasks with optional view and filters. view=all returns active (non-archived) tasks and excludes completed/archived ones; use view=completed for finished tasks. Returns at most 500 tasks per call (set limit 1..500); truncated is true when more matches exist.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"due_after":{"format":"date","type":["string","null"]},"due_before":{"format":"date","type":["string","null"]},"limit":{"description":"Maximum rows to return (1..=500). Omit to use the server default cap (500).","format":"uint32","minimum":0,"type":["integer","null"]},"offset":{"description":"Skip this many rows before applying `limit`.","format":"uint32","minimum":0,"type":["integer","null"]},"query":{"description":"Case-insensitive substring match in title or notes.","type":["string","null"]},"tag":{"description":"Filter to tasks carrying this tag name (case-insensitive).","type":["string","null"]},"view":{"description":"View filter: today, inbox, upcoming, completed, or all.","type":["string","null"]}},"type":"object"},"outputSchema":{"$defs":{"McpTask":{"properties":{"completed_at":{"type":["string","null"]},"done":{"type":"boolean"},"due_date":{"type":["string","null"]},"due_time":{"type":["string","null"]},"estimated_minutes":{"format":"int64","type":["integer","null"]},"id":{"type":"string"},"notes":{"type":"string"},"start_date":{"type":["string","null"]},"start_time":{"type":["string","null"]},"tags":{"items":{"type":"string"},"type":"array"},"title":{"type":"string"}},"required":["id","title","notes","tags","done"],"type":"object"}},"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"tasks":{"items":{"$ref":"#/$defs/McpTask"},"type":"array"},"truncated":{"description":"True when more tasks matched than returned (default cap or explicit `limit`).","type":"boolean"}},"required":["tasks","truncated"],"type":"object"}},{"name":"update_task","description":"Update a task. Pass null to clear an optional field.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"due_date":{"default":null,"format":"date","type":["string","null"]},"due_time":{"default":null,"type":["string","null"]},"estimated_minutes":{"default":null,"format":"int64","type":["integer","null"]},"id":{"type":"string"},"notes":{"default":null,"type":["string","null"]},"start_date":{"default":null,"format":"date","type":["string","null"]},"start_time":{"default":null,"type":["string","null"]},"tags":{"items":{"type":"string"},"type":["array","null"]},"title":{"type":["string","null"]}},"required":["id"],"type":"object"},"outputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"completed_at":{"type":["string","null"]},"done":{"type":"boolean"},"due_date":{"type":["string","null"]},"due_time":{"type":["string","null"]},"estimated_minutes":{"format":"int64","type":["integer","null"]},"id":{"type":"string"},"notes":{"type":"string"},"start_date":{"type":["string","null"]},"start_time":{"type":["string","null"]},"tags":{"items":{"type":"string"},"type":"array"},"title":{"type":"string"}},"required":["id","title","notes","tags","done"],"type":"object"}}]}}
+
+===== preclean) list_tasks view=all =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "list_tasks", "arguments": {"view": "all", "limit": 500}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 3096
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"done\":false,\"id\":\"k_f10512ed2df5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 original\"},{\"done\":false,\"id\":\"k_d9a4adb8b032\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 unrelated write\"},{\"done\":false,\"due_date\":\"2026-11-01\",\"id\":\"k_f2bac877745f\",\"notes\":\"keep\",\"tags\":[],\"title\":\"V3-NULL renamed\"},{\"done\":false,\"estimated_minutes\":90,\"id\":\"k_8b66989a1cc6\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-EST\"},{\"done\":false,\"id\":\"k_543f9fd639be\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-00\"},{\"done\":false,\"id\":\"k_f6580eb9040d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-01\"},{\"done\":false,\"id\":\"k_35b0785986fd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-02\"},{\"done\":false,\"id\":\"k_e7e3c65ba8d5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-03\"},{\"done\":false,\"id\":\"k_a11998c250fa\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-04\"},{\"done\":false,\"id\":\"k_fcd1c58e1139\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-05\"},{\"done\":false,\"id\":\"k_e5537845fb23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-06\"},{\"done\":false,\"id\":\"k_35f5a2a68c7d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-07\"},{\"done\":false,\"id\":\"k_f4cdf9aef3c2\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-08\"},{\"done\":false,\"id\":\"k_2d55fafa90cd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-09\"},{\"done\":false,\"id\":\"k_811dfa69421f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-10\"},{\"done\":false,\"id\":\"k_68e86e9cc711\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-11\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"done":false,"id":"k_f10512ed2df5","notes":"","tags":[],"title":"V3-B1 original"},{"done":false,"id":"k_d9a4adb8b032","notes":"","tags":[],"title":"V3-B1 unrelated write"},{"done":false,"due_date":"2026-11-01","id":"k_f2bac877745f","notes":"keep","tags":[],"title":"V3-NULL renamed"},{"done":false,"estimated_minutes":90,"id":"k_8b66989a1cc6","notes":"","tags":[],"title":"V3-EST"},{"done":false,"id":"k_543f9fd639be","notes":"","tags":[],"title":"V3-LIST-00"},{"done":false,"id":"k_f6580eb9040d","notes":"","tags":[],"title":"V3-LIST-01"},{"done":false,"id":"k_35b0785986fd","notes":"","tags":[],"title":"V3-LIST-02"},{"done":false,"id":"k_e7e3c65ba8d5","notes":"","tags":[],"title":"V3-LIST-03"},{"done":false,"id":"k_a11998c250fa","notes":"","tags":[],"title":"V3-LIST-04"},{"done":false,"id":"k_fcd1c58e1139","notes":"","tags":[],"title":"V3-LIST-05"},{"done":false,"id":"k_e5537845fb23","notes":"","tags":[],"title":"V3-LIST-06"},{"done":false,"id":"k_35f5a2a68c7d","notes":"","tags":[],"title":"V3-LIST-07"},{"done":false,"id":"k_f4cdf9aef3c2","notes":"","tags":[],"title":"V3-LIST-08"},{"done":false,"id":"k_2d55fafa90cd","notes":"","tags":[],"title":"V3-LIST-09"},{"done":false,"id":"k_811dfa69421f","notes":"","tags":[],"title":"V3-LIST-10"},{"done":false,"id":"k_68e86e9cc711","notes":"","tags":[],"title":"V3-LIST-11"}],"truncated":false},"isError":false}}
+
+===== preclean) list_tasks view=completed =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "list_tasks", "arguments": {"view": "completed", "limit": 500}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 430
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"completed_at\":\"2026-10-27T21:59:09+08:00\",\"done\":true,\"id\":\"k_0f60db7dbe23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-DONE2\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"completed_at":"2026-10-27T21:59:09+08:00","done":true,"id":"k_0f60db7dbe23","notes":"","tags":[],"title":"V3-DONE2"}],"truncated":false},"isError":false}}
+
+===== crud) create_task "mcp hello" =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "create_task", "arguments": {"title": "mcp hello"}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 280
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_67ddb9fcf152\",\"notes\":\"\",\"tags\":[],\"title\":\"mcp hello\"}"}],"structuredContent":{"done":false,"id":"k_67ddb9fcf152","notes":"","tags":[],"title":"mcp hello"},"isError":false}}
+
+===== a) list_tasks view=all =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "list_tasks", "arguments": {"view": "all"}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 3268
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":5,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"done\":false,\"id\":\"k_f10512ed2df5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 original\"},{\"done\":false,\"id\":\"k_d9a4adb8b032\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 unrelated write\"},{\"done\":false,\"due_date\":\"2026-11-01\",\"id\":\"k_f2bac877745f\",\"notes\":\"keep\",\"tags\":[],\"title\":\"V3-NULL renamed\"},{\"done\":false,\"estimated_minutes\":90,\"id\":\"k_8b66989a1cc6\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-EST\"},{\"done\":false,\"id\":\"k_543f9fd639be\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-00\"},{\"done\":false,\"id\":\"k_f6580eb9040d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-01\"},{\"done\":false,\"id\":\"k_35b0785986fd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-02\"},{\"done\":false,\"id\":\"k_e7e3c65ba8d5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-03\"},{\"done\":false,\"id\":\"k_a11998c250fa\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-04\"},{\"done\":false,\"id\":\"k_fcd1c58e1139\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-05\"},{\"done\":false,\"id\":\"k_e5537845fb23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-06\"},{\"done\":false,\"id\":\"k_35f5a2a68c7d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-07\"},{\"done\":false,\"id\":\"k_f4cdf9aef3c2\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-08\"},{\"done\":false,\"id\":\"k_2d55fafa90cd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-09\"},{\"done\":false,\"id\":\"k_811dfa69421f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-10\"},{\"done\":false,\"id\":\"k_68e86e9cc711\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-11\"},{\"done\":false,\"id\":\"k_67ddb9fcf152\",\"notes\":\"\",\"tags\":[],\"title\":\"mcp hello\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"done":false,"id":"k_f10512ed2df5","notes":"","tags":[],"title":"V3-B1 original"},{"done":false,"id":"k_d9a4adb8b032","notes":"","tags":[],"title":"V3-B1 unrelated write"},{"done":false,"due_date":"2026-11-01","id":"k_f2bac877745f","notes":"keep","tags":[],"title":"V3-NULL renamed"},{"done":false,"estimated_minutes":90,"id":"k_8b66989a1cc6","notes":"","tags":[],"title":"V3-EST"},{"done":false,"id":"k_543f9fd639be","notes":"","tags":[],"title":"V3-LIST-00"},{"done":false,"id":"k_f6580eb9040d","notes":"","tags":[],"title":"V3-LIST-01"},{"done":false,"id":"k_35b0785986fd","notes":"","tags":[],"title":"V3-LIST-02"},{"done":false,"id":"k_e7e3c65ba8d5","notes":"","tags":[],"title":"V3-LIST-03"},{"done":false,"id":"k_a11998c250fa","notes":"","tags":[],"title":"V3-LIST-04"},{"done":false,"id":"k_fcd1c58e1139","notes":"","tags":[],"title":"V3-LIST-05"},{"done":false,"id":"k_e5537845fb23","notes":"","tags":[],"title":"V3-LIST-06"},{"done":false,"id":"k_35f5a2a68c7d","notes":"","tags":[],"title":"V3-LIST-07"},{"done":false,"id":"k_f4cdf9aef3c2","notes":"","tags":[],"title":"V3-LIST-08"},{"done":false,"id":"k_2d55fafa90cd","notes":"","tags":[],"title":"V3-LIST-09"},{"done":false,"id":"k_811dfa69421f","notes":"","tags":[],"title":"V3-LIST-10"},{"done":false,"id":"k_68e86e9cc711","notes":"","tags":[],"title":"V3-LIST-11"},{"done":false,"id":"k_67ddb9fcf152","notes":"","tags":[],"title":"mcp hello"}],"truncated":false},"isError":false}}
+
+===== a) list_tags =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "list_tags", "arguments": {}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 134
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":6,"result":{"content":[{"type":"text","text":"{\"tags\":[]}"}],"structuredContent":{"tags":[]},"isError":false}}
+
+===== c) list_tasks view=bogus (expect invalid params) =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "list_tasks", "arguments": {"view": "bogus"}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 145
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":7,"error":{"code":-32602,"message":"invalid: invalid view \"bogus\". Valid views: today, inbox, upcoming, completed, all"}}
+
+===== crud) get_task =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {"name": "get_task", "arguments": {"id": "k_67ddb9fcf152"}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 280
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":8,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_67ddb9fcf152\",\"notes\":\"\",\"tags\":[],\"title\":\"mcp hello\"}"}],"structuredContent":{"done":false,"id":"k_67ddb9fcf152","notes":"","tags":[],"title":"mcp hello"},"isError":false}}
+
+===== crud) update_task title =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "update_task", "arguments": {"id": "k_67ddb9fcf152", "title": "mcp hello 2"}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 284
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":9,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_67ddb9fcf152\",\"notes\":\"\",\"tags\":[],\"title\":\"mcp hello 2\"}"}],"structuredContent":{"done":false,"id":"k_67ddb9fcf152","notes":"","tags":[],"title":"mcp hello 2"},"isError":false}}
+
+===== crud) complete_task =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": {"name": "complete_task", "arguments": {"id": "k_67ddb9fcf152"}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 373
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":10,"result":{"content":[{"type":"text","text":"{\"completed_at\":\"2026-10-27T21:59:24+08:00\",\"done\":true,\"id\":\"k_67ddb9fcf152\",\"notes\":\"\",\"tags\":[],\"title\":\"mcp hello 2\"}"}],"structuredContent":{"completed_at":"2026-10-27T21:59:24+08:00","done":true,"id":"k_67ddb9fcf152","notes":"","tags":[],"title":"mcp hello 2"},"isError":false}}
+
+===== crud) list_tasks view=completed =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 11, "method": "tools/call", "params": {"name": "list_tasks", "arguments": {"view": "completed"}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 695
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":11,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"completed_at\":\"2026-10-27T21:59:09+08:00\",\"done\":true,\"id\":\"k_0f60db7dbe23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-DONE2\"},{\"completed_at\":\"2026-10-27T21:59:24+08:00\",\"done\":true,\"id\":\"k_67ddb9fcf152\",\"notes\":\"\",\"tags\":[],\"title\":\"mcp hello 2\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"completed_at":"2026-10-27T21:59:09+08:00","done":true,"id":"k_0f60db7dbe23","notes":"","tags":[],"title":"V3-DONE2"},{"completed_at":"2026-10-27T21:59:24+08:00","done":true,"id":"k_67ddb9fcf152","notes":"","tags":[],"title":"mcp hello 2"}],"truncated":false},"isError":false}}
+
+===== crud) create_task unknown tag (expect error) =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 12, "method": "tools/call", "params": {"name": "create_task", "arguments": {"title": "mcp unknown tag", "tags": ["no-such-tag-xyz"]}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 99
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":12,"error":{"code":-32602,"message":"invalid: unknown tag: no-such-tag-xyz"}}
+
+===== crud) create_task "mcp delete me" =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 13, "method": "tools/call", "params": {"name": "create_task", "arguments": {"title": "mcp delete me"}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 289
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":13,"result":{"content":[{"type":"text","text":"{\"done\":false,\"id\":\"k_fca22d9a0675\",\"notes\":\"\",\"tags\":[],\"title\":\"mcp delete me\"}"}],"structuredContent":{"done":false,"id":"k_fca22d9a0675","notes":"","tags":[],"title":"mcp delete me"},"isError":false}}
+
+===== crud) delete_task "mcp delete me" =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 14, "method": "tools/call", "params": {"name": "delete_task", "arguments": {"id": "k_fca22d9a0675"}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 193
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":14,"result":{"content":[{"type":"text","text":"{\"deleted\":true,\"id\":\"k_fca22d9a0675\"}"}],"structuredContent":{"deleted":true,"id":"k_fca22d9a0675"},"isError":false}}
+
+===== crud) get_task deleted id (expect error) =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 15, "method": "tools/call", "params": {"name": "get_task", "arguments": {"id": "k_fca22d9a0675"}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 92
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":15,"error":{"code":-32602,"message":"task not found: k_fca22d9a0675"}}
+
+===== cleanup) delete_task "mcp hello 2" =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 16, "method": "tools/call", "params": {"name": "delete_task", "arguments": {"id": "k_67ddb9fcf152"}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 193
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":16,"result":{"content":[{"type":"text","text":"{\"deleted\":true,\"id\":\"k_67ddb9fcf152\"}"}],"structuredContent":{"deleted":true,"id":"k_67ddb9fcf152"},"isError":false}}
+
+===== cleanup) list_tasks view=all (expect no test tasks) =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 17, "method": "tools/call", "params": {"name": "list_tasks", "arguments": {"view": "all", "limit": 500}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 3097
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":17,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"done\":false,\"id\":\"k_f10512ed2df5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 original\"},{\"done\":false,\"id\":\"k_d9a4adb8b032\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-B1 unrelated write\"},{\"done\":false,\"due_date\":\"2026-11-01\",\"id\":\"k_f2bac877745f\",\"notes\":\"keep\",\"tags\":[],\"title\":\"V3-NULL renamed\"},{\"done\":false,\"estimated_minutes\":90,\"id\":\"k_8b66989a1cc6\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-EST\"},{\"done\":false,\"id\":\"k_543f9fd639be\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-00\"},{\"done\":false,\"id\":\"k_f6580eb9040d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-01\"},{\"done\":false,\"id\":\"k_35b0785986fd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-02\"},{\"done\":false,\"id\":\"k_e7e3c65ba8d5\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-03\"},{\"done\":false,\"id\":\"k_a11998c250fa\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-04\"},{\"done\":false,\"id\":\"k_fcd1c58e1139\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-05\"},{\"done\":false,\"id\":\"k_e5537845fb23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-06\"},{\"done\":false,\"id\":\"k_35f5a2a68c7d\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-07\"},{\"done\":false,\"id\":\"k_f4cdf9aef3c2\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-08\"},{\"done\":false,\"id\":\"k_2d55fafa90cd\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-09\"},{\"done\":false,\"id\":\"k_811dfa69421f\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-10\"},{\"done\":false,\"id\":\"k_68e86e9cc711\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-LIST-11\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"done":false,"id":"k_f10512ed2df5","notes":"","tags":[],"title":"V3-B1 original"},{"done":false,"id":"k_d9a4adb8b032","notes":"","tags":[],"title":"V3-B1 unrelated write"},{"done":false,"due_date":"2026-11-01","id":"k_f2bac877745f","notes":"keep","tags":[],"title":"V3-NULL renamed"},{"done":false,"estimated_minutes":90,"id":"k_8b66989a1cc6","notes":"","tags":[],"title":"V3-EST"},{"done":false,"id":"k_543f9fd639be","notes":"","tags":[],"title":"V3-LIST-00"},{"done":false,"id":"k_f6580eb9040d","notes":"","tags":[],"title":"V3-LIST-01"},{"done":false,"id":"k_35b0785986fd","notes":"","tags":[],"title":"V3-LIST-02"},{"done":false,"id":"k_e7e3c65ba8d5","notes":"","tags":[],"title":"V3-LIST-03"},{"done":false,"id":"k_a11998c250fa","notes":"","tags":[],"title":"V3-LIST-04"},{"done":false,"id":"k_fcd1c58e1139","notes":"","tags":[],"title":"V3-LIST-05"},{"done":false,"id":"k_e5537845fb23","notes":"","tags":[],"title":"V3-LIST-06"},{"done":false,"id":"k_35f5a2a68c7d","notes":"","tags":[],"title":"V3-LIST-07"},{"done":false,"id":"k_f4cdf9aef3c2","notes":"","tags":[],"title":"V3-LIST-08"},{"done":false,"id":"k_2d55fafa90cd","notes":"","tags":[],"title":"V3-LIST-09"},{"done":false,"id":"k_811dfa69421f","notes":"","tags":[],"title":"V3-LIST-10"},{"done":false,"id":"k_68e86e9cc711","notes":"","tags":[],"title":"V3-LIST-11"}],"truncated":false},"isError":false}}
+
+===== cleanup) list_tasks view=completed (expect no test tasks) =====
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer <TEST_TOKEN>' --data '{"jsonrpc": "2.0", "id": 18, "method": "tools/call", "params": {"name": "list_tasks", "arguments": {"view": "completed", "limit": 500}}}'
+--- response ---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 431
+date: Tue, 27 Oct 2026 13:59:24 GMT
+
+{"jsonrpc":"2.0","id":18,"result":{"content":[{"type":"text","text":"{\"tasks\":[{\"completed_at\":\"2026-10-27T21:59:09+08:00\",\"done\":true,\"id\":\"k_0f60db7dbe23\",\"notes\":\"\",\"tags\":[],\"title\":\"V3-DONE2\"}],\"truncated\":false}"}],"structuredContent":{"tasks":[{"completed_at":"2026-10-27T21:59:09+08:00","done":true,"id":"k_0f60db7dbe23","notes":"","tags":[],"title":"V3-DONE2"}],"truncated":false},"isError":false}}
+
+===== ss -ltnp | grep 7373 =====
+LISTEN 0      128        127.0.0.1:7373       0.0.0.0:*    users:(("pansuthong",pid=3562057,fd=34))
+
+===== SUMMARY =====
+e) no token -> 401                                      PASS  401
+auth wrong token -> 401                                 PASS  401
+auth Basic -> 401                                       PASS  401
+d) Origin evil.example + valid token -> 403             PASS  403
+d) Origin evil.example + no token -> rejected (401/403) PASS  403
+d) Origin localhost + valid token -> 200                PASS  200
+d) Origin 127.0.0.1.evil.example -> 403                 PASS  403
+d) no Origin + valid token -> 200                       PASS  200
+b) serverInfo.name == pansuthong                        PASS  {'name': 'pansuthong', 'version': '0.1.0'}
+init initialized notification 202                       PASS  202
+tools/list 7 tools                                      PASS  ['complete_task', 'create_task', 'delete_task', 'get_task', 'list_tags', 'list_tasks', 'update_task']
+a) every tool has outputSchema.type == object           PASS  {'complete_task': 'object', 'create_task': 'object', 'delete_task': 'object', 'get_task': 'object', 'list_tags': 'object', 'list_tasks': 'object', 'update_task': 'object'}
+crud create_task                                        PASS  id=k_67ddb9fcf152
+a) list_tasks structuredContent is object {tasks:[...]} PASS  type=dict keys=['tasks', 'truncated']
+crud list_tasks contains new task                       PASS  k_67ddb9fcf152
+a) list_tags structuredContent is object {tags:[...]}   PASS  {"tags": []}
+c) invalid view -> -32602 invalid params                PASS  {"code": -32602, "message": "invalid: invalid view \"bogus\". Valid views: today, inbox, upcoming, completed, all"}
+crud get_task                                           PASS  mcp hello
+crud update_task                                        PASS  mcp hello 2
+crud complete_task                                      PASS  {'completed_at': '2026-10-27T21:59:24+08:00', 'done': True}
+crud completed view has it                              PASS  [('V3-DONE2', True), ('mcp hello 2', True)]
+crud unknown tag -> error                               PASS  {"code": -32602, "message": "invalid: unknown tag: no-such-tag-xyz"}
+crud delete_task structuredContent {deleted:true,id}    PASS  {"deleted": true, "id": "k_fca22d9a0675"}
+crud deleted gone                                       PASS  {"code": -32602, "message": "task not found: k_fca22d9a0675"}
+cleanup delete hello 2                                  PASS  {"deleted": true, "id": "k_67ddb9fcf152"}
+cleanup no test tasks remain                            PASS  []
+bound only 127.0.0.1                                    PASS  LISTEN 0      128        127.0.0.1:7373       0.0.0.0:*    users:(("pansuthong",pid=3562057,fd=34))
+
+################ verify3/out-4-case34-summary.txt ################
+A1 no Authorization                                                         401 OK
+A2 wrong token                                                              401 OK
+A3 wrong token same prefix                                                  401 OK
+A4 malformed: "Bearer" no space                                             401 OK
+A5 malformed: raw token no scheme                                           401 OK
+A6 Basic scheme                                                             401 OK
+A7 token upper-cased                                                        401 OK
+A8 token lower-cased                                                        401 OK
+A9 token + trailing space                                                   200 UNEXPECTED
+A10 leading space before token (Bearer  T)                                  401 OK
+A11 token + trailing tab                                                    200 UNEXPECTED
+A12 scheme lower-case "bearer T" (RFC7235: scheme is case-insensitive)      401 OK
+A13 token in query string only                                              401 OK
+A14 token in query access_token                                             401 OK
+A15 token as X-Api-Key                                                      401 OK
+A16 empty bearer                                                            401 OK
+A17 valid token                                                             200 OK
+A18 valid token, GET /mcp                                                   405 OK
+A19 valid token, other path /                                               404 OK
+A20 no token other path /                                                   401 OK
+O1 Origin http://evil.example + token                                       403 OK
+O2 Origin http://evil.example no token                                      403 OK
+O3 Origin null                                                              403 OK
+O4 Origin http://localhost:7373                                             200 OK
+O5 Origin http://127.0.0.1:7373                                             200 OK
+O6 no Origin                                                                200 OK
+O7 Origin http://127.0.0.1.evil.example                                     403 OK
+O8 Origin http://localhost.evil.example                                     403 OK
+O9 Origin https://localhost                                                 200 OK
+O10 Origin http://[::1]:1                                                   200 OK
+O11 Origin file://                                                          403 OK
+O12 Origin tauri://localhost                                                403 OK
+O13 Origin chrome-extension://abc                                           403 OK
+O14 Origin "localhost" (no scheme)                                          200 OK
+O15 Origin http://LOCALHOST                                                 403 OK
+O16 Origin http://0.0.0.0:7373                                              403 OK
+O17 Origin http://evil.example/http://localhost                             403 OK
+O18 Origin http://evil.example:80@localhost                                 403 OK
+H1 Host: evil.example (DNS-rebinding)                                       403 OK
+H2 Host: evil.example + Origin http://evil.example                          403 OK
+H3 Host: localhost:7373                                                     200 OK
+H4 Host: evil.example no token                                              401 OK
+C1 OPTIONS preflight from evil                                              403 OK
+C2 OPTIONS preflight from localhost                                         401 OK
+C3 OPTIONS no origin no token                                               401 OK
+C4 POST text/plain (simple CORS request) with token                         415 OK
+C5 POST w/o Accept: text/event-stream                                       406 OK
+
+################ verify3/out-4-case34-auth-origin.txt ################
+# token redacted as <TOKEN>; real token sent where noted. port 7373
+
+### A1 no Authorization
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A2 wrong token
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A3 wrong token same prefix
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN[:-1]>A"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A4 malformed: "Bearer" no space
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A5 malformed: raw token no scheme
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "<TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A6 Basic scheme
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Basic <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A7 token upper-cased
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN-UPPER>"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A8 token lower-cased
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN-LOWER>"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A9 token + trailing space
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN> "}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '147', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+### A10 leading space before token (Bearer  T)
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer  <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A11 token + trailing tab
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>\t"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '147', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+### A12 scheme lower-case "bearer T" (RFC7235: scheme is case-insensitive)
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A13 token in query string only
+>>> 21:59:29 POST /mcp?token=<TOKEN>
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A14 token in query access_token
+>>> 21:59:29 POST /mcp?access_token=<TOKEN>
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A15 token as X-Api-Key
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "X-Api-Key": "<TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A16 empty bearer
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer "}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A17 valid token
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '147', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+### A18 valid token, GET /mcp
+>>> 21:59:29 GET /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body None
+<<< 405 Method Not Allowed
+<<< headers {'allow': 'POST', 'content-length': '18', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< Method Not Allowed
+
+### A19 valid token, other path /
+>>> 21:59:29 POST /
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 404 Not Found
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### A20 no token other path /
+>>> 21:59:29 POST /
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### O1 Origin http://evil.example + token
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "http://evil.example"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### O2 Origin http://evil.example no token
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Origin": "http://evil.example"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### O3 Origin null
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "null"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### O4 Origin http://localhost:7373
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "http://localhost:7373"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '147', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+### O5 Origin http://127.0.0.1:7373
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "http://127.0.0.1:7373"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '147', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+### O6 no Origin
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '147', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+### O7 Origin http://127.0.0.1.evil.example
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "http://127.0.0.1.evil.example"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### O8 Origin http://localhost.evil.example
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "http://localhost.evil.example"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### O9 Origin https://localhost
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "https://localhost"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '147', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+### O10 Origin http://[::1]:1
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "http://[::1]:1"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '147', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+### O11 Origin file://
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "file://"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### O12 Origin tauri://localhost
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "tauri://localhost"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### O13 Origin chrome-extension://abc
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "chrome-extension://abc"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### O14 Origin "localhost" (no scheme)
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "localhost"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '147', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+### O15 Origin http://LOCALHOST
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "http://LOCALHOST"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### O16 Origin http://0.0.0.0:7373
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "http://0.0.0.0:7373"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### O17 Origin http://evil.example/http://localhost
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "http://evil.example/http://localhost"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### O18 Origin http://evil.example:80@localhost
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Origin": "http://evil.example:80@localhost"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### H1 Host: evil.example (DNS-rebinding)
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Host": "evil.example"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '37', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< Forbidden: Host header is not allowed
+
+### H2 Host: evil.example + Origin http://evil.example
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Host": "evil.example", "Origin": "http://evil.example"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### H3 Host: localhost:7373
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>", "Host": "localhost:7373"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 200 OK
+<<< headers {'content-type': 'application/json', 'content-length': '147', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"pansuthong","version":"0.1.0"}}}
+
+### H4 Host: evil.example no token
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Host": "evil.example"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### C1 OPTIONS preflight from evil
+>>> 21:59:29 OPTIONS /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Origin": "http://evil.example", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization,content-type"}
+>>> body None
+<<< 403 Forbidden
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### C2 OPTIONS preflight from localhost
+>>> 21:59:29 OPTIONS /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", "Origin": "http://localhost:3000", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization,content-type"}
+>>> body None
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### C3 OPTIONS no origin no token
+>>> 21:59:29 OPTIONS /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+>>> body None
+<<< 401 Unauthorized
+<<< headers {'content-length': '0', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< 
+
+### C4 POST text/plain (simple CORS request) with token
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "text/plain", "Accept": "application/json, text/event-stream", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 415 Unsupported Media Type
+<<< headers {'content-type': 'application/json', 'content-length': '125', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Unsupported Media Type: Content-Type must be application/json"}}
+
+### C5 POST w/o Accept: text/event-stream
+>>> 21:59:29 POST /mcp
+>>> headers {"Content-Type": "application/json", "Accept": "application/json", "Authorization": "Bearer <TOKEN>"}
+>>> body {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "qa", "version": "1"}}}
+<<< 406 Not Acceptable
+<<< headers {'content-type': 'application/json', 'content-length': '142', 'date': 'Tue, 27 Oct 2026 13:59:29 GMT'}
+<<< {"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Not Acceptable: Client must accept both application/json and text/event-stream"}}
+
+
+################ verify3/out4-perf.txt ################
+# after4 perf 2026-10-27 21:59:48 CST: 200 concurrent create_task, one HTTP conn each, barrier-synchronised start; DB cleaned between runs
+run 1: N=200 wall=2.259s p50=1.158s p95=2.147s max=2.245s statuses=[200] errors=0 unique_ids=200 listed=200 DB_rows=200
+run 2: N=200 wall=2.565s p50=1.451s p95=2.443s max=2.546s statuses=[200] errors=0 unique_ids=200 listed=200 DB_rows=200
+run 3: N=200 wall=2.799s p50=1.422s p95=2.658s max=2.793s statuses=[200] errors=0 unique_ids=200 listed=200 DB_rows=200
+
+################ verify3/out4-cleanup.txt ################
+2026-10-27 21:58:58 CST [after-check-c] DB rows before=522 nontest=[] deleted_ok=522 failed=0; rows left=0
+2026-10-27 21:59:48 CST [after-check-d] DB rows before=17 nontest=[] deleted_ok=17 failed=0; rows left=0
+2026-10-27 21:59:56 CST [after-perf-1] DB rows before=200 nontest=[] deleted_ok=200 failed=0; rows left=0
+2026-10-27 22:00:05 CST [after-perf-2] DB rows before=200 nontest=[] deleted_ok=200 failed=0; rows left=0
+2026-10-27 22:00:14 CST [after-perf-3] DB rows before=200 nontest=[] deleted_ok=200 failed=0; rows left=0

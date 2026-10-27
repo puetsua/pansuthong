@@ -104,6 +104,15 @@ pub struct Settings {
     /// them; the frontend resolves/renders. `None` = no custom presets.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_presets: Option<Vec<ThemePreset>>,
+    /// Built-in MCP server (#246). Device-local; never synced.
+    #[serde(default)]
+    pub mcp_enabled: bool,
+    /// TCP port for the local MCP HTTP endpoint (1024..=65535).
+    #[serde(default = "default_mcp_port")]
+    pub mcp_port: u32,
+    /// Bearer token for MCP clients. Generated on first enable; regenerate revokes old clients.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_token: Option<String>,
 }
 
 /// A user-defined theme (#15). Opaque to Rust beyond shape validation: an id, a
@@ -162,6 +171,12 @@ fn default_date_time_format() -> String {
     "locale".into()
 }
 
+pub const MCP_PORT_DEFAULT: u32 = 7373;
+
+fn default_mcp_port() -> u32 {
+    MCP_PORT_DEFAULT
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -182,6 +197,9 @@ impl Default for Settings {
             time_format: None,
             theme_preset: None,
             custom_presets: None,
+            mcp_enabled: false,
+            mcp_port: default_mcp_port(),
+            mcp_token: None,
         }
     }
 }
@@ -334,7 +352,13 @@ fn persist(path: &Path, cfg: &Config) -> Result<()> {
     // Atomic temp+rename (shared with the data store) so a crash mid-write can't
     // leave a truncated config.json — which load_or_migrate would treat as
     // absent and silently re-migrate, resetting settings to defaults.
-    crate::store::atomic_write(path, &bytes)
+    crate::store::atomic_write(path, &bytes)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    }
+    Ok(())
 }
 
 /// Load `config.json`, or migrate to it on first launch after the rename.
@@ -483,6 +507,22 @@ impl ConfigState {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[cfg(unix)]
+    #[test]
+    fn config_json_is_user_only_on_unix() {
+        let dir = tempdir().unwrap();
+        let path = config_path(dir.path());
+        let cfg = Config {
+            device_id: new_device_id(),
+            folder: None,
+            settings: Settings::default(),
+        };
+        persist(&path, &cfg).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
 
     #[test]
     fn load_or_migrate_lifts_settings_from_tasks_json() {
@@ -691,8 +731,10 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_day_start_hour() {
-        let mut s = Settings::default();
-        s.day_start_hour = 4;
+        let s = Settings {
+            day_start_hour: 4,
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.day_start_hour, 4);
@@ -700,8 +742,10 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_reminder_interval() {
-        let mut s = Settings::default();
-        s.reminder_interval_minutes = 30;
+        let s = Settings {
+            reminder_interval_minutes: 30,
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.reminder_interval_minutes, 30);
@@ -719,8 +763,10 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_recurrence_heatmap_days() {
-        let mut s = Settings::default();
-        s.recurrence_heatmap_days = 180;
+        let s = Settings {
+            recurrence_heatmap_days: 180,
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.recurrence_heatmap_days, 180);
@@ -738,8 +784,10 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_first_day_of_week() {
-        let mut s = Settings::default();
-        s.first_day_of_week = 0; // Sunday
+        let s = Settings {
+            first_day_of_week: 0, // Sunday
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.first_day_of_week, 0);
@@ -757,8 +805,10 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_language() {
-        let mut s = Settings::default();
-        s.language = "zh-TW".into();
+        let s = Settings {
+            language: "zh-TW".into(),
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.language, "zh-TW");
@@ -766,9 +816,11 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_tag_defaults() {
-        let mut s = Settings::default();
-        s.default_tag_color = "#ef4444".into();
-        s.default_tag_priority = 7;
+        let s = Settings {
+            default_tag_color: "#ef4444".into(),
+            default_tag_priority: 7,
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.default_tag_color, "#ef4444");
@@ -787,8 +839,10 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_date_time_format() {
-        let mut s = Settings::default();
-        s.date_time_format = "japanese".into();
+        let s = Settings {
+            date_time_format: "japanese".into(),
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.date_time_format, "japanese");
@@ -796,9 +850,11 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_date_and_time_formats() {
-        let mut s = Settings::default();
-        s.date_format = Some("roc".into());
-        s.time_format = Some("twenty_four".into());
+        let s = Settings {
+            date_format: Some("roc".into()),
+            time_format: Some("twenty_four".into()),
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.date_format.as_deref(), Some("roc"));
