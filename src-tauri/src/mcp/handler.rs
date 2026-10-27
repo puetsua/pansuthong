@@ -91,11 +91,11 @@ pub struct ListTasksArgs {
     pub query: Option<String>,
     /// Maximum rows to return (1..=500). Omit to use the server default cap (500).
     #[serde(default)]
-    #[schemars(with = "u32", range(min = 1, max = 500))]
+    #[schemars(with = "u32", range(min = 1, max = 500), transform = drop_default)]
     pub limit: Option<u32>,
     /// Skip this many rows before applying `limit`.
     #[serde(default)]
-    #[schemars(with = "u32", range(min = 0))]
+    #[schemars(with = "u32", range(min = 0), transform = drop_default)]
     pub offset: Option<u32>,
 }
 
@@ -116,12 +116,17 @@ pub struct CreateTaskArgs {
     pub estimated_minutes: Option<i64>,
 }
 
+/// `serde(default)` makes schemars emit `"default": null`, which contradicts `type: "string"`.
+fn drop_default(schema: &mut schemars::Schema) {
+    schema.remove("default");
+}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct UpdateTaskArgs {
     pub id: String,
     /// New title. Omit to leave unchanged; null is rejected (a task always has a title).
     #[serde(default, deserialize_with = "double_option")]
-    #[schemars(with = "String")]
+    #[schemars(with = "String", transform = drop_default)]
     pub title: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub notes: Option<Option<String>>,
@@ -429,5 +434,23 @@ mod tests {
             );
         }
     }
-}
 
+    #[test]
+    fn advertised_tool_schemas_have_no_null_defaults() {
+        for tool in PansuthongMcp::tool_router().list_all() {
+            let schema = Value::Object((*tool.input_schema).clone());
+            let props = schema["properties"].as_object().cloned().unwrap_or_default();
+            for (name, prop) in props {
+                // `default: null` is fine on properties whose type admits null.
+                if prop["type"].as_array().is_some_and(|t| t.iter().any(|v| v == "null")) {
+                    continue;
+                }
+                assert!(
+                    prop.get("default") != Some(&Value::Null),
+                    "{}.{name} must not advertise default null: {prop}",
+                    tool.name
+                );
+            }
+        }
+    }
+}
