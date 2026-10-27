@@ -4,9 +4,13 @@ import { Document } from "../lib/tauri";
 import { __resetPlatformCacheForTests, isAndroid } from "../lib/platform";
 import { SettingsView } from "./SettingsView";
 
-vi.mock("../lib/platform", () => ({
-  isAndroid: vi.fn().mockResolvedValue(false),
-}));
+vi.mock("../lib/platform", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/platform")>();
+  return {
+    ...actual,
+    isAndroid: vi.fn().mockResolvedValue(false),
+  };
+});
 
 const {
   pickDataFolder,
