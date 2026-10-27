@@ -59,7 +59,10 @@ fn document_view(state: &AppState, config: &ConfigState) -> DocumentView {
     })
 }
 
-#[tauri::command]
+/// Runs on the async pool, not the main thread: cloning and serializing a large
+/// document there blocked repaint and input while MCP writers kept the window
+/// reloading (#249 N5).
+#[tauri::command(async)]
 pub fn get_document(state: State<'_, AppState>, config: State<'_, ConfigState>) -> Result<DocumentView> {
     if state.is_pending() {
         return Err(AppError::NotFound("data folder not available yet".into()));
