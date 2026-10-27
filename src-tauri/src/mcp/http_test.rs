@@ -182,15 +182,107 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
             .send()
             .await
             .unwrap();
+        assert_eq!(res.status(), 200, "known-id gate errors are in-band for {body}");
         let text = res.text().await.unwrap();
         assert!(
             text.contains("-32602"),
             "expected invalid params for {body}, got: {text}"
         );
         assert!(
-            text.contains("\"id\":null"),
-            "gate errors must include id null, got: {text}"
+            text.contains("\"id\":9"),
+            "gate errors must echo the request id, got: {text}"
         );
+    }
+
+    // Bad list_tasks limit/offset values are rejected at the gate with the id echoed.
+    // (The ping router has no list_tasks tool; the gate runs before dispatch.)
+    let bad_args = [
+        json!({"limit": 0}),
+        json!({"limit": -1}),
+        json!({"limit": 501}),
+        json!({"limit": 1.5}),
+        json!({"limit": "5"}),
+        json!({"limit": null}),
+        json!({"limit": true}),
+        json!({"limit": 4294967296u64}),
+        json!({"limit": 1e20}),
+        json!({"offset": -1}),
+        json!({"offset": "5"}),
+        json!({"offset": 1.5}),
+        json!({"offset": null}),
+        json!({"offset": 4294967296u64}),
+        json!({"offset": 1e20}),
+    ];
+    for args in bad_args {
+        let body = json!({
+            "jsonrpc": "2.0",
+            "id": 18,
+            "method": "tools/call",
+            "params": { "name": "list_tasks", "arguments": args }
+        });
+        let res = client
+            .post(&url)
+            .header("Authorization", &auth)
+            .header("Accept", accept)
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(res.status(), 200, "{body}");
+        let v: serde_json::Value = res.json().await.unwrap();
+        assert_eq!(v["id"], 18, "{v}");
+        assert_eq!(v["error"]["code"], -32602, "{v}");
+    }
+
+    // Batches and wrong `jsonrpc` versions are Invalid Request (-32600), not parse errors.
+    let batch = client
+        .post(&url)
+        .header("Authorization", &auth)
+        .header("Accept", accept)
+        .json(&json!([{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}]))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(batch.status(), 400);
+    let v: serde_json::Value = batch.json().await.unwrap();
+    assert_eq!(v["error"]["code"], -32600, "{v}");
+    assert_eq!(v["id"], serde_json::Value::Null, "{v}");
+
+    let wrong_version = client
+        .post(&url)
+        .header("Authorization", &auth)
+        .header("Accept", accept)
+        .json(&json!({"jsonrpc": "1.0", "id": "abc", "method": "tools/list"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(wrong_version.status(), 200);
+    let v: serde_json::Value = wrong_version.json().await.unwrap();
+    assert_eq!(v["error"]["code"], -32600, "{v}");
+    assert_eq!(v["id"], "abc", "{v}");
+
+    // Content-Type must be exactly application/json (parameters allowed).
+    for (ct_header, ok) in [
+        ("application/jsonx", false),
+        ("application/json; charset=utf-8", true),
+    ] {
+        let res = client
+            .post(&url)
+            .header("Authorization", &auth)
+            .header("Accept", accept)
+            .header("Content-Type", ct_header)
+            .body(r#"{"jsonrpc":"2.0","id":5,"method":"tools/list","params":{}}"#)
+            .send()
+            .await
+            .unwrap();
+        if ok {
+            assert!(res.status().is_success(), "{ct_header}: {}", res.status());
+        } else {
+            assert_eq!(res.status(), 415, "{ct_header}");
+            let v: serde_json::Value = res.json().await.unwrap();
+            assert_eq!(v["error"]["code"], -32600, "{v}");
+            assert_eq!(v["id"], serde_json::Value::Null, "{v}");
+        }
     }
 
     let not_acceptable = client

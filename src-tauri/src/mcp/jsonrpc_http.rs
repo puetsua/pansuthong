@@ -18,7 +18,8 @@ const JSON: &str = "application/json";
 /// Same limit as rmcp `StreamableHttpServerConfig` default (`DEFAULT_MAX_REQUEST_BODY_BYTES`).
 pub const MCP_MAX_REQUEST_BODY_BYTES: usize = 4 * 1024 * 1024;
 
-/// Transport-layer JSON-RPC errors always expose `"id": null` (gate cannot trust client ids).
+/// Transport-layer JSON-RPC errors expose `"id": null`; message-level gate errors echo the
+/// request id when the body is an object carrying a valid (string or number) id.
 #[derive(Serialize)]
 struct TransportJsonRpcError {
     jsonrpc: JsonRpcVersion2_0,
@@ -27,9 +28,13 @@ struct TransportJsonRpcError {
 }
 
 fn transport_error_response(status: StatusCode, error: ErrorData) -> Response<Body> {
+    jsonrpc_error_response(status, Value::Null, error)
+}
+
+fn jsonrpc_error_response(status: StatusCode, id: Value, error: ErrorData) -> Response<Body> {
     let err = TransportJsonRpcError {
         jsonrpc: JsonRpcVersion2_0,
-        id: Value::Null,
+        id,
         error,
     };
     let body = serde_json::to_vec(&err).expect("serialize TransportJsonRpcError");
@@ -45,13 +50,6 @@ fn invalid_request_response(
     message: impl Into<Cow<'static, str>>,
 ) -> Response<Body> {
     transport_error_response(status, ErrorData::invalid_request(message, None))
-}
-
-fn invalid_params_response(
-    status: StatusCode,
-    message: impl Into<Cow<'static, str>>,
-) -> Response<Body> {
-    transport_error_response(status, ErrorData::invalid_params(message, None))
 }
 
 fn payload_too_large_response() -> Response<Body> {
@@ -77,24 +75,36 @@ async fn read_request_body_limited(
     }
 }
 
-/// Reject `list_tasks` argument shapes rmcp would surface as a tool `isError` result.
-fn list_tasks_limit_argument_invalid(name: &str, arguments: Option<&Value>) -> Option<String> {
+/// `list_tasks` page-size bounds; keep in sync with `ListTasksArgs::limit` schema attributes.
+const LIST_TASKS_LIMIT_MAX: u64 = 500;
+
+/// Require `value` to be a JSON integer in `min..=max` (no null, floats, strings, or bools).
+fn integer_in_range(value: &Value, min: u64, max: u64) -> bool {
+    value.as_u64().is_some_and(|u| (min..=max).contains(&u))
+}
+
+/// Reject `list_tasks` argument shapes that violate the advertised input schema.
+fn list_tasks_arguments_invalid(name: &str, arguments: Option<&Value>) -> Option<String> {
     if name != "list_tasks" {
         return None;
     }
-    let limit = arguments.and_then(|a| a.get("limit"))?;
-    match limit {
-        Value::Number(n) => {
-            if n.as_u64().is_some_and(|u| u >= 1) {
-                return None;
-            }
-            if n.as_i64().is_some_and(|i| i <= 0) {
-                return Some("limit must be at least 1".into());
-            }
-            Some("list_tasks limit must be a positive integer".into())
+    let args = arguments?;
+    if let Some(limit) = args.get("limit") {
+        if !integer_in_range(limit, 1, LIST_TASKS_LIMIT_MAX) {
+            return Some(format!(
+                "list_tasks limit must be an integer between 1 and {LIST_TASKS_LIMIT_MAX}"
+            ));
         }
-        _ => Some("list_tasks limit must be a positive integer".into()),
     }
+    if let Some(offset) = args.get("offset") {
+        if !integer_in_range(offset, 0, u32::MAX as u64) {
+            return Some(format!(
+                "list_tasks offset must be an integer between 0 and {}",
+                u32::MAX
+            ));
+        }
+    }
+    None
 }
 
 fn tools_call_params_invalid(params: &Value) -> Option<String> {
@@ -130,7 +140,7 @@ fn tools_call_shape_error(body: &Value) -> Option<String> {
     }
     if let Some(obj) = params.as_object() {
         if let Some(name) = obj.get("name").and_then(Value::as_str) {
-            if let Some(msg) = list_tasks_limit_argument_invalid(name, obj.get("arguments")) {
+            if let Some(msg) = list_tasks_arguments_invalid(name, obj.get("arguments")) {
                 return Some(msg);
             }
         }
@@ -147,7 +157,53 @@ fn tools_call_shape_error(body: &Value) -> Option<String> {
     None
 }
 
-/// Reject malformed `tools/call` before rmcp maps them to method-not-found (`-32601`).
+/// A pre-dispatch rejection. `id` is `Some` only when the body is an object with a valid
+/// JSON-RPC id (string or number); such errors are returned in-band with HTTP 200.
+struct GateError {
+    id: Option<Value>,
+    error: ErrorData,
+}
+
+impl GateError {
+    fn into_response(self) -> Response<Body> {
+        match self.id {
+            Some(id) => jsonrpc_error_response(StatusCode::OK, id, self.error),
+            None => transport_error_response(StatusCode::BAD_REQUEST, self.error),
+        }
+    }
+}
+
+/// Validate a successfully parsed JSON body before rmcp sees it.
+fn gate_check(value: &Value) -> Option<GateError> {
+    let Some(obj) = value.as_object() else {
+        // Batches (arrays) are unsupported; any other non-object is not a request either.
+        let msg = if value.is_array() {
+            "JSON-RPC batch requests are not supported"
+        } else {
+            "request must be a JSON-RPC object"
+        };
+        return Some(GateError {
+            id: None,
+            error: ErrorData::invalid_request(msg, None),
+        });
+    };
+    let id = match obj.get("id") {
+        Some(id @ (Value::String(_) | Value::Number(_))) => Some(id.clone()),
+        _ => None,
+    };
+    if obj.get("jsonrpc").and_then(Value::as_str) != Some("2.0") {
+        return Some(GateError {
+            id,
+            error: ErrorData::invalid_request("jsonrpc must be exactly \"2.0\"", None),
+        });
+    }
+    tools_call_shape_error(value).map(|message| GateError {
+        id,
+        error: ErrorData::invalid_params(message, None),
+    })
+}
+
+/// Reject malformed requests before rmcp maps them to parse errors or method-not-found.
 pub async fn tools_call_shape_gate(
     req: Request<Body>,
     next: Next,
@@ -163,12 +219,20 @@ pub async fn tools_call_shape_gate(
         }
     };
     if let Ok(value) = serde_json::from_slice::<Value>(&bytes) {
-        if let Some(message) = tools_call_shape_error(&value) {
-            return invalid_params_response(StatusCode::BAD_REQUEST, message).into_response();
+        if let Some(err) = gate_check(&value) {
+            return err.into_response().into_response();
         }
     }
     let req = Request::from_parts(parts, Body::from(bytes));
     next.run(req).await
+}
+
+/// True when the media type (ignoring parameters such as `charset`) is exactly `application/json`.
+fn is_json_media_type(content_type: &str) -> bool {
+    content_type
+        .split(';')
+        .next()
+        .is_some_and(|m| m.trim().eq_ignore_ascii_case(JSON))
 }
 
 /// Reject POSTs without `Content-Type: application/json` using a JSON-RPC invalid-request error.
@@ -181,7 +245,7 @@ pub async fn json_content_type_gate(
             .headers()
             .get(header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
-            .is_some_and(|v| v.starts_with(JSON));
+            .is_some_and(is_json_media_type);
         if !ok {
             return invalid_request_response(
                 StatusCode::UNSUPPORTED_MEDIA_TYPE,
@@ -324,5 +388,89 @@ mod tests {
             "params": { "name": "list_tasks", "arguments": { "limit": 5 } }
         });
         assert!(tools_call_shape_error(&ok).is_none());
+    }
+
+    fn list_tasks_call(arguments: Value) -> Value {
+        json!({
+            "jsonrpc": "2.0",
+            "id": 18,
+            "method": "tools/call",
+            "params": { "name": "list_tasks", "arguments": arguments }
+        })
+    }
+
+    #[test]
+    fn list_tasks_limit_and_offset_bounds() {
+        let bad = [
+            json!({"limit": 0}),
+            json!({"limit": -1}),
+            json!({"limit": 501}),
+            json!({"limit": 1.5}),
+            json!({"limit": "5"}),
+            json!({"limit": null}),
+            json!({"limit": true}),
+            json!({"limit": 4294967296u64}),
+            json!({"limit": 1e20}),
+            json!({"offset": -1}),
+            json!({"offset": "5"}),
+            json!({"offset": 1.5}),
+            json!({"offset": null}),
+            json!({"offset": 4294967296u64}),
+            json!({"offset": 1e20}),
+        ];
+        for args in bad {
+            let err = gate_check(&list_tasks_call(args.clone()))
+                .unwrap_or_else(|| panic!("expected gate error for {args}"));
+            assert_eq!(err.error.code, ErrorData::invalid_params("", None).code);
+            assert_eq!(err.id, Some(json!(18)));
+        }
+        for args in [
+            json!({}),
+            json!({"limit": 1}),
+            json!({"limit": 500, "offset": 0}),
+            json!({"offset": 4294967295u64}),
+        ] {
+            assert!(gate_check(&list_tasks_call(args.clone())).is_none(), "{args}");
+        }
+    }
+
+    #[test]
+    fn gate_echoes_known_ids_and_nulls_unknown() {
+        let no_params = json!({"jsonrpc": "2.0", "id": 9, "method": "tools/call"});
+        assert_eq!(gate_check(&no_params).unwrap().id, Some(json!(9)));
+        let str_id = json!({"jsonrpc": "2.0", "id": "a", "method": "tools/call"});
+        assert_eq!(gate_check(&str_id).unwrap().id, Some(json!("a")));
+        let no_id = json!({"jsonrpc": "2.0", "method": "tools/call"});
+        assert_eq!(gate_check(&no_id).unwrap().id, None);
+        let bad_id = json!({"jsonrpc": "2.0", "id": {}, "method": "tools/call"});
+        assert_eq!(gate_check(&bad_id).unwrap().id, None);
+    }
+
+    #[test]
+    fn gate_rejects_batches_and_wrong_version_as_invalid_request() {
+        let invalid_request = ErrorData::invalid_request("", None).code;
+        let batch = json!([{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}]);
+        let err = gate_check(&batch).unwrap();
+        assert_eq!(err.error.code, invalid_request);
+        assert_eq!(err.id, None);
+
+        let v1 = json!({"jsonrpc": "1.0", "id": 7, "method": "tools/list"});
+        let err = gate_check(&v1).unwrap();
+        assert_eq!(err.error.code, invalid_request);
+        assert_eq!(err.id, Some(json!(7)));
+
+        let missing = json!({"id": 7, "method": "tools/list"});
+        assert_eq!(gate_check(&missing).unwrap().error.code, invalid_request);
+        assert!(gate_check(&json!({"jsonrpc": "2.0", "id": 7, "method": "tools/list"})).is_none());
+    }
+
+    #[test]
+    fn json_media_type_is_exact() {
+        assert!(is_json_media_type("application/json"));
+        assert!(is_json_media_type("application/json; charset=utf-8"));
+        assert!(is_json_media_type("Application/JSON"));
+        assert!(!is_json_media_type("application/jsonx"));
+        assert!(!is_json_media_type("application/json-seq"));
+        assert!(!is_json_media_type("text/plain"));
     }
 }

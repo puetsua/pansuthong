@@ -90,8 +90,12 @@ pub struct ListTasksArgs {
     /// Case-insensitive substring match in title or notes.
     pub query: Option<String>,
     /// Maximum rows to return (1..=500). Omit to use the server default cap (500).
+    #[serde(default)]
+    #[schemars(with = "u32", range(min = 1, max = 500))]
     pub limit: Option<u32>,
     /// Skip this many rows before applying `limit`.
+    #[serde(default)]
+    #[schemars(with = "u32", range(min = 0))]
     pub offset: Option<u32>,
 }
 
@@ -150,7 +154,7 @@ pub struct DeleteTaskArgs {
 #[tool_router]
 impl PansuthongMcp {
     #[tool(
-        description = "List tasks with optional view and filters. view=all returns active (non-archived) tasks and excludes completed/archived ones; use view=completed for finished tasks. Returns at most 500 tasks per call (set limit 1..500); truncated is true when more matches exist."
+        description = "List tasks with optional view and filters. view=all returns active (non-archived) tasks and excludes completed/archived ones; use view=completed for finished tasks. Returns at most 500 tasks per call (set limit 1..=500; larger values are rejected); truncated is true when more matches exist."
     )]
     async fn list_tasks(
         &self,
@@ -341,6 +345,34 @@ impl ServerHandler for PansuthongMcp {
                 "pansuthong",
                 env!("CARGO_PKG_VERSION"),
             ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+
+    fn list_tasks_schema() -> Value {
+        serde_json::to_value(schemars::schema_for!(ListTasksArgs)).unwrap()
+    }
+
+    #[test]
+    fn list_tasks_schema_advertises_limit_and_offset_bounds() {
+        let schema = list_tasks_schema();
+        let props = &schema["properties"];
+        assert_eq!(props["limit"]["type"], "integer", "{props}");
+        assert_eq!(props["limit"]["minimum"], 1);
+        assert_eq!(props["limit"]["maximum"], 500);
+        assert_eq!(props["offset"]["type"], "integer", "{props}");
+        assert_eq!(props["offset"]["minimum"], 0);
+        let required = schema.get("required").and_then(Value::as_array);
+        for f in ["limit", "offset"] {
+            assert!(
+                !required.is_some_and(|r| r.iter().any(|v| v == f)),
+                "{f} must be optional"
+            );
+        }
     }
 }
 
