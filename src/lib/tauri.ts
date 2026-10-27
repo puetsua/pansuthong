@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { DateFormat, DateTimeFormat, TimeFormat } from "./dates";
 import { isAndroid } from "./platform";
@@ -321,6 +322,9 @@ export const api = {
   updateSettings: (input: Partial<Settings>) => invoke<void>("update_settings", { input }),
   getMcpStatus: () => invoke<McpStatus>("get_mcp_status"),
   regenerateMcpToken: () => invoke<string>("regenerate_mcp_token"),
+  // The server starts and stops on a background task; it reports each change here.
+  onMcpStatusChanged: (cb: (status: McpStatus) => void) =>
+    listen<McpStatus>("mcp-status-changed", (e) => cb(e.payload)),
   listConflicts:    ()             => invoke<string[]>("list_conflicts"),
   readConflict:     (path: string) => invoke<TaskDiff[]>("read_conflict", { conflictPath: path }),
   resolveConflict:  (path: string, decisions: Decision[]) =>

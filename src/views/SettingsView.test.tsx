@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { api, Document } from "../lib/tauri";
+import { api, Document, type McpStatus } from "../lib/tauri";
 import { __resetPlatformCacheForTests, isAndroid } from "../lib/platform";
 import { SettingsView } from "./SettingsView";
 
@@ -43,6 +43,7 @@ vi.mock("../lib/tauri", async (importOriginal) => {
       safClearFolder: vi.fn(),
       getMcpStatus: vi.fn().mockResolvedValue({ status: "off" }),
       regenerateMcpToken: vi.fn().mockResolvedValue("test-token"),
+      onMcpStatusChanged: vi.fn().mockResolvedValue(() => {}),
     },
   };
 });
@@ -108,6 +109,21 @@ describe("SettingsView MCP server", () => {
     const note = await screen.findByText(/Port in use.*7373 is taken/, { selector: ".mcp-port-error" });
     expect(note.getAttribute("role")).toBe("alert");
     expect(note.closest("label")?.querySelector("input")?.getAttribute("inputmode")).toBe("numeric");
+  });
+
+  it("updates the status from mcp-status-changed events", async () => {
+    vi.mocked(api.getMcpStatus).mockResolvedValue({ status: "listening" });
+    let push: ((s: McpStatus) => void) | undefined;
+    vi.mocked(api.onMcpStatusChanged).mockImplementation(async (cb) => {
+      push = cb;
+      return () => {};
+    });
+    render(<SettingsView doc={mcpDoc} />);
+    await screen.findByText(/Listening/);
+    await waitFor(() => expect(push).toBeDefined());
+    act(() => push!({ status: "port_in_use", message: "taken" }));
+    await screen.findByText(/Port in use.*taken/, { selector: ".mcp-port-error" });
+    expect(screen.getAllByText(/Port in use/)).toHaveLength(1);
   });
 
   it("prefers the port validation error over the port-in-use status", async () => {

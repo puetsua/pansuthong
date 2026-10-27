@@ -44,6 +44,16 @@ export function McpSection({ settings, applySettings }: Props) {
   }, [enabled, android, refreshStatus]);
 
   useEffect(() => {
+    if (android) return;
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void api.onMcpStatusChanged(setStatus)
+      .then((un) => { if (active) unlisten = un; else un(); })
+      .catch(() => {});
+    return () => { active = false; unlisten?.(); };
+  }, [android]);
+
+  useEffect(() => {
     setPortDraft(String(port));
   }, [port]);
 
@@ -200,7 +210,10 @@ export function McpSection({ settings, applySettings }: Props) {
         </button>
       </div>
 
-      <p className="view-sub" role="status">{statusLabel}</p>
+      {/* Port in use is already shown under the Port field. */}
+      {status?.status !== "port_in_use" && (
+        <p className="view-sub" role="status">{statusLabel}</p>
+      )}
     </section>
   );
 }
