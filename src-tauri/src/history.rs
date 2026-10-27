@@ -946,7 +946,7 @@ mod tests {
             "One".into(),
             "Created task",
         );
-        append_history(&data, &[first.clone()]).unwrap();
+        append_history(&data, std::slice::from_ref(&first)).unwrap();
 
         let mut again = first.clone();
         again.timestamp = 2_000;

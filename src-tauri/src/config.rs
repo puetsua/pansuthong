@@ -731,8 +731,10 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_day_start_hour() {
-        let mut s = Settings::default();
-        s.day_start_hour = 4;
+        let s = Settings {
+            day_start_hour: 4,
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.day_start_hour, 4);
@@ -740,8 +742,10 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_reminder_interval() {
-        let mut s = Settings::default();
-        s.reminder_interval_minutes = 30;
+        let s = Settings {
+            reminder_interval_minutes: 30,
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.reminder_interval_minutes, 30);
@@ -759,8 +763,10 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_recurrence_heatmap_days() {
-        let mut s = Settings::default();
-        s.recurrence_heatmap_days = 180;
+        let s = Settings {
+            recurrence_heatmap_days: 180,
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.recurrence_heatmap_days, 180);
@@ -778,8 +784,10 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_first_day_of_week() {
-        let mut s = Settings::default();
-        s.first_day_of_week = 0; // Sunday
+        let s = Settings {
+            first_day_of_week: 0, // Sunday
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.first_day_of_week, 0);
@@ -797,8 +805,10 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_language() {
-        let mut s = Settings::default();
-        s.language = "zh-TW".into();
+        let s = Settings {
+            language: "zh-TW".into(),
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.language, "zh-TW");
@@ -806,9 +816,11 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_tag_defaults() {
-        let mut s = Settings::default();
-        s.default_tag_color = "#ef4444".into();
-        s.default_tag_priority = 7;
+        let s = Settings {
+            default_tag_color: "#ef4444".into(),
+            default_tag_priority: 7,
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.default_tag_color, "#ef4444");
@@ -827,8 +839,10 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_date_time_format() {
-        let mut s = Settings::default();
-        s.date_time_format = "japanese".into();
+        let s = Settings {
+            date_time_format: "japanese".into(),
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.date_time_format, "japanese");
@@ -836,9 +850,11 @@ mod tests {
 
     #[test]
     fn settings_round_trip_preserves_date_and_time_formats() {
-        let mut s = Settings::default();
-        s.date_format = Some("roc".into());
-        s.time_format = Some("twenty_four".into());
+        let s = Settings {
+            date_format: Some("roc".into()),
+            time_format: Some("twenty_four".into()),
+            ..Settings::default()
+        };
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.date_format.as_deref(), Some("roc"));

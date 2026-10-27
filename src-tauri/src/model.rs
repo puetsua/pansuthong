@@ -1068,8 +1068,10 @@ mod tests {
 
     #[test]
     fn merge_tag_dashboard_order_follows_lww() {
-        let mut older = Document::default();
-        older.last_modified = 10;
+        let mut older = Document {
+            last_modified: 10,
+            ..Document::default()
+        };
         older.tags.push(Tag {
             id: "t_1".into(),
             name: "work".into(),
@@ -1081,8 +1083,10 @@ mod tests {
             dashboard_order: Some(0),
         });
 
-        let mut newer = Document::default();
-        newer.last_modified = 20;
+        let mut newer = Document {
+            last_modified: 20,
+            ..Document::default()
+        };
         newer.tags.push(Tag {
             id: "t_1".into(),
             name: "work".into(),
@@ -1624,14 +1628,18 @@ mod tests {
     fn merge_tag_lww_uses_tag_updated_at_not_doc_last_modified() {
         // Replica A edited an unrelated task, bumping its doc.last_modified high,
         // but only touched tag t_1 long ago (updated_at = 5).
-        let mut a = Document::default();
-        a.last_modified = 100;
+        let mut a = Document {
+            last_modified: 100,
+            ..Document::default()
+        };
         a.tags.push(tag_named("t_1", "old", 5));
 
         // Replica B made the genuinely newer edit to t_1 (updated_at = 50) but its
         // doc.last_modified is lower because it touched nothing else.
-        let mut b = Document::default();
-        b.last_modified = 60;
+        let mut b = Document {
+            last_modified: 60,
+            ..Document::default()
+        };
         b.tags.push(tag_named("t_1", "new", 50));
 
         let merged = merge_documents(vec![a, b]);
@@ -1644,12 +1652,16 @@ mod tests {
     fn merge_tag_lww_falls_back_to_doc_last_modified_only_for_legacy_tags() {
         // Both tags are legacy (updated_at == 0), so the only signal is the
         // containing document's last_modified — the newer document wins.
-        let mut older = Document::default();
-        older.last_modified = 10;
+        let mut older = Document {
+            last_modified: 10,
+            ..Document::default()
+        };
         older.tags.push(tag_named("t_1", "older", 0));
 
-        let mut newer = Document::default();
-        newer.last_modified = 20;
+        let mut newer = Document {
+            last_modified: 20,
+            ..Document::default()
+        };
         newer.tags.push(tag_named("t_1", "newer", 0));
 
         let merged = merge_documents(vec![older, newer]);

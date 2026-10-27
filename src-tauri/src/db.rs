@@ -457,8 +457,10 @@ mod tests {
     #[test]
     fn document_round_trips() {
         let mut conn = in_memory();
-        let mut doc = Document::default();
-        doc.last_modified = 1_700_000_000_000;
+        let mut doc = Document {
+            last_modified: 1_700_000_000_000,
+            ..Document::default()
+        };
         doc.tasks.push(sample_task("k_a", 1_000));
         doc.tasks.push(sample_task("k_b", 2_000));
         doc.deleted_tasks.push(Tombstone {

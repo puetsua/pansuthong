@@ -21,9 +21,10 @@ fn mk(id: &str, title: &str, done: bool) -> Task {
 }
 
 fn doc(tasks: Vec<Task>) -> Document {
-    let mut d = Document::default();
-    d.tasks = tasks;
-    d
+    Document {
+        tasks,
+        ..Document::default()
+    }
 }
 
 #[test]
