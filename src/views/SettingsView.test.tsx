@@ -138,6 +138,24 @@ describe("SettingsView MCP server", () => {
     expect(document.querySelectorAll(".mcp-port-error")).toHaveLength(1);
   });
 
+  it("keeps a rejected port in the field and drops its message once the saved port is restored", async () => {
+    vi.mocked(api.getMcpStatus).mockResolvedValue({ status: "port_in_use", message: "7373 is taken" });
+    render(<SettingsView doc={mcpDoc} />);
+    const note = await screen.findByText(/Port in use/, { selector: ".mcp-port-error" });
+    const input = note.closest("label")!.querySelector("input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "80" } });
+    fireEvent.blur(input);
+    await screen.findByText(/Port must be an integer/, { selector: ".mcp-port-error" });
+    expect(input.value).toBe("80");
+    expect(document.querySelectorAll(".mcp-port-error")).toHaveLength(1);
+    fireEvent.change(input, { target: { value: "7373" } });
+    fireEvent.blur(input);
+    await screen.findByText(/Port in use.*7373 is taken/, { selector: ".mcp-port-error" });
+    expect(screen.queryByText(/Port must be an integer/)).toBeNull();
+    expect(document.querySelectorAll(".mcp-port-error")).toHaveLength(1);
+    expect(api.updateSettings).not.toHaveBeenCalled();
+  });
+
   it.each(["1e4", "1.0", "+5000", "5000x", "0x1F90", " 80 "])(
     "rejects non-digit or out-of-range port input %j",
     async (value) => {

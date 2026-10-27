@@ -102,14 +102,12 @@ export function McpSection({ settings, applySettings }: Props) {
     const raw = portDraft.trim();
     if (raw === "") {
       setPortErr(t("settings.mcp.portInvalid", { min: MCP_PORT_MIN, max: MCP_PORT_MAX }));
-      setPortDraft(String(port));
       return;
     }
     // Digits only: rejects "1e4", "1.0", "+5000" that Number() would accept.
     const n = /^\d+$/.test(raw) ? Number(raw) : NaN;
     if (!Number.isFinite(n) || n < MCP_PORT_MIN || n > MCP_PORT_MAX || !Number.isInteger(n)) {
       setPortErr(t("settings.mcp.portInvalid", { min: MCP_PORT_MIN, max: MCP_PORT_MAX }));
-      setPortDraft(String(port));
       return;
     }
     if (n === port) {
@@ -122,7 +120,6 @@ export function McpSection({ settings, applySettings }: Props) {
       await refreshStatus();
     } catch (e) {
       setPortErr(String(e));
-      setPortDraft(String(port));
     }
   };
 
