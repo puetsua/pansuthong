@@ -1951,6 +1951,20 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .te-notes-preview pre { margin: 0 0 var(--space-2); }
 .te-notes-preview ul,
 .te-notes-preview ol { padding-left: var(--space-4); }
+.te-notes-preview ul.contains-task-list { list-style: none; }
+.te-notes-preview ul.contains-task-list > li:not(.task-list-item) {
+  list-style-type: disc;
+}
+.te-notes-preview li.task-list-item {
+  list-style-type: none;
+}
+.te-notes-preview .te-md-task-check {
+  margin-right: 0.35em;
+  accent-color: var(--c-accent);
+  cursor: pointer;
+  vertical-align: middle;
+}
+.te-notes-preview .te-md-task-check:disabled { cursor: not-allowed; }
 .te-notes-preview blockquote {
   color: var(--c-text-muted);
   border-left: 3px solid var(--c-border);

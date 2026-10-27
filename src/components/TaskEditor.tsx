@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import ReactMarkdown from "react-markdown";
-import type { Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { api, Attachment, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import {
@@ -17,10 +17,11 @@ import { defaultTagColor } from "../lib/settings";
 import { playCompletionSound } from "../lib/sound";
 import { TagInput } from "./TagInput";
 import { TimeTracking } from "./TimeTracking";
-import { defaultPastedName, isManagedAttachmentPath, markdownRefFor } from "./task-editor/attachmentRefs";
-import { AttachmentList, ImageLightbox, MarkdownImage } from "./task-editor/attachments";
+import { defaultPastedName, markdownRefFor } from "./task-editor/attachmentRefs";
+import { AttachmentList, ImageLightbox } from "./task-editor/attachments";
 import { ConfirmDialog, SaveChangesDialog } from "./task-editor/dialogs";
 import { NotesField, type NotesMode } from "./task-editor/NotesField";
+import { buildMarkdownNotesComponents, markdownNotesElements } from "./task-editor/markdownNotesComponents";
 import { RecurrenceFields } from "./task-editor/RecurrenceFields";
 import { ScheduleFields } from "./task-editor/ScheduleFields";
 
@@ -43,11 +44,6 @@ type Props = {
   | { kind?: "task"; task: Task }
   | { kind: "template"; template: TemplateTask }
 );
-
-const markdownElements = [
-  "a", "blockquote", "br", "code", "em", "h1", "h2", "h3", "h4", "h5", "h6",
-  "hr", "img", "li", "ol", "p", "pre", "strong", "ul",
-];
 
 export function TaskEditor(props: Props) {
   const { t } = useTranslation();
@@ -436,33 +432,24 @@ export function TaskEditor(props: Props) {
   const noteRows = Math.min(16, Math.max(4, form.notes.split(/\r\n|\r|\n/).length + 1));
   const noteHeightRem = Math.min(18, Math.max(7, noteRows * 1.45 + 1.5));
 
-  const markdownComponents = useMemo<Components>(() => ({
-    img: ({ src, alt }) => {
-      const label = alt ?? "";
-      if (typeof src !== "string" || !isManagedAttachmentPath(src)) return <span>{label}</span>;
-      if (!attachmentPaths.has(src)) {
-        return (
-          <span className="te-md-image-broken" title={t("taskEditor.imageUnavailable")}>
-            🔗💔 {label || t("taskEditor.imageUnavailable")}
-          </span>
-        );
-      }
-      return <MarkdownImage path={src} alt={label} onOpen={openImage} />;
-    },
-    a: ({ href, children }) => {
-      if (typeof href !== "string" || !isManagedAttachmentPath(href)) {
-        return <a href={href} target="_blank" rel="noreferrer">{children}</a>;
-      }
-      if (!attachmentPaths.has(href)) {
-        return <span className="te-md-image-broken" title={t("taskEditor.imageUnavailable")}>🔗💔 {children}</span>;
-      }
-      return <a href="#" onClick={e => { e.preventDefault(); void api.openAttachment(href); }}>{children}</a>;
-    },
-  }), [openImage, attachmentPaths, t]);
+  const markdownComponents = useMemo(
+    () => buildMarkdownNotesComponents({
+      notes: form.notes,
+      attachmentPaths,
+      onNotesChange: value => set("notes", value),
+      openImage,
+      t,
+    }),
+    [form.notes, attachmentPaths, openImage, t],
+  );
 
   const deferredNotes = useDeferredValue(form.notes);
   const notesPreview = useMemo(() => (
-    <ReactMarkdown allowedElements={markdownElements} components={markdownComponents}>
+    <ReactMarkdown
+      remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
+      allowedElements={[...markdownNotesElements]}
+      components={markdownComponents}
+    >
       {deferredNotes}
     </ReactMarkdown>
   ), [deferredNotes, markdownComponents]);
