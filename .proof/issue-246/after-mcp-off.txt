@@ -1,0 +1,6 @@
+# MCP OFF check, 2026-10-27 20:31:14 CST, pid=3464905
+$ ss -ltnp | grep 7373
+exit=1
+$ curl -sS -i -X POST http://127.0.0.1:7373/mcp
+curl: (7) Failed to connect to 127.0.0.1 port 7373 after 0 ms: Could not connect to server
+exit=7
