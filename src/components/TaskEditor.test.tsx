@@ -335,6 +335,56 @@ describe("TaskEditor GFM task lists in notes preview (#245)", () => {
     expect(screen.getByText("嵌套項目").closest("ul")).toBeTruthy();
   });
 
+  const notesPreview = () => document.querySelector(".te-notes-preview")!;
+
+  it("keeps non-task GFM syntax as visible literal text (0.32.1 preview)", () => {
+    const notes = [
+      "| col | val |",
+      "| --- | --- |",
+      "| a | b |",
+      "",
+      "before ~~strike~~ after",
+      "",
+      "foot[^1]",
+      "",
+      "[^1]: the note",
+      "",
+      "https://example.com",
+    ].join("\n");
+    const task: Task = { ...baseTask, notes };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    const text = notesPreview().textContent ?? "";
+    expect(text).toContain("| col | val |");
+    expect(text).toContain("| --- | --- |");
+    expect(text).toContain("| a | b |");
+    expect(text).toContain("before ~~strike~~ after");
+    expect(text).toContain("foot[^1]");
+    expect(text).toContain("[^1]: the note");
+    expect(text).toContain("https://example.com");
+    expect(notesPreview().querySelector("table")).toBeNull();
+    expect(notesPreview().querySelector("del")).toBeNull();
+    expect(notesPreview().querySelector("a")).toBeNull();
+  });
+
+  it("keeps ordered-list numbering for numbered task items", () => {
+    const task: Task = { ...baseTask, notes: "1. [ ] numbered\n2. [x] done" };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    const ol = notesPreview().querySelector("ol.contains-task-list");
+    expect(ol).not.toBeNull();
+    const items = ol!.querySelectorAll("li.task-list-item.te-md-task-item");
+    expect(items).toHaveLength(2);
+    expect(taskChecks()).toHaveLength(2);
+  });
+
+  it("marks task list rows for hanging-indent layout", () => {
+    const task: Task = { ...baseTask, notes: "- [ ] line one\n  continues" };
+    render(<TaskEditor task={task} allTags={tags} onClose={vi.fn()} />);
+
+    expect(notesPreview().querySelector("li.te-md-task-item")).not.toBeNull();
+  });
+
   it("toggles the matching line by source position and saves only on Save", async () => {
     const notes = "- [ ] buy milk\n- [ ] buy milk";
     const task: Task = { ...baseTask, notes };

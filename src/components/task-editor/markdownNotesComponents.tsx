@@ -44,8 +44,10 @@ export function buildMarkdownNotesComponents({
         body.push(child);
       });
 
+      const itemClass = [classText, "te-md-task-item"].filter(Boolean).join(" ");
+
       return (
-        <li className={className} {...props}>
+        <li className={itemClass} {...props}>
           <input
             type="checkbox"
             className="te-md-task-check"

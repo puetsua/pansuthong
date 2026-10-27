@@ -1955,14 +1955,26 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
 .te-notes-preview ul.contains-task-list > li:not(.task-list-item) {
   list-style-type: disc;
 }
-.te-notes-preview li.task-list-item {
+.te-notes-preview ol.contains-task-list {
+  list-style-type: decimal;
+}
+.te-notes-preview ul > li.task-list-item {
   list-style-type: none;
 }
+.te-notes-preview ol > li.task-list-item {
+  list-style-type: decimal;
+}
+.te-notes-preview li.te-md-task-item {
+  position: relative;
+  padding-left: 1.35em;
+}
 .te-notes-preview .te-md-task-check {
-  margin-right: 0.35em;
+  position: absolute;
+  left: 0;
+  top: 0.2em;
+  margin: 0;
   accent-color: var(--c-accent);
   cursor: pointer;
-  vertical-align: middle;
 }
 .te-notes-preview .te-md-task-check:disabled { cursor: not-allowed; }
 .te-notes-preview blockquote {

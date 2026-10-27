@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { remarkTaskListOnly } from "../lib/remarkTaskListOnly";
 import { api, Attachment, isDone, Tag, Task, TemplateTask } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import {
@@ -446,7 +446,7 @@ export function TaskEditor(props: Props) {
   const deferredNotes = useDeferredValue(form.notes);
   const notesPreview = useMemo(() => (
     <ReactMarkdown
-      remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
+      remarkPlugins={[remarkTaskListOnly]}
       allowedElements={[...markdownNotesElements]}
       components={markdownComponents}
     >
