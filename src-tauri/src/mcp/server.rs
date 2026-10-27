@@ -106,6 +106,21 @@ where
             bearer_auth,
         ))
         .layer(middleware::from_fn(origin_gate))
+        .layer(middleware::from_fn_with_state(
+            opts.header_read_timeout,
+            keep_alive_header,
+        ))
+}
+
+/// Advertise the idle-connection timeout (hyper closes idle keep-alive connections after
+/// `header_read_timeout`) on every response, including auth and origin rejections.
+async fn keep_alive_header(State(idle): State<Duration>, req: Request<Body>, next: Next) -> Response {
+    let mut res = next.run(req).await;
+    let value = format!("timeout={}", idle.as_secs());
+    if let Ok(value) = header::HeaderValue::from_str(&value) {
+        res.headers_mut().insert("keep-alive", value);
+    }
+    res
 }
 
 fn jsonrpc_error_response(status: StatusCode, message: String) -> Response {

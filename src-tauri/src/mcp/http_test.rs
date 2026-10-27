@@ -302,6 +302,11 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
         .await
         .unwrap();
     assert_eq!(not_acceptable.status(), 406);
+    assert_eq!(
+        not_acceptable.headers().get("keep-alive").and_then(|v| v.to_str().ok()),
+        Some("timeout=10"),
+        "idle timeout must be advertised"
+    );
     let body406 = not_acceptable.text().await.unwrap();
     assert!(body406.contains("-32600"), "406 must map to invalid request: {body406}");
     assert!(body406.contains("\"id\":null"), "406 body must include id null: {body406}");
