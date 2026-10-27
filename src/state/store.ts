@@ -108,6 +108,28 @@ export function useDocument(): DocState {
       }
     };
 
+    // Single-flight: every reload fetches the whole document, and concurrent MCP
+    // writers can fire store-changed many times a second. Keep one fetch in flight
+    // and fold every event that arrives meanwhile into one trailing fetch, so
+    // reloads never pile up (#249 N5) and responses cannot land out of order.
+    let inFlight = false;
+    let again = false;
+    const refresh = async () => {
+      if (inFlight) {
+        again = true;
+        return;
+      }
+      inFlight = true;
+      try {
+        do {
+          again = false;
+          await load();
+        } while (again && mounted);
+      } finally {
+        inFlight = false;
+      }
+    };
+
     /** Retry opening the data store with exponential backoff. */
     const scheduleRetry = () => {
       if (!mounted) return;
@@ -136,7 +158,7 @@ export function useDocument(): DocState {
           if (!mounted) return;
           if (ok) {
             // The real store opened — reload the document.
-            void load();
+            void refresh();
           } else {
             if (completed + 1 >= SHOW_FALLBACK_FROM) setShowFallback(true);
             if (completed + 1 >= MAX_ATTEMPTS) setGaveUp(true);
@@ -153,9 +175,9 @@ export function useDocument(): DocState {
 
     // store-changed = synced document mutated; settings-changed = device-local
     // config only. Both need a UI reload; only store-changed schedules SAF push.
-    const unlistenStore = listen("store-changed", () => { void load(); });
-    const unlistenSettings = listen("settings-changed", () => { void load(); });
-    void load();
+    const unlistenStore = listen("store-changed", () => { void refresh(); });
+    const unlistenSettings = listen("settings-changed", () => { void refresh(); });
+    void refresh();
 
     return () => {
       mounted = false;
