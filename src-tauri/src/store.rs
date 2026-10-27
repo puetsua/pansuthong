@@ -22,7 +22,8 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use parking_lot::FairMutex;
+use std::sync::{Arc, RwLock};
 
 /// How to handle this device's owned payload when relocating the data folder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -35,7 +36,36 @@ pub enum TransferMode {
 }
 
 pub struct AppState {
-    inner: Mutex<Inner>,
+    /// Fair so writers are served in arrival order: with `std::sync::Mutex` a UI
+    /// command could be overtaken again and again by queued MCP writers (#249 N5).
+    inner: FairMutex<Inner>,
+    /// Serializes rewrites of this device's history sidecar. `write` takes it before
+    /// releasing `inner` and appends after, so the next writer can persist while
+    /// this one rewrites the sidecar, and lines still land in commit order. Always
+    /// taken after `inner`, never before.
+    history: FairMutex<()>,
+    /// Last committed state, republished (under `inner`) by every mutation. Reads
+    /// take this lock only to copy the `Arc`, so the UI never queues behind a writer
+    /// that holds `inner` while it persists the document (#249 N5).
+    snapshot: RwLock<Arc<Snapshot>>,
+}
+
+/// What readers see: the committed document plus the bits of store state that UI
+/// commands poll on the main thread.
+struct Snapshot {
+    doc: Arc<Document>,
+    path: PathBuf,
+    pending: bool,
+}
+
+impl Snapshot {
+    fn of(inner: &Inner) -> Arc<Self> {
+        Arc::new(Self {
+            doc: inner.doc.clone(),
+            path: inner.path.clone(),
+            pending: inner.pending,
+        })
+    }
 }
 
 struct Inner {
@@ -45,10 +75,14 @@ struct Inner {
     /// across idle is what made a 15s+ OneDrive lock unrecoverable without restart
     /// (#179).
     conn: Option<Connection>,
-    doc: Document,
+    /// Shared with the published [`Snapshot`]; a write builds the next document
+    /// beside it and swaps the `Arc` only once the change is durable.
+    doc: Arc<Document>,
     path: PathBuf,
-    /// Content hash of our own document (compact serialization).
-    own_hash: [u8; 32],
+    /// Content hash of our own document (compact serialization), computed lazily:
+    /// only the replica poll and folder-sync bookkeeping need it, so a write just
+    /// invalidates it instead of serializing the whole document under the lock.
+    own_hash: Option<[u8; 32]>,
     /// Combined content hash of peer replicas, so the poll can detect a peer
     /// change cheaply. Excludes our own replica.
     peers_hash: [u8; 32],
@@ -61,6 +95,10 @@ struct Inner {
 }
 
 impl Inner {
+    fn own_hash(&mut self) -> [u8; 32] {
+        *self.own_hash.get_or_insert_with(|| content_hash(&self.doc))
+    }
+
     /// Persist `self.doc`. File-backed stores open, write, and drop the replica so
     /// a sync client can exclusive-open it; the in-memory pending store keeps its
     /// connection because there is no file.
@@ -73,6 +111,20 @@ impl Inner {
         } else {
             self.conn = None;
             crate::db::persist_document(&self.path, &self.doc)
+        }
+    }
+
+    /// Persist `next` over the committed `self.doc`, which the backing already holds,
+    /// writing only the rows that differ.
+    fn persist_next(&mut self, next: &Document) -> Result<()> {
+        if self.pending {
+            let conn = self.conn.as_mut().ok_or_else(|| {
+                AppError::Invalid("pending store is missing its in-memory connection".into())
+            })?;
+            crate::db::write_document_since(conn, &self.doc, next)
+        } else {
+            self.conn = None;
+            crate::db::persist_document_since(&self.path, &self.doc, next)
         }
     }
 }
@@ -106,33 +158,51 @@ impl AppState {
         crate::db::persist_document(&path, &doc)?;
         let own_hash = content_hash(&doc);
         let peers_hash = peers_content_hash(&path);
-        Ok(Self {
-            inner: Mutex::new(Inner {
-                conn: None,
-                doc,
-                path,
-                own_hash,
-                peers_hash,
-                device_id,
-                device_name,
-                pending: false,
-            }),
-        })
+        Ok(Self::from_inner(Inner {
+            conn: None,
+            doc: Arc::new(doc),
+            path,
+            own_hash: Some(own_hash),
+            peers_hash,
+            device_id,
+            device_name,
+            pending: false,
+        }))
     }
 
+    fn from_inner(inner: Inner) -> Self {
+        let snapshot = RwLock::new(Snapshot::of(&inner));
+        Self {
+            inner: FairMutex::new(inner),
+            history: FairMutex::new(()),
+            snapshot,
+        }
+    }
+
+    /// Republish after a mutation. Called with `inner` held so snapshots appear in
+    /// commit order.
+    fn publish(&self, inner: &Inner) {
+        *self.snapshot.write().unwrap_or_else(|e| e.into_inner()) = Snapshot::of(inner);
+    }
+
+    fn snapshot(&self) -> Arc<Snapshot> {
+        self.snapshot.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// Run `f` on the last committed document. Never waits for an in-progress
+    /// write: it sees the document as of the most recent successful commit.
     pub fn read<F, T>(&self, f: F) -> T
     where
         F: FnOnce(&Document) -> T,
     {
-        let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        f(&g.doc)
+        f(&self.snapshot().doc)
     }
 
     /// True when the store is a temporary stand-in because the real data folder
     /// isn't available yet (e.g. Google Drive not mounted at boot). The frontend
     /// should show a loading screen and call `retry_open`.
     pub fn is_pending(&self) -> bool {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).pending
+        self.snapshot().pending
     }
 
     /// Create a temporary in-memory store used when the real data folder isn't
@@ -145,18 +215,16 @@ impl AppState {
         let doc = Document::default();
         let own_hash = content_hash(&doc);
         let peers_hash = [0; 32];
-        Ok(Self {
-            inner: Mutex::new(Inner {
-                conn: Some(conn),
-                doc,
-                path: intended_path,
-                own_hash,
-                peers_hash,
-                device_id: device_id.to_string(),
-                device_name,
-                pending: true,
-            }),
-        })
+        Ok(Self::from_inner(Inner {
+            conn: Some(conn),
+            doc: Arc::new(doc),
+            path: intended_path,
+            own_hash: Some(own_hash),
+            peers_hash,
+            device_id: device_id.to_string(),
+            device_name,
+            pending: true,
+        }))
     }
 
     /// Try to open the real data store at the path stored when this pending store
@@ -172,7 +240,7 @@ impl AppState {
     /// ensures we only open when the cloud-sync client has actually mounted the
     /// folder.
     pub fn retry_open(&self) -> Result<bool> {
-        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let mut g = self.inner.lock();
         if !g.pending {
             return Ok(true); // already open
         }
@@ -189,7 +257,7 @@ impl AppState {
             Ok(s) => s,
             Err(_) => return Ok(false),
         };
-        let real_inner = real.inner.into_inner().unwrap();
+        let real_inner = real.inner.into_inner();
         g.conn = real_inner.conn;
         g.doc = real_inner.doc;
         g.path = real_inner.path;
@@ -198,6 +266,7 @@ impl AppState {
         g.device_id = real_inner.device_id;
         g.device_name = real_inner.device_name;
         g.pending = false;
+        self.publish(&g);
         Ok(true)
     }
 
@@ -206,8 +275,8 @@ impl AppState {
     /// the configured cloud folder and chooses to use the default location instead.
     pub fn open_at(&self, path: PathBuf) -> Result<()> {
         let real = Self::open(path)?;
-        let real_inner = real.inner.into_inner().unwrap();
-        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let real_inner = real.inner.into_inner();
+        let mut g = self.inner.lock();
         g.conn = real_inner.conn;
         g.doc = real_inner.doc;
         g.path = real_inner.path;
@@ -216,6 +285,7 @@ impl AppState {
         g.device_id = real_inner.device_id;
         g.device_name = real_inner.device_name;
         g.pending = false;
+        self.publish(&g);
         Ok(())
     }
 
@@ -227,41 +297,36 @@ impl AppState {
     where
         F: FnOnce(&mut Document) -> Result<T>,
     {
-        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        let before = g.doc.clone();
-        let value = match f(&mut g.doc) {
-            Ok(v) => v,
-            Err(e) => {
-                g.doc = before;
-                return Err(e);
-            }
-        };
-        // Structural equality instead of hashing both sides: `own_hash` caches the
-        // current document's hash, so a write only hashes the document it produces.
-        if g.doc == before {
+        let mut g = self.inner.lock();
+        // Mutate a copy so readers keep the committed document until this one is
+        // durable; a rejected or failed write just drops `next`.
+        let mut next = Document::clone(&g.doc);
+        let value = f(&mut next)?;
+        // Structural equality instead of hashing: a write never hashes the document.
+        if next == *g.doc {
             return Ok(value);
         }
         let ts = crate::model::now_ms();
-        let mut history = crate::history::entries_for_change(&before, &g.doc, ts);
+        let mut history = crate::history::entries_for_change(&g.doc, &next, ts);
         crate::history::stamp_device(&mut history, &g.device_id, &g.device_name);
-        g.doc.last_modified = ts;
-        g.doc.version = CURRENT_VERSION;
-        let inner = &mut *g;
-        // The mutation is already applied in memory, so a failed persist would leave
-        // the app reporting a change that never reached disk — and the next successful
-        // write would bake that phantom state in. Restore the pre-mutation document
-        // (which also restores `last_modified`/`version`) so the two never disagree.
-        if let Err(e) = inner.persist() {
-            g.doc = before;
-            return Err(e);
-        }
-        if let Err(e) = crate::history::append_history(&inner.path, &history) {
+        next.last_modified = ts;
+        next.version = CURRENT_VERSION;
+        // A failed persist leaves the committed document in place, so the app never
+        // reports a change that never reached disk.
+        g.persist_next(&next)?;
+        // The cached hash is recomputed on demand. `peers_hash` is left alone: our
+        // own replica is not part of it, and refreshing it here (decoding every peer
+        // replica under the lock on each write) could also mark a peer change as
+        // seen before the poll merged it.
+        g.own_hash = None;
+        g.doc = Arc::new(next);
+        self.publish(&g);
+        let path = g.path.clone();
+        let _history = self.history.lock();
+        drop(g);
+        if let Err(e) = crate::history::append_history(&path, &history) {
             eprintln!("warning: failed to append history: {e}");
         }
-        // Hashed after stamping `last_modified`/`version` so the cache matches the
-        // document actually in memory and on disk.
-        g.own_hash = content_hash(&g.doc);
-        g.peers_hash = peers_content_hash(&g.path);
         Ok(value)
     }
 
@@ -274,22 +339,22 @@ impl AppState {
         // doesn't block command handlers on every (usually no-op) tick.
         let peers_hash = peers_content_hash(&path);
         {
-            let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+            let g = self.inner.lock();
             if peers_hash == g.peers_hash {
                 return Ok(false);
             }
         }
         // A peer changed. Hold the lock across the whole re-merge-and-assign so a
         // concurrent write() can't have its just-persisted edit clobbered.
-        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let mut g = self.inner.lock();
         let before = g.doc.clone();
         let mut docs = collect_peer_docs(&g.path);
-        docs.push(before.clone());
+        docs.push(Document::clone(&before));
         let merged = merge_documents(docs);
         let merged_hash = content_hash(&merged);
-        let merge_changed_something = g.own_hash != merged_hash;
+        let merge_changed_something = g.own_hash() != merged_hash;
         let inner = &mut *g;
-        inner.doc = merged;
+        inner.doc = Arc::new(merged);
         // Same atomicity rule as `write`: if the merged document cannot be persisted,
         // keep the pre-merge one in memory. Leaving `peers_hash` un-refreshed means the
         // peer still reads as changed, so a later poll retries the merge on its own.
@@ -302,6 +367,7 @@ impl AppState {
         // later poll re-derives the same entries, and `filter_unseen_entries` keeps
         // that from double-recording them.
         if merge_changed_something {
+            let _history = self.history.lock();
             let ts = crate::model::now_ms();
             let history = crate::history::entries_for_change(&before, &g.doc, ts);
             match crate::history::filter_unseen_entries(&g.path, history) {
@@ -314,8 +380,9 @@ impl AppState {
                 Err(e) => eprintln!("warning: failed to dedup merge history: {e}"),
             }
         }
-        g.own_hash = merged_hash;
+        g.own_hash = Some(merged_hash);
         g.peers_hash = peers_content_hash(&g.path);
+        self.publish(&g);
         drop(g);
         // Attachment tombstones from peers may have dropped live refs — GC orphans.
         crate::commands::gc_unreferenced_attachment_blobs(self);
@@ -323,19 +390,12 @@ impl AppState {
     }
 
     pub fn path(&self) -> PathBuf {
-        self.inner
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .path
-            .clone()
+        self.snapshot().path.clone()
     }
 
     #[allow(dead_code)] // used by tests and the folder-sync bookkeeping
     pub fn last_written_hash(&self) -> [u8; 32] {
-        self.inner
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .own_hash
+        self.inner.lock().own_hash()
     }
 
     /// Relocate the store to `new_path`. If the target folder already holds data
@@ -358,19 +418,22 @@ impl AppState {
             target_docs.push(existing);
         }
         let seeding = target_docs.is_empty();
-        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let mut g = self.inner.lock();
+        // The sidecar moves with the store; no append may land mid-transfer.
+        let _history = self.history.lock();
         let old_path = g.path.clone();
         let doc = if seeding {
-            g.doc.clone() // seed the new location from the current document
+            Document::clone(&g.doc) // seed the new location from the current document
         } else {
             merge_documents(target_docs)
         };
         crate::db::persist_document(&new_path, &doc)?;
         g.conn = None;
-        g.doc = doc;
+        g.doc = Arc::new(doc);
         g.path = new_path;
-        g.own_hash = content_hash(&g.doc);
+        g.own_hash = Some(content_hash(&g.doc));
         g.peers_hash = peers_content_hash(&g.path);
+        self.publish(&g);
 
         // Sidecar / attachment transfer. Under Copy, failures are non-fatal
         // (warn-and-continue, same class as history). Under Move, any failure
@@ -417,12 +480,12 @@ impl AppState {
                 doc.version, CURRENT_VERSION
             )));
         }
-        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let mut g = self.inner.lock();
         let before = g.doc.clone();
-        let merged = merge_documents(vec![before.clone(), doc]);
+        let merged = merge_documents(vec![Document::clone(&before), doc]);
         let hash = content_hash(&merged);
         let inner = &mut *g;
-        inner.doc = merged;
+        inner.doc = Arc::new(merged);
         // Same atomicity rule as `write`: a merge that cannot be persisted must not
         // stay adopted in memory, or the Android pull path reports data it never wrote.
         if let Err(e) = inner.persist() {
@@ -434,6 +497,7 @@ impl AppState {
         // SAF pull path never surfaced other devices' edits in the History view.
         // Appended only after the merge is durable, so a failed pull records nothing;
         // `filter_unseen_entries` keeps a later retry from double-recording it.
+        let _history = self.history.lock();
         let ts = crate::model::now_ms();
         let history = crate::history::entries_for_change(&before, &g.doc, ts);
         match crate::history::filter_unseen_entries(&g.path, history) {
@@ -445,8 +509,9 @@ impl AppState {
             }
             Err(e) => eprintln!("warning: failed to dedup adopt history: {e}"),
         }
-        g.own_hash = hash;
+        g.own_hash = Some(hash);
         g.peers_hash = peers_content_hash(&g.path);
+        self.publish(&g);
         Ok(hash)
     }
 
@@ -461,10 +526,10 @@ impl AppState {
             )));
         }
         let hash = content_hash(&doc);
-        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let mut g = self.inner.lock();
         let before = g.doc.clone();
         let inner = &mut *g;
-        inner.doc = doc;
+        inner.doc = Arc::new(doc);
         // Same atomicity rule as `write`: if the incoming document cannot be persisted,
         // the old one must stay in memory rather than the app switching to a source it
         // failed to write.
@@ -472,8 +537,9 @@ impl AppState {
             g.doc = before;
             return Err(e);
         }
-        g.own_hash = hash;
+        g.own_hash = Some(hash);
         g.peers_hash = peers_content_hash(&g.path);
+        self.publish(&g);
         Ok(hash)
     }
 }
@@ -724,7 +790,7 @@ mod tests {
     }
 
     #[test]
-    fn cached_hash_tracks_document_and_write_hashes_once() {
+    fn cached_hash_tracks_document_and_write_does_not_hash() {
         let dir = tempdir().unwrap();
         let state = AppState::open(dir.path().join("hash.db")).unwrap();
         assert_cache_matches(&state);
@@ -736,7 +802,11 @@ mod tests {
                 Ok(())
             })
             .unwrap();
-        assert_eq!(hash_calls() - before, 1, "an effective write hashes once");
+        assert_eq!(
+            hash_calls() - before,
+            0,
+            "a write never hashes; the cache is filled on demand"
+        );
         assert_cache_matches(&state);
 
         // A no-op write skips hashing entirely and leaves the cache valid.

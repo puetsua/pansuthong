@@ -3438,6 +3438,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "notify",
+ "parking_lot",
  "reqwest",
  "rmcp",
  "rodio",

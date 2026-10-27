@@ -58,6 +58,7 @@ axum = "0.8.9"
 tower = "0.5.3"
 tower-http = "0.7.1"
 http = "1.5.0"
+parking_lot = "0.12"
 tokio = { version = "1.53.3", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
 subtle = "2.6.1"
 base64 = "0.23.1"

@@ -19,6 +19,8 @@ pub mod model;
 pub mod parse;
 pub mod safsync;
 pub mod store;
+#[cfg(test)]
+mod store_contention_test;
 pub mod store_notify;
 pub mod sync;
 

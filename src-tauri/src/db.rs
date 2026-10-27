@@ -15,6 +15,8 @@
 use crate::error::{AppError, Result};
 use crate::model::{Document, Tombstone, CURRENT_VERSION};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
+use serde::Serialize;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -219,7 +221,13 @@ pub(crate) fn write_document_within(
     doc: &Document,
     budget: Duration,
 ) -> Result<()> {
-    retry_write(budget, || write_document_once(conn, doc))
+    retry_write(budget, || write_document_once(conn, None, doc))
+}
+
+/// [`write_document`] for a connection that currently holds `prev`: only the rows
+/// that changed are written (see [`write_delta`]).
+pub fn write_document_since(conn: &mut Connection, prev: &Document, doc: &Document) -> Result<()> {
+    retry_write(LOCK_RETRY_BUDGET, || write_document_once(conn, Some(prev), doc))
 }
 
 /// Open the replica, persist `doc`, and drop the connection. File-backed stores must
@@ -234,18 +242,26 @@ pub fn persist_document(path: &Path, doc: &Document) -> Result<()> {
 /// [`persist_document`] with an explicit budget, so tests can exercise exhaustion
 /// without sleeping for the production budget.
 pub(crate) fn persist_document_within(path: &Path, doc: &Document, budget: Duration) -> Result<()> {
-    persist_with_timeouts(path, doc, budget, BUSY_TIMEOUT)
+    persist_with_timeouts(path, None, doc, budget, BUSY_TIMEOUT)
+}
+
+/// [`persist_document`] for a replica that currently holds `prev` (the store's last
+/// committed document): only the rows that changed are written. Rewriting every
+/// row made each write O(document) while holding the store lock (#249 N5).
+pub fn persist_document_since(path: &Path, prev: &Document, doc: &Document) -> Result<()> {
+    persist_with_timeouts(path, Some(prev), doc, LOCK_RETRY_BUDGET, BUSY_TIMEOUT)
 }
 
 fn persist_with_timeouts(
     path: &Path,
+    prev: Option<&Document>,
     doc: &Document,
     budget: Duration,
     busy: Duration,
 ) -> Result<()> {
     retry_write(budget, || {
         let mut conn = open_for_write(path, busy)?;
-        let result = write_document_once(&mut conn, doc);
+        let result = write_document_once(&mut conn, prev, doc);
         drop(conn);
         result
     })
@@ -258,7 +274,7 @@ pub(crate) fn persist_document_within_for_test(
     budget: Duration,
     busy: Duration,
 ) -> Result<()> {
-    persist_with_timeouts(path, doc, budget, busy)
+    persist_with_timeouts(path, None, doc, budget, busy)
 }
 
 fn retry_write(budget: Duration, mut attempt: impl FnMut() -> Result<()>) -> Result<()> {
@@ -278,9 +294,29 @@ fn retry_write(budget: Duration, mut attempt: impl FnMut() -> Result<()>) -> Res
 
 /// One attempt at persisting the whole `Document` in a single transaction. A crash
 /// mid-write leaves either the fully committed state or the prior state, never a
-/// partial row.
-fn write_document_once(conn: &mut Connection, doc: &Document) -> Result<()> {
+/// partial row. With `prev`, only the difference is written when possible; either
+/// way the transaction ends with the database holding exactly `doc`.
+fn write_document_once(conn: &mut Connection, prev: Option<&Document>, doc: &Document) -> Result<()> {
     let tx = conn.transaction()?;
+    let applied = match prev {
+        Some(prev) => write_delta(&tx, prev, doc)?,
+        None => false,
+    };
+    if !applied {
+        write_all_rows(&tx, doc)?;
+    }
+    tx.execute(
+        "INSERT OR REPLACE INTO meta (key, value) VALUES ('last_modified', ?1)",
+        params![doc.last_modified.to_string()],
+    )?;
+    tx.commit()?;
+    // user_version is a header field; set it outside the entity transaction.
+    set_user_version(conn, doc.version)?;
+    Ok(())
+}
+
+/// Replace every entity and tombstone row with `doc`'s.
+fn write_all_rows(tx: &rusqlite::Transaction, doc: &Document) -> Result<()> {
     tx.execute("DELETE FROM tasks", [])?;
     tx.execute("DELETE FROM tags", [])?;
     tx.execute("DELETE FROM template_tasks", [])?;
@@ -304,19 +340,142 @@ fn write_document_once(conn: &mut Connection, doc: &Document) -> Result<()> {
             params![t.id, t.updated_at, serde_json::to_string(t)?],
         )?;
     }
-    insert_tombstones(&tx, "task", &doc.deleted_tasks)?;
-    insert_tombstones(&tx, "tag", &doc.deleted_tags)?;
-    insert_tombstones(&tx, "template", &doc.deleted_template_tasks)?;
-    insert_tombstones(&tx, "attachment", &doc.deleted_attachments)?;
-
-    tx.execute(
-        "INSERT OR REPLACE INTO meta (key, value) VALUES ('last_modified', ?1)",
-        params![doc.last_modified.to_string()],
-    )?;
-    tx.commit()?;
-    // user_version is a header field; set it outside the entity transaction.
-    set_user_version(conn, doc.version)?;
+    insert_tombstones(tx, "task", &doc.deleted_tasks)?;
+    insert_tombstones(tx, "tag", &doc.deleted_tags)?;
+    insert_tombstones(tx, "template", &doc.deleted_template_tasks)?;
+    insert_tombstones(tx, "attachment", &doc.deleted_attachments)?;
     Ok(())
+}
+
+/// Turn the rows for `prev` into the rows for `doc` by deleting, updating in place,
+/// and appending only what changed. Returns `false` when that cannot reproduce
+/// `doc` — entities were reordered, or the file does not hold `prev` (a row the
+/// update expected is missing, or the ids read back differ from `doc`'s) — and the caller rewrites
+/// every row in the same transaction instead.
+fn write_delta(tx: &rusqlite::Transaction, prev: &Document, doc: &Document) -> Result<bool> {
+    let entity = |table: &'static str| RowSql {
+        delete: format!("DELETE FROM {table} WHERE id = ?1"),
+        update: format!("UPDATE {table} SET edit_stamp = ?2, data = ?3 WHERE id = ?1"),
+        insert: format!("INSERT OR IGNORE INTO {table} (id, edit_stamp, data) VALUES (?1, ?2, ?3)"),
+        ids: format!("SELECT id FROM {table} ORDER BY seq"),
+    };
+    // `kind` is a fixed internal constant, never user input.
+    let tombstone = |kind: &'static str| RowSql {
+        delete: format!("DELETE FROM tombstones WHERE kind = '{kind}' AND id = ?1"),
+        update: format!(
+            "UPDATE tombstones SET deleted_at = ?2, data = ?3 WHERE kind = '{kind}' AND id = ?1"
+        ),
+        insert: format!(
+            "INSERT OR IGNORE INTO tombstones (kind, id, deleted_at, data) VALUES ('{kind}', ?1, ?2, ?3)"
+        ),
+        ids: format!("SELECT id FROM tombstones WHERE kind = '{kind}' ORDER BY rowid"),
+    };
+    fn tomb_id(t: &Tombstone) -> &str {
+        &t.id
+    }
+    fn tomb_stamp(t: &Tombstone) -> i64 {
+        t.deleted_at
+    }
+    Ok(rows_delta(tx, &entity(TASKS), &prev.tasks, &doc.tasks, |t| &t.id, |t| t.updated_at)?
+        && rows_delta(tx, &entity(TAGS), &prev.tags, &doc.tags, |t| &t.id, |t| t.updated_at)?
+        && rows_delta(
+            tx,
+            &entity(TEMPLATES),
+            &prev.template_tasks,
+            &doc.template_tasks,
+            |t| &t.id,
+            |t| t.updated_at,
+        )?
+        && rows_delta(tx, &tombstone("task"), &prev.deleted_tasks, &doc.deleted_tasks, tomb_id, tomb_stamp)?
+        && rows_delta(tx, &tombstone("tag"), &prev.deleted_tags, &doc.deleted_tags, tomb_id, tomb_stamp)?
+        && rows_delta(
+            tx,
+            &tombstone("template"),
+            &prev.deleted_template_tasks,
+            &doc.deleted_template_tasks,
+            tomb_id,
+            tomb_stamp,
+        )?
+        && rows_delta(
+            tx,
+            &tombstone("attachment"),
+            &prev.deleted_attachments,
+            &doc.deleted_attachments,
+            tomb_id,
+            tomb_stamp,
+        )?)
+}
+
+/// Statements for one group of rows, each taking `(?1 id, ?2 stamp, ?3 data)`.
+struct RowSql {
+    delete: String,
+    update: String,
+    insert: String,
+    /// Ids in read-back order, to confirm the result matches `next` row for row.
+    ids: String,
+}
+
+/// Apply `prev` → `next` for one group of rows. Rows are read back in insertion
+/// order, so this only applies when surviving items keep their relative order and
+/// new items come after all of them (an append); otherwise it returns `false`.
+fn rows_delta<T: Serialize + PartialEq>(
+    tx: &rusqlite::Transaction,
+    sql: &RowSql,
+    prev: &[T],
+    next: &[T],
+    id: impl Fn(&T) -> &str,
+    stamp: impl Fn(&T) -> i64,
+) -> Result<bool> {
+    if prev == next {
+        return Ok(true);
+    }
+    let prev_at: HashMap<&str, (usize, &T)> =
+        prev.iter().enumerate().map(|(i, t)| (id(t), (i, t))).collect();
+    let mut updates = Vec::new();
+    let mut inserts = Vec::new();
+    let mut last_kept: Option<usize> = None;
+    for item in next {
+        match prev_at.get(id(item)) {
+            Some(&(i, old)) => {
+                if !inserts.is_empty() || last_kept.is_some_and(|l| i <= l) {
+                    return Ok(false);
+                }
+                last_kept = Some(i);
+                if old != item {
+                    updates.push(item);
+                }
+            }
+            None => inserts.push(item),
+        }
+    }
+    let next_ids: HashSet<&str> = next.iter().map(&id).collect();
+    for old in prev.iter().filter(|t| !next_ids.contains(id(t))) {
+        if tx.prepare_cached(&sql.delete)?.execute(params![id(old)])? != 1 {
+            return Ok(false);
+        }
+    }
+    for item in updates {
+        let data = serde_json::to_string(item)?;
+        if tx.prepare_cached(&sql.update)?.execute(params![id(item), stamp(item), data])? != 1 {
+            return Ok(false);
+        }
+    }
+    for item in inserts {
+        let data = serde_json::to_string(item)?;
+        if tx.prepare_cached(&sql.insert)?.execute(params![id(item), stamp(item), data])? != 1 {
+            return Ok(false);
+        }
+    }
+    let mut stmt = tx.prepare_cached(&sql.ids)?;
+    let mut rows = stmt.query([])?;
+    let mut expected = next.iter().map(&id);
+    while let Some(row) = rows.next()? {
+        let got: String = row.get(0)?;
+        if expected.next() != Some(got.as_str()) {
+            return Ok(false);
+        }
+    }
+    Ok(expected.next().is_none())
 }
 
 fn insert_tombstones(tx: &rusqlite::Transaction, kind: &str, tombs: &[Tombstone]) -> Result<()> {
@@ -426,6 +585,87 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         init(&conn).unwrap();
         conn
+    }
+
+    /// Persist `next` over a database holding `prev` and return what it now holds.
+    fn persist_since(path: &Path, prev: &Document, next: &Document) -> Document {
+        persist_document_since(path, prev, next).unwrap();
+        read_document(&open(path).unwrap()).unwrap()
+    }
+
+    /// Stamps round-trip at second precision.
+    const SEC: i64 = 1000;
+
+    fn tomb(id: &str, at: i64) -> Tombstone {
+        Tombstone {
+            id: id.into(),
+            deleted_at: at,
+            deleted_by: None,
+        }
+    }
+
+    #[test]
+    fn delta_persist_round_trips_appends_updates_and_deletes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tasks_delta.db");
+        let mut doc = Document {
+            tasks: (0..5).map(|i| sample_task(&format!("t{i}"), i * SEC)).collect(),
+            ..Document::default()
+        };
+        persist_document(&path, &doc).unwrap();
+
+        type Step = Box<dyn Fn(&mut Document)>;
+        let steps: Vec<Step> = vec![
+            Box::new(|d| d.tasks.push(sample_task("new", 9 * SEC))),
+            Box::new(|d| d.tasks[2].title = "edited".into()),
+            Box::new(|d| {
+                d.tasks.remove(1);
+                d.deleted_tasks.push(tomb("t1", 10 * SEC));
+            }),
+            Box::new(|d| {
+                d.tasks.remove(0);
+                d.tasks[0].updated_at = 11 * SEC;
+                d.tasks.push(sample_task("tail", 12 * SEC));
+                d.deleted_tasks.push(tomb("t0", 13 * SEC));
+                d.deleted_tasks[0].deleted_at = 14 * SEC;
+            }),
+            Box::new(|d| d.last_modified = 99),
+            // Reordering cannot be expressed in place; it falls back to a full rewrite.
+            Box::new(|d| d.tasks.reverse()),
+            Box::new(|d| d.tasks.insert(0, sample_task("front", 15 * SEC))),
+        ];
+        for step in steps {
+            let mut next = doc.clone();
+            step(&mut next);
+            assert_eq!(persist_since(&path, &doc, &next), next);
+            doc = next;
+        }
+    }
+
+    /// If the file does not hold what the store believes it does, the delta would
+    /// leave stale rows behind; it must detect that and rewrite every row instead.
+    #[test]
+    fn delta_persist_rewrites_when_file_does_not_hold_prev() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tasks_drift.db");
+        let on_disk = Document {
+            tasks: vec![sample_task("a", SEC), sample_task("stray", SEC)],
+            ..Document::default()
+        };
+        persist_document(&path, &on_disk).unwrap();
+        let believed = Document {
+            tasks: vec![sample_task("a", SEC), sample_task("b", SEC)],
+            ..Document::default()
+        };
+        let mut next = believed.clone();
+        next.tasks.push(sample_task("c", 2 * SEC));
+        assert_eq!(persist_since(&path, &believed, &next), next);
+
+        // A row the store means to update is missing from the file.
+        let mut edited = next.clone();
+        edited.tasks[1].title = "b edited".into();
+        persist_document(&path, &Document::default()).unwrap();
+        assert_eq!(persist_since(&path, &next, &edited), edited);
     }
 
     /// Smoke test (task 1.2): the bundled SQLite links and a connection opens.
