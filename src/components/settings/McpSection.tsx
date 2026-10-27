@@ -63,6 +63,12 @@ export function McpSection({ settings, applySettings }: Props) {
     }
   })();
 
+  // Validation errors take precedence over the runtime "port in use" notice.
+  const portNotice = portErr
+    ?? (enabled && status?.status === "port_in_use"
+      ? t("settings.mcp.statusPortInUse", { message: status.message ?? "" })
+      : null);
+
   const copyConfig = async () => {
     if (!token) return;
     const json = JSON.stringify({
@@ -89,7 +95,8 @@ export function McpSection({ settings, applySettings }: Props) {
       setPortDraft(String(port));
       return;
     }
-    const n = Number(raw);
+    // Digits only: rejects "1e4", "1.0", "+5000" that Number() would accept.
+    const n = /^\d+$/.test(raw) ? Number(raw) : NaN;
     if (!Number.isFinite(n) || n < MCP_PORT_MIN || n > MCP_PORT_MAX || !Number.isInteger(n)) {
       setPortErr(t("settings.mcp.portInvalid", { min: MCP_PORT_MIN, max: MCP_PORT_MAX }));
       setPortDraft(String(port));
@@ -144,10 +151,9 @@ export function McpSection({ settings, applySettings }: Props) {
       <label className="te-field">
         <span>{t("settings.mcp.port")}</span>
         <input
-          type="number"
+          type="text"
+          inputMode="numeric"
           className="text-input"
-          min={MCP_PORT_MIN}
-          max={MCP_PORT_MAX}
           value={portDraft}
           disabled={!enabled}
           onChange={e => {
@@ -156,8 +162,8 @@ export function McpSection({ settings, applySettings }: Props) {
           }}
           onBlur={() => { void commitPort(); }}
         />
-        {portErr && (
-          <p className="composer-error mcp-port-error" role="alert">{portErr}</p>
+        {portNotice && (
+          <p className="composer-error mcp-port-error" role="alert">{portNotice}</p>
         )}
       </label>
 

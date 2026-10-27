@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { Document } from "../lib/tauri";
+import { api, Document } from "../lib/tauri";
 import { __resetPlatformCacheForTests, isAndroid } from "../lib/platform";
 import { SettingsView } from "./SettingsView";
 
@@ -95,6 +95,53 @@ describe("SettingsView MCP server", () => {
   it("shows the MCP section on desktop", async () => {
     render(<SettingsView doc={doc} />);
     expect(screen.getByRole("heading", { name: /MCP server/i })).toBeTruthy();
+  });
+
+  const mcpDoc: Document = {
+    ...doc,
+    settings: { ...doc.settings, mcp_enabled: true, mcp_port: 7373, mcp_token: "tok" },
+  };
+
+  it("shows the port-in-use status under the Port field", async () => {
+    vi.mocked(api.getMcpStatus).mockResolvedValue({ status: "port_in_use", message: "7373 is taken" });
+    render(<SettingsView doc={mcpDoc} />);
+    const note = await screen.findByText(/Port in use.*7373 is taken/, { selector: ".mcp-port-error" });
+    expect(note.getAttribute("role")).toBe("alert");
+    expect(note.closest("label")?.querySelector("input")?.getAttribute("inputmode")).toBe("numeric");
+  });
+
+  it("prefers the port validation error over the port-in-use status", async () => {
+    vi.mocked(api.getMcpStatus).mockResolvedValue({ status: "port_in_use", message: "7373 is taken" });
+    render(<SettingsView doc={mcpDoc} />);
+    const note = await screen.findByText(/Port in use/, { selector: ".mcp-port-error" });
+    const input = note.closest("label")!.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "80" } });
+    fireEvent.blur(input);
+    const alerts = await screen.findAllByText(/Port must be an integer/, { selector: ".mcp-port-error" });
+    expect(alerts).toHaveLength(1);
+    expect(document.querySelectorAll(".mcp-port-error")).toHaveLength(1);
+  });
+
+  it.each(["1e4", "1.0", "+5000", "5000x", "0x1F90", " 80 "])(
+    "rejects non-digit or out-of-range port input %j",
+    async (value) => {
+      vi.mocked(api.getMcpStatus).mockResolvedValue({ status: "listening" });
+      render(<SettingsView doc={mcpDoc} />);
+      const input = (await screen.findByDisplayValue("7373")) as HTMLInputElement;
+      fireEvent.change(input, { target: { value } });
+      fireEvent.blur(input);
+      await screen.findByText(/Port must be an integer/);
+      expect(api.updateSettings).not.toHaveBeenCalled();
+    },
+  );
+
+  it("accepts a plain digit port", async () => {
+    vi.mocked(api.getMcpStatus).mockResolvedValue({ status: "listening" });
+    render(<SettingsView doc={mcpDoc} />);
+    const input = (await screen.findByDisplayValue("7373")) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: " 5000 " } });
+    fireEvent.blur(input);
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ mcp_port: 5000 }));
   });
 
   it("hides the MCP section on Android", async () => {
