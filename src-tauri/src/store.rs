@@ -229,7 +229,16 @@ impl AppState {
     {
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let before = g.doc.clone();
-        let value = f(&mut g.doc)?;
+        let value = match f(&mut g.doc) {
+            Ok(v) => v,
+            Err(e) => {
+                g.doc = before;
+                return Err(e);
+            }
+        };
+        if content_hash(&before) == content_hash(&g.doc) {
+            return Ok(value);
+        }
         let ts = crate::model::now_ms();
         let mut history = crate::history::entries_for_change(&before, &g.doc, ts);
         crate::history::stamp_device(&mut history, &g.device_id, &g.device_name);
@@ -670,6 +679,27 @@ fn replace_file(from: &Path, to: &Path) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn write_rolls_back_in_memory_state_when_closure_errors() {
+        let dir = tempdir().unwrap();
+        let state = AppState::open(dir.path().join("rollback.db")).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("a"));
+                Ok(())
+            })
+            .unwrap();
+        let err = state
+            .write(|d| -> crate::error::Result<()> {
+                d.tasks[0].title = "mutated".into();
+                Err(crate::error::AppError::Invalid("nope".into()))
+            })
+            .unwrap_err();
+        assert!(err.to_string().contains("nope"));
+        let title = state.read(|d| d.tasks[0].title.clone());
+        assert_eq!(title, "a");
+    }
 
     fn sample_task(id: &str) -> crate::model::Task {
         crate::model::Task {

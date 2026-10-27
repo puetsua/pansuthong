@@ -14,6 +14,7 @@ use crate::task_query::{
     ListTasksQuery, get_task as query_get_task, list_tags as query_list_tags,
     list_tasks as query_list_tasks,
 };
+use crate::commands::double_option;
 use chrono::NaiveDate;
 use rmcp::{
     ErrorData as McpError, Json, ServerHandler,
@@ -21,7 +22,7 @@ use rmcp::{
         router::tool::ToolRouter,
         wrapper::Parameters,
     },
-    model::{Implementation, ServerConfig},
+    model::{Implementation, ServerCapabilities, ServerConfig},
     tool, tool_handler, tool_router,
 };
 use schemars::JsonSchema;
@@ -72,8 +73,10 @@ pub struct ListTasksArgs {
     pub due_after: Option<NaiveDate>,
     /// Case-insensitive substring match in title or notes.
     pub query: Option<String>,
-    /// Maximum rows to return (default 50).
+    /// Maximum rows to return. Omit to return all matches (subject to server caps).
     pub limit: Option<u32>,
+    /// Skip this many rows before applying `limit`.
+    pub offset: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -97,12 +100,18 @@ pub struct CreateTaskArgs {
 pub struct UpdateTaskArgs {
     pub id: String,
     pub title: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
     pub notes: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
     pub due_date: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "double_option")]
     pub due_time: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
     pub start_date: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "double_option")]
     pub start_time: Option<Option<String>>,
     pub tags: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "double_option")]
     pub estimated_minutes: Option<Option<i64>>,
 }
 
@@ -133,7 +142,7 @@ impl PansuthongMcp {
     ) -> Result<Json<ListTasksOutput>, McpError> {
         let state = self.state();
         let settings = self.settings();
-        let tasks = query_list_tasks(
+        let listed = query_list_tasks(
             state.inner(),
             &settings,
             ListTasksQuery {
@@ -143,6 +152,7 @@ impl PansuthongMcp {
                 due_after: args.due_after,
                 query: args.query,
                 limit: args.limit,
+                offset: args.offset,
             },
         )
         .map_err(mcp_err)?;
@@ -151,11 +161,15 @@ impl PansuthongMcp {
             .iter()
             .map(|t| (t.id.as_str(), t))
             .collect();
-        let out = tasks
+        let out = listed
+            .tasks
             .iter()
             .map(|t| task_to_mcp(t, &tags_by_id))
             .collect();
-        Ok(Json(ListTasksOutput { tasks: out }))
+        Ok(Json(ListTasksOutput {
+            tasks: out,
+            truncated: listed.truncated,
+        }))
     }
 
     #[tool(description = "Fetch one task by id.")]
@@ -238,7 +252,6 @@ impl PansuthongMcp {
                 estimated_seconds_from_minutes(Some(m)).map_err(mcp_err)?.unwrap_or(0),
             )),
         };
-        let notes = args.notes.map(|n| n.unwrap_or_default());
         let input = UpdateTaskInput {
             id: args.id,
             title: args.title,
@@ -246,7 +259,7 @@ impl PansuthongMcp {
             due_time: args.due_time,
             start_date: args.start_date,
             start_time: args.start_time,
-            notes,
+            notes: args.notes,
             attachments: None,
             tag_ids,
             estimated_seconds,
@@ -297,10 +310,11 @@ impl PansuthongMcp {
 #[tool_handler]
 impl ServerHandler for PansuthongMcp {
     fn get_info(&self) -> ServerConfig {
-        ServerConfig::default().with_server_info(Implementation::new(
-            "pansuthong",
-            env!("CARGO_PKG_VERSION"),
-        ))
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(Implementation::new(
+                "pansuthong",
+                env!("CARGO_PKG_VERSION"),
+            ))
     }
 }
 

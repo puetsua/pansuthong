@@ -11,10 +11,6 @@ const MCP_PORT_MAX = 65535;
 
 type Props = { settings: Settings; applySettings: ApplySettings };
 
-function clampPort(n: number): number {
-  return Math.min(MCP_PORT_MAX, Math.max(MCP_PORT_MIN, Math.round(n)));
-}
-
 export function McpSection({ settings, applySettings }: Props) {
   const { t } = useTranslation();
   const [android, setAndroid] = useState(false);
@@ -86,12 +82,27 @@ export function McpSection({ settings, applySettings }: Props) {
   };
 
   const commitPort = async () => {
-    const n = clampPort(Number(portDraft));
-    setPortDraft(String(n));
+    const raw = portDraft.trim();
+    if (raw === "") {
+      setErr(t("settings.mcp.portInvalid", { min: MCP_PORT_MIN, max: MCP_PORT_MAX }));
+      setPortDraft(String(port));
+      return;
+    }
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < MCP_PORT_MIN || n > MCP_PORT_MAX || !Number.isInteger(n)) {
+      setErr(t("settings.mcp.portInvalid", { min: MCP_PORT_MIN, max: MCP_PORT_MAX }));
+      setPortDraft(String(port));
+      return;
+    }
     if (n === port) return;
     setErr(null);
-    await applySettings({ mcp_port: n });
-    await refreshStatus();
+    try {
+      await applySettings({ mcp_port: n });
+      await refreshStatus();
+    } catch (e) {
+      setErr(String(e));
+      setPortDraft(String(port));
+    }
   };
 
   const onRegenerate = async () => {
@@ -142,20 +153,20 @@ export function McpSection({ settings, applySettings }: Props) {
 
       <label className="te-field">
         <span>{t("settings.mcp.token")}</span>
-        <div className="mcp-token-row">
+        <div className="mcp-token-row theme-options">
           <input
             type={showToken ? "text" : "password"}
-            className="text-input"
+            className="text-input mcp-token-input"
             readOnly
             value={token || "—"}
             aria-label={t("settings.mcp.token")}
           />
-          <button type="button" className="btn-secondary" disabled={!token} onClick={() => setShowToken(v => !v)}>
+          <button type="button" className="theme-option" disabled={!token} onClick={() => setShowToken(v => !v)}>
             {showToken ? t("settings.mcp.hide") : t("settings.mcp.show")}
           </button>
           <button
             type="button"
-            className="btn-secondary"
+            className="theme-option"
             disabled={!token}
             onClick={() => { void navigator.clipboard.writeText(token); }}
           >
@@ -164,11 +175,11 @@ export function McpSection({ settings, applySettings }: Props) {
         </div>
       </label>
 
-      <div className="settings-actions">
-        <button type="button" className="btn-secondary" disabled={!enabled || busy} onClick={() => { void onRegenerate(); }}>
+      <div className="theme-options mcp-actions">
+        <button type="button" className="theme-option" disabled={!enabled || busy} onClick={() => { void onRegenerate(); }}>
           {t("settings.mcp.regenerate")}
         </button>
-        <button type="button" className="btn-secondary" disabled={!enabled || !token} onClick={() => { void copyConfig(); }}>
+        <button type="button" className="theme-option" disabled={!enabled || !token} onClick={() => { void copyConfig(); }}>
           {t("settings.mcp.copyConfig")}
         </button>
       </div>

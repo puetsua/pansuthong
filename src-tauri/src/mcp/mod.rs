@@ -5,6 +5,8 @@ pub mod handler;
 #[cfg(desktop)]
 pub mod json;
 #[cfg(desktop)]
+pub mod jsonrpc_http;
+#[cfg(desktop)]
 pub mod runtime;
 
 #[cfg(desktop)]

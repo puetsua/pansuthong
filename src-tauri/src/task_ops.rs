@@ -70,17 +70,18 @@ pub fn update_task_record(state: &AppState, input: UpdateTaskInput) -> Result<Ta
     state.write(|d| {
         let known: std::collections::HashSet<String> =
             d.tags.iter().map(|t| t.id.clone()).collect();
-        let t = d
+        let idx = d
             .tasks
-            .iter_mut()
-            .find(|t| t.id == input.id)
+            .iter()
+            .position(|t| t.id == input.id)
             .ok_or_else(|| AppError::NotFound(format!("task {}", input.id)))?;
+        let mut next = d.tasks[idx].clone();
         if let Some(v) = input.title {
             let trimmed = v.trim().to_string();
             if trimmed.is_empty() {
                 return Err(AppError::Invalid("title is empty".into()));
             }
-            t.title = trimmed;
+            next.title = trimmed;
         }
         if let Some(ref v) = input.due_time {
             validate_time(v.as_deref())?;
@@ -92,38 +93,39 @@ pub fn update_task_record(state: &AppState, input: UpdateTaskInput) -> Result<Ta
             validate_estimated_seconds(v)?;
         }
         if let Some(v) = input.due_date {
-            t.due_date = v;
+            next.due_date = v;
         }
         if let Some(v) = input.due_time {
-            t.due_time = v;
+            next.due_time = v;
         }
         if let Some(v) = input.start_date {
-            t.start_date = v;
+            next.start_date = v;
         }
         if let Some(v) = input.start_time {
-            t.start_time = v;
+            next.start_time = v;
         }
         if let Some(v) = input.notes {
-            t.notes = v;
+            next.notes = v.unwrap_or_default();
         }
         if let Some(v) = input.attachments {
             validate_attachments(&v)?;
-            t.attachments = v;
+            next.attachments = v;
         }
         if let Some(v) = input.tag_ids {
-            t.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
+            next.tag_ids = v.into_iter().filter(|id| known.contains(id)).collect();
         }
         if let Some(v) = input.estimated_seconds {
-            t.estimated_seconds = v;
+            next.estimated_seconds = v;
         }
-        if t.due_date.is_none() {
-            t.due_time = None;
+        if next.due_date.is_none() {
+            next.due_time = None;
         }
-        if t.start_date.is_none() {
-            t.start_time = None;
+        if next.start_date.is_none() {
+            next.start_time = None;
         }
-        t.updated_at = now_ms();
-        Ok(t.clone())
+        next.updated_at = now_ms();
+        d.tasks[idx] = next;
+        Ok(d.tasks[idx].clone())
     })
 }
 
@@ -134,6 +136,9 @@ pub fn set_task_done_record(state: &AppState, id: &str, done: bool) -> Result<Ta
             .iter_mut()
             .find(|t| t.id == id)
             .ok_or_else(|| AppError::NotFound(format!("task {id}")))?;
+        if t.done() == done {
+            return Ok(t.clone());
+        }
         t.set_done(done, now_ms());
         Ok(t.clone())
     })
@@ -187,6 +192,7 @@ pub fn resolve_tag_names(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::UpdateTaskInput;
     use crate::history::read_all_history;
     use crate::model::{new_tag_id, new_task_id, Document, Tag, Task};
     use crate::store::AppState;
@@ -229,6 +235,75 @@ mod tests {
         };
         let err = resolve_tag_names(&["missing".into()], &[tag]).unwrap_err();
         assert!(err.to_string().contains("unknown tag"));
+    }
+
+    #[test]
+    fn update_task_record_rolls_back_on_validation_error() {
+        let task = Task {
+            id: new_task_id(),
+            title: "before".into(),
+            due_date: None,
+            due_time: None,
+            start_date: None,
+            start_time: None,
+            notes: "".into(),
+            attachments: vec![],
+            tag_ids: vec![],
+            estimated_seconds: None,
+            created_at: 0,
+            completed_at: None,
+            updated_at: 0,
+            time_entries: vec![],
+        };
+        let id = task.id.clone();
+        let state = store_with(vec![], vec![task]);
+        let err = update_task_record(
+            &state,
+            UpdateTaskInput {
+                id,
+                title: Some("SHOULD-NOT-APPLY".into()),
+                due_date: None,
+                due_time: Some(Some("99:99".into())),
+                start_date: None,
+                start_time: None,
+                notes: None,
+                attachments: None,
+                tag_ids: None,
+                estimated_seconds: None,
+            },
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("HH:MM"));
+        let read = state.read(|d| d.tasks[0].title.clone());
+        assert_eq!(read, "before");
+    }
+
+    #[test]
+    fn complete_task_is_idempotent_when_already_done() {
+        let task = Task {
+            id: new_task_id(),
+            title: "done".into(),
+            due_date: None,
+            due_time: None,
+            start_date: None,
+            start_time: None,
+            notes: "".into(),
+            attachments: vec![],
+            tag_ids: vec![],
+            estimated_seconds: None,
+            created_at: 0,
+            completed_at: Some(42),
+            updated_at: 1,
+            time_entries: vec![],
+        };
+        let id = task.id.clone();
+        let state = store_with(vec![], vec![task]);
+        let before_count = read_all_history(&state.path()).unwrap().len();
+        let again = set_task_done_record(&state, &id, true).unwrap();
+        assert_eq!(again.completed_at, Some(42));
+        assert_eq!(again.updated_at, 1);
+        let after_count = read_all_history(&state.path()).unwrap().len();
+        assert_eq!(before_count, after_count);
     }
 
     #[test]

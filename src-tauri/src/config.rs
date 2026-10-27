@@ -352,7 +352,13 @@ fn persist(path: &Path, cfg: &Config) -> Result<()> {
     // Atomic temp+rename (shared with the data store) so a crash mid-write can't
     // leave a truncated config.json — which load_or_migrate would treat as
     // absent and silently re-migrate, resetting settings to defaults.
-    crate::store::atomic_write(path, &bytes)
+    crate::store::atomic_write(path, &bytes)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    }
+    Ok(())
 }
 
 /// Load `config.json`, or migrate to it on first launch after the rename.
@@ -501,6 +507,22 @@ impl ConfigState {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[cfg(unix)]
+    #[test]
+    fn config_json_is_user_only_on_unix() {
+        let dir = tempdir().unwrap();
+        let path = config_path(dir.path());
+        let cfg = Config {
+            device_id: new_device_id(),
+            folder: None,
+            settings: Settings::default(),
+        };
+        persist(&path, &cfg).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
 
     #[test]
     fn load_or_migrate_lifts_settings_from_tasks_json() {

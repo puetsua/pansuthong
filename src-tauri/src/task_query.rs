@@ -36,14 +36,22 @@ pub struct ListTasksQuery {
     pub due_before: Option<NaiveDate>,
     pub due_after: Option<NaiveDate>,
     pub query: Option<String>,
+    /// Maximum rows to return. When omitted, all matching tasks are returned.
     pub limit: Option<u32>,
+    /// Skip this many matching rows before applying `limit`.
+    pub offset: Option<u32>,
 }
 
-const DEFAULT_LIMIT: u32 = 50;
+pub struct ListTasksResult {
+    pub tasks: Vec<Task>,
+    /// True when more tasks matched than returned (only when `limit` is set).
+    pub truncated: bool,
+}
 
-pub fn list_tasks(state: &AppState, settings: &Settings, q: ListTasksQuery) -> Result<Vec<Task>> {
+pub fn list_tasks(state: &AppState, settings: &Settings, q: ListTasksQuery) -> Result<ListTasksResult> {
     let view = validate_list_view(q.view.as_deref())?;
-    let limit = q.limit.unwrap_or(DEFAULT_LIMIT).min(500) as usize;
+    let offset = q.offset.unwrap_or(0) as usize;
+    let limit = q.limit.map(|l| l.min(500) as usize);
     Ok(state.read(|d| {
         let dsh = settings.day_start_hour;
         let today = today_iso(Local::now(), dsh);
@@ -97,10 +105,21 @@ pub fn list_tasks(state: &AppState, settings: &Settings, q: ListTasksQuery) -> R
             });
         }
 
-        if tasks.len() > limit {
-            tasks.truncate(limit);
+        let truncated = match limit {
+            Some(lim) => tasks.len() > offset + lim,
+            None => false,
+        };
+        if offset > 0 {
+            if offset >= tasks.len() {
+                tasks.clear();
+            } else {
+                tasks = tasks.into_iter().skip(offset).collect();
+            }
         }
-        tasks
+        if let Some(lim) = limit {
+            tasks.truncate(lim);
+        }
+        ListTasksResult { tasks, truncated }
     }))
 }
 
@@ -230,7 +249,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert!(out.is_empty());
+        assert!(out.tasks.is_empty());
     }
 
     #[test]
@@ -272,7 +291,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert!(inbox.is_empty());
+        assert!(inbox.tasks.is_empty());
     }
 
     #[test]
@@ -307,6 +326,42 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(out.len(), 1);
+        assert_eq!(out.tasks.len(), 1);
+    }
+
+    #[test]
+    fn list_tasks_reports_truncation_when_limit_applied() {
+        let tasks: Vec<Task> = (0..3)
+            .map(|i| Task {
+                id: new_task_id(),
+                title: format!("t{i}"),
+                due_date: None,
+                due_time: None,
+                start_date: None,
+                start_time: None,
+                notes: "".into(),
+                attachments: vec![],
+                tag_ids: vec![],
+                estimated_seconds: None,
+                created_at: 0,
+                completed_at: None,
+                updated_at: 0,
+                time_entries: vec![],
+            })
+            .collect();
+        let state = open_store(tasks, vec![]);
+        let settings = Settings::default();
+        let out = list_tasks(
+            &state,
+            &settings,
+            ListTasksQuery {
+                view: Some("all".into()),
+                limit: Some(2),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(out.tasks.len(), 2);
+        assert!(out.truncated);
     }
 }

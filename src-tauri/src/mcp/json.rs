@@ -7,6 +7,8 @@ use serde::Serialize;
 #[derive(Serialize, JsonSchema)]
 pub struct ListTasksOutput {
     pub tasks: Vec<McpTask>,
+    /// True when a `limit` was applied and more tasks matched the filters.
+    pub truncated: bool,
 }
 
 #[derive(Serialize, JsonSchema)]
@@ -45,6 +47,8 @@ pub struct McpTask {
     pub done: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimated_minutes: Option<i64>,
 }
 
 pub fn tag_to_mcp_ref(tag: &Tag) -> McpTagRef {
@@ -75,5 +79,8 @@ pub fn task_to_mcp(task: &Task, tags_by_id: &std::collections::HashMap<&str, &Ta
         completed_at: task
             .completed_at
             .map(crate::model::iso_secs::to_iso),
+        estimated_minutes: task
+            .estimated_seconds
+            .map(|s| s / 60),
     }
 }

@@ -1,6 +1,7 @@
 //! HTTP integration: MCP initialize + tools/list + create/list over Streamable HTTP.
 
 use super::auth::{ExpectedToken, bearer_auth, origin_gate};
+use super::jsonrpc_http::{json_content_type_gate, rewrite_jsonrpc_http_errors};
 use super::generate_mcp_token;
 use crate::commands::NewTaskInput;
 use crate::config::Settings;
@@ -63,8 +64,8 @@ fn mcp_tools_create_and_list_via_shared_ops() {
         },
     )
     .unwrap();
-    assert_eq!(found.len(), 1);
-    assert_eq!(found[0].title, "from mcp test");
+    assert_eq!(found.tasks.len(), 1);
+    assert_eq!(found.tasks[0].title, "from mcp test");
 }
 
 #[test]
@@ -127,6 +128,8 @@ async fn mcp_http_initialize_tools_list_and_auth_async() {
     );
     let router = Router::new()
         .nest_service("/mcp", service)
+        .layer(middleware::from_fn(rewrite_jsonrpc_http_errors))
+        .layer(middleware::from_fn(json_content_type_gate))
         .layer(middleware::from_fn_with_state(
             ExpectedToken::new(&token),
             bearer_auth,
@@ -170,6 +173,25 @@ async fn mcp_http_initialize_tools_list_and_auth_async() {
     assert!(
         init_status.is_success(),
         "initialize failed: {init_status} {init_body}"
+    );
+    assert!(
+        init_body.contains("\"tools\""),
+        "initialize must advertise tools capability: {init_body}"
+    );
+
+    let bad_json = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .header("Accept", accept)
+        .body("not-json")
+        .send()
+        .await
+        .unwrap();
+    let bad_body = bad_json.text().await.unwrap();
+    assert!(
+        bad_body.contains("jsonrpc") && bad_body.contains("-32700"),
+        "malformed JSON should return JSON-RPC parse error, got: {bad_body}"
     );
 
     let tools = client

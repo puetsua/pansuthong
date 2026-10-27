@@ -1290,7 +1290,7 @@ pub fn duplicate_task(
 /// Lets an optional field distinguish "absent" from an explicit JSON `null`.
 /// With `#[serde(default, deserialize_with = "double_option")]`:
 ///   absent -> None (leave unchanged); null -> Some(None) (clear); value -> Some(Some(v)) (set).
-fn double_option<'de, T, D>(de: D) -> std::result::Result<Option<Option<T>>, D::Error>
+pub(crate) fn double_option<'de, T, D>(de: D) -> std::result::Result<Option<Option<T>>, D::Error>
 where
     T: Deserialize<'de>,
     D: Deserializer<'de>,
@@ -1314,8 +1314,8 @@ pub struct UpdateTaskInput {
     pub start_date: Option<Option<NaiveDate>>,
     #[serde(default, deserialize_with = "double_option")]
     pub start_time: Option<Option<String>>,
-    #[serde(default)]
-    pub notes: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
     #[serde(default)]
     pub attachments: Option<Vec<Attachment>>,
     #[serde(default)]
@@ -2168,7 +2168,7 @@ fn validate_custom_presets(presets: &[ThemePreset]) -> Result<()> {
     Ok(())
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct UpdateSettingsInput {
     #[serde(default)]
     pub theme: Option<String>,
@@ -2216,6 +2216,7 @@ pub fn update_settings(
     config: State<'_, ConfigState>,
     app: AppHandle,
 ) -> Result<()> {
+    let mcp_sync = crate::mcp::runtime::settings_patch_affects_mcp(&input);
     config.update_settings(|s| {
         if let Some(t) = input.theme {
             if !matches!(t.as_str(), "auto" | "light" | "dark") {
@@ -2353,8 +2354,10 @@ pub fn update_settings(
     emit_settings_changed(&app);
     #[cfg(desktop)]
     {
-        if let Some(mcp) = app.try_state::<crate::mcp::McpRuntime>() {
-            mcp.sync_from_settings(&app, &config);
+        if mcp_sync {
+            if let Some(mcp) = app.try_state::<crate::mcp::McpRuntime>() {
+                mcp.sync_from_settings(&app, &config);
+            }
         }
     }
     Ok(())

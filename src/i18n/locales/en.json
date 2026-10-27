@@ -649,7 +649,8 @@
       "statusOff": "Off",
       "statusListening": "Listening on http://127.0.0.1:{{port}}/mcp",
       "statusPortInUse": "Port in use — choose another port. {{message}}",
-      "statusError": "Server error: {{message}}"
+      "statusError": "Server error: {{message}}",
+      "portInvalid": "Port must be an integer from {{min}} to {{max}}."
     },
     "dataFile": "Data file",
     "deviceId": "Device ID: ",

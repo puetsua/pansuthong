@@ -643,7 +643,8 @@
       "statusOff": "已關閉",
       "statusListening": "正在監聽 http://127.0.0.1:{{port}}/mcp",
       "statusPortInUse": "連接埠已被佔用 — 請換一個。{{message}}",
-      "statusError": "伺服器錯誤：{{message}}"
+      "statusError": "伺服器錯誤：{{message}}",
+      "portInvalid": "連接埠必須為 {{min}} 到 {{max}} 的整數。"
     },
     "dataFile": "資料檔案",
     "deviceId": "裝置 ID：",

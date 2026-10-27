@@ -3,6 +3,7 @@
 use crate::config::ConfigState;
 use crate::mcp::auth::{ExpectedToken, bearer_auth, origin_gate};
 use crate::mcp::handler::PansuthongMcp;
+use crate::mcp::jsonrpc_http::{json_content_type_gate, rewrite_jsonrpc_http_errors};
 use axum::{Router, middleware};
 use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
@@ -47,9 +48,17 @@ impl Default for McpStatus {
     }
 }
 
+#[derive(Clone, PartialEq, Eq)]
+struct McpListenConfig {
+    port: u32,
+    token: String,
+}
+
 #[derive(Default)]
 pub struct McpRuntime {
     cancel: Mutex<Option<CancellationToken>>,
+    server: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
+    active: Mutex<Option<McpListenConfig>>,
     status: Mutex<McpStatus>,
 }
 
@@ -62,14 +71,25 @@ impl McpRuntime {
         *self.status.lock().unwrap() = status;
     }
 
-    pub fn stop(&self) {
+    fn stop_and_wait(&self) {
         if let Some(ct) = self.cancel.lock().unwrap().take() {
             ct.cancel();
         }
+        let handle = self.server.lock().unwrap().take();
+        if let Some(h) = handle {
+            tauri::async_runtime::block_on(async {
+                let _ = h.await;
+            });
+        }
+        *self.active.lock().unwrap() = None;
         self.set_status(McpStatus {
             status: McpStatusKind::Off,
             message: None,
         });
+    }
+
+    pub fn stop(&self) {
+        self.stop_and_wait();
     }
 
     /// Apply current settings: stop when disabled, otherwise (re)start on the configured port.
@@ -104,15 +124,24 @@ impl McpRuntime {
             return;
         }
 
-        self.stop();
+        let desired = McpListenConfig {
+            port,
+            token: token.clone(),
+        };
+        if self.active.lock().unwrap().as_ref() == Some(&desired) {
+            return;
+        }
+
+        self.stop_and_wait();
 
         let ct = CancellationToken::new();
         *self.cancel.lock().unwrap() = Some(ct.clone());
         let app_handle = app.clone();
         let app_for_factory = app_handle.clone();
         let expected = ExpectedToken::new(&token);
+        let desired_in_spawn = desired.clone();
 
-        tauri::async_runtime::spawn(async move {
+        let server = tauri::async_runtime::spawn(async move {
             let config = StreamableHttpServerConfig::default()
                 .with_cancellation_token(ct.clone())
                 .with_legacy_session_mode(false)
@@ -126,6 +155,8 @@ impl McpRuntime {
 
             let router = Router::new()
                 .nest_service("/mcp", service)
+                .layer(middleware::from_fn(rewrite_jsonrpc_http_errors))
+                .layer(middleware::from_fn(json_content_type_gate))
                 .layer(middleware::from_fn_with_state(expected, bearer_auth))
                 .layer(middleware::from_fn(origin_gate));
 
@@ -149,6 +180,7 @@ impl McpRuntime {
 
             {
                 let runtime = app_handle.state::<McpRuntime>();
+                *runtime.active.lock().unwrap() = Some(desired_in_spawn);
                 runtime.set_status(McpStatus {
                     status: McpStatusKind::Listening,
                     message: None,
@@ -161,6 +193,8 @@ impl McpRuntime {
                 })
                 .await;
         });
+
+        *self.server.lock().unwrap() = Some(server);
     }
 }
 
@@ -174,5 +208,30 @@ pub fn validate_mcp_port(port: u32) -> Result<(), String> {
             MCP_PORT_MAX,
             port
         ))
+    }
+}
+
+/// True when a settings patch touches MCP listen configuration.
+pub fn settings_patch_affects_mcp(input: &crate::commands::UpdateSettingsInput) -> bool {
+    input.mcp_enabled.is_some() || input.mcp_port.is_some()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::UpdateSettingsInput;
+
+    #[test]
+    fn settings_patch_affects_mcp_only_when_mcp_fields_present() {
+        let unrelated = UpdateSettingsInput {
+            sound_on_complete: Some(false),
+            ..UpdateSettingsInput::default()
+        };
+        assert!(!settings_patch_affects_mcp(&unrelated));
+        let port = UpdateSettingsInput {
+            mcp_port: Some(7373),
+            ..UpdateSettingsInput::default()
+        };
+        assert!(settings_patch_affects_mcp(&port));
     }
 }
