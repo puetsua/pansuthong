@@ -3435,6 +3435,8 @@ dependencies = [
  "getrandom 0.3.4",
  "gtk",
  "http",
+ "hyper",
+ "hyper-util",
  "notify",
  "reqwest",
  "rmcp",

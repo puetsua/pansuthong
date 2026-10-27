@@ -1,6 +1,7 @@
 use crate::commands::{NewTaskInput, UpdateTaskInput};
 use crate::config::ConfigState;
 use crate::error::AppError;
+use crate::mcp::server::WriteGate;
 use crate::mcp::json::{
     DeleteTaskOutput, ListTagsOutput, ListTasksOutput, McpTask, tag_to_mcp_ref, task_to_mcp,
 };
@@ -28,6 +29,7 @@ use rmcp::{
 use schemars::JsonSchema;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
 fn mcp_err(e: AppError) -> McpError {
@@ -37,14 +39,16 @@ fn mcp_err(e: AppError) -> McpError {
 #[derive(Clone)]
 pub struct PansuthongMcp {
     app: AppHandle,
+    gate: Arc<WriteGate>,
     #[allow(dead_code)]
     tool_router: ToolRouter<Self>,
 }
 
 impl PansuthongMcp {
-    pub fn new(app: AppHandle) -> Self {
+    pub fn new(app: AppHandle, gate: Arc<WriteGate>) -> Self {
         Self {
             app,
+            gate,
             tool_router: Self::tool_router(),
         }
     }
@@ -55,6 +59,18 @@ impl PansuthongMcp {
 
     fn settings(&self) -> crate::config::Settings {
         self.app.state::<ConfigState>().settings()
+    }
+
+    /// Call immediately before a store write. Once the server starts stopping, writes
+    /// are refused before they commit instead of risking a commit whose response is lost.
+    fn ensure_writable(&self) -> Result<(), McpError> {
+        if self.gate.is_closed() {
+            return Err(McpError::internal_error(
+                "MCP server is stopping; nothing was written. Retry once it is listening again.",
+                None,
+            ));
+        }
+        Ok(())
     }
 
     /// Same notification path as Tauri commands after a document mutation.
@@ -229,6 +245,7 @@ impl PansuthongMcp {
             tag_ids,
             estimated_seconds,
         };
+        self.ensure_writable()?;
         let task = add_task_record(state.inner(), input).map_err(mcp_err)?;
         self.notify_document_changed();
         let tags = query_list_tags(state.inner());
@@ -270,6 +287,7 @@ impl PansuthongMcp {
             tag_ids,
             estimated_seconds,
         };
+        self.ensure_writable()?;
         let task = update_task_record(state.inner(), input).map_err(mcp_err)?;
         self.notify_document_changed();
         let tags = query_list_tags(state.inner());
@@ -286,6 +304,7 @@ impl PansuthongMcp {
         Parameters(args): Parameters<CompleteTaskArgs>,
     ) -> Result<Json<McpTask>, McpError> {
         let state = self.state();
+        self.ensure_writable()?;
         let task = set_task_done_record(state.inner(), &args.id, args.done).map_err(mcp_err)?;
         self.notify_document_changed();
         let tags = query_list_tags(state.inner());
@@ -303,6 +322,7 @@ impl PansuthongMcp {
     ) -> Result<Json<DeleteTaskOutput>, McpError> {
         let id = args.id;
         let state = self.state();
+        self.ensure_writable()?;
         let orphaned = delete_task_record(state.inner(), &id).map_err(mcp_err)?;
         crate::commands::gc_attachment_files(state.inner(), &orphaned);
         self.notify_document_changed();
