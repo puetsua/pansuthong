@@ -126,7 +126,7 @@ mod iso_secs_opt {
 /// memory, written as ISO-8601 local-time strings on disk (see `iso_secs`). An
 /// `end` of `None` is the **running** timer — the open interval; closed entries
 /// are finished sessions. Stored on the task, so it syncs like the rest.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TimeEntry {
     pub id: String,
     #[serde(with = "iso_secs")]
@@ -139,7 +139,7 @@ pub struct TimeEntry {
     pub end: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Tag {
     pub id: String,
     pub name: String,
@@ -177,7 +177,7 @@ pub struct Tag {
 /// A delete marker used by per-device replica files. Without this, an older
 /// replica that still contains an entity would resurrect it after another device
 /// deleted it.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Tombstone {
     pub id: String,
     #[serde(with = "iso_secs")]
@@ -282,7 +282,7 @@ pub struct Attachment {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(from = "TaskCompat")]
 pub struct Task {
     pub id: String,
@@ -345,7 +345,7 @@ pub struct Task {
 /// search. New ordinary tasks are spawned from it in the Templates view (the
 /// frontend resolves the relative offsets to absolute dates and creates a task via
 /// `add_task`). Carries only blueprint fields: no completion/dates of its own.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TemplateTask {
     pub id: String,
     pub title: String,
@@ -534,7 +534,7 @@ fn default_version() -> u32 {
     CURRENT_VERSION
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(from = "DocumentCompat")]
 pub struct Document {
     pub version: u32,

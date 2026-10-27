@@ -236,8 +236,9 @@ impl AppState {
                 return Err(e);
             }
         };
-        let after_hash = content_hash(&g.doc);
-        if content_hash(&before) == after_hash {
+        // Structural equality instead of hashing both sides: `own_hash` caches the
+        // current document's hash, so a write only hashes the document it produces.
+        if g.doc == before {
             return Ok(value);
         }
         let ts = crate::model::now_ms();
@@ -257,7 +258,9 @@ impl AppState {
         if let Err(e) = crate::history::append_history(&inner.path, &history) {
             eprintln!("warning: failed to append history: {e}");
         }
-        g.own_hash = after_hash;
+        // Hashed after stamping `last_modified`/`version` so the cache matches the
+        // document actually in memory and on disk.
+        g.own_hash = content_hash(&g.doc);
         g.peers_hash = peers_content_hash(&g.path);
         Ok(value)
     }
@@ -283,7 +286,8 @@ impl AppState {
         let mut docs = collect_peer_docs(&g.path);
         docs.push(before.clone());
         let merged = merge_documents(docs);
-        let merge_changed_something = content_hash(&before) != content_hash(&merged);
+        let merged_hash = content_hash(&merged);
+        let merge_changed_something = g.own_hash != merged_hash;
         let inner = &mut *g;
         inner.doc = merged;
         // Same atomicity rule as `write`: if the merged document cannot be persisted,
@@ -310,7 +314,7 @@ impl AppState {
                 Err(e) => eprintln!("warning: failed to dedup merge history: {e}"),
             }
         }
-        g.own_hash = content_hash(&g.doc);
+        g.own_hash = merged_hash;
         g.peers_hash = peers_content_hash(&g.path);
         drop(g);
         // Attachment tombstones from peers may have dropped live refs — GC orphans.
@@ -441,7 +445,7 @@ impl AppState {
             }
             Err(e) => eprintln!("warning: failed to dedup adopt history: {e}"),
         }
-        g.own_hash = content_hash(&g.doc);
+        g.own_hash = hash;
         g.peers_hash = peers_content_hash(&g.path);
         Ok(hash)
     }
@@ -468,16 +472,24 @@ impl AppState {
             g.doc = before;
             return Err(e);
         }
-        g.own_hash = content_hash(&g.doc);
+        g.own_hash = hash;
         g.peers_hash = peers_content_hash(&g.path);
         Ok(hash)
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Per-thread count of `content_hash` calls, so tests can assert hashing cost.
+    static CONTENT_HASH_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// Content hash of a document: SHA-256 of its compact serialization. Stable across
 /// re-serializations of identical content (the model has no maps in `Document`), so
 /// it identifies content regardless of storage-byte differences.
 pub(crate) fn content_hash(doc: &Document) -> [u8; 32] {
+    #[cfg(test)]
+    CONTENT_HASH_CALLS.with(|c| c.set(c.get() + 1));
     // Serialization of the model is deterministic (fixed struct field order, Vec
     // collections). Fall back to an empty hash only if serialization somehow fails.
     match serde_json::to_vec(doc) {
@@ -700,6 +712,52 @@ mod tests {
         assert!(err.to_string().contains("nope"));
         let title = state.read(|d| d.tasks[0].title.clone());
         assert_eq!(title, "a");
+    }
+
+    fn hash_calls() -> usize {
+        CONTENT_HASH_CALLS.with(|c| c.get())
+    }
+
+    fn assert_cache_matches(state: &AppState) {
+        let actual = state.read(content_hash);
+        assert_eq!(state.last_written_hash(), actual, "cached hash is stale");
+    }
+
+    #[test]
+    fn cached_hash_tracks_document_and_write_hashes_once() {
+        let dir = tempdir().unwrap();
+        let state = AppState::open(dir.path().join("hash.db")).unwrap();
+        assert_cache_matches(&state);
+
+        let before = hash_calls();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("a"));
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(hash_calls() - before, 1, "an effective write hashes once");
+        assert_cache_matches(&state);
+
+        // A no-op write skips hashing entirely and leaves the cache valid.
+        let before = hash_calls();
+        state.write(|_| Ok(())).unwrap();
+        assert_eq!(hash_calls() - before, 0);
+        assert_cache_matches(&state);
+
+        // A failed closure rolls back; the cache still matches.
+        let _ = state.write(|d| -> crate::error::Result<()> {
+            d.tasks[0].title = "x".into();
+            Err(crate::error::AppError::Invalid("nope".into()))
+        });
+        assert_cache_matches(&state);
+
+        let mut incoming = Document::default();
+        incoming.tasks.push(sample_task("b"));
+        state.adopt_synced(incoming.clone()).unwrap();
+        assert_cache_matches(&state);
+        state.load_replacing_local(incoming).unwrap();
+        assert_cache_matches(&state);
     }
 
     fn sample_task(id: &str) -> crate::model::Task {
