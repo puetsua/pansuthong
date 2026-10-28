@@ -8,6 +8,8 @@ on:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
       - "[0-9]+.[0-9]+.[0-9]+-*"
+      # Release candidates (e.g. `0.33.0-rc1`) are tagged without publishing.
+      - "!*-rc*"
 
 permissions:
   contents: write # create the release and upload artifacts
