@@ -37,12 +37,16 @@ jobs:
           fetch-depth: 0 # full history + tags so git-cliff can build the changelog
 
       # Render the notes for the just-pushed tag (`--latest`) from cliff.toml.
+      # For a stable tag (no '-'), only stable tags count as releases, so the
+      # notes are headed with that tag and span everything since the previous
+      # stable tag — even when a prerelease tag (e.g. 0.33.0-rc1) sits on the
+      # same commit. Prerelease tags keep the default tag_pattern.
       - name: Generate release notes
         id: cliff
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
-          args: --latest --strip header
+          args: --latest --strip header ${{ !contains(github.ref_name, '-') && '--tag-pattern ''^[0-9][^-]*$''' || '' }}
 
       - name: Seed the release body
         uses: softprops/action-gh-release@v2
