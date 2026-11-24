@@ -4,8 +4,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
-#[cfg(target_os = "linux")]
-use std::time::Instant;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -24,24 +22,31 @@ const TRAY_ID: &str = "main";
 const MENU_SHOW: &str = "tray-show";
 const MENU_QUIT: &str = "tray-quit";
 const TICK_INTERVAL: Duration = Duration::from_secs(30);
-/// Linux tray-host polling: fast while a login session settles, then slower.
+/// Event the Settings page listens for to refresh the tray state.
+pub const TRAY_STATUS_CHANGED_EVENT: &str = "tray-status-changed";
+/// An autostarted window stays hidden this long waiting for a Linux tray host
+/// to appear before it is shown, so the app is never stranded without a tray.
 #[cfg(target_os = "linux")]
-const HOST_POLL_FAST: Duration = Duration::from_secs(2);
+const HOST_WAIT_SECS: u32 = 20;
+/// How often the Linux main loop re-checks the XEmbed tray and the wait above.
 #[cfg(target_os = "linux")]
-const HOST_POLL_SLOW: Duration = Duration::from_secs(10);
-#[cfg(target_os = "linux")]
-const HOST_POLL_FAST_FOR: Duration = Duration::from_secs(60);
-/// An autostarted window stays hidden this long waiting for a tray host to
-/// appear before it is shown, so the app is never stranded without a tray.
-#[cfg(target_os = "linux")]
-const HOST_WAIT: Duration = Duration::from_secs(20);
+const HOST_CHECK_SECS: u32 = 3;
 
 #[derive(Default)]
 pub struct BackgroundState {
     tray_available: AtomicBool,
     /// A tray host can show the icon. Always true with a built tray off Linux;
-    /// on Linux a background thread keeps it current (`watch_linux_tray_host`).
+    /// on Linux the GTK main loop keeps it current (`watch_linux_tray_host`).
     tray_host: AtomicBool,
+    /// Linux: a StatusNotifier watcher owns its bus name.
+    #[cfg(target_os = "linux")]
+    sni_host: AtomicBool,
+    /// Linux: an XEmbed tray owns `_NET_SYSTEM_TRAY_S<screen>` (GTK on X11).
+    #[cfg(target_os = "linux")]
+    xembed_host: AtomicBool,
+    /// Linux: a tray host was seen at least once this session.
+    #[cfg(target_os = "linux")]
+    seen_host: AtomicBool,
     /// Started by the login entry with the tray icon built: keep the window
     /// hidden until the user opens it from the tray or launches the app again.
     /// On Linux the window is shown anyway if no tray host appears in time.
@@ -80,7 +85,7 @@ pub fn setup(app: &AppHandle, launch_at_login: bool) {
         .store(autostarted && state.tray_available(), Ordering::SeqCst);
     #[cfg(target_os = "linux")]
     if state.tray_available() {
-        watch_linux_tray_host(app.clone());
+        watch_linux_tray_host(app);
     }
     #[cfg(not(target_os = "linux"))]
     state
@@ -179,64 +184,78 @@ pub fn tray_usable(app: &AppHandle) -> bool {
         .is_some_and(|s| s.tray_available() && s.tray_host.load(Ordering::SeqCst))
 }
 
-/// On Linux the icon is created even with no tray host (stock GNOME) and the
-/// host may register after an autostart, so track it off the main thread.
+/// On Linux the icon is created even with no tray host (stock GNOME), and the
+/// host may register after an autostart. Track it on the GTK main thread: a
+/// D-Bus name watch for the StatusNotifier watcher, and a periodic check of the
+/// XEmbed tray selection when GDK runs on X11. Must be called on the main thread.
 #[cfg(target_os = "linux")]
-fn watch_linux_tray_host(app: AppHandle) {
-    std::thread::spawn(move || {
-        let started = Instant::now();
-        let mut xembed = XembedProbe::open();
-        loop {
-            let present =
-                linux_sni_host_present() || xembed.as_mut().is_some_and(XembedProbe::tray_owned);
-            let Some(state) = app.try_state::<BackgroundState>() else {
-                return;
-            };
-            state.tray_host.store(present, Ordering::SeqCst);
-            let waiting = state.start_hidden.load(Ordering::SeqCst) && state.first_frame_seen();
-            if !present && waiting && started.elapsed() >= HOST_WAIT {
-                eprintln!("warning: no tray host appeared; showing the autostarted window");
-                let handle = app.clone();
-                let _ = app.run_on_main_thread(move || show_main_window(&handle));
-            }
-            std::thread::sleep(if started.elapsed() < HOST_POLL_FAST_FOR {
-                HOST_POLL_FAST
-            } else {
-                HOST_POLL_SLOW
-            });
+fn watch_linux_tray_host(app: &AppHandle) {
+    use gtk::gio;
+    use gtk::glib;
+    use gtk::prelude::*;
+
+    let appeared = app.clone();
+    let vanished = app.clone();
+    // The watch lives for the whole process, so its id is never unwatched.
+    let _ = gio::bus_watch_name(
+        gio::BusType::Session,
+        "org.kde.StatusNotifierWatcher",
+        gio::BusNameWatcherFlags::NONE,
+        move |_, _, _| set_linux_host(&appeared, |s| &s.sni_host, true),
+        move |_, _| set_linux_host(&vanished, |s| &s.sni_host, false),
+    );
+
+    let gdk_on_x11 =
+        gtk::gdk::Display::default().is_some_and(|d| d.type_().name() == "GdkX11Display");
+    let mut xembed = if gdk_on_x11 {
+        XembedProbe::open()
+    } else {
+        None
+    };
+    let app = app.clone();
+    let mut waited = 0;
+    glib::timeout_add_seconds_local(HOST_CHECK_SECS, move || {
+        if let Some(probe) = xembed.as_mut() {
+            set_linux_host(&app, |s| &s.xembed_host, probe.tray_owned());
         }
+        waited += HOST_CHECK_SECS;
+        let Some(state) = app.try_state::<BackgroundState>() else {
+            return glib::ControlFlow::Break;
+        };
+        // Autostart with no tray host ever seen: stop waiting and show the window.
+        if waited >= HOST_WAIT_SECS
+            && !state.seen_host.load(Ordering::SeqCst)
+            && state.start_hidden.load(Ordering::SeqCst)
+            && state.first_frame_seen()
+        {
+            eprintln!("warning: no tray host appeared; showing the autostarted window");
+            show_main_window(&app);
+        }
+        if xembed.is_none() && waited >= HOST_WAIT_SECS {
+            return glib::ControlFlow::Break;
+        }
+        glib::ControlFlow::Continue
     });
 }
 
-/// A StatusNotifier host (KDE, GNOME with the AppIndicator extension, most
-/// panels) owns the watcher name on the session bus.
+/// Update one Linux host flag, recompute `tray_host`, and tell Settings.
 #[cfg(target_os = "linux")]
-fn linux_sni_host_present() -> bool {
-    use gtk::gio;
-    use gtk::glib::{ToVariant, VariantTy};
-    let Ok(bus) = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE) else {
-        return false;
+fn set_linux_host(app: &AppHandle, flag: fn(&BackgroundState) -> &AtomicBool, value: bool) {
+    let Some(state) = app.try_state::<BackgroundState>() else {
+        return;
     };
-    bus.call_sync(
-        Some("org.freedesktop.DBus"),
-        "/org/freedesktop/DBus",
-        "org.freedesktop.DBus",
-        "NameHasOwner",
-        Some(&("org.kde.StatusNotifierWatcher",).to_variant()),
-        Some(VariantTy::new("(b)").expect("valid variant type")),
-        gio::DBusCallFlags::NONE,
-        1000,
-        gio::Cancellable::NONE,
-    )
-    .ok()
-    .and_then(|reply| reply.get::<(bool,)>())
-    .is_some_and(|(owned,)| owned)
+    flag(&state).store(value, Ordering::SeqCst);
+    let present = state.sni_host.load(Ordering::SeqCst) || state.xembed_host.load(Ordering::SeqCst);
+    if present {
+        state.seen_host.store(true, Ordering::SeqCst);
+    }
+    if state.tray_host.swap(present, Ordering::SeqCst) != present {
+        let _ = app.emit(TRAY_STATUS_CHANGED_EVENT, ());
+    }
 }
 
-/// An XEmbed system tray (XFCE/MATE notification area, i3bar, ...) owns
-/// `_NET_SYSTEM_TRAY_S<screen>`; libappindicator falls back to it without SNI.
-/// Only counted when GTK itself runs on X11: that fallback can't embed into an
-/// X tray from the Wayland backend. Owned and used by the watcher thread only.
+/// XEmbed tray probe on its own X connection. Created and used only on the
+/// GTK main thread (inside its main-loop timer), like GDK's own Xlib use.
 #[cfg(target_os = "linux")]
 struct XembedProbe {
     xlib: x11_dl::xlib::Xlib,
@@ -247,16 +266,9 @@ struct XembedProbe {
 #[cfg(target_os = "linux")]
 impl XembedProbe {
     fn open() -> Option<Self> {
-        let gtk_on_x11 = match std::env::var("GDK_BACKEND") {
-            Ok(backend) => backend.starts_with("x11"),
-            Err(_) => std::env::var_os("WAYLAND_DISPLAY").is_none(),
-        };
-        if !gtk_on_x11 {
-            return None;
-        }
         let xlib = x11_dl::xlib::Xlib::open().ok()?;
         // SAFETY: the display stays open for the probe's lifetime and is only
-        // used from the watcher thread that owns the probe.
+        // used on the main thread.
         unsafe {
             let display = (xlib.XOpenDisplay)(std::ptr::null());
             if display.is_null() {
@@ -277,7 +289,7 @@ impl XembedProbe {
     }
 
     fn tray_owned(&mut self) -> bool {
-        // SAFETY: `display` is live (see `open`) and used only on this thread.
+        // SAFETY: `display` is live (see `open`) and used only on the main thread.
         unsafe { (self.xlib.XGetSelectionOwner)(self.display, self.atom) != 0 }
     }
 }
@@ -403,8 +415,8 @@ fn refresh_launch_at_login(app: &AppHandle) -> Result<bool, String> {
 /// The user disabled or removed the entry outside the app: drop any leftover
 /// entry and store the setting as off, so the switch and the OS agree.
 fn turn_off_launch_at_login(app: &AppHandle) {
-    // Save the setting first; if that fails, keep the entry so the switch
-    // (still on) and the OS entry go on agreeing.
+    // Save the setting first. If that fails, leave the entry alone so the
+    // next launch tries this reconciliation again.
     let Some(config) = app.try_state::<crate::config::ConfigState>() else {
         eprintln!("warning: config state missing; launch_at_login not updated");
         return;

@@ -331,6 +331,8 @@ export const api = {
   getBackgroundStatus: () => invoke<BackgroundStatus>("get_background_status"),
   setTrayLabels: (show: string, quit: string) => invoke<void>("set_tray_labels", { show, quit }),
   onHiddenToTray: (cb: () => void) => listen("main-hidden-to-tray", () => cb()),
+  // Linux: a tray host appeared or went away.
+  onTrayStatusChanged: (cb: () => void) => listen("tray-status-changed", () => cb()),
   // Fired from Rust while the window is hidden, where webview timers are throttled.
   onBackgroundTick: (cb: () => void) => listen("background-tick", () => cb()),
   listConflicts:    ()             => invoke<string[]>("list_conflicts"),

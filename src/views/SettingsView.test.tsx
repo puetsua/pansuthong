@@ -44,6 +44,7 @@ vi.mock("../lib/tauri", async (importOriginal) => {
       getMcpStatus: vi.fn().mockResolvedValue({ status: "off" }),
       onMcpStatusChanged: vi.fn().mockResolvedValue(() => {}),
       getBackgroundStatus: vi.fn().mockResolvedValue({ tray_available: true }),
+      onTrayStatusChanged: vi.fn().mockResolvedValue(() => {}),
     },
   };
 });

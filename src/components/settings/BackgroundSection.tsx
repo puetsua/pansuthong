@@ -28,7 +28,8 @@ export function BackgroundSection({ settings }: Props) {
 
   useEffect(() => {
     let active = true;
-    // Re-check on focus: a Linux tray host can appear after Settings opened.
+    let unlisten: (() => void) | undefined;
+    // A Linux tray host can appear or go away after Settings opened.
     const refresh = () => {
       void api.getBackgroundStatus()
         .then(s => { if (active) setTrayAvailable(s.tray_available); })
@@ -39,11 +40,13 @@ export function BackgroundSection({ settings }: Props) {
       setAndroid(a);
       if (a) return;
       refresh();
-      window.addEventListener("focus", refresh);
+      void api.onTrayStatusChanged(refresh)
+        .then(un => { if (active) unlisten = un; else un(); })
+        .catch(() => {});
     });
     return () => {
       active = false;
-      window.removeEventListener("focus", refresh);
+      unlisten?.();
     };
   }, []);
 
