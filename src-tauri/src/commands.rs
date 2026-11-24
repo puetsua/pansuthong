@@ -2232,7 +2232,9 @@ pub fn update_settings(
     let mcp_sync = crate::mcp::runtime::settings_patch_affects_mcp(&input);
     // Write the OS login entry first so a failure never leaves the setting on
     // without an entry behind it. Only when the value changes.
+    #[cfg(desktop)]
     let login_before = config.settings().launch_at_login;
+    #[cfg(desktop)]
     let login_changed = input.launch_at_login.is_some_and(|on| on != login_before);
     #[cfg(desktop)]
     if login_changed {

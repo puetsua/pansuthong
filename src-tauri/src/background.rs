@@ -4,6 +4,8 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
+#[cfg(target_os = "linux")]
+use std::time::Instant;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -22,12 +24,27 @@ const TRAY_ID: &str = "main";
 const MENU_SHOW: &str = "tray-show";
 const MENU_QUIT: &str = "tray-quit";
 const TICK_INTERVAL: Duration = Duration::from_secs(30);
+/// Linux tray-host polling: fast while a login session settles, then slower.
+#[cfg(target_os = "linux")]
+const HOST_POLL_FAST: Duration = Duration::from_secs(2);
+#[cfg(target_os = "linux")]
+const HOST_POLL_SLOW: Duration = Duration::from_secs(10);
+#[cfg(target_os = "linux")]
+const HOST_POLL_FAST_FOR: Duration = Duration::from_secs(60);
+/// An autostarted window stays hidden this long waiting for a tray host to
+/// appear before it is shown, so the app is never stranded without a tray.
+#[cfg(target_os = "linux")]
+const HOST_WAIT: Duration = Duration::from_secs(20);
 
 #[derive(Default)]
 pub struct BackgroundState {
     tray_available: AtomicBool,
-    /// Started by the login entry with a working tray: keep the window hidden
-    /// until the user opens it from the tray or launches the app again.
+    /// A tray host can show the icon. Always true with a built tray off Linux;
+    /// on Linux a background thread keeps it current (`watch_linux_tray_host`).
+    tray_host: AtomicBool,
+    /// Started by the login entry with the tray icon built: keep the window
+    /// hidden until the user opens it from the tray or launches the app again.
+    /// On Linux the window is shown anyway if no tray host appears in time.
     start_hidden: AtomicBool,
     /// The frontend has reported its first painted frame (`show_main_window`).
     first_frame_seen: AtomicBool,
@@ -61,6 +78,14 @@ pub fn setup(app: &AppHandle, launch_at_login: bool) {
     state
         .start_hidden
         .store(autostarted && state.tray_available(), Ordering::SeqCst);
+    #[cfg(target_os = "linux")]
+    if state.tray_available() {
+        watch_linux_tray_host(app.clone());
+    }
+    #[cfg(not(target_os = "linux"))]
+    state
+        .tray_host
+        .store(state.tray_available(), Ordering::SeqCst);
 
     // Rewrite the entry so it follows the current executable (an AppImage that
     // moved, or a reinstall to a new folder). Only while the OS still has it
@@ -147,17 +172,40 @@ fn linux_tray_library_present() -> bool {
     .any(|name| unsafe { libloading::Library::new(name) }.is_ok())
 }
 
-/// Whether the tray icon can actually be seen right now. On Linux the icon is
-/// created even with no tray host (stock GNOME), so check for a host live:
-/// at login the panel may register after the app starts.
+/// Whether the tray icon can be seen: built, and (on Linux) a tray host is
+/// running. Reads cached state, so it is cheap on the main thread.
 pub fn tray_usable(app: &AppHandle) -> bool {
-    let built = app
-        .try_state::<BackgroundState>()
-        .is_some_and(|s| s.tray_available());
-    #[cfg(target_os = "linux")]
-    return built && (linux_sni_host_present() || linux_xembed_tray_present());
-    #[cfg(not(target_os = "linux"))]
-    built
+    app.try_state::<BackgroundState>()
+        .is_some_and(|s| s.tray_available() && s.tray_host.load(Ordering::SeqCst))
+}
+
+/// On Linux the icon is created even with no tray host (stock GNOME) and the
+/// host may register after an autostart, so track it off the main thread.
+#[cfg(target_os = "linux")]
+fn watch_linux_tray_host(app: AppHandle) {
+    std::thread::spawn(move || {
+        let started = Instant::now();
+        let mut xembed = XembedProbe::open();
+        loop {
+            let present =
+                linux_sni_host_present() || xembed.as_mut().is_some_and(XembedProbe::tray_owned);
+            let Some(state) = app.try_state::<BackgroundState>() else {
+                return;
+            };
+            state.tray_host.store(present, Ordering::SeqCst);
+            let waiting = state.start_hidden.load(Ordering::SeqCst) && state.first_frame_seen();
+            if !present && waiting && started.elapsed() >= HOST_WAIT {
+                eprintln!("warning: no tray host appeared; showing the autostarted window");
+                let handle = app.clone();
+                let _ = app.run_on_main_thread(move || show_main_window(&handle));
+            }
+            std::thread::sleep(if started.elapsed() < HOST_POLL_FAST_FOR {
+                HOST_POLL_FAST
+            } else {
+                HOST_POLL_SLOW
+            });
+        }
+    });
 }
 
 /// A StatusNotifier host (KDE, GNOME with the AppIndicator extension, most
@@ -177,7 +225,7 @@ fn linux_sni_host_present() -> bool {
         Some(&("org.kde.StatusNotifierWatcher",).to_variant()),
         Some(VariantTy::new("(b)").expect("valid variant type")),
         gio::DBusCallFlags::NONE,
-        250,
+        1000,
         gio::Cancellable::NONE,
     )
     .ok()
@@ -187,27 +235,50 @@ fn linux_sni_host_present() -> bool {
 
 /// An XEmbed system tray (XFCE/MATE notification area, i3bar, ...) owns
 /// `_NET_SYSTEM_TRAY_S<screen>`; libappindicator falls back to it without SNI.
+/// Only counted when GTK itself runs on X11: that fallback can't embed into an
+/// X tray from the Wayland backend. Owned and used by the watcher thread only.
 #[cfg(target_os = "linux")]
-fn linux_xembed_tray_present() -> bool {
-    use x11_dl::xlib;
-    let Ok(x) = xlib::Xlib::open() else {
-        return false;
-    };
-    // SAFETY: the display is opened, used, and closed within this block.
-    unsafe {
-        let display = (x.XOpenDisplay)(std::ptr::null());
-        if display.is_null() {
-            return false;
+struct XembedProbe {
+    xlib: x11_dl::xlib::Xlib,
+    display: *mut x11_dl::xlib::Display,
+    atom: x11_dl::xlib::Atom,
+}
+
+#[cfg(target_os = "linux")]
+impl XembedProbe {
+    fn open() -> Option<Self> {
+        let gtk_on_x11 = match std::env::var("GDK_BACKEND") {
+            Ok(backend) => backend.starts_with("x11"),
+            Err(_) => std::env::var_os("WAYLAND_DISPLAY").is_none(),
+        };
+        if !gtk_on_x11 {
+            return None;
         }
-        let screen = (x.XDefaultScreen)(display);
-        let owned = std::ffi::CString::new(format!("_NET_SYSTEM_TRAY_S{screen}"))
-            .ok()
-            .is_some_and(|name| {
-                let atom = (x.XInternAtom)(display, name.as_ptr(), xlib::True);
-                atom != 0 && (x.XGetSelectionOwner)(display, atom) != 0
-            });
-        (x.XCloseDisplay)(display);
-        owned
+        let xlib = x11_dl::xlib::Xlib::open().ok()?;
+        // SAFETY: the display stays open for the probe's lifetime and is only
+        // used from the watcher thread that owns the probe.
+        unsafe {
+            let display = (xlib.XOpenDisplay)(std::ptr::null());
+            if display.is_null() {
+                return None;
+            }
+            let screen = (xlib.XDefaultScreen)(display);
+            let Ok(name) = std::ffi::CString::new(format!("_NET_SYSTEM_TRAY_S{screen}")) else {
+                (xlib.XCloseDisplay)(display);
+                return None;
+            };
+            let atom = (xlib.XInternAtom)(display, name.as_ptr(), x11_dl::xlib::False);
+            Some(Self {
+                xlib,
+                display,
+                atom,
+            })
+        }
+    }
+
+    fn tray_owned(&mut self) -> bool {
+        // SAFETY: `display` is live (see `open`) and used only on this thread.
+        unsafe { (self.xlib.XGetSelectionOwner)(self.display, self.atom) != 0 }
     }
 }
 
@@ -229,11 +300,8 @@ pub fn on_first_frame(window: &WebviewWindow) -> bool {
     if !state.start_hidden.load(Ordering::SeqCst) {
         return false;
     }
-    if !tray_usable(window.app_handle()) {
-        // No visible tray to come back from: show the window after all.
-        state.start_hidden.store(false, Ordering::SeqCst);
-        return false;
-    }
+    // Stay hidden even if a Linux tray host hasn't registered yet at login;
+    // `watch_linux_tray_host` shows the window if none appears in time.
     // Linux maps the window at startup so WebKitGTK runs the frontend (#167);
     // hide it again now that the page is live.
     if let Err(e) = window.hide() {
@@ -335,9 +403,8 @@ fn refresh_launch_at_login(app: &AppHandle) -> Result<bool, String> {
 /// The user disabled or removed the entry outside the app: drop any leftover
 /// entry and store the setting as off, so the switch and the OS agree.
 fn turn_off_launch_at_login(app: &AppHandle) {
-    if let Err(e) = set_launch_at_login(app, false) {
-        eprintln!("warning: removing the disabled launch-at-login entry failed: {e}");
-    }
+    // Save the setting first; if that fails, keep the entry so the switch
+    // (still on) and the OS entry go on agreeing.
     let Some(config) = app.try_state::<crate::config::ConfigState>() else {
         eprintln!("warning: config state missing; launch_at_login not updated");
         return;
@@ -347,6 +414,10 @@ fn turn_off_launch_at_login(app: &AppHandle) {
         Ok(())
     }) {
         eprintln!("warning: saving launch_at_login=false failed: {e}");
+        return;
+    }
+    if let Err(e) = set_launch_at_login(app, false) {
+        eprintln!("warning: removing the disabled launch-at-login entry failed: {e}");
     }
 }
 
