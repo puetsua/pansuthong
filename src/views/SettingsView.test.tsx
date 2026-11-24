@@ -44,6 +44,7 @@ vi.mock("../lib/tauri", async (importOriginal) => {
       getMcpStatus: vi.fn().mockResolvedValue({ status: "off" }),
       regenerateMcpToken: vi.fn().mockResolvedValue("test-token"),
       onMcpStatusChanged: vi.fn().mockResolvedValue(() => {}),
+      getBackgroundStatus: vi.fn().mockResolvedValue({ tray_available: true }),
     },
   };
 });
@@ -184,6 +185,46 @@ describe("SettingsView MCP server", () => {
     await waitFor(() => {
       expect(screen.queryByRole("heading", { name: /MCP server/i })).toBeNull();
     });
+  });
+});
+
+describe("SettingsView background (#252)", () => {
+  beforeEach(() => {
+    __resetPlatformCacheForTests();
+  });
+
+  it("defaults to keeping the app in the tray and switches to quit on close", async () => {
+    render(<SettingsView doc={doc} />);
+    const group = await screen.findByRole("group", { name: /When the window is closed/i });
+    const tray = within(group).getByRole("button", { name: /Keep running in tray/i });
+    expect(tray.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(within(group).getByRole("button", { name: /^Quit$/ }));
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ close_to_tray: false }));
+  });
+
+  it("toggles launch at login", async () => {
+    render(<SettingsView doc={doc} />);
+    const toggle = await screen.findByRole("button", { name: /Launch at login/i });
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(toggle);
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ launch_at_login: true }));
+  });
+
+  it("disables the close choice when there is no tray", async () => {
+    vi.mocked(api.getBackgroundStatus).mockResolvedValue({ tray_available: false });
+    render(<SettingsView doc={doc} />);
+    await screen.findByText(/No system tray found/i);
+    const group = screen.getByRole("group", { name: /When the window is closed/i });
+    const quit = within(group).getByRole("button", { name: /^Quit$/ }) as HTMLButtonElement;
+    expect(quit.disabled).toBe(true);
+    expect(quit.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("is hidden on Android", async () => {
+    vi.mocked(isAndroid).mockResolvedValue(true);
+    render(<SettingsView doc={doc} />);
+    await waitFor(() => expect(isAndroid).toHaveBeenCalled());
+    expect(screen.queryByRole("heading", { name: /^Background$/ })).toBeNull();
   });
 });
 

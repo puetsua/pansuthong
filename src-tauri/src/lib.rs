@@ -1,3 +1,5 @@
+#[cfg(desktop)]
+pub mod background;
 pub mod commands;
 pub mod completion_sound;
 pub mod config;
@@ -46,7 +48,7 @@ const MAIN_DEFAULT_HEIGHT: f64 = 700.0;
 /// `unminimize` + `show` are required: `set_focus` alone does not restore a
 /// minimized window, and the window starts hidden until `show_main_window`.
 #[cfg(desktop)]
-fn focus_existing_main_window(app: &tauri::AppHandle) {
+pub(crate) fn focus_existing_main_window(app: &tauri::AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         eprintln!("warning: main window missing when focusing existing instance");
         return;
@@ -78,7 +80,7 @@ pub fn run() {
     #[cfg(desktop)]
     let builder =
         tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            focus_existing_main_window(app);
+            crate::background::show_main_window(app);
         }));
     #[cfg(not(desktop))]
     let builder = tauri::Builder::default();
@@ -201,6 +203,11 @@ pub fn run() {
                 let config_state = app.state::<crate::config::ConfigState>();
                 let mcp = app.state::<crate::mcp::McpRuntime>();
                 mcp.sync_from_settings(app.handle(), &config_state);
+
+                // Tray, close-to-tray, and launch at login (#252). Before the
+                // Linux show below, which skips an autostarted hidden launch.
+                app.manage(crate::background::BackgroundState::default());
+                crate::background::setup(app.handle(), config_state.settings().launch_at_login);
             }
 
             let handle = app.handle().clone();
@@ -276,6 +283,14 @@ pub fn run() {
                 // WebView2 flash.
                 #[cfg(target_os = "linux")]
                 fn show_linux_main(app: &tauri::AppHandle) {
+                    // Once the frontend reported its first frame it owns
+                    // visibility (an autostart hides again, see background.rs).
+                    if app
+                        .try_state::<crate::background::BackgroundState>()
+                        .is_some_and(|s| s.first_frame_seen())
+                    {
+                        return;
+                    }
                     if let Some(win) = app.get_webview_window("main") {
                         if win.is_visible().unwrap_or(false) {
                             return;
@@ -336,6 +351,16 @@ pub fn run() {
 
             Ok(())
         })
+        .on_window_event(|window, event| {
+            #[cfg(desktop)]
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if crate::background::hide_on_close(window) {
+                    api.prevent_close();
+                }
+            }
+            #[cfg(not(desktop))]
+            let _ = (window, event);
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_document,
             commands::try_open_data,
@@ -391,6 +416,10 @@ pub fn run() {
             commands::get_mcp_status,
             #[cfg(desktop)]
             commands::regenerate_mcp_token,
+            #[cfg(desktop)]
+            commands::get_background_status,
+            #[cfg(desktop)]
+            commands::set_tray_labels,
         ])
         .run(context)
         .expect("error while running tauri application");

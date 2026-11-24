@@ -28,6 +28,7 @@ import { api } from "./lib/tauri";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import { TimeEstimateReminder } from "./components/TimeEstimateReminder";
 import { ScheduledTaskNotifier } from "./components/ScheduledTaskNotifier";
+import { TrayIntegration } from "./components/TrayIntegration";
 import { AfkWhileTracking } from "./components/AfkWhileTracking";
 
 export default function App() {
@@ -154,6 +155,7 @@ export default function App() {
         <UpdatePrompt />
         <TimeEstimateReminder tasks={doc.tasks} intervalMinutes={reminderIntervalMinutes(doc.settings)} />
         <ScheduledTaskNotifier tasks={doc.tasks} dayStartHour={dayStartHour(doc.settings)} />
+        <TrayIntegration />
         <AfkWhileTracking tasks={doc.tasks} />
         {reloadError && (
           <div className="reload-banner" role="alert">

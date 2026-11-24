@@ -627,6 +627,17 @@
     "timeFormatKoreanDayPeriod": "韓文上午/下午",
     "timeFormatThaiDayPeriod": "泰文時段",
     "timeFormatArabicDayPeriod": "阿拉伯文時段",
+    "background": {
+      "title": "背景執行",
+      "sub": "關閉視窗後，提醒和 MCP 伺服器仍會繼續執行。",
+      "onClose": "關閉視窗時",
+      "closeToTray": "縮到系統匣繼續執行",
+      "closeQuits": "結束程式",
+      "noTray": "找不到系統匣，關閉視窗會直接結束程式。",
+      "launchAtLogin": "登入時啟動（隱藏在系統匣）",
+      "on": "開",
+      "off": "關"
+    },
     "mcp": {
       "title": "MCP 伺服器",
       "sub": "讓 Cursor 或 Claude Desktop 透過 HTTP 僅在本機（127.0.0.1）管理任務。App 必須在執行中；不會對外網開放。",
@@ -669,5 +680,11 @@
     "transferCopy": "複製",
     "transferMove": "移動",
     "transferCancel": "取消"
+  },
+  "tray": {
+    "show": "顯示",
+    "quit": "結束",
+    "noticeTitle": "仍在系統匣中執行",
+    "noticeBody": "提醒會照常通知。要完全結束，請從系統匣圖示的選單選擇「結束」。"
   }
 }

@@ -97,6 +97,11 @@ pub fn try_open_data(
 /// correct for the desktop main window and the mobile webview.
 #[tauri::command]
 pub fn show_main_window(window: tauri::WebviewWindow) -> std::result::Result<(), String> {
+    // A login-autostarted launch stays in the tray (#252).
+    #[cfg(desktop)]
+    if crate::background::on_first_frame(&window) {
+        return Ok(());
+    }
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())
 }
@@ -2211,6 +2216,10 @@ pub struct UpdateSettingsInput {
     pub mcp_enabled: Option<bool>,
     #[serde(default)]
     pub mcp_port: Option<u32>,
+    #[serde(default)]
+    pub close_to_tray: Option<bool>,
+    #[serde(default)]
+    pub launch_at_login: Option<bool>,
 }
 
 #[tauri::command]
@@ -2221,6 +2230,17 @@ pub fn update_settings(
 ) -> Result<()> {
     #[cfg(desktop)]
     let mcp_sync = crate::mcp::runtime::settings_patch_affects_mcp(&input);
+    // Write the OS login entry first so a failure never leaves the setting on
+    // without an entry behind it.
+    if let Some(on) = input.launch_at_login {
+        #[cfg(desktop)]
+        crate::background::set_launch_at_login(&app, on)
+            .map_err(|e| AppError::Invalid(format!("launch at login: {e}")))?;
+        #[cfg(not(desktop))]
+        {
+            let _ = on;
+        }
+    }
     config.update_settings(|s| {
         if let Some(t) = input.theme {
             if !matches!(t.as_str(), "auto" | "light" | "dark") {
@@ -2353,6 +2373,12 @@ pub fn update_settings(
             }
             s.mcp_port = port;
         }
+        if let Some(on) = input.close_to_tray {
+            s.close_to_tray = on;
+        }
+        if let Some(on) = input.launch_at_login {
+            s.launch_at_login = on;
+        }
         Ok(())
     })?;
     emit_settings_changed(&app);
@@ -2365,6 +2391,19 @@ pub fn update_settings(
         }
     }
     Ok(())
+}
+
+#[cfg(desktop)]
+#[tauri::command]
+pub fn get_background_status(app: AppHandle) -> crate::background::BackgroundStatus {
+    crate::background::status(&app)
+}
+
+/// Translate the tray menu (#252); the frontend owns the locale strings.
+#[cfg(desktop)]
+#[tauri::command]
+pub fn set_tray_labels(app: AppHandle, show: String, quit: String) -> std::result::Result<(), String> {
+    crate::background::set_tray_labels(&app, &show, &quit)
 }
 
 #[cfg(desktop)]

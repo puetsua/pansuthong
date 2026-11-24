@@ -633,6 +633,17 @@
     "timeFormatKoreanDayPeriod": "Korean 오전/오후",
     "timeFormatThaiDayPeriod": "Thai day period",
     "timeFormatArabicDayPeriod": "Arabic day period",
+    "background": {
+      "title": "Background",
+      "sub": "Keep reminders and the MCP server running after the window is closed.",
+      "onClose": "When the window is closed",
+      "closeToTray": "Keep running in tray",
+      "closeQuits": "Quit",
+      "noTray": "No system tray found, so closing the window quits.",
+      "launchAtLogin": "Launch at login (hidden in tray)",
+      "on": "On",
+      "off": "Off"
+    },
     "mcp": {
       "title": "MCP server",
       "sub": "Let Cursor or Claude Desktop manage tasks over HTTP on this computer only (127.0.0.1). The app must be running; nothing is exposed on the network.",
@@ -675,5 +686,11 @@
     "transferCopy": "Copy",
     "transferMove": "Move",
     "transferCancel": "Cancel"
+  },
+  "tray": {
+    "show": "Show",
+    "quit": "Quit",
+    "noticeTitle": "Still running in the tray",
+    "noticeBody": "Reminders keep firing. To exit, choose Quit from the tray icon menu."
   }
 }

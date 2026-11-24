@@ -113,6 +113,14 @@ pub struct Settings {
     /// Bearer token for MCP clients. Generated on first enable; regenerate revokes old clients.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_token: Option<String>,
+    /// Desktop (#252): closing the main window hides it to the tray instead of
+    /// quitting. On by default so reminders keep firing; ignored without a tray.
+    #[serde(default = "default_close_to_tray")]
+    pub close_to_tray: bool,
+    /// Desktop (#252): start hidden in the tray when the user signs in. The OS
+    /// login entry is written/removed alongside this flag.
+    #[serde(default)]
+    pub launch_at_login: bool,
 }
 
 /// A user-defined theme (#15). Opaque to Rust beyond shape validation: an id, a
@@ -177,6 +185,10 @@ fn default_mcp_port() -> u32 {
     MCP_PORT_DEFAULT
 }
 
+fn default_close_to_tray() -> bool {
+    true
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -200,6 +212,8 @@ impl Default for Settings {
             mcp_enabled: false,
             mcp_port: default_mcp_port(),
             mcp_token: None,
+            close_to_tray: default_close_to_tray(),
+            launch_at_login: false,
         }
     }
 }
@@ -507,6 +521,18 @@ impl ConfigState {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn older_config_defaults_to_close_to_tray_without_login_entry() {
+        // A config.json written before #252 has neither field.
+        let s: Settings = serde_json::from_str(r#"{"theme":"auto","sort_order":"priority"}"#).unwrap();
+        assert!(s.close_to_tray);
+        assert!(!s.launch_at_login);
+        let s: Settings =
+            serde_json::from_str(r#"{"close_to_tray":false,"launch_at_login":true}"#).unwrap();
+        assert!(!s.close_to_tray);
+        assert!(s.launch_at_login);
+    }
 
     #[cfg(unix)]
     #[test]
