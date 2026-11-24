@@ -420,6 +420,7 @@ pub fn run() {
             commands::resolve_conflict,
             commands::dismiss_conflict,
             commands::get_data_location,
+            commands::inspect_data_folder,
             commands::set_data_folder,
             commands::clear_data_folder,
             commands::saf_pick_folder,

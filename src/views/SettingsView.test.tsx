@@ -16,12 +16,14 @@ const {
   pickDataFolder,
   setDataFolder,
   clearDataFolder,
+  inspectDataFolder,
   safStatus,
   getDataLocation,
 } = vi.hoisted(() => ({
   pickDataFolder: vi.fn(),
   setDataFolder: vi.fn(),
   clearDataFolder: vi.fn(),
+  inspectDataFolder: vi.fn(),
   safStatus: vi.fn(),
   getDataLocation: vi.fn(),
 }));
@@ -36,7 +38,7 @@ vi.mock("../lib/tauri", async (importOriginal) => {
       pickDataFolder,
       setDataFolder,
       clearDataFolder,
-      pickAndSetDataFolder: vi.fn(),
+      inspectDataFolder,
       safStatus,
       safPickFolder: vi.fn(),
       safSyncNow: vi.fn(),
@@ -68,6 +70,7 @@ beforeEach(() => {
     effective_path: "C:\\Sync\\Pansuthong\\tasks_device-abc.json",
   });
   pickDataFolder.mockResolvedValue("D:\\NewSync");
+  inspectDataFolder.mockResolvedValue({ has_data: false, is_current: false });
   setDataFolder.mockResolvedValue({
     folder: "D:\\NewSync",
     device_id: "device-abc",
@@ -287,17 +290,20 @@ describe("SettingsView data location", () => {
     expect(screen.getByRole("button", { name: /sync now/i })).toBeTruthy();
   });
 
-  it("shows Copy / Move / Cancel after picking a folder; Cancel does not invoke", async () => {
+  const openPickDialog = async () => {
     render(<SettingsView doc={doc} />);
     await waitFor(() => expect(screen.getByText("device-abc")).toBeTruthy());
-
     fireEvent.click(screen.getByRole("button", { name: /choose folder/i }));
-    await waitFor(() => expect(pickDataFolder).toHaveBeenCalled());
+    return screen.findByRole("dialog");
+  };
 
-    const dialog = await screen.findByRole("dialog", { name: /change data folder/i });
-    expect(within(dialog).getByRole("heading", { name: /change data folder/i })).toBeTruthy();
+  it("asks keep-both for a folder without data; Cancel does not invoke", async () => {
+    const dialog = await openPickDialog();
+    expect(inspectDataFolder).toHaveBeenCalledWith("D:\\NewSync");
+    expect(within(dialog).getByRole("heading", { name: /switch to the new folder/i })).toBeTruthy();
     const actions = within(dialog).getAllByRole("button");
-    expect(actions.map(b => b.textContent)).toEqual(["Cancel", "Move", "Copy"]);
+    expect(actions.map(b => b.textContent)).toEqual(["Cancel", "Remove from old", "Keep both"]);
+    await waitFor(() => expect(document.activeElement?.textContent).toBe("Keep both"));
 
     fireEvent.click(within(dialog).getByRole("button", { name: /cancel/i }));
     expect(setDataFolder).not.toHaveBeenCalled();
@@ -305,41 +311,97 @@ describe("SettingsView data location", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("invokes setDataFolder with copy when Copy is chosen", async () => {
+  it.each([
+    ["Keep both", "copy"],
+    ["Remove from old", "move"],
+  ])("%s invokes setDataFolder with %s", async (label, mode) => {
+    const dialog = await openPickDialog();
+    fireEvent.click(within(dialog).getByRole("button", { name: label }));
+    await waitFor(() => expect(setDataFolder).toHaveBeenCalledWith("D:\\NewSync", mode));
+  });
+
+  it("asks to merge for a folder that already has data", async () => {
+    inspectDataFolder.mockResolvedValue({ has_data: true, is_current: false });
+    const dialog = await openPickDialog();
+    expect(
+      within(dialog).getByRole("heading", { name: /already has pansuthong data/i }),
+    ).toBeTruthy();
+    const actions = within(dialog).getAllByRole("button");
+    expect(actions.map(b => b.textContent)).toEqual(["Cancel", "Use folder's data", "Merge"]);
+  });
+
+  it.each([
+    ["Merge", "merge"],
+    ["Use folder's data", "adopt"],
+  ])("%s invokes setDataFolder with %s", async (label, mode) => {
+    inspectDataFolder.mockResolvedValue({ has_data: true, is_current: false });
+    const dialog = await openPickDialog();
+    fireEvent.click(within(dialog).getByRole("button", { name: label }));
+    await waitFor(() => expect(setDataFolder).toHaveBeenCalledWith("D:\\NewSync", mode));
+  });
+
+  it("does nothing when the picked folder is the current one", async () => {
+    inspectDataFolder.mockResolvedValue({ has_data: true, is_current: true });
     render(<SettingsView doc={doc} />);
     await waitFor(() => expect(screen.getByText("device-abc")).toBeTruthy());
-
     fireEvent.click(screen.getByRole("button", { name: /choose folder/i }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: /^copy$/i }));
+    await waitFor(() => expect(inspectDataFolder).toHaveBeenCalled());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(setDataFolder).not.toHaveBeenCalled();
+  });
 
+  it("clears without a dialog when the custom folder is already the default one", async () => {
+    inspectDataFolder.mockResolvedValue({ has_data: true, is_current: true });
+    render(<SettingsView doc={doc} />);
+    await waitFor(() => expect(screen.getByText("device-abc")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /use default/i }));
+    await waitFor(() => expect(clearDataFolder).toHaveBeenCalledWith("merge"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("asks to merge when the folder gained data after inspection", async () => {
+    setDataFolder.mockRejectedValueOnce("the chosen folder already has Pansuthong data");
+    const dialog = await openPickDialog();
+    inspectDataFolder.mockResolvedValue({ has_data: true, is_current: false });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove from old" }));
+
+    const again = await screen.findByRole("dialog", { name: /already has pansuthong data/i });
+    expect(screen.queryByText("the chosen folder already has Pansuthong data")).toBeNull();
+    fireEvent.click(within(again).getByRole("button", { name: "Merge" }));
+    await waitFor(() => expect(setDataFolder).toHaveBeenLastCalledWith("D:\\NewSync", "merge"));
+  });
+
+  it("shows the translated refusal when the recheck cannot reopen the dialog", async () => {
+    setDataFolder.mockRejectedValueOnce("the chosen folder already has Pansuthong data");
+    const dialog = await openPickDialog();
+    inspectDataFolder.mockRejectedValue("unreadable");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Keep both" }));
     await waitFor(() =>
-      expect(setDataFolder).toHaveBeenCalledWith("D:\\NewSync", "copy"),
+      expect(screen.getByText("This folder now has Pansuthong data. Choose it again to merge.")).toBeTruthy(),
     );
   });
 
-  it("invokes setDataFolder with move when Move is chosen", async () => {
+  it("shows the inspection error and no dialog", async () => {
+    inspectDataFolder.mockRejectedValue("boom");
     render(<SettingsView doc={doc} />);
     await waitFor(() => expect(screen.getByText("device-abc")).toBeTruthy());
-
     fireEvent.click(screen.getByRole("button", { name: /choose folder/i }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: /^move$/i }));
-
-    await waitFor(() =>
-      expect(setDataFolder).toHaveBeenCalledWith("D:\\NewSync", "move"),
-    );
+    await waitFor(() => expect(screen.getByText(/boom/)).toBeTruthy());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(setDataFolder).not.toHaveBeenCalled();
   });
 
-  it("shows the transfer dialog for clear; Copy invokes clearDataFolder", async () => {
+  it("inspects the default location for clear; Merge invokes clearDataFolder", async () => {
+    inspectDataFolder.mockResolvedValue({ has_data: true, is_current: false });
     render(<SettingsView doc={doc} />);
     await waitFor(() => expect(screen.getByText("device-abc")).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /use default/i }));
     const dialog = await screen.findByRole("dialog");
+    expect(inspectDataFolder).toHaveBeenCalledWith(null);
     expect(clearDataFolder).not.toHaveBeenCalled();
 
-    fireEvent.click(within(dialog).getByRole("button", { name: /^copy$/i }));
-    await waitFor(() => expect(clearDataFolder).toHaveBeenCalledWith("copy"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Merge" }));
+    await waitFor(() => expect(clearDataFolder).toHaveBeenCalledWith("merge"));
   });
 });

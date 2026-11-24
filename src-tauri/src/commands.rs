@@ -2559,6 +2559,67 @@ fn data_location(state: &AppState, config: &ConfigState) -> DataLocation {
     }
 }
 
+/// What a candidate data folder holds, so the UI can ask the right question
+/// before `set_data_folder` / `clear_data_folder` (#253).
+#[derive(Debug, serde::Serialize, PartialEq, Eq)]
+pub struct DataFolderInspection {
+    /// The folder already holds Pansuthong task data (Merge / Adopt applies).
+    pub has_data: bool,
+    /// The folder is the one in use right now (changing to it is a no-op).
+    pub is_current: bool,
+}
+
+fn same_dir(a: &Path, b: &Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a == b,
+    }
+}
+
+pub(crate) fn inspect_folder(
+    dir: &Path,
+    device_id: &str,
+    current_data_path: &Path,
+) -> Result<DataFolderInspection> {
+    if !dir.is_dir() {
+        // The default app-data dir may not exist yet: nothing to adopt there.
+        return Ok(DataFolderInspection { has_data: false, is_current: false });
+    }
+    let is_current = current_data_path
+        .parent()
+        .is_some_and(|current| same_dir(dir, current));
+    let has_data =
+        crate::store::folder_has_data(&dir.join(crate::config::data_file_name(device_id)))?;
+    Ok(DataFolderInspection { has_data, is_current })
+}
+
+/// Inspect `folder`, or the default app-data dir when `None`. Read-only. Async and
+/// off the main thread: decoding every replica in a cloud folder may force
+/// online-only files to download.
+#[tauri::command]
+pub async fn inspect_data_folder(
+    folder: Option<String>,
+    state: State<'_, AppState>,
+    config: State<'_, ConfigState>,
+    app: AppHandle,
+) -> Result<DataFolderInspection> {
+    let dir = match folder {
+        Some(folder) => {
+            let path = PathBuf::from(&folder);
+            if !path.is_dir() {
+                return Err(AppError::Invalid(format!("not a folder: {folder}")));
+            }
+            path
+        }
+        None => default_data_dir(&app)?,
+    };
+    let device_id = config.device_id();
+    let current = state.path();
+    tauri::async_runtime::spawn_blocking(move || inspect_folder(&dir, &device_id, &current))
+        .await
+        .map_err(|e| AppError::Invalid(format!("inspect data folder: {e}")))?
+}
+
 #[tauri::command]
 pub fn get_data_location(
     state: State<'_, AppState>,
@@ -2926,6 +2987,34 @@ pub fn saf_status() -> crate::safsync::SyncStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inspect_folder_reports_data_and_current() {
+        let current = tempfile::tempdir().unwrap();
+        let current_path = current.path().join("tasks_dev.db");
+        let other = tempfile::tempdir().unwrap();
+
+        assert_eq!(
+            inspect_folder(other.path(), "dev", &current_path).unwrap(),
+            DataFolderInspection { has_data: false, is_current: false }
+        );
+        std::fs::write(
+            other.path().join("tasks_peer.json"),
+            serde_json::to_vec(&crate::model::Document {
+                tasks: vec![task_with_attachment("k_1", "attachments_peer/a.bin")],
+                ..Default::default()
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(inspect_folder(other.path(), "dev", &current_path).unwrap().has_data);
+        assert!(inspect_folder(current.path(), "dev", &current_path).unwrap().is_current);
+        // A default app-data dir that does not exist yet holds nothing.
+        assert_eq!(
+            inspect_folder(&other.path().join("missing"), "dev", &current_path).unwrap(),
+            DataFolderInspection { has_data: false, is_current: false }
+        );
+    }
 
     fn task_with_attachment(id: &str, attach_path: &str) -> Task {
         Task {

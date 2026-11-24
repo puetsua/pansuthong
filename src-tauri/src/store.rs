@@ -25,14 +25,42 @@ use std::path::{Path, PathBuf};
 use parking_lot::FairMutex;
 use std::sync::{Arc, RwLock};
 
-/// How to handle this device's owned payload when relocating the data folder.
+/// What to do when relocating the data folder. `Copy` / `Move` apply to a target
+/// without task data (seed); `Merge` / `Adopt` to a target that already has some.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TransferMode {
-    /// Seed/fill at the new location; leave own files in the old folder intact.
+    /// Seed the new location; leave own files in the old folder intact.
     Copy,
-    /// After a successful transfer, remove only this device's files from the old folder.
+    /// Seed, then (after a successful transfer) remove only this device's files
+    /// from the old folder.
     Move,
+    /// Merge the current document with the target's data; old folder untouched.
+    Merge,
+    /// Use the target's data as-is, dropping the current document; old folder untouched.
+    Adopt,
+}
+
+/// Every non-empty task document already present in the folder of `path`: peer
+/// replicas, a legacy `tasks.json`, and the own replica. Empty replicas (a peer
+/// that linked and was wiped) are skipped, so "Use folder's data" can never swap
+/// the current tasks for nothing. Empty = nothing to adopt.
+fn target_docs(path: &Path) -> Result<Vec<Document>> {
+    let holds_data = |d: &Document| doc_has_data(d) || !d.template_tasks.is_empty();
+    let mut docs: Vec<Document> = collect_peer_docs(path).into_iter().filter(holds_data).collect();
+    if let Some(legacy) = legacy_doc(path).filter(holds_data) {
+        docs.push(legacy);
+    }
+    if let Some(existing) = read_db_if_present(path)? {
+        docs.push(existing);
+    }
+    Ok(docs)
+}
+
+/// True when the folder of `path` (this device's data file there) already holds
+/// Pansuthong task data — the same test `repoint` uses to pick seed vs. existing.
+pub fn folder_has_data(path: &Path) -> Result<bool> {
+    Ok(!target_docs(path)?.is_empty())
 }
 
 pub struct AppState {
@@ -398,26 +426,32 @@ impl AppState {
         self.inner.lock().own_hash()
     }
 
-    /// Relocate the store to `new_path`. If the target folder already holds data
-    /// (a replica or legacy file), load it outright — the user is switching data
-    /// source, so the current in-memory document is discarded (no conflict file).
-    /// Otherwise seed the target from the current document and copy this device's
-    /// history sidecar so the History view stays continuous. Validated before
-    /// anything is replaced, so an invalid target leaves the current store intact.
+    /// Relocate the store to `new_path`.
     ///
-    /// `transfer_mode` controls whether own payload is left in the old folder
-    /// ([`TransferMode::Copy`]) or removed after a successful transfer
-    /// ([`TransferMode::Move`]). Peer files are never touched.
+    /// Target without task data (seed): write the current document there and copy
+    /// this device's history and attachments. [`TransferMode::Copy`] leaves the old
+    /// folder intact; [`TransferMode::Move`] then removes this device's files from
+    /// it. `Merge` / `Adopt` on an empty target seed like `Copy`.
+    ///
+    /// Target with task data: [`TransferMode::Merge`] merges the current document
+    /// into it (entity-level LWW, as peer sync does) and unions own history;
+    /// [`TransferMode::Adopt`] loads it and discards the current document (no
+    /// conflict file). Missing referenced attachments are filled in; nothing in the
+    /// old folder is ever deleted. `Copy` / `Move` are rejected here, since `Move`
+    /// would delete the only copy of the current document.
+    ///
+    /// Validated before anything is written, so an invalid target or a rejected
+    /// mode leaves the current store intact. Peer files are never touched.
     pub fn repoint(&self, new_path: PathBuf, transfer_mode: TransferMode) -> Result<()> {
         ensure_parent(&new_path)?;
-        let mut target_docs = collect_peer_docs(&new_path);
-        if let Some(legacy) = legacy_doc(&new_path) {
-            target_docs.push(legacy);
-        }
-        if let Some(existing) = read_db_if_present(&new_path)? {
-            target_docs.push(existing);
-        }
+        let mut target_docs = target_docs(&new_path)?;
         let seeding = target_docs.is_empty();
+        if !seeding && matches!(transfer_mode, TransferMode::Copy | TransferMode::Move) {
+            return Err(AppError::Invalid(
+                "the chosen folder already has Pansuthong data; choose Merge or Use folder's data"
+                    .into(),
+            ));
+        }
         let mut g = self.inner.lock();
         // The sidecar moves with the store; no append may land mid-transfer.
         let _history = self.history.lock();
@@ -425,6 +459,9 @@ impl AppState {
         let doc = if seeding {
             Document::clone(&g.doc) // seed the new location from the current document
         } else {
+            if transfer_mode == TransferMode::Merge {
+                target_docs.push(Document::clone(&g.doc));
+            }
             merge_documents(target_docs)
         };
         crate::db::persist_document(&new_path, &doc)?;
@@ -452,16 +489,24 @@ impl AppState {
                 transfer_ok = false;
             }
         } else {
-            // Adopt: never overwrite existing blobs; fill only referenced gaps.
+            // Merge brings the current document along, so its history comes too —
+            // as a line union, since the target may hold an older own sidecar.
+            if transfer_mode == TransferMode::Merge {
+                if let Err(e) = crate::history::merge_own_history(&old_path, &g.path) {
+                    eprintln!("warning: failed to merge history on folder change: {e}");
+                }
+            }
+            // Never overwrite existing blobs; fill only referenced gaps.
             if let Err(e) =
                 crate::commands::fill_missing_referenced_attachments(&old_path, &g.path, &g.doc)
             {
                 eprintln!("warning: failed to fill missing attachments on folder change: {e}");
-                transfer_ok = false;
             }
         }
 
-        if transfer_mode == TransferMode::Move && transfer_ok {
+        // Only a seed may clean up: on the existing-data path the old folder is the
+        // user's way back (and, under Adopt, the only copy of the dropped document).
+        if seeding && transfer_mode == TransferMode::Move && transfer_ok {
             if let Err(e) = crate::commands::remove_own_payload(&old_path, &g.path) {
                 eprintln!("warning: failed to clean old folder after move: {e}");
             }
@@ -1197,7 +1242,7 @@ mod tests {
         write_json_replica(&target.path().join("tasks_other.json"), "k_theirs");
         let new_path = target.path().join("tasks_dev.db");
 
-        state.repoint(new_path.clone(), TransferMode::Copy).unwrap();
+        state.repoint(new_path.clone(), TransferMode::Adopt).unwrap();
         assert_eq!(state.path(), new_path);
         assert_eq!(
             state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
@@ -1295,7 +1340,7 @@ mod tests {
         )
         .unwrap();
         let new_path = target.path().join("tasks_dev.db");
-        state.repoint(new_path, TransferMode::Copy).unwrap();
+        state.repoint(new_path, TransferMode::Adopt).unwrap();
 
         assert!(
             !target.path().join("history_dev.jsonl").exists(),
@@ -1381,7 +1426,7 @@ mod tests {
         fs::write(target_own.join("attachment_target_y.bin"), b"target").unwrap();
 
         let new_path = target.path().join("tasks_dev.db");
-        state.repoint(new_path, TransferMode::Copy).unwrap();
+        state.repoint(new_path, TransferMode::Adopt).unwrap();
 
         assert!(
             !target
@@ -1460,7 +1505,7 @@ mod tests {
         fs::write(dir.path().join(keep_rel), b"from-keep").unwrap();
 
         let new_path = target.path().join("tasks_dev.db");
-        state.repoint(new_path, TransferMode::Copy).unwrap();
+        state.repoint(new_path, TransferMode::Adopt).unwrap();
 
         assert_eq!(
             fs::read(target.path().join(missing_rel)).unwrap(),
@@ -1604,13 +1649,16 @@ mod tests {
     }
 
     #[test]
-    fn repoint_adopt_move_cleans_old_own_files_only() {
+    fn repoint_rejects_copy_and_move_when_target_has_data() {
+        // #253: Move onto a folder with data used to adopt the target, drop the
+        // current document, and then delete this device's files from the old
+        // folder — losing the current tasks everywhere.
         let dir = tempdir().unwrap();
-        let state = AppState::open(dir.path().join("tasks_dev.db")).unwrap();
+        let old_path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(old_path.clone()).unwrap();
         let own = dir.path().join("attachments_dev");
         fs::create_dir_all(&own).unwrap();
         fs::write(own.join("attachment_local_x.bin"), b"local").unwrap();
-        write_json_replica(&dir.path().join("tasks_other.json"), "k_peer_old");
         state
             .write(|d| {
                 d.tasks.push(sample_task("k_local"));
@@ -1620,33 +1668,168 @@ mod tests {
 
         let target = tempdir().unwrap();
         write_json_replica(&target.path().join("tasks_other.json"), "k_theirs");
-        let target_own = target.path().join("attachments_dev");
-        fs::create_dir_all(&target_own).unwrap();
-        fs::write(target_own.join("attachment_target_y.bin"), b"target").unwrap();
-
         let new_path = target.path().join("tasks_dev.db");
-        state.repoint(new_path, TransferMode::Move).unwrap();
 
-        assert!(
-            !dir.path().join("tasks_dev.db").exists(),
-            "Move removes own replica from old folder on adopt"
-        );
-        assert!(
-            !dir.path().join("attachments_dev").exists(),
-            "Move removes own attachments from old folder on adopt"
-        );
-        assert!(
-            dir.path().join("tasks_other.json").exists(),
-            "peer in old folder untouched"
-        );
-        assert!(
-            target_own.join("attachment_target_y.bin").exists(),
-            "target blobs left intact"
-        );
+        for mode in [TransferMode::Copy, TransferMode::Move] {
+            let err = state.repoint(new_path.clone(), mode).unwrap_err();
+            assert!(matches!(err, AppError::Invalid(_)), "{mode:?}: {err:?}");
+            assert_eq!(state.path(), old_path, "{mode:?}: location unchanged");
+            assert_eq!(
+                state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+                ["k_local"],
+                "{mode:?}: current document kept"
+            );
+            assert!(!new_path.exists(), "{mode:?}: nothing written to the target");
+            assert!(old_path.exists(), "{mode:?}: own replica kept");
+            assert!(dir.path().join("history_dev.jsonl").exists());
+            assert!(own.join("attachment_local_x.bin").exists());
+        }
+    }
+
+    #[test]
+    fn repoint_merge_keeps_current_and_target_tasks_and_old_folder() {
+        let dir = tempdir().unwrap();
+        let old_path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(old_path.clone()).unwrap();
+        let own = dir.path().join("attachments_dev");
+        fs::create_dir_all(&own).unwrap();
+        fs::write(own.join("attachment_a_photo.bin"), b"photo").unwrap();
+        state
+            .write(|d| {
+                let mut t = sample_task("k_local");
+                t.attachments.push(crate::model::Attachment {
+                    id: "att_a".into(),
+                    name: "photo".into(),
+                    path: "attachments_dev/attachment_a_photo.bin".into(),
+                    mime_type: None,
+                    size: Some(5),
+                    created_at: 0,
+                });
+                d.tasks.push(t);
+                Ok(())
+            })
+            .unwrap();
+
+        let target = tempdir().unwrap();
+        write_json_replica(&target.path().join("tasks_other.json"), "k_theirs");
+        let new_path = target.path().join("tasks_dev.db");
+        state.repoint(new_path.clone(), TransferMode::Merge).unwrap();
+
+        assert_eq!(state.path(), new_path);
+        let mut ids = state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>());
+        ids.sort();
+        assert_eq!(ids, ["k_local", "k_theirs"], "merge keeps both sides");
+        assert!(new_path.exists(), "merged document persisted as own replica");
         assert_eq!(
-            fs::read(target_own.join("attachment_target_y.bin")).unwrap(),
-            b"target"
+            fs::read(target.path().join("attachments_dev").join("attachment_a_photo.bin"))
+                .unwrap(),
+            b"photo",
+            "referenced own attachment filled into the target"
         );
+        let entries = crate::history::read_all_history(&new_path).unwrap();
+        assert!(
+            entries.iter().any(|e| e.entity_id == "k_local"),
+            "own history follows the merged document"
+        );
+        assert!(old_path.exists(), "old own replica kept");
+        assert!(dir.path().join("history_dev.jsonl").exists(), "old history kept");
+        assert!(own.join("attachment_a_photo.bin").exists(), "old attachments kept");
+    }
+
+    #[test]
+    fn repoint_adopt_leaves_old_folder_intact() {
+        let dir = tempdir().unwrap();
+        let old_path = dir.path().join("tasks_dev.db");
+        let state = AppState::open(old_path.clone()).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_local"));
+                Ok(())
+            })
+            .unwrap();
+        let target = tempdir().unwrap();
+        write_json_replica(&target.path().join("tasks_other.json"), "k_theirs");
+        state
+            .repoint(target.path().join("tasks_dev.db"), TransferMode::Adopt)
+            .unwrap();
+
+        assert!(old_path.exists(), "the dropped document survives in the old folder");
+        assert!(dir.path().join("history_dev.jsonl").exists());
+    }
+
+    #[test]
+    fn repoint_merge_or_adopt_on_empty_target_seeds_without_cleanup() {
+        for mode in [TransferMode::Merge, TransferMode::Adopt] {
+            let dir = tempdir().unwrap();
+            let old_path = dir.path().join("tasks_dev.db");
+            let state = AppState::open(old_path.clone()).unwrap();
+            state
+                .write(|d| {
+                    d.tasks.push(sample_task("k_seed"));
+                    Ok(())
+                })
+                .unwrap();
+            let target = tempdir().unwrap();
+            let new_path = target.path().join("tasks_dev.db");
+            state.repoint(new_path.clone(), mode).unwrap();
+
+            assert_eq!(
+                state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+                ["k_seed"],
+                "{mode:?}: seeded from the current document"
+            );
+            assert!(target.path().join("history_dev.jsonl").exists(), "{mode:?}");
+            assert!(old_path.exists(), "{mode:?}: old folder untouched");
+        }
+    }
+
+    #[test]
+    fn empty_peer_replica_is_not_data() {
+        let target = tempdir().unwrap();
+        fs::write(
+            target.path().join("tasks_peer.json"),
+            serde_json::to_vec(&Document::default()).unwrap(),
+        )
+        .unwrap();
+        let new_path = target.path().join("tasks_dev.db");
+        assert!(!folder_has_data(&new_path).unwrap());
+
+        // Adopt onto it seeds instead of swapping the current tasks for nothing.
+        let dir = tempdir().unwrap();
+        let state = AppState::open(dir.path().join("tasks_dev.db")).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_local"));
+                Ok(())
+            })
+            .unwrap();
+        state.repoint(new_path, TransferMode::Adopt).unwrap();
+        assert_eq!(
+            state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["k_local"]
+        );
+    }
+
+    #[test]
+    fn folder_has_data_detects_replicas() {
+        let empty = tempdir().unwrap();
+        assert!(!folder_has_data(&empty.path().join("tasks_dev.db")).unwrap());
+
+        let peer = tempdir().unwrap();
+        write_json_replica(&peer.path().join("tasks_other.json"), "k_theirs");
+        assert!(folder_has_data(&peer.path().join("tasks_dev.db")).unwrap());
+
+        let own = tempdir().unwrap();
+        let own_path = own.path().join("tasks_dev.db");
+        let state = AppState::open(own_path.clone()).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_own"));
+                Ok(())
+            })
+            .unwrap();
+        drop(state);
+        assert!(folder_has_data(&own_path).unwrap());
     }
 
     #[test]
