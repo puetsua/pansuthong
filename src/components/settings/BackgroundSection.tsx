@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Settings } from "../../lib/tauri";
-import { OnOffChoice } from "./OnOffChoice";
+import { ToggleSwitch } from "./ToggleSwitch";
 import { api } from "../../lib/tauri";
 import { isAndroid } from "../../lib/platform";
 import { errorMessage } from "../../lib/errors";
@@ -50,21 +50,23 @@ export function BackgroundSection({ settings }: Props) {
       <p className="view-sub">{t("settings.background.sub")}</p>
       {err && <p className="composer-error" role="alert">{t("settings.saveError", { error: err })}</p>}
 
-      <OnOffChoice
-        label={t("settings.background.onClose")}
-        value={closeToTray}
-        onLabel={t("settings.background.closeToTray")}
-        offLabel={t("settings.background.closeQuits")}
-        disabled={!trayAvailable}
-        onChange={on => { void save({ close_to_tray: on }); }}
-      />
+      <label className="te-field">
+        <span>{t("settings.background.onClose")}</span>
+        <select
+          className="select-input"
+          value={closeToTray ? "tray" : "quit"}
+          disabled={!trayAvailable}
+          onChange={e => { void save({ close_to_tray: e.currentTarget.value === "tray" }); }}
+        >
+          <option value="tray">{t("settings.background.closeToTray")}</option>
+          <option value="quit">{t("settings.background.closeQuits")}</option>
+        </select>
+      </label>
       {!trayAvailable && <p className="settings-status" role="status">{t("settings.background.noTray")}</p>}
 
-      <OnOffChoice
+      <ToggleSwitch
         label={t("settings.background.launchAtLogin")}
-        value={launchAtLogin}
-        onLabel={t("settings.background.on")}
-        offLabel={t("settings.background.off")}
+        checked={launchAtLogin}
         onChange={on => { void save({ launch_at_login: on }); }}
       />
     </section>

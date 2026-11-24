@@ -634,16 +634,12 @@
       "closeToTray": "縮到系統匣繼續執行",
       "closeQuits": "結束程式",
       "noTray": "找不到系統匣，關閉視窗會直接結束程式。",
-      "launchAtLogin": "登入時啟動（隱藏在系統匣）",
-      "on": "開",
-      "off": "關"
+      "launchAtLogin": "登入時啟動（隱藏在系統匣）"
     },
     "mcp": {
       "title": "MCP 伺服器",
       "sub": "讓 Cursor 或 Claude Desktop 透過 HTTP 僅在本機（127.0.0.1）管理任務。App 必須在執行中；不會對外網開放。",
       "enable": "啟用 MCP 伺服器",
-      "on": "開",
-      "off": "關",
       "port": "連接埠",
       "token": "令牌",
       "show": "顯示",

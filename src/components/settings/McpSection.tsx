@@ -4,7 +4,7 @@ import type { Settings } from "../../lib/tauri";
 import { api, type McpStatus } from "../../lib/tauri";
 import { isAndroid } from "../../lib/platform";
 import type { ApplySettings } from "./types";
-import { OnOffChoice } from "./OnOffChoice";
+import { ToggleSwitch } from "./ToggleSwitch";
 
 const MCP_PORT_DEFAULT = 7373;
 const MCP_PORT_MIN = 1024;
@@ -144,11 +144,9 @@ export function McpSection({ settings, applySettings }: Props) {
 
       {err && <p className="composer-error" role="alert">{err}</p>}
 
-      <OnOffChoice
+      <ToggleSwitch
         label={t("settings.mcp.enable")}
-        value={enabled}
-        onLabel={t("settings.mcp.on")}
-        offLabel={t("settings.mcp.off")}
+        checked={enabled}
         onChange={on => { void onToggle(on); }}
       />
 

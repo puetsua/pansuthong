@@ -640,16 +640,12 @@
       "closeToTray": "Keep running in tray",
       "closeQuits": "Quit",
       "noTray": "No system tray found, so closing the window quits.",
-      "launchAtLogin": "Launch at login (hidden in tray)",
-      "on": "On",
-      "off": "Off"
+      "launchAtLogin": "Launch at login (hidden in tray)"
     },
     "mcp": {
       "title": "MCP server",
       "sub": "Let Cursor or Claude Desktop manage tasks over HTTP on this computer only (127.0.0.1). The app must be running; nothing is exposed on the network.",
       "enable": "Enable MCP server",
-      "on": "On",
-      "off": "Off",
       "port": "Port",
       "token": "Token",
       "show": "Show",

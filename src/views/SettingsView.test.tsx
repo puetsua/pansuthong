@@ -101,9 +101,9 @@ describe("SettingsView MCP server", () => {
 
   it("enables the MCP server from its On/Off choice", async () => {
     render(<SettingsView doc={doc} />);
-    const group = await screen.findByRole("group", { name: /Enable MCP server/i });
-    expect(within(group).getByRole("button", { name: "Off" }).getAttribute("aria-pressed")).toBe("true");
-    fireEvent.click(within(group).getByRole("button", { name: "On" }));
+    const toggle = await screen.findByRole("switch", { name: /Enable MCP server/i });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(toggle);
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ mcp_enabled: true }));
   });
 
@@ -203,18 +203,17 @@ describe("SettingsView background (#252)", () => {
 
   it("defaults to keeping the app in the tray and switches to quit on close", async () => {
     render(<SettingsView doc={doc} />);
-    const group = await screen.findByRole("group", { name: /When the window is closed/i });
-    const tray = within(group).getByRole("button", { name: /Keep running in tray/i });
-    expect(tray.getAttribute("aria-pressed")).toBe("true");
-    fireEvent.click(within(group).getByRole("button", { name: /^Quit$/ }));
+    const select = await screen.findByRole("combobox", { name: /When the window is closed/i }) as HTMLSelectElement;
+    expect(select.value).toBe("tray");
+    fireEvent.change(select, { target: { value: "quit" } });
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ close_to_tray: false }));
   });
 
   it("toggles launch at login", async () => {
     render(<SettingsView doc={doc} />);
-    const group = await screen.findByRole("group", { name: /Launch at login/i });
-    expect(within(group).getByRole("button", { name: "Off" }).getAttribute("aria-pressed")).toBe("true");
-    fireEvent.click(within(group).getByRole("button", { name: "On" }));
+    const toggle = await screen.findByRole("switch", { name: /Launch at login/i });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(toggle);
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ launch_at_login: true }));
   });
 
@@ -222,17 +221,15 @@ describe("SettingsView background (#252)", () => {
     vi.mocked(api.getBackgroundStatus).mockResolvedValue({ tray_available: false });
     render(<SettingsView doc={doc} />);
     await screen.findByText(/No system tray found/i);
-    const group = screen.getByRole("group", { name: /When the window is closed/i });
-    const quit = within(group).getByRole("button", { name: /^Quit$/ }) as HTMLButtonElement;
-    expect(quit.disabled).toBe(true);
-    expect(quit.getAttribute("aria-pressed")).toBe("true");
+    const select = screen.getByRole("combobox", { name: /When the window is closed/i }) as HTMLSelectElement;
+    expect(select.disabled).toBe(true);
+    expect(select.value).toBe("quit");
   });
 
   it("shows a failed launch-at-login save next to the control", async () => {
     vi.mocked(api.updateSettings).mockRejectedValueOnce("launch at login: access denied");
     render(<SettingsView doc={doc} />);
-    const group = await screen.findByRole("group", { name: /Launch at login/i });
-    fireEvent.click(within(group).getByRole("button", { name: "On" }));
+    fireEvent.click(await screen.findByRole("switch", { name: /Launch at login/i }));
     const section = screen.getByRole("heading", { name: /^Background$/ }).closest("section")!;
     await within(section).findByText(/access denied/);
   });
