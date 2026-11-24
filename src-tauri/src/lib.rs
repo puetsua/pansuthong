@@ -415,8 +415,6 @@ pub fn run() {
             #[cfg(desktop)]
             commands::get_mcp_status,
             #[cfg(desktop)]
-            commands::regenerate_mcp_token,
-            #[cfg(desktop)]
             commands::get_background_status,
             #[cfg(desktop)]
             commands::set_tray_labels,

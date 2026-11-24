@@ -7,7 +7,7 @@
 //! and shutdown drains in-flight requests for at most `shutdown_deadline` before
 //! force-closing what is left.
 
-use crate::mcp::auth::{ExpectedToken, bearer_auth, origin_gate};
+use crate::mcp::auth::origin_gate;
 use crate::mcp::jsonrpc_http::{
     MCP_MAX_REQUEST_BODY_BYTES, json_content_type_gate, rewrite_jsonrpc_http_errors,
     tools_call_shape_gate,
@@ -74,10 +74,9 @@ impl WriteGate {
     }
 }
 
-/// The `/mcp` router with the auth, origin, and JSON-RPC gates.
+/// The `/mcp` router with the origin and JSON-RPC gates.
 pub fn mcp_router<S>(
     factory: impl Fn() -> Result<S, std::io::Error> + Send + Sync + 'static,
-    token: &str,
     opts: &ServeOptions,
 ) -> Router
 where
@@ -101,10 +100,6 @@ where
             opts.body_read_timeout,
             body_read_timeout_gate,
         ))
-        .layer(middleware::from_fn_with_state(
-            ExpectedToken::new(token),
-            bearer_auth,
-        ))
         .layer(middleware::from_fn(origin_gate))
         .layer(middleware::from_fn_with_state(
             opts.header_read_timeout,
@@ -113,7 +108,7 @@ where
 }
 
 /// Advertise the idle-connection timeout (hyper closes idle keep-alive connections after
-/// `header_read_timeout`) on every response, including auth and origin rejections.
+/// `header_read_timeout`) on every response, including origin rejections.
 async fn keep_alive_header(State(idle): State<Duration>, req: Request<Body>, next: Next) -> Response {
     let mut res = next.run(req).await;
     let value = format!("timeout={}", idle.as_secs());

@@ -1,6 +1,5 @@
 //! HTTP integration: MCP initialize + tools/list + create/list over Streamable HTTP.
 
-use super::generate_mcp_token;
 use super::jsonrpc_http::MCP_MAX_REQUEST_BODY_BYTES;
 use super::server::{RunningServer, ServeOptions, WriteGate, mcp_router, serve};
 use crate::commands::NewTaskInput;
@@ -58,11 +57,9 @@ fn mcp_http_large_tools_call_bodies() {
 }
 
 async fn mcp_http_large_tools_call_bodies_async() {
-    let token = generate_mcp_token();
-    let (url, server) = spawn_ping_mcp_router(&token).await;
+    let (url, server) = spawn_ping_mcp_router().await;
     let client = reqwest::Client::new();
     let accept = "application/json, text/event-stream";
-    let auth = format!("Bearer {token}");
 
     // ~2 MiB payload must pass the shape gate and reach rmcp (under the 4 MiB server limit).
     let pad_len = 2 * 1024 * 1024;
@@ -78,7 +75,6 @@ async fn mcp_http_large_tools_call_bodies_async() {
     });
     let ok_res = client
         .post(&url)
-        .header("Authorization", &auth)
         .header("Accept", accept)
         .json(&large_ok)
         .send()
@@ -103,7 +99,6 @@ async fn mcp_http_large_tools_call_bodies_async() {
     );
     let too_large = client
         .post(&url)
-        .header("Authorization", &auth)
         .header("Accept", accept)
         .header("Content-Type", "application/json")
         .body(huge_body)
@@ -130,11 +125,9 @@ fn mcp_http_tools_call_invalid_params_and_transport_gates() {
 }
 
 async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
-    let token = generate_mcp_token();
-    let (url, server) = spawn_ping_mcp_router(&token).await;
+    let (url, server) = spawn_ping_mcp_router().await;
     let client = reqwest::Client::new();
     let accept = "application/json, text/event-stream";
-    let auth = format!("Bearer {token}");
 
     let malformed = [
         json!({"jsonrpc": "2.0", "id": 9, "method": "tools/call"}),
@@ -150,7 +143,6 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
     for body in malformed {
         let res = client
             .post(&url)
-            .header("Authorization", &auth)
             .header("Accept", accept)
             .json(&body)
             .send()
@@ -196,7 +188,6 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
         });
         let res = client
             .post(&url)
-            .header("Authorization", &auth)
             .header("Accept", accept)
             .json(&body)
             .send()
@@ -211,7 +202,6 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
     // Batches and wrong `jsonrpc` versions are Invalid Request (-32600), not parse errors.
     let batch = client
         .post(&url)
-        .header("Authorization", &auth)
         .header("Accept", accept)
         .json(&json!([{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}]))
         .send()
@@ -224,7 +214,6 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
 
     let wrong_version = client
         .post(&url)
-        .header("Authorization", &auth)
         .header("Accept", accept)
         .json(&json!({"jsonrpc": "1.0", "id": "abc", "method": "tools/list"}))
         .send()
@@ -242,7 +231,6 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
     ] {
         let res = client
             .post(&url)
-            .header("Authorization", &auth)
             .header("Accept", accept)
             .header("Content-Type", ct_header)
             .body(r#"{"jsonrpc":"2.0","id":5,"method":"tools/list","params":{}}"#)
@@ -263,7 +251,6 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
     for body in ["not-json", r#"{"jsonrpc":"2.0","id":1,"method":"ping"} x"#, ""] {
         let res = client
             .post(&url)
-            .header("Authorization", &auth)
             .header("Accept", accept)
             .header("Content-Type", "application/json")
             .body(body)
@@ -279,7 +266,6 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
     // A notification (no id) with bad params is accepted silently: 202, no body.
     let res = client
         .post(&url)
-        .header("Authorization", &auth)
         .header("Accept", accept)
         .json(&json!({"jsonrpc": "2.0", "method": "tools/call", "params": {}}))
         .send()
@@ -290,7 +276,6 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
 
     let not_acceptable = client
         .post(&url)
-        .header("Authorization", &auth)
         .header("Content-Type", "application/json")
         .json(&json!({
             "jsonrpc": "2.0",
@@ -315,19 +300,17 @@ async fn mcp_http_tools_call_invalid_params_and_transport_gates_async() {
 }
 
 #[test]
-fn mcp_http_initialize_tools_list_and_auth() {
+fn mcp_http_initialize_tools_list_without_token() {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.block_on(async {
-        mcp_http_initialize_tools_list_and_auth_async().await;
+        mcp_http_initialize_tools_list_without_token_async().await;
     });
 }
 
-async fn spawn_ping_mcp_router(
-    token: &str,
-) -> (String, RunningServer) {
+async fn spawn_ping_mcp_router() -> (String, RunningServer) {
     use rmcp::{ErrorData as McpError, ServerHandler, model::CallToolResult, tool, tool_handler, tool_router};
 
     #[derive(Clone)]
@@ -355,22 +338,20 @@ async fn spawn_ping_mcp_router(
 
     // The production router and accept loop, so these tests cover the real gates.
     let opts = ServeOptions::default();
-    let router = mcp_router(|| Ok(PingMcp::new()), token, &opts);
+    let router = mcp_router(|| Ok(PingMcp::new()), &opts);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let server = serve(listener, router, Arc::new(WriteGate::default()), opts).unwrap();
     (format!("http://{}/mcp", server.local_addr()), server)
 }
 
-async fn mcp_http_initialize_tools_list_and_auth_async() {
-    let token = generate_mcp_token();
-    let (url, server) = spawn_ping_mcp_router(&token).await;
+async fn mcp_http_initialize_tools_list_without_token_async() {
+    let (url, server) = spawn_ping_mcp_router().await;
 
     let client = reqwest::Client::new();
     let accept = "application/json, text/event-stream";
 
     let init = client
         .post(&url)
-        .header("Authorization", format!("Bearer {token}"))
         .header("Accept", accept)
         .json(&json!({
             "jsonrpc": "2.0",
@@ -398,7 +379,6 @@ async fn mcp_http_initialize_tools_list_and_auth_async() {
 
     let bad_json = client
         .post(&url)
-        .header("Authorization", format!("Bearer {token}"))
         .header("Content-Type", "application/json")
         .header("Accept", accept)
         .body("not-json")
@@ -417,7 +397,6 @@ async fn mcp_http_initialize_tools_list_and_auth_async() {
 
     let tools = client
         .post(&url)
-        .header("Authorization", format!("Bearer {token}"))
         .header("Accept", accept)
         .json(&json!({
             "jsonrpc": "2.0",
@@ -431,12 +410,8 @@ async fn mcp_http_initialize_tools_list_and_auth_async() {
     assert!(tools.status().is_success());
     assert!(tools.text().await.unwrap().contains("ping"));
 
-    let bad = client.post(&url).json(&json!({})).send().await.unwrap();
-    assert_eq!(bad.status(), 401);
-
     let forbidden = client
         .post(&url)
-        .header("Authorization", format!("Bearer {token}"))
         .header("Origin", "http://evil.example")
         .header("Accept", accept)
         .json(&json!({
@@ -452,7 +427,6 @@ async fn mcp_http_initialize_tools_list_and_auth_async() {
 
     let localhost = client
         .post(&url)
-        .header("Authorization", format!("Bearer {token}"))
         .header("Origin", "http://localhost:7373")
         .header("Accept", accept)
         .json(&json!({

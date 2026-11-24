@@ -110,9 +110,6 @@ pub struct Settings {
     /// TCP port for the local MCP HTTP endpoint (1024..=65535).
     #[serde(default = "default_mcp_port")]
     pub mcp_port: u32,
-    /// Bearer token for MCP clients. Generated on first enable; regenerate revokes old clients.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mcp_token: Option<String>,
     /// Desktop (#252): closing the main window hides it to the tray instead of
     /// quitting. On by default so reminders keep firing; ignored without a tray.
     #[serde(default = "default_close_to_tray")]
@@ -211,7 +208,6 @@ impl Default for Settings {
             custom_presets: None,
             mcp_enabled: false,
             mcp_port: default_mcp_port(),
-            mcp_token: None,
             close_to_tray: default_close_to_tray(),
             launch_at_login: false,
         }

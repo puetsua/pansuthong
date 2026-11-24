@@ -32,7 +32,6 @@ export type Settings = {
   custom_presets?: ThemePreset[]; // user-defined, device-local named themes
   mcp_enabled?: boolean; // built-in MCP server (#246); desktop only, device-local
   mcp_port?: number; // local MCP HTTP port; 1024..65535, default 7373
-  mcp_token?: string; // bearer token for MCP clients; never synced
   close_to_tray?: boolean; // desktop (#252): close hides to the tray; default true
   launch_at_login?: boolean; // desktop (#252): start hidden in the tray at sign-in; default false
 };
@@ -325,7 +324,6 @@ export const api = {
   // automatically instead of silently dropping off this hand-maintained list.
   updateSettings: (input: Partial<Settings>) => invoke<void>("update_settings", { input }),
   getMcpStatus: () => invoke<McpStatus>("get_mcp_status"),
-  regenerateMcpToken: () => invoke<string>("regenerate_mcp_token"),
   // The server starts and stops on a background task; it reports each change here.
   onMcpStatusChanged: (cb: (status: McpStatus) => void) =>
     listen<McpStatus>("mcp-status-changed", (e) => cb(e.payload)),

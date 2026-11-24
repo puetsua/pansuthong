@@ -16,14 +16,11 @@ export function McpSection({ settings, applySettings }: Props) {
   const { t } = useTranslation();
   const [android, setAndroid] = useState(false);
   const [status, setStatus] = useState<McpStatus | null>(null);
-  const [showToken, setShowToken] = useState(false);
   const [portDraft, setPortDraft] = useState(String(settings.mcp_port ?? MCP_PORT_DEFAULT));
-  const [busy, setBusy] = useState(false);
   const [portErr, setPortErr] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const enabled = settings.mcp_enabled ?? false;
-  const token = settings.mcp_token ?? "";
   const port = settings.mcp_port ?? MCP_PORT_DEFAULT;
 
   useEffect(() => { void isAndroid().then(setAndroid); }, []);
@@ -80,19 +77,6 @@ export function McpSection({ settings, applySettings }: Props) {
       ? t("settings.mcp.statusPortInUse", { message: status.message ?? "" })
       : null);
 
-  const copyConfig = async () => {
-    if (!token) return;
-    const json = JSON.stringify({
-      mcpServers: {
-        pansuthong: {
-          url: `http://127.0.0.1:${port}/mcp`,
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      },
-    }, null, 2);
-    await navigator.clipboard.writeText(json);
-  };
-
   const onToggle = async (on: boolean) => {
     setErr(null);
     await applySettings({ mcp_enabled: on });
@@ -121,19 +105,6 @@ export function McpSection({ settings, applySettings }: Props) {
       await refreshStatus();
     } catch (e) {
       setPortErr(String(e));
-    }
-  };
-
-  const onRegenerate = async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      await api.regenerateMcpToken();
-      await refreshStatus();
-    } catch (e) {
-      setErr(String(e));
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -168,39 +139,6 @@ export function McpSection({ settings, applySettings }: Props) {
           <p className="composer-error mcp-port-error" role="alert">{portNotice}</p>
         )}
       </label>
-
-      <label className="te-field">
-        <span>{t("settings.mcp.token")}</span>
-        <div className="mcp-token-row theme-options">
-          <input
-            type={showToken ? "text" : "password"}
-            className="text-input mcp-token-input"
-            readOnly
-            value={token || "—"}
-            aria-label={t("settings.mcp.token")}
-          />
-          <button type="button" className="theme-option" disabled={!token} onClick={() => setShowToken(v => !v)}>
-            {showToken ? t("settings.mcp.hide") : t("settings.mcp.show")}
-          </button>
-          <button
-            type="button"
-            className="theme-option"
-            disabled={!token}
-            onClick={() => { void navigator.clipboard.writeText(token); }}
-          >
-            {t("settings.mcp.copyToken")}
-          </button>
-        </div>
-      </label>
-
-      <div className="theme-options mcp-actions">
-        <button type="button" className="theme-option" disabled={!enabled || busy} onClick={() => { void onRegenerate(); }}>
-          {t("settings.mcp.regenerate")}
-        </button>
-        <button type="button" className="theme-option" disabled={!enabled || !token} onClick={() => { void copyConfig(); }}>
-          {t("settings.mcp.copyConfig")}
-        </button>
-      </div>
 
       {/* Port in use is already shown under the Port field. */}
       {status?.status !== "port_in_use" && (

@@ -42,7 +42,6 @@ vi.mock("../lib/tauri", async (importOriginal) => {
       safSyncNow: vi.fn(),
       safClearFolder: vi.fn(),
       getMcpStatus: vi.fn().mockResolvedValue({ status: "off" }),
-      regenerateMcpToken: vi.fn().mockResolvedValue("test-token"),
       onMcpStatusChanged: vi.fn().mockResolvedValue(() => {}),
       getBackgroundStatus: vi.fn().mockResolvedValue({ tray_available: true }),
     },
@@ -109,7 +108,7 @@ describe("SettingsView MCP server", () => {
 
   const mcpDoc: Document = {
     ...doc,
-    settings: { ...doc.settings, mcp_enabled: true, mcp_port: 7373, mcp_token: "tok" },
+    settings: { ...doc.settings, mcp_enabled: true, mcp_port: 7373 },
   };
 
   it("shows the port-in-use status under the Port field", async () => {
@@ -193,6 +192,23 @@ describe("SettingsView MCP server", () => {
     await waitFor(() => {
       expect(screen.queryByRole("heading", { name: /MCP server/i })).toBeNull();
     });
+  });
+});
+
+describe("SettingsView switches", () => {
+  it("turns the completion sound off with its switch", async () => {
+    render(<SettingsView doc={doc} />);
+    const toggle = screen.getByRole("switch", { name: /Play completion sound/i });
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(toggle);
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ sound_on_complete: false }));
+  });
+
+  it("has no MCP token controls", async () => {
+    render(<SettingsView doc={doc} />);
+    await screen.findByRole("switch", { name: /Enable MCP server/i });
+    expect(screen.queryByText(/token/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Copy config/i })).toBeNull();
   });
 });
 

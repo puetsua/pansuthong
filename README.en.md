@@ -48,14 +48,14 @@ Stack: Tauri 2 (Rust) · React 19 · TypeScript · Vite.
 
 ### MCP server (desktop)
 
-Pansuthong can expose a local MCP server so Cursor or Claude Desktop can list and edit tasks while the app is running.
+Pansuthong can expose a local MCP server so any AI agent that supports MCP can list and edit tasks while the app is running.
 
-1. Open **Settings → MCP server**, turn **Enable** on, and note the port (default **7373**) and token.
-2. **Cursor:** click **Copy config** and paste into your MCP settings, or add the JSON it copies under `mcpServers.pansuthong`.
-3. **Claude Desktop:** use [mcp-remote](https://www.npmjs.com/package/mcp-remote), for example:
-   `npx mcp-remote http://127.0.0.1:7373/mcp --header "Authorization: Bearer YOUR_TOKEN"`
+1. Open **Settings → MCP server**, turn **Enable MCP server** on, and note the port (default **7373**).
+2. Point your agent at `http://127.0.0.1:7373/mcp` (Streamable HTTP). No token is needed, for example:
+   `{ "mcpServers": { "pansuthong": { "url": "http://127.0.0.1:7373/mcp" } } }`
+   Agents that only speak stdio can use [mcp-remote](https://www.npmjs.com/package/mcp-remote): `npx mcp-remote http://127.0.0.1:7373/mcp`
 
-The server binds to `127.0.0.1` only; it is off by default and stops when the app quits.
+The server binds to `127.0.0.1` only and rejects requests from web pages (non-localhost `Origin`). It is off by default, keeps running while the app sits in the tray, and stops when the app quits.
 
 Tool results use object-shaped `structuredContent` (for example `list_tasks` returns `{ "tasks": [...] }` and `list_tags` returns `{ "tags": [...] }`). MCP writes update the same store as the UI and emit `store-changed` so the open window reloads.
 

@@ -2357,12 +2357,6 @@ pub fn update_settings(
         }
         if let Some(on) = input.mcp_enabled {
             s.mcp_enabled = on;
-            if on && s.mcp_token.as_deref().unwrap_or("").is_empty() {
-                #[cfg(desktop)]
-                {
-                    s.mcp_token = Some(crate::mcp::runtime::generate_mcp_token());
-                }
-            }
         }
         if let Some(port) = input.mcp_port {
             #[cfg(desktop)]
@@ -2410,23 +2404,6 @@ pub fn set_tray_labels(app: AppHandle, show: String, quit: String) -> std::resul
 #[tauri::command]
 pub fn get_mcp_status(mcp: State<'_, crate::mcp::McpRuntime>) -> crate::mcp::McpStatus {
     mcp.status()
-}
-
-#[cfg(desktop)]
-#[tauri::command]
-pub fn regenerate_mcp_token(
-    config: State<'_, ConfigState>,
-    mcp: State<'_, crate::mcp::McpRuntime>,
-    app: AppHandle,
-) -> Result<String> {
-    let token = crate::mcp::runtime::generate_mcp_token();
-    config.update_settings(|s| {
-        s.mcp_token = Some(token.clone());
-        Ok(())
-    })?;
-    emit_settings_changed(&app);
-    mcp.sync_from_settings(&app, &config);
-    Ok(token)
 }
 
 #[tauri::command]
