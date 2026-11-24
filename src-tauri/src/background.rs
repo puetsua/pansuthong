@@ -35,6 +35,8 @@ pub struct BackgroundState {
 }
 
 impl BackgroundState {
+    /// The tray icon was created. On Linux it may still be invisible; see
+    /// [`tray_usable`].
     pub fn tray_available(&self) -> bool {
         self.tray_available.load(Ordering::SeqCst)
     }
@@ -67,14 +69,7 @@ pub fn setup(app: &AppHandle, launch_at_login: bool) {
     if launch_at_login {
         match refresh_launch_at_login(app) {
             Ok(true) => {}
-            Ok(false) => {
-                if let Some(config) = app.try_state::<crate::config::ConfigState>() {
-                    let _ = config.update_settings(|s| {
-                        s.launch_at_login = false;
-                        Ok(())
-                    });
-                }
-            }
+            Ok(false) => turn_off_launch_at_login(app),
             Err(e) => eprintln!("warning: refreshing the launch-at-login entry failed: {e}"),
         }
     }
@@ -95,12 +90,6 @@ fn build_tray(app: &AppHandle) -> Result<(MenuItem<Wry>, MenuItem<Wry>), String>
     #[cfg(target_os = "linux")]
     if !linux_tray_library_present() {
         return Err("libayatana-appindicator3 / libappindicator3 not found".into());
-    }
-    // The icon is created even with no tray host (stock GNOME) but never shown,
-    // which would leave a hidden window with no way back. Treat that as no tray.
-    #[cfg(target_os = "linux")]
-    if !linux_tray_host_present() {
-        return Err("no StatusNotifier tray host on the session bus".into());
     }
     let build = || -> tauri::Result<(MenuItem<Wry>, MenuItem<Wry>)> {
         // English defaults until the frontend sends translated labels.
@@ -158,10 +147,23 @@ fn linux_tray_library_present() -> bool {
     .any(|name| unsafe { libloading::Library::new(name) }.is_ok())
 }
 
-/// Whether a StatusNotifier host (KDE, GNOME with the AppIndicator extension,
-/// XFCE/Cinnamon/MATE panels with SNI support) owns the watcher name.
+/// Whether the tray icon can actually be seen right now. On Linux the icon is
+/// created even with no tray host (stock GNOME), so check for a host live:
+/// at login the panel may register after the app starts.
+pub fn tray_usable(app: &AppHandle) -> bool {
+    let built = app
+        .try_state::<BackgroundState>()
+        .is_some_and(|s| s.tray_available());
+    #[cfg(target_os = "linux")]
+    return built && (linux_sni_host_present() || linux_xembed_tray_present());
+    #[cfg(not(target_os = "linux"))]
+    built
+}
+
+/// A StatusNotifier host (KDE, GNOME with the AppIndicator extension, most
+/// panels) owns the watcher name on the session bus.
 #[cfg(target_os = "linux")]
-fn linux_tray_host_present() -> bool {
+fn linux_sni_host_present() -> bool {
     use gtk::gio;
     use gtk::glib::{ToVariant, VariantTy};
     let Ok(bus) = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE) else {
@@ -175,12 +177,38 @@ fn linux_tray_host_present() -> bool {
         Some(&("org.kde.StatusNotifierWatcher",).to_variant()),
         Some(VariantTy::new("(b)").expect("valid variant type")),
         gio::DBusCallFlags::NONE,
-        1000,
+        250,
         gio::Cancellable::NONE,
     )
     .ok()
     .and_then(|reply| reply.get::<(bool,)>())
     .is_some_and(|(owned,)| owned)
+}
+
+/// An XEmbed system tray (XFCE/MATE notification area, i3bar, ...) owns
+/// `_NET_SYSTEM_TRAY_S<screen>`; libappindicator falls back to it without SNI.
+#[cfg(target_os = "linux")]
+fn linux_xembed_tray_present() -> bool {
+    use x11_dl::xlib;
+    let Ok(x) = xlib::Xlib::open() else {
+        return false;
+    };
+    // SAFETY: the display is opened, used, and closed within this block.
+    unsafe {
+        let display = (x.XOpenDisplay)(std::ptr::null());
+        if display.is_null() {
+            return false;
+        }
+        let screen = (x.XDefaultScreen)(display);
+        let owned = std::ffi::CString::new(format!("_NET_SYSTEM_TRAY_S{screen}"))
+            .ok()
+            .is_some_and(|name| {
+                let atom = (x.XInternAtom)(display, name.as_ptr(), xlib::True);
+                atom != 0 && (x.XGetSelectionOwner)(display, atom) != 0
+            });
+        (x.XCloseDisplay)(display);
+        owned
+    }
 }
 
 /// Restore, show, and focus the main window (tray, second launch).
@@ -201,6 +229,11 @@ pub fn on_first_frame(window: &WebviewWindow) -> bool {
     if !state.start_hidden.load(Ordering::SeqCst) {
         return false;
     }
+    if !tray_usable(window.app_handle()) {
+        // No visible tray to come back from: show the window after all.
+        state.start_hidden.store(false, Ordering::SeqCst);
+        return false;
+    }
     // Linux maps the window at startup so WebKitGTK runs the frontend (#167);
     // hide it again now that the page is live.
     if let Err(e) = window.hide() {
@@ -216,13 +249,10 @@ pub fn hide_on_close(window: &tauri::Window) -> bool {
         return false;
     }
     let app = window.app_handle();
-    let tray = app
-        .try_state::<BackgroundState>()
-        .is_some_and(|s| s.tray_available());
     let enabled = app
         .try_state::<crate::config::ConfigState>()
         .is_some_and(|c| c.settings().close_to_tray);
-    if !(tray && enabled) {
+    if !(enabled && tray_usable(app)) {
         return false;
     }
     if let Err(e) = window.hide() {
@@ -302,6 +332,24 @@ fn refresh_launch_at_login(app: &AppHandle) -> Result<bool, String> {
     Ok(true)
 }
 
+/// The user disabled or removed the entry outside the app: drop any leftover
+/// entry and store the setting as off, so the switch and the OS agree.
+fn turn_off_launch_at_login(app: &AppHandle) {
+    if let Err(e) = set_launch_at_login(app, false) {
+        eprintln!("warning: removing the disabled launch-at-login entry failed: {e}");
+    }
+    let Some(config) = app.try_state::<crate::config::ConfigState>() else {
+        eprintln!("warning: config state missing; launch_at_login not updated");
+        return;
+    };
+    if let Err(e) = config.update_settings(|s| {
+        s.launch_at_login = false;
+        Ok(())
+    }) {
+        eprintln!("warning: saving launch_at_login=false failed: {e}");
+    }
+}
+
 /// auto-launch only checks that the .desktop file exists; desktops disable an
 /// entry in place (`Hidden=true`, `X-GNOME-Autostart-enabled=false`).
 #[cfg(target_os = "linux")]
@@ -330,7 +378,6 @@ fn desktop_entry_disabled(text: &str) -> bool {
     })
 }
 
-
 #[derive(serde::Serialize)]
 pub struct BackgroundStatus {
     pub tray_available: bool,
@@ -338,9 +385,7 @@ pub struct BackgroundStatus {
 
 pub fn status(app: &AppHandle) -> BackgroundStatus {
     BackgroundStatus {
-        tray_available: app
-            .try_state::<BackgroundState>()
-            .is_some_and(|s| s.tray_available()),
+        tray_available: tray_usable(app),
     }
 }
 
@@ -350,9 +395,15 @@ mod tests {
 
     #[test]
     fn desktop_entry_disabled_reads_hidden_and_gnome_flag() {
-        assert!(!desktop_entry_disabled("[Desktop Entry]\nExec=\"/a b\" --autostart\n"));
+        assert!(!desktop_entry_disabled(
+            "[Desktop Entry]\nExec=\"/a b\" --autostart\n"
+        ));
         assert!(desktop_entry_disabled("[Desktop Entry]\nHidden=true\n"));
-        assert!(desktop_entry_disabled("[Desktop Entry]\nX-GNOME-Autostart-enabled=false\n"));
-        assert!(!desktop_entry_disabled("[Desktop Entry]\nX-GNOME-Autostart-enabled=true\n"));
+        assert!(desktop_entry_disabled(
+            "[Desktop Entry]\nX-GNOME-Autostart-enabled=false\n"
+        ));
+        assert!(!desktop_entry_disabled(
+            "[Desktop Entry]\nX-GNOME-Autostart-enabled=true\n"
+        ));
     }
 }

@@ -2231,15 +2231,13 @@ pub fn update_settings(
     #[cfg(desktop)]
     let mcp_sync = crate::mcp::runtime::settings_patch_affects_mcp(&input);
     // Write the OS login entry first so a failure never leaves the setting on
-    // without an entry behind it.
-    if let Some(on) = input.launch_at_login {
-        #[cfg(desktop)]
-        crate::background::set_launch_at_login(&app, on)
+    // without an entry behind it. Only when the value changes.
+    let login_before = config.settings().launch_at_login;
+    let login_changed = input.launch_at_login.is_some_and(|on| on != login_before);
+    #[cfg(desktop)]
+    if login_changed {
+        crate::background::set_launch_at_login(&app, !login_before)
             .map_err(|e| AppError::Invalid(format!("launch at login: {e}")))?;
-        #[cfg(not(desktop))]
-        {
-            let _ = on;
-        }
     }
     let saved = config.update_settings(|s| {
         if let Some(t) = input.theme {
@@ -2378,8 +2376,10 @@ pub fn update_settings(
     if let Err(e) = saved {
         // Undo the OS login entry so it matches the setting that was kept.
         #[cfg(desktop)]
-        if let Some(on) = input.launch_at_login {
-            let _ = crate::background::set_launch_at_login(&app, !on);
+        if login_changed {
+            if let Err(undo) = crate::background::set_launch_at_login(&app, login_before) {
+                eprintln!("warning: restoring the launch-at-login entry failed: {undo}");
+            }
         }
         return Err(e);
     }
