@@ -411,7 +411,27 @@ function hookPayload(out) {
   };
 }
 
+// Claude Code rejects the Grok/Cursor payload (its top-level `decision` only
+// takes approve/block) and reads exit-2 reasons from stderr, not stdout.
+const CLAUDE_MODE = process.argv.includes("--claude");
+
+function claudeHookPayload(out) {
+  if (out.decision !== "deny") return null; // no output = defer to normal permissions
+  return {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: out.reason ?? DENY_REASON,
+    },
+  };
+}
+
 function writeHookResult(out) {
+  if (CLAUDE_MODE) {
+    const payload = claudeHookPayload(out);
+    if (payload) process.stdout.write(`${JSON.stringify(payload)}\n`);
+    return;
+  }
   const payload = hookPayload(out);
   process.stdout.write(`${JSON.stringify(payload)}\n`);
   if (out.decision === "deny") process.exitCode = 2;

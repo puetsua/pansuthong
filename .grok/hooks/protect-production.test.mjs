@@ -217,6 +217,35 @@ describe("hook process: fail closed", () => {
   });
 });
 
+describe("hook process: --claude output", () => {
+  const run = (input, env = process.env) =>
+    spawnSync("node", [hookPath, "--claude"], { encoding: "utf8", input, env });
+
+  it("prints nothing and exits 0 when allowed", () => {
+    const r = run(JSON.stringify(bash("ls")));
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout, "");
+  });
+
+  it("emits a hookSpecificOutput deny with the reason and exits 0", () => {
+    const r = run(JSON.stringify(bash(`Start-Process '${prodExe}'`)));
+    assert.equal(r.status, 0);
+    const out = JSON.parse(r.stdout);
+    assert.deepEqual(Object.keys(out), ["hookSpecificOutput"]);
+    assert.equal(out.hookSpecificOutput.hookEventName, "PreToolUse");
+    assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
+    assert.match(out.hookSpecificOutput.permissionDecisionReason, /production/);
+  });
+
+  it("still fails closed on empty or invalid stdin", () => {
+    for (const input of ["", "not-json"]) {
+      const r = run(input);
+      assert.equal(r.status, 0);
+      assert.equal(JSON.parse(r.stdout).hookSpecificOutput.permissionDecision, "deny");
+    }
+  });
+});
+
 describe("override and pid parse", () => {
   it("allows production actions when PANSUTHONG_ALLOW_PRODUCTION=1", () => {
     allow(bash(`Start-Process '${prodExe}'`), {
