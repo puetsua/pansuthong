@@ -79,7 +79,12 @@ pub fn run() {
     // First plugin so a second launch exits before other plugins start work.
     #[cfg(desktop)]
     let builder =
-        tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // A login-entry launch while already running (e.g. opened by hand
+            // first) must not pop the window out of the tray (#252).
+            if argv.iter().any(|a| a == crate::background::AUTOSTART_ARG) {
+                return;
+            }
             crate::background::show_main_window(app);
         }));
     #[cfg(not(desktop))]
@@ -316,14 +321,24 @@ pub fn run() {
                 show_linux_main(app.handle());
                 let handle = app.handle().clone();
                 std::thread::spawn(move || {
+                    // show_linux_main runs on the main thread, like the
+                    // frontend's show_main_window command, so its
+                    // first-frame check and show() can't interleave with an
+                    // autostart hide (#252).
                     std::thread::sleep(std::time::Duration::from_millis(50));
                     enforce_desktop_chrome(&handle);
                     #[cfg(target_os = "linux")]
-                    show_linux_main(&handle);
+                    {
+                        let h = handle.clone();
+                        let _ = handle.run_on_main_thread(move || show_linux_main(&h));
+                    }
                     std::thread::sleep(std::time::Duration::from_millis(250));
                     enforce_desktop_chrome(&handle);
                     #[cfg(target_os = "linux")]
-                    show_linux_main(&handle);
+                    {
+                        let h = handle.clone();
+                        let _ = handle.run_on_main_thread(move || show_linux_main(&h));
+                    }
                 });
             }
 

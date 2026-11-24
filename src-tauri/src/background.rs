@@ -63,10 +63,19 @@ pub fn setup(app: &AppHandle, launch_at_login: bool) {
     // Rewrite the entry so it follows the current executable (an AppImage that
     // moved, or a reinstall to a new folder). Only while the OS still has it
     // enabled: a user who turned it off in Task Manager / their desktop's
-    // startup settings keeps it off.
+    // startup settings keeps it off, and the setting follows that choice.
     if launch_at_login {
-        if let Err(e) = refresh_launch_at_login(app) {
-            eprintln!("warning: refreshing the launch-at-login entry failed: {e}");
+        match refresh_launch_at_login(app) {
+            Ok(true) => {}
+            Ok(false) => {
+                if let Some(config) = app.try_state::<crate::config::ConfigState>() {
+                    let _ = config.update_settings(|s| {
+                        s.launch_at_login = false;
+                        Ok(())
+                    });
+                }
+            }
+            Err(e) => eprintln!("warning: refreshing the launch-at-login entry failed: {e}"),
         }
     }
 
@@ -86,6 +95,12 @@ fn build_tray(app: &AppHandle) -> Result<(MenuItem<Wry>, MenuItem<Wry>), String>
     #[cfg(target_os = "linux")]
     if !linux_tray_library_present() {
         return Err("libayatana-appindicator3 / libappindicator3 not found".into());
+    }
+    // The icon is created even with no tray host (stock GNOME) but never shown,
+    // which would leave a hidden window with no way back. Treat that as no tray.
+    #[cfg(target_os = "linux")]
+    if !linux_tray_host_present() {
+        return Err("no StatusNotifier tray host on the session bus".into());
     }
     let build = || -> tauri::Result<(MenuItem<Wry>, MenuItem<Wry>)> {
         // English defaults until the frontend sends translated labels.
@@ -141,6 +156,31 @@ fn linux_tray_library_present() -> bool {
     ]
     .iter()
     .any(|name| unsafe { libloading::Library::new(name) }.is_ok())
+}
+
+/// Whether a StatusNotifier host (KDE, GNOME with the AppIndicator extension,
+/// XFCE/Cinnamon/MATE panels with SNI support) owns the watcher name.
+#[cfg(target_os = "linux")]
+fn linux_tray_host_present() -> bool {
+    use gtk::gio;
+    use gtk::glib::{ToVariant, VariantTy};
+    let Ok(bus) = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE) else {
+        return false;
+    };
+    bus.call_sync(
+        Some("org.freedesktop.DBus"),
+        "/org/freedesktop/DBus",
+        "org.freedesktop.DBus",
+        "NameHasOwner",
+        Some(&("org.kde.StatusNotifierWatcher",).to_variant()),
+        Some(VariantTy::new("(b)").expect("valid variant type")),
+        gio::DBusCallFlags::NONE,
+        1000,
+        gio::Cancellable::NONE,
+    )
+    .ok()
+    .and_then(|reply| reply.get::<(bool,)>())
+    .is_some_and(|(owned,)| owned)
 }
 
 /// Restore, show, and focus the main window (tray, second launch).
@@ -204,13 +244,16 @@ pub fn set_tray_labels(app: &AppHandle, show: &str, quit: &str) -> Result<(), St
     quit_item.set_text(quit).map_err(|e| e.to_string())
 }
 
-fn auto_launcher(app: &AppHandle) -> Result<auto_launch::AutoLaunch, String> {
-    // Product name keeps dev ("Pansuthong Dev") and production entries apart.
-    let name = app
-        .config()
+/// Product name keeps dev ("Pansuthong Dev") and production entries apart.
+fn app_name(app: &AppHandle) -> String {
+    app.config()
         .product_name
         .clone()
-        .unwrap_or_else(|| app.package_info().name.clone());
+        .unwrap_or_else(|| app.package_info().name.clone())
+}
+
+fn auto_launcher(app: &AppHandle) -> Result<auto_launch::AutoLaunch, String> {
+    let name = app_name(app);
     #[cfg(target_os = "linux")]
     let exe = match app.env().appimage {
         Some(appimage) => appimage,
@@ -244,13 +287,49 @@ pub fn set_launch_at_login(app: &AppHandle, enabled: bool) -> Result<(), String>
     }
 }
 
-fn refresh_launch_at_login(app: &AppHandle) -> Result<(), String> {
+/// Rewrite an entry the OS still has enabled. Returns false when the user
+/// disabled or removed it outside the app.
+fn refresh_launch_at_login(app: &AppHandle) -> Result<bool, String> {
     let launcher = auto_launcher(app)?;
-    if launcher.is_enabled().map_err(|e| e.to_string())? {
-        launcher.enable().map_err(|e| e.to_string())?;
+    if !launcher.is_enabled().map_err(|e| e.to_string())? {
+        return Ok(false);
     }
-    Ok(())
+    #[cfg(target_os = "linux")]
+    if linux_autostart_disabled(&app_name(app)) {
+        return Ok(false);
+    }
+    launcher.enable().map_err(|e| e.to_string())?;
+    Ok(true)
 }
+
+/// auto-launch only checks that the .desktop file exists; desktops disable an
+/// entry in place (`Hidden=true`, `X-GNOME-Autostart-enabled=false`).
+#[cfg(target_os = "linux")]
+fn linux_autostart_disabled(name: &str) -> bool {
+    let Some(home) = std::env::var_os("HOME") else {
+        return false;
+    };
+    let path = std::path::Path::new(&home)
+        .join(".config/autostart")
+        .join(format!("{name}.desktop"));
+    std::fs::read_to_string(path).is_ok_and(|text| desktop_entry_disabled(&text))
+}
+
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn desktop_entry_disabled(text: &str) -> bool {
+    text.lines().map(str::trim).any(|line| {
+        let Some((key, value)) = line.split_once('=') else {
+            return false;
+        };
+        let value = value.trim();
+        match key.trim() {
+            "Hidden" => value.eq_ignore_ascii_case("true"),
+            "X-GNOME-Autostart-enabled" => value.eq_ignore_ascii_case("false"),
+            _ => false,
+        }
+    })
+}
+
 
 #[derive(serde::Serialize)]
 pub struct BackgroundStatus {
@@ -262,5 +341,18 @@ pub fn status(app: &AppHandle) -> BackgroundStatus {
         tray_available: app
             .try_state::<BackgroundState>()
             .is_some_and(|s| s.tray_available()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::desktop_entry_disabled;
+
+    #[test]
+    fn desktop_entry_disabled_reads_hidden_and_gnome_flag() {
+        assert!(!desktop_entry_disabled("[Desktop Entry]\nExec=\"/a b\" --autostart\n"));
+        assert!(desktop_entry_disabled("[Desktop Entry]\nHidden=true\n"));
+        assert!(desktop_entry_disabled("[Desktop Entry]\nX-GNOME-Autostart-enabled=false\n"));
+        assert!(!desktop_entry_disabled("[Desktop Entry]\nX-GNOME-Autostart-enabled=true\n"));
     }
 }

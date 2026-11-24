@@ -2241,7 +2241,7 @@ pub fn update_settings(
             let _ = on;
         }
     }
-    config.update_settings(|s| {
+    let saved = config.update_settings(|s| {
         if let Some(t) = input.theme {
             if !matches!(t.as_str(), "auto" | "light" | "dark") {
                 return Err(AppError::Invalid(format!("invalid theme: {t}")));
@@ -2374,7 +2374,15 @@ pub fn update_settings(
             s.launch_at_login = on;
         }
         Ok(())
-    })?;
+    });
+    if let Err(e) = saved {
+        // Undo the OS login entry so it matches the setting that was kept.
+        #[cfg(desktop)]
+        if let Some(on) = input.launch_at_login {
+            let _ = crate::background::set_launch_at_login(&app, !on);
+        }
+        return Err(e);
+    }
     emit_settings_changed(&app);
     #[cfg(desktop)]
     {

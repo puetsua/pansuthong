@@ -37,3 +37,13 @@
     StrCpy $UpdateMode 1
   ${EndIf}
 !macroend
+
+; Launch at login (#252) writes HKCU Run / StartupApproved values named after the
+; product at runtime. Remove them on a real uninstall only: an update or in-place
+; reinstall keeps the user's choice (the app rewrites the path on next start).
+!macro NSIS_HOOK_POSTUNINSTALL
+  ${If} $UpdateMode <> 1
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "${PRODUCTNAME}"
+  ${EndIf}
+!macroend

@@ -59,6 +59,7 @@ const doc: Document = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(isAndroid).mockResolvedValue(false);
+  vi.mocked(api.getBackgroundStatus).mockResolvedValue({ tray_available: true });
   getDataLocation.mockResolvedValue({
     folder: "C:\\Sync\\Pansuthong",
     device_id: "device-abc",
