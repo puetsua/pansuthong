@@ -17,7 +17,7 @@
 
 - [x] 3.1 `src/lib/tauri.ts`: widen `TransferMode`, add `DataFolderInspection` type and `api.inspectDataFolder`
 - [x] 3.2 `DataFolderSection.tsx`: inspect after picking / on Use default location; render the dialog variant by `hasData`; map buttons to copy/move or merge/adopt; inspection errors go to the error line
-- [x] 3.3 Update `en.json` and `zh-TW.json` with the new title, body, footnote, and button strings for both variants; remove the obsolete transfer strings; reword `desktopHint` (adopting is now a choice)
+- [x] 3.3 Update `en.json` and `zh-TW.json` with the new title, body, and button strings for both variants; remove the obsolete transfer strings; reword `desktopHint` (adopting is now a choice)
 - [x] 3.4 Update `SettingsView.test.tsx` (both variants, every button's mode, cancel, clear path, inspect error) and `tauri.test.ts`
 - [x] 3.5 Update `docs/ui-terms.html` data-folder dialog entries
 

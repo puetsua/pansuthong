@@ -143,7 +143,9 @@ export function DataFolderSection({ settings }: { settings: Settings }) {
         setPendingFolder(folder);
         setTransferPrompt({ kind, hasData: true });
       } else {
-        setErr(errorMessage(e));
+        // The backend's refusal text is English; show the translated one.
+        const msg = errorMessage(e);
+        setErr(msg.includes("already has Pansuthong data") ? t("settings.transfer.refused") : msg);
       }
     }
     finally { setBusy(false); }

@@ -683,7 +683,8 @@
       "move": "Remove from old",
       "merge": "Merge",
       "adopt": "Use folder's data",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "refused": "This folder now has Pansuthong data. Choose it again to merge."
     }
   }
 }

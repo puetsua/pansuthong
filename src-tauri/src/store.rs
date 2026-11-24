@@ -41,11 +41,14 @@ pub enum TransferMode {
     Adopt,
 }
 
-/// Every task document already present in the folder of `path`: peer replicas,
-/// a legacy `tasks.json`, and a non-empty own replica. Empty = nothing to adopt.
+/// Every non-empty task document already present in the folder of `path`: peer
+/// replicas, a legacy `tasks.json`, and the own replica. Empty replicas (a peer
+/// that linked and was wiped) are skipped, so "Use folder's data" can never swap
+/// the current tasks for nothing. Empty = nothing to adopt.
 fn target_docs(path: &Path) -> Result<Vec<Document>> {
-    let mut docs = collect_peer_docs(path);
-    if let Some(legacy) = legacy_doc(path) {
+    let holds_data = |d: &Document| doc_has_data(d) || !d.template_tasks.is_empty();
+    let mut docs: Vec<Document> = collect_peer_docs(path).into_iter().filter(holds_data).collect();
+    if let Some(legacy) = legacy_doc(path).filter(holds_data) {
         docs.push(legacy);
     }
     if let Some(existing) = read_db_if_present(path)? {
@@ -1778,6 +1781,33 @@ mod tests {
             assert!(target.path().join("history_dev.jsonl").exists(), "{mode:?}");
             assert!(old_path.exists(), "{mode:?}: old folder untouched");
         }
+    }
+
+    #[test]
+    fn empty_peer_replica_is_not_data() {
+        let target = tempdir().unwrap();
+        fs::write(
+            target.path().join("tasks_peer.json"),
+            serde_json::to_vec(&Document::default()).unwrap(),
+        )
+        .unwrap();
+        let new_path = target.path().join("tasks_dev.db");
+        assert!(!folder_has_data(&new_path).unwrap());
+
+        // Adopt onto it seeds instead of swapping the current tasks for nothing.
+        let dir = tempdir().unwrap();
+        let state = AppState::open(dir.path().join("tasks_dev.db")).unwrap();
+        state
+            .write(|d| {
+                d.tasks.push(sample_task("k_local"));
+                Ok(())
+            })
+            .unwrap();
+        state.repoint(new_path, TransferMode::Adopt).unwrap();
+        assert_eq!(
+            state.read(|d| d.tasks.iter().map(|t| t.id.clone()).collect::<Vec<_>>()),
+            ["k_local"]
+        );
     }
 
     #[test]

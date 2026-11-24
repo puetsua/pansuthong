@@ -22,8 +22,7 @@ files from the old folder — the user's current tasks end up in neither folder.
   rejects `copy` / `move`; nothing is ever deleted from the old folder on the
   merge/adopt path. This closes the Move data-loss bug.
 - Clearing back to the default location runs the same check.
-- Shorter dialog copy in both locales, with a muted footnote that peer files are
-  never touched.
+- Shorter, outcome-first dialog copy in both locales (one sentence per variant).
 
 ## Capabilities
 

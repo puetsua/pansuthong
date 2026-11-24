@@ -4,8 +4,9 @@
 
 The system SHALL expose a desktop command that reports whether a candidate data
 folder already holds Pansuthong task data, using the same detection the store uses
-when repointing: a non-empty own replica (`tasks_<device>.db`), any readable peer
-replica (`tasks_*.db` / `tasks_*.json`), or a legacy `tasks.json`. When no folder is
+when repointing: a non-empty own replica (`tasks_<device>.db`), any readable
+non-empty peer replica (`tasks_*.db` / `tasks_*.json`), or a non-empty legacy
+`tasks.json`. A replica with no tasks, tags, or templates SHALL NOT count as data. When no folder is
 given, the command SHALL inspect the default app-data directory. The command SHALL
 also report whether the candidate is the folder currently in use. The command SHALL
 NOT create, modify, or delete any file.
@@ -41,7 +42,8 @@ The choice depends on whether the target already holds Pansuthong task data:
 - **Seed** (target has no task replicas) — **Copy** or **Move**: seed the current
   document into the new folder; copy `history_<device>.jsonl` beside the new data
   file (after migrating any bare `history.jsonl` on the source into that sidecar;
-  SHALL NOT copy bare `history.jsonl` into the new folder); copy this device's
+  SHALL NOT copy bare `history.jsonl` into the new folder; if the target already
+  has that sidecar, SHALL union lines instead of overwriting it); copy this device's
   `attachments_<device>/` tree so attachment opens keep working.
 - **Existing data** (target already holds task data) — **Merge** or **Adopt**:
   - **Merge** SHALL combine the current document with the target's replicas using

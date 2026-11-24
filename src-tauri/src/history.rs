@@ -240,6 +240,11 @@ pub fn copy_own_history(from_data_path: &Path, to_data_path: &Path) -> Result<()
 
     let from_own = history_path(from_data_path);
     let to_own = history_path(to_data_path);
+    if to_own.exists() {
+        // A leftover sidecar from an earlier stint in that folder: union, never
+        // overwrite, so lines only the target has survive.
+        return merge_own_history(from_data_path, to_data_path);
+    }
     if from_own.exists() {
         fs::copy(&from_own, &to_own)?;
     }
@@ -958,6 +963,22 @@ mod tests {
         copy_own_history(&from, &to).unwrap();
         // Still a single sidecar; no duplicate/rename side effects.
         assert!(dir.path().join("history_dev.jsonl").exists());
+    }
+
+    #[test]
+    fn copy_own_history_unions_with_a_leftover_target_sidecar() {
+        let old = tempdir().unwrap();
+        let new = tempdir().unwrap();
+        let from = old.path().join("tasks_dev.db");
+        let to = new.path().join("tasks_dev.db");
+        append_history(&from, &[te(2_000, "task.created", "task", "k_new", "N".into(), "Created task")]).unwrap();
+        append_history(&to, &[te(1_000, "task.created", "task", "k_old", "O".into(), "Created task")]).unwrap();
+
+        copy_own_history(&from, &to).unwrap();
+
+        let mut ids: Vec<_> = read_all_history(&to).unwrap().into_iter().map(|e| e.entity_id).collect();
+        ids.sort();
+        assert_eq!(ids, ["k_new", "k_old"]);
     }
 
     #[test]

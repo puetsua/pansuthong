@@ -677,7 +677,8 @@
       "move": "從舊資料夾移除",
       "merge": "合併",
       "adopt": "使用資料夾的資料",
-      "cancel": "取消"
+      "cancel": "取消",
+      "refused": "這個資料夾現在已有 Pansuthong 資料，請重新選擇以合併。"
     }
   }
 }

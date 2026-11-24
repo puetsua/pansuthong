@@ -298,6 +298,16 @@ describe("SettingsView data location", () => {
     await waitFor(() => expect(setDataFolder).toHaveBeenLastCalledWith("D:\\NewSync", "merge"));
   });
 
+  it("shows the translated refusal when the recheck cannot reopen the dialog", async () => {
+    setDataFolder.mockRejectedValueOnce("the chosen folder already has Pansuthong data");
+    const dialog = await openPickDialog();
+    inspectDataFolder.mockRejectedValue("unreadable");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Keep both" }));
+    await waitFor(() =>
+      expect(screen.getByText("This folder now has Pansuthong data. Choose it again to merge.")).toBeTruthy(),
+    );
+  });
+
   it("shows the inspection error and no dialog", async () => {
     inspectDataFolder.mockRejectedValue("boom");
     render(<SettingsView doc={doc} />);
