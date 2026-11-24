@@ -35,6 +35,22 @@ vi.mock("@tauri-apps/plugin-notification", () => ({
 
 vi.mock("../lib/platform", () => platform);
 
+const backgroundTick = vi.hoisted(() => ({ cb: undefined as (() => void) | undefined }));
+
+vi.mock("../lib/tauri", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/tauri")>();
+  return {
+    ...actual,
+    api: {
+      ...actual.api,
+      onBackgroundTick: vi.fn(async (cb: () => void) => {
+        backgroundTick.cb = cb;
+        return () => { backgroundTick.cb = undefined; };
+      }),
+    },
+  };
+});
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,
@@ -84,6 +100,29 @@ describe("ScheduledTaskNotifier", () => {
       />,
     );
     await act(async () => { await Promise.resolve(); });
+    expect(notification.sendNotification).toHaveBeenCalledWith(expect.objectContaining({
+      title: "scheduledTaskNotifier.startTitle",
+      body: "Write report",
+    }));
+  });
+
+  it("polls on the Rust background tick while hidden (#252)", async () => {
+    render(
+      <ScheduledTaskNotifier
+        tasks={[task({ start_date: "2026-06-08", start_time: "09:10" })]}
+        dayStartHour={0}
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+    expect(notification.sendNotification).not.toHaveBeenCalled();
+    expect(backgroundTick.cb).toBeDefined();
+
+    // Throttled webview: the clock moves on but the JS interval never fires.
+    vi.setSystemTime(new Date(2026, 5, 8, 9, 10, 5, 0));
+    await act(async () => {
+      backgroundTick.cb?.();
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    });
     expect(notification.sendNotification).toHaveBeenCalledWith(expect.objectContaining({
       title: "scheduledTaskNotifier.startTitle",
       body: "Write report",

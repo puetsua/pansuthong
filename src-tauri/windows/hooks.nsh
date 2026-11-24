@@ -37,3 +37,12 @@
     StrCpy $UpdateMode 1
   ${EndIf}
 !macroend
+
+; Launch at login (#252): the template already deletes the HKCU Run value on a
+; real uninstall (installer.nsi); also drop the Task Manager StartupApproved
+; record. Skipped on update/in-place reinstall so the user's choice survives.
+!macro NSIS_HOOK_POSTUNINSTALL
+  ${If} $UpdateMode <> 1
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "${PRODUCTNAME}"
+  ${EndIf}
+!macroend

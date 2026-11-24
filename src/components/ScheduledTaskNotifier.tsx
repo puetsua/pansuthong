@@ -14,7 +14,7 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
-import { Task } from "../lib/tauri";
+import { Task, api } from "../lib/tauri";
 import { isAndroid } from "../lib/platform";
 import {
   ARRIVAL_KEY_EXTRA,
@@ -275,8 +275,15 @@ export function ScheduledTaskNotifier({ tasks, dayStartHour }: Props) {
     document.addEventListener("visibilitychange", onResume);
     window.addEventListener("focus", onResume);
 
+    // Desktop: while hidden in the tray, Rust drives the poll (#252).
+    let unlistenTick: (() => void) | undefined;
+    void api.onBackgroundTick(() => enqueueTick(true))
+      .then(un => { if (cancelled) un(); else unlistenTick = un; })
+      .catch(() => {});
+
     return () => {
       cancelled = true;
+      unlistenTick?.();
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onResume);
       window.removeEventListener("focus", onResume);

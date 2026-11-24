@@ -576,8 +576,7 @@
     "midnight": " (midnight)",
     "sound": "Completion sound",
     "soundSub": "Play a short sound when you mark a task done. Plays through the media volume.",
-    "soundOn": "on",
-    "soundOff": "off",
+    "soundEnable": "Play completion sound",
     "reminderInterval": "Estimate reminder interval",
     "reminderIntervalSub": "How often to re-notify while a running task keeps exceeding its time estimate.",
     "customReminderAria": "Custom reminder interval in minutes",
@@ -633,19 +632,20 @@
     "timeFormatKoreanDayPeriod": "Korean 오전/오후",
     "timeFormatThaiDayPeriod": "Thai day period",
     "timeFormatArabicDayPeriod": "Arabic day period",
+    "background": {
+      "title": "Background",
+      "sub": "Keep reminders and the MCP server running after the window is closed.",
+      "onClose": "When the window is closed",
+      "closeToTray": "Keep running in tray",
+      "closeQuits": "Quit",
+      "noTray": "No system tray found, so closing the window quits.",
+      "launchAtLogin": "Launch at login (hidden in tray)"
+    },
     "mcp": {
       "title": "MCP server",
-      "sub": "Let Cursor or Claude Desktop manage tasks over HTTP on this computer only (127.0.0.1). The app must be running; nothing is exposed on the network.",
+      "sub": "Let any AI agent that supports MCP manage your tasks. The server runs only on this computer (127.0.0.1) and is never exposed to the network. The app must be running.",
       "enable": "Enable MCP server",
-      "on": "On",
-      "off": "Off",
       "port": "Port",
-      "token": "Token",
-      "show": "Show",
-      "hide": "Hide",
-      "copyToken": "Copy token",
-      "regenerate": "Regenerate token",
-      "copyConfig": "Copy config",
       "statusOff": "Off",
       "statusListening": "Listening on http://127.0.0.1:{{port}}/mcp",
       "statusPortInUse": "Port in use — choose another port. {{message}}",
@@ -686,5 +686,11 @@
       "cancel": "Cancel",
       "refused": "This folder now has Pansuthong data. Choose it again to merge."
     }
+  },
+  "tray": {
+    "show": "Show",
+    "quit": "Quit",
+    "noticeTitle": "Still running in the tray",
+    "noticeBody": "Reminders keep firing. To exit, choose Quit from the tray icon menu."
   }
 }

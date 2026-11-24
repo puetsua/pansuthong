@@ -1,7 +1,6 @@
 //! Server lifecycle: shutdown never blocks the caller, slow clients are bounded, and
 //! every committed write gets its success response across MCP restarts.
 
-use super::generate_mcp_token;
 use super::runtime::{
     McpController, McpDesired, McpListenConfig, McpStatus, McpStatusKind, RouterFactory,
     StatusSink,
@@ -119,7 +118,7 @@ impl CommitMcp {
 impl ServerHandler for CommitMcp {}
 
 fn ping_router_factory() -> RouterFactory {
-    Arc::new(|token, _gate| mcp_router(|| Ok(PingMcp::new()), token, &ServeOptions::default()))
+    Arc::new(|_gate| mcp_router(|| Ok(PingMcp::new()), &ServeOptions::default()))
 }
 
 fn noop_sink() -> StatusSink {
@@ -173,10 +172,7 @@ fn stop_with_slowloris_client_does_not_block_and_is_bounded() {
     let (ctl, supervisor) = McpController::new(ping_router_factory(), noop_sink(), opts);
     rt.spawn(supervisor);
     let port = free_port();
-    ctl.request(McpDesired::Listen(McpListenConfig {
-        port,
-        token: generate_mcp_token(),
-    }));
+    ctl.request(McpDesired::Listen(McpListenConfig { port }));
     wait_for_status(&ctl, McpStatusKind::Listening);
 
     let mut slow = slowloris(port);
@@ -213,10 +209,9 @@ fn header_read_timeout_closes_slow_clients() {
         header_read_timeout: Duration::from_millis(300),
         ..ServeOptions::default()
     };
-    let token = generate_mcp_token();
     let server = rt.block_on(async {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let router = mcp_router(|| Ok(PingMcp::new()), &token, &opts);
+        let router = mcp_router(|| Ok(PingMcp::new()), &opts);
         serve(listener, router, Arc::new(WriteGate::default()), opts).unwrap()
     });
     let mut slow = slowloris(server.local_addr().port());
@@ -233,16 +228,15 @@ fn body_read_timeout_rejects_slow_uploads() {
         body_read_timeout: Duration::from_millis(300),
         ..ServeOptions::default()
     };
-    let token = generate_mcp_token();
     let server = rt.block_on(async {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let router = mcp_router(|| Ok(PingMcp::new()), &token, &opts);
+        let router = mcp_router(|| Ok(PingMcp::new()), &opts);
         serve(listener, router, Arc::new(WriteGate::default()), opts).unwrap()
     });
     let mut s = TcpStream::connect(server.local_addr()).unwrap();
     write!(
         s,
-        "POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer {token}\r\n\
+        "POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\n\
          Content-Type: application/json\r\nAccept: application/json, text/event-stream\r\n\
          Content-Length: 100\r\n\r\n{{\"jsonrpc\""
     )
@@ -259,11 +253,10 @@ fn body_read_timeout_rejects_slow_uploads() {
 #[test]
 fn shutdown_without_open_connections_is_not_forced() {
     let rt = runtime();
-    let token = generate_mcp_token();
     let opts = ServeOptions::default();
     let report = rt.block_on(async {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let router = mcp_router(|| Ok(PingMcp::new()), &token, &opts);
+        let router = mcp_router(|| Ok(PingMcp::new()), &opts);
         let server = serve(listener, router, Arc::new(WriteGate::default()), opts).unwrap();
         server.begin_shutdown().await.await.unwrap()
     });
@@ -280,10 +273,9 @@ enum Outcome {
     Broken(String),
 }
 
-async fn create(client: &reqwest::Client, port: u16, token: &str, title: &str) -> Outcome {
+async fn create(client: &reqwest::Client, port: u16, title: &str) -> Outcome {
     let res = client
         .post(format!("http://127.0.0.1:{port}/mcp"))
-        .header("Authorization", format!("Bearer {token}"))
         .header("Accept", "application/json, text/event-stream")
         .json(&json!({
             "jsonrpc": "2.0",
@@ -324,11 +316,10 @@ fn committed_writes_get_their_response_across_restarts() {
     let dir = tempfile::tempdir().unwrap();
     let state = Arc::new(AppState::open(dir.path().join("t.db")).unwrap());
     let for_router = state.clone();
-    let make_router: RouterFactory = Arc::new(move |token, gate| {
+    let make_router: RouterFactory = Arc::new(move |gate| {
         let state = for_router.clone();
         mcp_router(
             move || Ok(CommitMcp::new(state.clone(), gate.clone())),
-            token,
             &ServeOptions::default(),
         )
     });
@@ -336,18 +327,13 @@ fn committed_writes_get_their_response_across_restarts() {
         McpController::new(make_router, noop_sink(), ServeOptions::default());
     rt.spawn(supervisor);
     let port = free_port();
-    let token = generate_mcp_token();
-    let listen = McpDesired::Listen(McpListenConfig {
-        port,
-        token: token.clone(),
-    });
+    let listen = McpDesired::Listen(McpListenConfig { port });
     ctl.request(listen.clone());
     wait_for_status(&ctl, McpStatusKind::Listening);
 
     let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let mut workers = Vec::new();
     for w in 0..8 {
-        let token = token.clone();
         let stop = stop.clone();
         workers.push(rt.spawn(async move {
             let client = reqwest::Client::builder()
@@ -360,7 +346,7 @@ fn committed_writes_get_their_response_across_restarts() {
             while !stop.load(std::sync::atomic::Ordering::SeqCst) {
                 let title = format!("w{w}-{i}");
                 i += 1;
-                match create(&client, port, &token, &title).await {
+                match create(&client, port, &title).await {
                     Outcome::Ok => ok.push(title),
                     Outcome::Refused => {}
                     Outcome::Unreachable => tokio::time::sleep(Duration::from_millis(5)).await,

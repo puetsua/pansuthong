@@ -32,8 +32,11 @@ export type Settings = {
   custom_presets?: ThemePreset[]; // user-defined, device-local named themes
   mcp_enabled?: boolean; // built-in MCP server (#246); desktop only, device-local
   mcp_port?: number; // local MCP HTTP port; 1024..65535, default 7373
-  mcp_token?: string; // bearer token for MCP clients; never synced
+  close_to_tray?: boolean; // desktop (#252): close hides to the tray; default true
+  launch_at_login?: boolean; // desktop (#252): start hidden in the tray at sign-in; default false
 };
+
+export type BackgroundStatus = { tray_available: boolean };
 
 export type McpStatusKind = "off" | "listening" | "port_in_use" | "error";
 export type McpStatus = { status: McpStatusKind; message?: string };
@@ -330,10 +333,17 @@ export const api = {
   // automatically instead of silently dropping off this hand-maintained list.
   updateSettings: (input: Partial<Settings>) => invoke<void>("update_settings", { input }),
   getMcpStatus: () => invoke<McpStatus>("get_mcp_status"),
-  regenerateMcpToken: () => invoke<string>("regenerate_mcp_token"),
   // The server starts and stops on a background task; it reports each change here.
   onMcpStatusChanged: (cb: (status: McpStatus) => void) =>
     listen<McpStatus>("mcp-status-changed", (e) => cb(e.payload)),
+  // Desktop background mode (#252).
+  getBackgroundStatus: () => invoke<BackgroundStatus>("get_background_status"),
+  setTrayLabels: (show: string, quit: string) => invoke<void>("set_tray_labels", { show, quit }),
+  onHiddenToTray: (cb: () => void) => listen("main-hidden-to-tray", () => cb()),
+  // Linux: a tray host appeared or went away.
+  onTrayStatusChanged: (cb: () => void) => listen("tray-status-changed", () => cb()),
+  // Fired from Rust while the window is hidden, where webview timers are throttled.
+  onBackgroundTick: (cb: () => void) => listen("background-tick", () => cb()),
   listConflicts:    ()             => invoke<string[]>("list_conflicts"),
   readConflict:     (path: string) => invoke<TaskDiff[]>("read_conflict", { conflictPath: path }),
   resolveConflict:  (path: string, decisions: Decision[]) =>

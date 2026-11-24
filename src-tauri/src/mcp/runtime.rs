@@ -14,12 +14,6 @@ pub use crate::config::MCP_PORT_DEFAULT;
 /// Event the settings UI listens for; payload is [`McpStatus`].
 pub const MCP_STATUS_CHANGED: &str = "mcp-status-changed";
 
-pub fn generate_mcp_token() -> String {
-    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-    let mut bytes = [0u8; 32];
-    getrandom::fill(&mut bytes).expect("getrandom");
-    URL_SAFE_NO_PAD.encode(bytes)
-}
 pub const MCP_PORT_MIN: u32 = 1024;
 pub const MCP_PORT_MAX: u32 = 65535;
 
@@ -57,7 +51,6 @@ impl McpStatus {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct McpListenConfig {
     pub port: u16,
-    pub token: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,8 +60,8 @@ pub enum McpDesired {
     Invalid(String),
 }
 
-/// Builds the `/mcp` router for a token; the gate is closed when that server stops.
-pub type RouterFactory = Arc<dyn Fn(&str, Arc<WriteGate>) -> Router + Send + Sync>;
+/// Builds the `/mcp` router; the gate is closed when that server stops.
+pub type RouterFactory = Arc<dyn Fn(Arc<WriteGate>) -> Router + Send + Sync>;
 pub type StatusSink = Arc<dyn Fn(&McpStatus) + Send + Sync>;
 
 /// Thread-safe handle to the MCP server supervisor.
@@ -189,7 +182,7 @@ async fn start(
 ) -> std::io::Result<RunningServer> {
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", cfg.port)).await?;
     let gate = Arc::new(WriteGate::default());
-    let router = make_router(&cfg.token, gate.clone());
+    let router = make_router(gate.clone());
     serve(listener, router, gate, opts)
 }
 
@@ -210,12 +203,11 @@ impl McpRuntime {
     fn controller(&self, app: &AppHandle) -> &McpController {
         self.controller.get_or_init(|| {
             let for_router = app.clone();
-            let make_router: RouterFactory = Arc::new(move |token, gate| {
+            let make_router: RouterFactory = Arc::new(move |gate| {
                 let app = for_router.clone();
                 let opts = ServeOptions::default();
                 mcp_router(
                     move || Ok(PansuthongMcp::new(app.clone(), gate.clone())),
-                    token,
                     &opts,
                 )
             });
@@ -245,21 +237,9 @@ impl McpRuntime {
             controller.request(McpDesired::Off);
             return;
         }
-        let token = match settings.mcp_token.as_deref() {
-            Some(t) if !t.is_empty() => t.to_string(),
-            _ => {
-                let generated = generate_mcp_token();
-                let _ = config.update_settings(|s| {
-                    s.mcp_token = Some(generated.clone());
-                    Ok(())
-                });
-                generated
-            }
-        };
         let desired = match validate_mcp_port(settings.mcp_port) {
             Ok(()) => McpDesired::Listen(McpListenConfig {
                 port: settings.mcp_port as u16,
-                token,
             }),
             Err(_) => McpDesired::Invalid(format!(
                 "port must be {}..={}",

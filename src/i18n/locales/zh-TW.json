@@ -565,8 +565,7 @@
     "midnight": "（午夜）",
     "sound": "完成音效",
     "soundSub": "把任務標成完成時播放短音效。走媒體音量。",
-    "soundOn": "開",
-    "soundOff": "關",
+    "soundEnable": "播放完成音效",
     "reminderInterval": "預估時間提醒間隔",
     "reminderIntervalSub": "執行中的任務超過預估時間後，每隔多久再提醒一次。",
     "customReminderAria": "自訂提醒間隔（分鐘）",
@@ -627,19 +626,20 @@
     "timeFormatKoreanDayPeriod": "韓文上午/下午",
     "timeFormatThaiDayPeriod": "泰文時段",
     "timeFormatArabicDayPeriod": "阿拉伯文時段",
+    "background": {
+      "title": "背景執行",
+      "sub": "關閉視窗後，提醒和 MCP 伺服器仍會繼續執行。",
+      "onClose": "關閉視窗時",
+      "closeToTray": "縮到系統匣繼續執行",
+      "closeQuits": "結束程式",
+      "noTray": "找不到系統匣，關閉視窗會直接結束程式。",
+      "launchAtLogin": "登入時啟動（隱藏在系統匣）"
+    },
     "mcp": {
       "title": "MCP 伺服器",
-      "sub": "讓 Cursor 或 Claude Desktop 透過 HTTP 僅在本機（127.0.0.1）管理任務。App 必須在執行中；不會對外網開放。",
+      "sub": "讓任何支援 MCP 的 AI 代理管理你的任務。伺服器只在這台電腦上執行（127.0.0.1），不會對外網開放。App 必須在執行中。",
       "enable": "啟用 MCP 伺服器",
-      "on": "開",
-      "off": "關",
       "port": "連接埠",
-      "token": "令牌",
-      "show": "顯示",
-      "hide": "隱藏",
-      "copyToken": "複製令牌",
-      "regenerate": "重新產生令牌",
-      "copyConfig": "複製設定",
       "statusOff": "已關閉",
       "statusListening": "正在監聽 http://127.0.0.1:{{port}}/mcp",
       "statusPortInUse": "連接埠已被佔用 — 請換一個。{{message}}",
@@ -680,5 +680,11 @@
       "cancel": "取消",
       "refused": "這個資料夾現在已有 Pansuthong 資料，請重新選擇以合併。"
     }
+  },
+  "tray": {
+    "show": "顯示",
+    "quit": "結束",
+    "noticeTitle": "仍在系統匣中執行",
+    "noticeBody": "提醒會照常通知。要完全結束，請從系統匣圖示的選單選擇「結束」。"
   }
 }

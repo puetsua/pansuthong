@@ -44,8 +44,9 @@ vi.mock("../lib/tauri", async (importOriginal) => {
       safSyncNow: vi.fn(),
       safClearFolder: vi.fn(),
       getMcpStatus: vi.fn().mockResolvedValue({ status: "off" }),
-      regenerateMcpToken: vi.fn().mockResolvedValue("test-token"),
       onMcpStatusChanged: vi.fn().mockResolvedValue(() => {}),
+      getBackgroundStatus: vi.fn().mockResolvedValue({ tray_available: true }),
+      onTrayStatusChanged: vi.fn().mockResolvedValue(() => {}),
     },
   };
 });
@@ -61,6 +62,7 @@ const doc: Document = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(isAndroid).mockResolvedValue(false);
+  vi.mocked(api.getBackgroundStatus).mockResolvedValue({ tray_available: true });
   getDataLocation.mockResolvedValue({
     folder: "C:\\Sync\\Pansuthong",
     device_id: "device-abc",
@@ -101,9 +103,17 @@ describe("SettingsView MCP server", () => {
     expect(screen.getByRole("heading", { name: /MCP server/i })).toBeTruthy();
   });
 
+  it("enables the MCP server from its On/Off choice", async () => {
+    render(<SettingsView doc={doc} />);
+    const toggle = await screen.findByRole("switch", { name: /Enable MCP server/i });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(toggle);
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ mcp_enabled: true }));
+  });
+
   const mcpDoc: Document = {
     ...doc,
-    settings: { ...doc.settings, mcp_enabled: true, mcp_port: 7373, mcp_token: "tok" },
+    settings: { ...doc.settings, mcp_enabled: true, mcp_port: 7373 },
   };
 
   it("shows the port-in-use status under the Port field", async () => {
@@ -187,6 +197,69 @@ describe("SettingsView MCP server", () => {
     await waitFor(() => {
       expect(screen.queryByRole("heading", { name: /MCP server/i })).toBeNull();
     });
+  });
+});
+
+describe("SettingsView switches", () => {
+  it("turns the completion sound off with its switch", async () => {
+    render(<SettingsView doc={doc} />);
+    const toggle = screen.getByRole("switch", { name: /Play completion sound/i });
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(toggle);
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ sound_on_complete: false }));
+  });
+
+  it("has no MCP token controls", async () => {
+    render(<SettingsView doc={doc} />);
+    await screen.findByRole("switch", { name: /Enable MCP server/i });
+    expect(screen.queryByText(/token/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Copy config/i })).toBeNull();
+  });
+});
+
+describe("SettingsView background (#252)", () => {
+  beforeEach(() => {
+    __resetPlatformCacheForTests();
+  });
+
+  it("defaults to keeping the app in the tray and switches to quit on close", async () => {
+    render(<SettingsView doc={doc} />);
+    const select = await screen.findByRole("combobox", { name: /When the window is closed/i }) as HTMLSelectElement;
+    expect(select.value).toBe("tray");
+    fireEvent.change(select, { target: { value: "quit" } });
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ close_to_tray: false }));
+  });
+
+  it("toggles launch at login", async () => {
+    render(<SettingsView doc={doc} />);
+    const toggle = await screen.findByRole("switch", { name: /Launch at login/i });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(toggle);
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ launch_at_login: true }));
+  });
+
+  it("disables the close choice when there is no tray", async () => {
+    vi.mocked(api.getBackgroundStatus).mockResolvedValue({ tray_available: false });
+    render(<SettingsView doc={doc} />);
+    await screen.findByText(/No system tray found/i);
+    const select = screen.getByRole("combobox", { name: /When the window is closed/i }) as HTMLSelectElement;
+    expect(select.disabled).toBe(true);
+    expect(select.value).toBe("quit");
+  });
+
+  it("shows a failed launch-at-login save next to the control", async () => {
+    vi.mocked(api.updateSettings).mockRejectedValueOnce("launch at login: access denied");
+    render(<SettingsView doc={doc} />);
+    fireEvent.click(await screen.findByRole("switch", { name: /Launch at login/i }));
+    const section = screen.getByRole("heading", { name: /^Background$/ }).closest("section")!;
+    await within(section).findByText(/access denied/);
+  });
+
+  it("is hidden on Android", async () => {
+    vi.mocked(isAndroid).mockResolvedValue(true);
+    render(<SettingsView doc={doc} />);
+    await waitFor(() => expect(isAndroid).toHaveBeenCalled());
+    expect(screen.queryByRole("heading", { name: /^Background$/ })).toBeNull();
   });
 });
 

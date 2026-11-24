@@ -12,7 +12,7 @@ pub mod runtime;
 pub mod server;
 
 #[cfg(desktop)]
-pub use runtime::{McpRuntime, McpStatus, McpStatusKind, generate_mcp_token};
+pub use runtime::{McpRuntime, McpStatus, McpStatusKind};
 
 #[cfg(all(test, desktop))]
 mod http_test;

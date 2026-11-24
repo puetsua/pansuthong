@@ -15,6 +15,7 @@ import {
 } from "../../lib/settings";
 import { clampWeight, WEIGHT_MAX, WEIGHT_MIN } from "../../lib/tags";
 import type { ApplySettings } from "./types";
+import { ToggleSwitch } from "./ToggleSwitch";
 import { useClampedDraft } from "./useClampedDraft";
 
 type SectionProps = { settings: Settings; applySettings: ApplySettings };
@@ -293,18 +294,11 @@ export function SoundSection({ settings, applySettings }: SectionProps) {
     <section className="settings-section">
       <h2>{t("settings.sound")}</h2>
       <p className="view-sub">{t("settings.soundSub")}</p>
-      <div className="theme-options">
-        {([[true, t("settings.soundOn")], [false, t("settings.soundOff")]] as const).map(([on, label]) => (
-          <button
-            key={String(on)}
-            className={`theme-option ${soundOn === on ? "active" : ""}`}
-            aria-pressed={soundOn === on}
-            onClick={() => { void applySettings({ sound_on_complete: on }); }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <ToggleSwitch
+        label={t("settings.soundEnable")}
+        checked={soundOn}
+        onChange={on => { void applySettings({ sound_on_complete: on }); }}
+      />
     </section>
   );
 }

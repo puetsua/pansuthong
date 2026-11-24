@@ -97,6 +97,11 @@ pub fn try_open_data(
 /// correct for the desktop main window and the mobile webview.
 #[tauri::command]
 pub fn show_main_window(window: tauri::WebviewWindow) -> std::result::Result<(), String> {
+    // A login-autostarted launch stays in the tray (#252).
+    #[cfg(desktop)]
+    if crate::background::on_first_frame(&window) {
+        return Ok(());
+    }
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())
 }
@@ -2211,6 +2216,10 @@ pub struct UpdateSettingsInput {
     pub mcp_enabled: Option<bool>,
     #[serde(default)]
     pub mcp_port: Option<u32>,
+    #[serde(default)]
+    pub close_to_tray: Option<bool>,
+    #[serde(default)]
+    pub launch_at_login: Option<bool>,
 }
 
 #[tauri::command]
@@ -2221,7 +2230,18 @@ pub fn update_settings(
 ) -> Result<()> {
     #[cfg(desktop)]
     let mcp_sync = crate::mcp::runtime::settings_patch_affects_mcp(&input);
-    config.update_settings(|s| {
+    // Write the OS login entry first so a failure never leaves the setting on
+    // without an entry behind it. Only when the value changes.
+    #[cfg(desktop)]
+    let login_before = config.settings().launch_at_login;
+    #[cfg(desktop)]
+    let login_changed = input.launch_at_login.is_some_and(|on| on != login_before);
+    #[cfg(desktop)]
+    if login_changed {
+        crate::background::set_launch_at_login(&app, !login_before)
+            .map_err(|e| AppError::Invalid(format!("launch at login: {e}")))?;
+    }
+    let saved = config.update_settings(|s| {
         if let Some(t) = input.theme {
             if !matches!(t.as_str(), "auto" | "light" | "dark") {
                 return Err(AppError::Invalid(format!("invalid theme: {t}")));
@@ -2337,12 +2357,6 @@ pub fn update_settings(
         }
         if let Some(on) = input.mcp_enabled {
             s.mcp_enabled = on;
-            if on && s.mcp_token.as_deref().unwrap_or("").is_empty() {
-                #[cfg(desktop)]
-                {
-                    s.mcp_token = Some(crate::mcp::runtime::generate_mcp_token());
-                }
-            }
         }
         if let Some(port) = input.mcp_port {
             #[cfg(desktop)]
@@ -2353,8 +2367,24 @@ pub fn update_settings(
             }
             s.mcp_port = port;
         }
+        if let Some(on) = input.close_to_tray {
+            s.close_to_tray = on;
+        }
+        if let Some(on) = input.launch_at_login {
+            s.launch_at_login = on;
+        }
         Ok(())
-    })?;
+    });
+    if let Err(e) = saved {
+        // Undo the OS login entry so it matches the setting that was kept.
+        #[cfg(desktop)]
+        if login_changed {
+            if let Err(undo) = crate::background::set_launch_at_login(&app, login_before) {
+                eprintln!("warning: restoring the launch-at-login entry failed: {undo}");
+            }
+        }
+        return Err(e);
+    }
     emit_settings_changed(&app);
     #[cfg(desktop)]
     {
@@ -2369,25 +2399,21 @@ pub fn update_settings(
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn get_mcp_status(mcp: State<'_, crate::mcp::McpRuntime>) -> crate::mcp::McpStatus {
-    mcp.status()
+pub fn get_background_status(app: AppHandle) -> crate::background::BackgroundStatus {
+    crate::background::status(&app)
+}
+
+/// Translate the tray menu (#252); the frontend owns the locale strings.
+#[cfg(desktop)]
+#[tauri::command]
+pub fn set_tray_labels(app: AppHandle, show: String, quit: String) -> std::result::Result<(), String> {
+    crate::background::set_tray_labels(&app, &show, &quit)
 }
 
 #[cfg(desktop)]
 #[tauri::command]
-pub fn regenerate_mcp_token(
-    config: State<'_, ConfigState>,
-    mcp: State<'_, crate::mcp::McpRuntime>,
-    app: AppHandle,
-) -> Result<String> {
-    let token = crate::mcp::runtime::generate_mcp_token();
-    config.update_settings(|s| {
-        s.mcp_token = Some(token.clone());
-        Ok(())
-    })?;
-    emit_settings_changed(&app);
-    mcp.sync_from_settings(&app, &config);
-    Ok(token)
+pub fn get_mcp_status(mcp: State<'_, crate::mcp::McpRuntime>) -> crate::mcp::McpStatus {
+    mcp.status()
 }
 
 #[tauri::command]
