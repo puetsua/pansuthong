@@ -225,7 +225,7 @@ fn watch_linux_tray_host(app: &AppHandle) {
         elapsed += HOST_CHECK_SECS;
         let fast = elapsed <= HOST_FAST_CHECK_FOR_SECS;
         if let Some(probe) = xembed.as_mut() {
-            if fast || (elapsed / HOST_CHECK_SECS) % 4 == 0 {
+            if fast || (elapsed / HOST_CHECK_SECS).is_multiple_of(4) {
                 set_linux_host(&app, |s| &s.xembed_host, probe.tray_owned());
             }
         }
