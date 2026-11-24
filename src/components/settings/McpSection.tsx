@@ -4,6 +4,7 @@ import type { Settings } from "../../lib/tauri";
 import { api, type McpStatus } from "../../lib/tauri";
 import { isAndroid } from "../../lib/platform";
 import type { ApplySettings } from "./types";
+import { OnOffChoice } from "./OnOffChoice";
 
 const MCP_PORT_DEFAULT = 7373;
 const MCP_PORT_MIN = 1024;
@@ -143,17 +144,13 @@ export function McpSection({ settings, applySettings }: Props) {
 
       {err && <p className="composer-error" role="alert">{err}</p>}
 
-      <label className="te-field te-field-row">
-        <span>{t("settings.mcp.enable")}</span>
-        <button
-          type="button"
-          className={`theme-option ${enabled ? "active" : ""}`}
-          aria-pressed={enabled}
-          onClick={() => { void onToggle(!enabled); }}
-        >
-          {enabled ? t("settings.mcp.on") : t("settings.mcp.off")}
-        </button>
-      </label>
+      <OnOffChoice
+        label={t("settings.mcp.enable")}
+        value={enabled}
+        onLabel={t("settings.mcp.on")}
+        offLabel={t("settings.mcp.off")}
+        onChange={on => { void onToggle(on); }}
+      />
 
       <label className="te-field">
         <span>{t("settings.mcp.port")}</span>
@@ -209,7 +206,7 @@ export function McpSection({ settings, applySettings }: Props) {
 
       {/* Port in use is already shown under the Port field. */}
       {status?.status !== "port_in_use" && (
-        <p className="view-sub" role="status">{statusLabel}</p>
+        <p className="settings-status" role="status">{statusLabel}</p>
       )}
     </section>
   );

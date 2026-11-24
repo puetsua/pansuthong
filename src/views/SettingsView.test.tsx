@@ -99,6 +99,14 @@ describe("SettingsView MCP server", () => {
     expect(screen.getByRole("heading", { name: /MCP server/i })).toBeTruthy();
   });
 
+  it("enables the MCP server from its On/Off choice", async () => {
+    render(<SettingsView doc={doc} />);
+    const group = await screen.findByRole("group", { name: /Enable MCP server/i });
+    expect(within(group).getByRole("button", { name: "Off" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(within(group).getByRole("button", { name: "On" }));
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ mcp_enabled: true }));
+  });
+
   const mcpDoc: Document = {
     ...doc,
     settings: { ...doc.settings, mcp_enabled: true, mcp_port: 7373, mcp_token: "tok" },
@@ -204,9 +212,9 @@ describe("SettingsView background (#252)", () => {
 
   it("toggles launch at login", async () => {
     render(<SettingsView doc={doc} />);
-    const toggle = await screen.findByRole("button", { name: /Launch at login/i });
-    expect(toggle.getAttribute("aria-pressed")).toBe("false");
-    fireEvent.click(toggle);
+    const group = await screen.findByRole("group", { name: /Launch at login/i });
+    expect(within(group).getByRole("button", { name: "Off" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(within(group).getByRole("button", { name: "On" }));
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ launch_at_login: true }));
   });
 
@@ -223,7 +231,8 @@ describe("SettingsView background (#252)", () => {
   it("shows a failed launch-at-login save next to the control", async () => {
     vi.mocked(api.updateSettings).mockRejectedValueOnce("launch at login: access denied");
     render(<SettingsView doc={doc} />);
-    fireEvent.click(await screen.findByRole("button", { name: /Launch at login/i }));
+    const group = await screen.findByRole("group", { name: /Launch at login/i });
+    fireEvent.click(within(group).getByRole("button", { name: "On" }));
     const section = screen.getByRole("heading", { name: /^Background$/ }).closest("section")!;
     await within(section).findByText(/access denied/);
   });
