@@ -667,13 +667,24 @@
     "unlink": "Unlink",
     "pickFolderHintAndroid": "Pick a synced folder (for example one managed by a cloud drive) to keep tasks in sync across devices. On first link it adopts that folder's data replica if present, otherwise it seeds one.",
     "pickFolder": "Pick folder…",
-    "desktopHint": "Point this at a folder that syncs across your devices to keep tasks in sync. On first link it adopts that folder's data replica if present, otherwise it seeds one.",
+    "desktopHint": "Point this at a folder that syncs across your devices to keep tasks in sync. If the folder already has Pansuthong data, you can merge with it or use it as is.",
     "chooseFolder": "Choose folder…",
     "useDefault": "Use default location",
-    "transferTitle": "Change data folder?",
-    "transferBody": "Copy keeps this device's tasks, history, and attachments in the old folder and places a copy in the new one.\n\nMove transfers them, then removes only this device's files from the old folder after success.\n\nFiles from other devices sharing this folder are never touched.",
-    "transferCopy": "Copy",
-    "transferMove": "Move",
-    "transferCancel": "Cancel"
+    "transfer": {
+      "empty": {
+        "title": "Switch to the new folder?",
+        "body": "Your tasks, history, and attachments will be copied there. Keep them in the old folder too?"
+      },
+      "existing": {
+        "title": "This folder already has Pansuthong data",
+        "body": "Merge it with your current tasks, or use the folder's data instead? Nothing in the old folder is deleted."
+      },
+      "copy": "Keep both",
+      "move": "Remove from old",
+      "merge": "Merge",
+      "adopt": "Use folder's data",
+      "cancel": "Cancel",
+      "refused": "This folder now has Pansuthong data. Choose it again to merge."
+    }
   }
 }

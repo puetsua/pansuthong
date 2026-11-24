@@ -240,10 +240,79 @@ pub fn copy_own_history(from_data_path: &Path, to_data_path: &Path) -> Result<()
 
     let from_own = history_path(from_data_path);
     let to_own = history_path(to_data_path);
+    if to_own.exists() {
+        // A leftover sidecar from an earlier stint in that folder: union, never
+        // overwrite, so lines only the target has survive.
+        return merge_own_history(from_data_path, to_data_path);
+    }
     if from_own.exists() {
         fs::copy(&from_own, &to_own)?;
     }
     Ok(())
+}
+
+/// Union this device's history from `from` into the sidecar at `to` when merging
+/// into a folder that already has data. The target may hold an older copy of the
+/// same sidecar (from an earlier stint in that folder), so a source line is
+/// appended only when the target has neither that exact line nor an entry with its
+/// `dedup_key`. A bare legacy `history.jsonl` beside `from` is read too, but the
+/// old folder is never modified (no migration there). `read_history` sorts by
+/// timestamp, so append order does not matter. No-op when both share a parent.
+pub fn merge_own_history(from_data_path: &Path, to_data_path: &Path) -> Result<()> {
+    let from_parent = from_data_path.parent().unwrap_or_else(|| Path::new("."));
+    let to_parent = to_data_path.parent().unwrap_or_else(|| Path::new("."));
+    if from_parent == to_parent {
+        return Ok(());
+    }
+    let mut source = String::new();
+    for path in [history_path(from_data_path), legacy_history_path(from_data_path)] {
+        if path.exists() {
+            source.push_str(&fs::read_to_string(&path)?);
+            source.push('\n');
+        }
+    }
+    if source.trim().is_empty() {
+        return Ok(());
+    }
+    let to_own = history_path(to_data_path);
+    let mut bytes = if to_own.exists() {
+        fs::read(&to_own)?
+    } else {
+        Vec::new()
+    };
+    let mut seen_lines: std::collections::HashSet<String> = String::from_utf8_lossy(&bytes)
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect();
+    let mut seen_keys = own_dedup_keys(to_data_path)?;
+    let mut missing = Vec::new();
+    for line in source.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        if !seen_lines.insert(line.to_string()) {
+            continue;
+        }
+        let key = serde_json::from_str::<HistoryEntry>(line)
+            .ok()
+            .and_then(|e| e.dedup_key);
+        if let Some(key) = key {
+            if !seen_keys.insert(key) {
+                continue;
+            }
+        }
+        missing.push(line);
+    }
+    if missing.is_empty() {
+        return Ok(());
+    }
+    fs::create_dir_all(to_parent)?;
+    if !bytes.is_empty() && !bytes.ends_with(b"\n") {
+        bytes.push(b'\n');
+    }
+    for line in missing {
+        bytes.extend_from_slice(line.as_bytes());
+        bytes.push(b'\n');
+    }
+    crate::store::atomic_write(&to_own, &bytes)
 }
 
 pub fn entries_for_change(
@@ -894,6 +963,106 @@ mod tests {
         copy_own_history(&from, &to).unwrap();
         // Still a single sidecar; no duplicate/rename side effects.
         assert!(dir.path().join("history_dev.jsonl").exists());
+    }
+
+    #[test]
+    fn copy_own_history_unions_with_a_leftover_target_sidecar() {
+        let old = tempdir().unwrap();
+        let new = tempdir().unwrap();
+        let from = old.path().join("tasks_dev.db");
+        let to = new.path().join("tasks_dev.db");
+        append_history(&from, &[te(2_000, "task.created", "task", "k_new", "N".into(), "Created task")]).unwrap();
+        append_history(&to, &[te(1_000, "task.created", "task", "k_old", "O".into(), "Created task")]).unwrap();
+
+        copy_own_history(&from, &to).unwrap();
+
+        let mut ids: Vec<_> = read_all_history(&to).unwrap().into_iter().map(|e| e.entity_id).collect();
+        ids.sort();
+        assert_eq!(ids, ["k_new", "k_old"]);
+    }
+
+    #[test]
+    fn merge_own_history_appends_only_missing_lines() {
+        let old = tempdir().unwrap();
+        let new = tempdir().unwrap();
+        let from = old.path().join("tasks_dev.db");
+        let to = new.path().join("tasks_dev.db");
+        let x = te(1_000, "task.created", "task", "k_x", "X".into(), "Created task");
+        let y = te(2_000, "task.created", "task", "k_y", "Y".into(), "Created task");
+        let z = te(3_000, "task.created", "task", "k_z", "Z".into(), "Created task");
+        // Target holds an older copy of this device's sidecar (X) plus a line the
+        // old folder never saw (Z).
+        append_history(&from, &[x.clone(), y]).unwrap();
+        append_history(&to, &[x, z]).unwrap();
+
+        merge_own_history(&from, &to).unwrap();
+        merge_own_history(&from, &to).unwrap(); // idempotent
+
+        let mut ids: Vec<_> = read_all_history(&to)
+            .unwrap()
+            .into_iter()
+            .map(|e| e.entity_id)
+            .collect();
+        ids.sort();
+        assert_eq!(ids, ["k_x", "k_y", "k_z"], "union, no duplicates, nothing lost");
+        assert_eq!(read_all_history(&from).unwrap().len(), 2, "source untouched");
+    }
+
+    #[test]
+    fn merge_own_history_reads_legacy_without_touching_the_old_folder() {
+        let old = tempdir().unwrap();
+        let new = tempdir().unwrap();
+        let from = old.path().join("tasks_dev.db");
+        let to = new.path().join("tasks_dev.db");
+        let legacy = old.path().join("history.jsonl");
+        let line = serde_json::to_string(&te(
+            1_000,
+            "task.created",
+            "task",
+            "k_legacy",
+            "L".into(),
+            "Created task",
+        ))
+        .unwrap();
+        fs::write(&legacy, format!("{line}\n")).unwrap();
+
+        merge_own_history(&from, &to).unwrap();
+
+        assert_eq!(read_all_history(&to).unwrap()[0].entity_id, "k_legacy");
+        assert!(legacy.exists(), "old legacy sidecar left in place");
+        assert!(!history_path(&from).exists(), "old folder not migrated");
+    }
+
+    #[test]
+    fn merge_own_history_skips_entries_whose_dedup_key_the_target_has() {
+        let old = tempdir().unwrap();
+        let new = tempdir().unwrap();
+        let from = old.path().join("tasks_dev.db");
+        let to = new.path().join("tasks_dev.db");
+        let mut target = te(1_000, "task.created", "task", "k_1", "One".into(), "Created task");
+        target.dedup_key = Some("task.created|task|k_1|1000".into());
+        let mut source = target.clone();
+        source.device_id = Some("dev".into()); // same event, different bytes
+        append_history(&to, &[target]).unwrap();
+        append_history(&from, &[source]).unwrap();
+
+        merge_own_history(&from, &to).unwrap();
+        assert_eq!(read_all_history(&to).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn merge_own_history_creates_missing_target_sidecar() {
+        let old = tempdir().unwrap();
+        let new = tempdir().unwrap();
+        let from = old.path().join("tasks_dev.db");
+        let to = new.path().join("tasks_dev.db");
+        append_history(
+            &from,
+            &[te(1_000, "task.created", "task", "k_1", "One".into(), "Created task")],
+        )
+        .unwrap();
+        merge_own_history(&from, &to).unwrap();
+        assert_eq!(read_all_history(&to).unwrap().len(), 1);
     }
 
     #[test]

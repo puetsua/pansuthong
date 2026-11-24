@@ -152,23 +152,19 @@ describe("api IPC wrappers — command names & arg keys", () => {
     await api.clearDataFolder("copy");
     expect(invokeMock).toHaveBeenCalledWith("clear_data_folder", { transferMode: "copy" });
   });
-});
 
-describe("pickAndSetDataFolder", () => {
-  it("invokes set_data_folder with the chosen folder and transfer mode when a directory is picked", async () => {
-    openMock.mockResolvedValue("/home/me/sync");
-    await api.pickAndSetDataFolder("move");
-    expect(invokeMock).toHaveBeenCalledWith("set_data_folder", {
-      folder: "/home/me/sync",
-      transferMode: "move",
-    });
+  it("clearDataFolder passes merge / adopt through", async () => {
+    await api.clearDataFolder("merge");
+    expect(invokeMock).toHaveBeenCalledWith("clear_data_folder", { transferMode: "merge" });
+    await api.clearDataFolder("adopt");
+    expect(invokeMock).toHaveBeenCalledWith("clear_data_folder", { transferMode: "adopt" });
   });
 
-  it("returns null and never invokes when the picker is cancelled", async () => {
-    openMock.mockResolvedValue(null as never);
-    const result = await api.pickAndSetDataFolder("copy");
-    expect(result).toBeNull();
-    expect(invokeMock).not.toHaveBeenCalled();
+  it("inspectDataFolder → inspect_data_folder with the folder (null = default)", async () => {
+    await api.inspectDataFolder("/home/me/sync");
+    expect(invokeMock).toHaveBeenCalledWith("inspect_data_folder", { folder: "/home/me/sync" });
+    await api.inspectDataFolder(null);
+    expect(invokeMock).toHaveBeenCalledWith("inspect_data_folder", { folder: null });
   });
 });
 

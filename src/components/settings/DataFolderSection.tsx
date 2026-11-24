@@ -7,22 +7,28 @@ import { isAndroid } from "../../lib/platform";
 import { formatDateTime } from "../../lib/dates";
 import { dateFormat, timeFormat } from "../../lib/settings";
 
-/** Copy / Move / Cancel before relocating the data folder (WebView2-safe in-app dialog). */
+/**
+ * Confirm a data-folder change (WebView2-safe in-app dialog). A folder without
+ * Pansuthong data asks whether to keep the old copy (copy / move); a folder that
+ * already has data asks whether to merge with it (merge / adopt).
+ */
 function DataFolderTransferDialog({
-  onCopy,
-  onMove,
+  hasData,
+  onChoose,
   onCancel,
 }: {
-  onCopy: () => void;
-  onMove: () => void;
+  hasData: boolean;
+  onChoose: (mode: TransferMode) => void;
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
-  const copyRef = useRef<HTMLButtonElement>(null);
-  const title = t("settings.transferTitle");
-  const message = t("settings.transferBody");
+  const primaryRef = useRef<HTMLButtonElement>(null);
+  const [primary, secondary]: [TransferMode, TransferMode] = hasData
+    ? ["merge", "adopt"]
+    : ["copy", "move"];
+  const variant = hasData ? "existing" : "empty";
   useEffect(() => {
-    copyRef.current?.focus();
+    primaryRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
@@ -41,15 +47,19 @@ function DataFolderTransferDialog({
       onClick={onCancel}
     >
       <div className="te-confirm-box" onClick={e => e.stopPropagation()}>
-        <h2 id="data-folder-transfer-title" className="te-confirm-title">{title}</h2>
-        <p>{message}</p>
+        <h2 id="data-folder-transfer-title" className="te-confirm-title">
+          {t(`settings.transfer.${variant}.title`)}
+        </h2>
+        <p>{t(`settings.transfer.${variant}.body`)}</p>
         <div className="te-confirm-actions">
           <button type="button" className="te-confirm-cancel-start" onClick={onCancel}>
-            {t("settings.transferCancel")}
+            {t("settings.transfer.cancel")}
           </button>
-          <button type="button" onClick={onMove}>{t("settings.transferMove")}</button>
-          <button type="button" ref={copyRef} className="te-save" onClick={onCopy}>
-            {t("settings.transferCopy")}
+          <button type="button" onClick={() => onChoose(secondary)}>
+            {t(`settings.transfer.${secondary}`)}
+          </button>
+          <button type="button" ref={primaryRef} className="te-save" onClick={() => onChoose(primary)}>
+            {t(`settings.transfer.${primary}`)}
           </button>
         </div>
       </div>
@@ -68,34 +78,48 @@ export function DataFolderSection({ settings }: { settings: Settings }) {
   const [sync, setSync] = useState<SyncStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [transferPrompt, setTransferPrompt] = useState<"set" | "clear" | null>(null);
+  const [transferPrompt, setTransferPrompt] =
+    useState<{ kind: "set" | "clear"; hasData: boolean } | null>(null);
   const [pendingFolder, setPendingFolder] = useState<string | null>(null);
 
   useEffect(() => { void isAndroid().then(setAndroid); }, []);
   useEffect(() => { void api.getDataLocation().then(setLoc).catch(() => {}); }, []);
   useEffect(() => { if (android) void api.safStatus().then(setSync).catch(() => {}); }, [android]);
 
+  /** Inspect the target (null = default location), then ask — or do nothing
+   *  when it is the folder already in use. */
+  const askTransfer = async (kind: "set" | "clear", folder: string | null) => {
+    const inspection = await api.inspectDataFolder(folder);
+    if (inspection.is_current) {
+      // Same folder: nothing moves. Clearing still has to drop the custom-folder
+      // setting (it may point at the default dir); merge never deletes anything.
+      if (kind === "clear") setLoc(await api.clearDataFolder("merge"));
+      return;
+    }
+    setPendingFolder(folder);
+    setTransferPrompt({ kind, hasData: inspection.has_data });
+  };
   const pick = async () => {
     setBusy(true); setErr(null);
     try {
       const dir = await api.pickDataFolder();
       if (!dir) return;
-      setPendingFolder(dir);
-      setTransferPrompt("set");
+      await askTransfer("set", dir);
     } catch (e) { setErr(errorMessage(e)); }
     finally { setBusy(false); }
   };
-  const reset = () => {
-    setErr(null);
-    setPendingFolder(null);
-    setTransferPrompt("clear");
+  const reset = async () => {
+    setBusy(true); setErr(null);
+    try { await askTransfer("clear", null); }
+    catch (e) { setErr(errorMessage(e)); }
+    finally { setBusy(false); }
   };
   const cancelTransfer = () => {
     setTransferPrompt(null);
     setPendingFolder(null);
   };
   const confirmTransfer = async (mode: TransferMode) => {
-    const kind = transferPrompt;
+    const kind = transferPrompt?.kind;
     const folder = pendingFolder;
     setTransferPrompt(null);
     setPendingFolder(null);
@@ -108,7 +132,22 @@ export function DataFolderSection({ settings }: { settings: Settings }) {
       } else {
         setLoc(await api.clearDataFolder(mode));
       }
-    } catch (e) { setErr(errorMessage(e)); }
+    } catch (e) {
+      // The folder may have gained data (e.g. a cloud sync landed) after it was
+      // inspected; the backend then refuses copy / move. Ask again with the
+      // merge choices instead of showing that refusal.
+      const recheck = mode === "copy" || mode === "move"
+        ? await api.inspectDataFolder(folder).catch(() => null)
+        : null;
+      if (recheck?.has_data && !recheck.is_current) {
+        setPendingFolder(folder);
+        setTransferPrompt({ kind, hasData: true });
+      } else {
+        // The backend's refusal text is English; show the translated one.
+        const msg = errorMessage(e);
+        setErr(msg.includes("already has Pansuthong data") ? t("settings.transfer.refused") : msg);
+      }
+    }
     finally { setBusy(false); }
   };
 
@@ -183,7 +222,7 @@ export function DataFolderSection({ settings }: { settings: Settings }) {
             <div className="theme-options">
               <button className="theme-option" disabled={busy} onClick={pick}>{t("settings.chooseFolder")}</button>
               {loc?.folder && (
-                <button className="theme-option" disabled={busy} onClick={reset}>{t("settings.useDefault")}</button>
+                <button className="theme-option" disabled={busy} onClick={() => { void reset(); }}>{t("settings.useDefault")}</button>
               )}
             </div>
           </>
@@ -193,8 +232,8 @@ export function DataFolderSection({ settings }: { settings: Settings }) {
 
       {transferPrompt && (
         <DataFolderTransferDialog
-          onCopy={() => { void confirmTransfer("copy"); }}
-          onMove={() => { void confirmTransfer("move"); }}
+          hasData={transferPrompt.hasData}
+          onChoose={mode => { void confirmTransfer(mode); }}
           onCancel={cancelTransfer}
         />
       )}
