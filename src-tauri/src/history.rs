@@ -246,21 +246,27 @@ pub fn copy_own_history(from_data_path: &Path, to_data_path: &Path) -> Result<()
     Ok(())
 }
 
-/// Union this device's history sidecar from `from` into the one at `to` when
-/// merging into a folder that already has data. The target may hold an older copy
-/// of the same sidecar (from an earlier stint in that folder), so only lines it
-/// lacks are appended — exact-line match; `read_history` sorts by timestamp, so
-/// append order does not matter. Target lines are never removed. No-op when both
-/// paths share a parent.
+/// Union this device's history from `from` into the sidecar at `to` when merging
+/// into a folder that already has data. The target may hold an older copy of the
+/// same sidecar (from an earlier stint in that folder), so a source line is
+/// appended only when the target has neither that exact line nor an entry with its
+/// `dedup_key`. A bare legacy `history.jsonl` beside `from` is read too, but the
+/// old folder is never modified (no migration there). `read_history` sorts by
+/// timestamp, so append order does not matter. No-op when both share a parent.
 pub fn merge_own_history(from_data_path: &Path, to_data_path: &Path) -> Result<()> {
     let from_parent = from_data_path.parent().unwrap_or_else(|| Path::new("."));
     let to_parent = to_data_path.parent().unwrap_or_else(|| Path::new("."));
     if from_parent == to_parent {
         return Ok(());
     }
-    migrate_legacy_history_jsonl(from_data_path)?;
-    let from_own = history_path(from_data_path);
-    if !from_own.exists() {
+    let mut source = String::new();
+    for path in [history_path(from_data_path), legacy_history_path(from_data_path)] {
+        if path.exists() {
+            source.push_str(&fs::read_to_string(&path)?);
+            source.push('\n');
+        }
+    }
+    if source.trim().is_empty() {
         return Ok(());
     }
     let to_own = history_path(to_data_path);
@@ -269,20 +275,31 @@ pub fn merge_own_history(from_data_path: &Path, to_data_path: &Path) -> Result<(
     } else {
         Vec::new()
     };
-    let mut seen: std::collections::HashSet<String> = String::from_utf8_lossy(&bytes)
+    let mut seen_lines: std::collections::HashSet<String> = String::from_utf8_lossy(&bytes)
         .lines()
         .map(|l| l.trim().to_string())
         .filter(|l| !l.is_empty())
         .collect();
-    let source = fs::read_to_string(&from_own)?;
-    let missing: Vec<&str> = source
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && seen.insert((*l).to_string()))
-        .collect();
+    let mut seen_keys = own_dedup_keys(to_data_path)?;
+    let mut missing = Vec::new();
+    for line in source.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        if !seen_lines.insert(line.to_string()) {
+            continue;
+        }
+        let key = serde_json::from_str::<HistoryEntry>(line)
+            .ok()
+            .and_then(|e| e.dedup_key);
+        if let Some(key) = key {
+            if !seen_keys.insert(key) {
+                continue;
+            }
+        }
+        missing.push(line);
+    }
     if missing.is_empty() {
         return Ok(());
     }
+    fs::create_dir_all(to_parent)?;
     if !bytes.is_empty() && !bytes.ends_with(b"\n") {
         bytes.push(b'\n');
     }
@@ -968,6 +985,48 @@ mod tests {
         ids.sort();
         assert_eq!(ids, ["k_x", "k_y", "k_z"], "union, no duplicates, nothing lost");
         assert_eq!(read_all_history(&from).unwrap().len(), 2, "source untouched");
+    }
+
+    #[test]
+    fn merge_own_history_reads_legacy_without_touching_the_old_folder() {
+        let old = tempdir().unwrap();
+        let new = tempdir().unwrap();
+        let from = old.path().join("tasks_dev.db");
+        let to = new.path().join("tasks_dev.db");
+        let legacy = old.path().join("history.jsonl");
+        let line = serde_json::to_string(&te(
+            1_000,
+            "task.created",
+            "task",
+            "k_legacy",
+            "L".into(),
+            "Created task",
+        ))
+        .unwrap();
+        fs::write(&legacy, format!("{line}\n")).unwrap();
+
+        merge_own_history(&from, &to).unwrap();
+
+        assert_eq!(read_all_history(&to).unwrap()[0].entity_id, "k_legacy");
+        assert!(legacy.exists(), "old legacy sidecar left in place");
+        assert!(!history_path(&from).exists(), "old folder not migrated");
+    }
+
+    #[test]
+    fn merge_own_history_skips_entries_whose_dedup_key_the_target_has() {
+        let old = tempdir().unwrap();
+        let new = tempdir().unwrap();
+        let from = old.path().join("tasks_dev.db");
+        let to = new.path().join("tasks_dev.db");
+        let mut target = te(1_000, "task.created", "task", "k_1", "One".into(), "Created task");
+        target.dedup_key = Some("task.created|task|k_1|1000".into());
+        let mut source = target.clone();
+        source.device_id = Some("dev".into()); // same event, different bytes
+        append_history(&to, &[target]).unwrap();
+        append_history(&from, &[source]).unwrap();
+
+        merge_own_history(&from, &to).unwrap();
+        assert_eq!(read_all_history(&to).unwrap().len(), 1);
     }
 
     #[test]

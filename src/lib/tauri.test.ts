@@ -168,24 +168,6 @@ describe("api IPC wrappers — command names & arg keys", () => {
   });
 });
 
-describe("pickAndSetDataFolder", () => {
-  it("invokes set_data_folder with the chosen folder and transfer mode when a directory is picked", async () => {
-    openMock.mockResolvedValue("/home/me/sync");
-    await api.pickAndSetDataFolder("move");
-    expect(invokeMock).toHaveBeenCalledWith("set_data_folder", {
-      folder: "/home/me/sync",
-      transferMode: "move",
-    });
-  });
-
-  it("returns null and never invokes when the picker is cancelled", async () => {
-    openMock.mockResolvedValue(null as never);
-    const result = await api.pickAndSetDataFolder("copy");
-    expect(result).toBeNull();
-    expect(invokeMock).not.toHaveBeenCalled();
-  });
-});
-
 describe("pickDataFolder / setDataFolder", () => {
   it("pickDataFolder returns the chosen path without invoking set_data_folder", async () => {
     openMock.mockResolvedValue("/home/me/sync");

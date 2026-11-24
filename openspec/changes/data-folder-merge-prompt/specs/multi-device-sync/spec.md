@@ -55,9 +55,10 @@ The choice depends on whether the target already holds Pansuthong task data:
     every line of the old own sidecar that the target sidecar does not already
     contain (creating it if absent), never removing target lines. **Adopt** SHALL
     NOT copy own history.
-  - Both SHALL copy only document-referenced own attachment blobs that are
-    missing in the target (fill-missing) and SHALL NOT overwrite existing
-    attachment blobs.
+  - Both SHALL copy only individual attachment blobs that the resulting
+    document references, that are missing in the target, and that exist in the
+    old folder (fill-missing) — this device's or a peer's, so merged tasks keep
+    their attachments — and SHALL NOT overwrite existing attachment blobs.
   - Both SHALL leave every file in the old folder untouched.
 
 If the target holds task data and the requested mode is Copy or Move, the backend
@@ -70,7 +71,10 @@ Adopt, the backend SHALL seed with Copy semantics.
 device's owned files from the old folder (`tasks_<device>.db` / legacy own
 `tasks_<device>.json` if present, `history_<device>.jsonl`, and
 `attachments_<device>/`). The system SHALL NOT copy, move, or delete peer
-`tasks_<peer>.*`, `history_<peer>.jsonl`, or `attachments_<peer>/` directories.
+`tasks_<peer>.*`, `history_<peer>.jsonl`, or `attachments_<peer>/` directories,
+except that the existing-data path MAY fill individual referenced blobs as above.
+Merge SHALL read the old folder's history (including a bare legacy
+`history.jsonl`) without migrating or otherwise modifying it.
 
 #### Scenario: Choosing a non-folder is rejected
 - **WHEN** `set_data_folder` is given a path that is not a directory

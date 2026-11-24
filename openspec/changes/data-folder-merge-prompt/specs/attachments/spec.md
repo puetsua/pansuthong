@@ -6,12 +6,13 @@ When the data folder is relocated, the system SHALL transfer this device's
 `attachments_<device>/` directory according to the user's choice. On seed (Copy or
 Move), the subdirectory SHALL be copied into the new folder so document attachment
 paths remain resolvable. When the target already holds task data (Merge or Adopt),
-the system SHALL copy only document-referenced managed paths that are missing under
-the new folder and present under the old folder (fill-missing), SHALL NOT overwrite
-existing destination blobs, and SHALL NOT delete anything from the old folder.
+the system SHALL copy only document-referenced managed paths (this device's or a
+peer's) that are missing under the new folder and present under the old folder
+(fill-missing), SHALL NOT overwrite existing destination blobs, and SHALL NOT delete
+anything from the old folder.
 **Copy** SHALL leave the source `attachments_<device>/` tree intact. **Move** SHALL
 remove this device's attachment subdirectory from the old folder only after a
-successful seed transfer. The system SHALL NOT copy, move, or delete peer
+successful seed transfer. The system SHALL NOT copy, move, or delete whole peer
 `attachments_<other>/` trees. Failure mid-transfer SHALL NOT delete source
 attachments; the system MAY warn and continue without rolling back a successful
 document seed when only attachment copy fails under Copy (same class as history

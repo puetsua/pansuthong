@@ -5,8 +5,7 @@
 The Settings UI SHALL show a modal on desktop when the user changes or clears the
 data folder. Before showing it, the UI SHALL inspect the target folder and show one
 of two variants. Each variant SHALL stay minimal: a titled heading, one short
-sentence, a muted footnote stating that other devices' files in a shared folder are
-never touched, and three actions. Cancel SHALL appear on the left of the action
+sentence, and three actions. Cancel SHALL appear on the left of the action
 row; the primary (default-focused) action SHALL be on the right with the secondary
 action beside it. The dialog is an approved Settings control for this capability
 and SHALL NOT introduce a separate Settings section. Cancel SHALL abort without
@@ -26,7 +25,14 @@ If the inspection fails, the UI SHALL show the error and SHALL NOT open the dial
 or change the folder. If the inspection reports the folder already in use, the UI
 SHALL NOT show the dialog: picking it SHALL do nothing, and clearing SHALL invoke
 `clear_data_folder` with transfer mode Merge so the custom-folder setting is
-dropped without moving or deleting files.
+dropped without moving or deleting files. If the backend refuses Keep both or
+Remove from old because the folder gained data after inspection, the UI SHALL
+re-inspect and show the Merge variant instead of the refusal.
+
+#### Scenario: Folder gains data after inspection
+- **WHEN** the user chooses Keep both or Remove from old and the backend refuses
+  because the folder now holds Pansuthong data
+- **THEN** the dialog reopens with Merge, Use folder's data, and Cancel
 
 #### Scenario: Re-picking the current folder is a no-op
 - **WHEN** the user picks the folder that is already in use

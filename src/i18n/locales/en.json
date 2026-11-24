@@ -679,7 +679,6 @@
         "title": "This folder already has Pansuthong data",
         "body": "Merge it with your current tasks, or use the folder's data instead? Nothing in the old folder is deleted."
       },
-      "peersNote": "Other devices' files in a shared folder are never touched.",
       "copy": "Keep both",
       "move": "Remove from old",
       "merge": "Merge",

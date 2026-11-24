@@ -354,11 +354,6 @@ export const api = {
   clearDataFolder: (transferMode: TransferMode) =>
     invoke<DataLocation>("clear_data_folder", { transferMode }),
   /** Opens the OS folder picker; on a selection, repoints with the given transfer mode. Returns null if cancelled. */
-  pickAndSetDataFolder: async (transferMode: TransferMode): Promise<DataLocation | null> => {
-    const dir = await open({ directory: true, multiple: false, title: "Choose a sync folder" });
-    if (typeof dir !== "string") return null;
-    return invoke<DataLocation>("set_data_folder", { folder: dir, transferMode });
-  },
   // Android SAF folder sync (#Phase 4B). On desktop these resolve to inert stubs.
   safPickFolder:  () => invoke<SyncStatus>("saf_pick_folder"),
   safClearFolder: () => invoke<void>("saf_clear_folder"),

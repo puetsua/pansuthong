@@ -51,7 +51,6 @@ function DataFolderTransferDialog({
           {t(`settings.transfer.${variant}.title`)}
         </h2>
         <p>{t(`settings.transfer.${variant}.body`)}</p>
-        <p className="view-sub">{t("settings.transfer.peersNote")}</p>
         <div className="te-confirm-actions">
           <button type="button" className="te-confirm-cancel-start" onClick={onCancel}>
             {t("settings.transfer.cancel")}
@@ -133,7 +132,20 @@ export function DataFolderSection({ settings }: { settings: Settings }) {
       } else {
         setLoc(await api.clearDataFolder(mode));
       }
-    } catch (e) { setErr(errorMessage(e)); }
+    } catch (e) {
+      // The folder may have gained data (e.g. a cloud sync landed) after it was
+      // inspected; the backend then refuses copy / move. Ask again with the
+      // merge choices instead of showing that refusal.
+      const recheck = mode === "copy" || mode === "move"
+        ? await api.inspectDataFolder(folder).catch(() => null)
+        : null;
+      if (recheck?.has_data && !recheck.is_current) {
+        setPendingFolder(folder);
+        setTransferPrompt({ kind, hasData: true });
+      } else {
+        setErr(errorMessage(e));
+      }
+    }
     finally { setBusy(false); }
   };
 

@@ -39,7 +39,6 @@ vi.mock("../lib/tauri", async (importOriginal) => {
       setDataFolder,
       clearDataFolder,
       inspectDataFolder,
-      pickAndSetDataFolder: vi.fn(),
       safStatus,
       safPickFolder: vi.fn(),
       safSyncNow: vi.fn(),
@@ -229,10 +228,9 @@ describe("SettingsView data location", () => {
     const dialog = await openPickDialog();
     expect(inspectDataFolder).toHaveBeenCalledWith("D:\\NewSync");
     expect(within(dialog).getByRole("heading", { name: /switch to the new folder/i })).toBeTruthy();
-    expect(within(dialog).getByText(/other devices' files/i)).toBeTruthy();
     const actions = within(dialog).getAllByRole("button");
     expect(actions.map(b => b.textContent)).toEqual(["Cancel", "Remove from old", "Keep both"]);
-    expect(document.activeElement?.textContent).toBe("Keep both");
+    await waitFor(() => expect(document.activeElement?.textContent).toBe("Keep both"));
 
     fireEvent.click(within(dialog).getByRole("button", { name: /cancel/i }));
     expect(setDataFolder).not.toHaveBeenCalled();
@@ -286,6 +284,18 @@ describe("SettingsView data location", () => {
     fireEvent.click(screen.getByRole("button", { name: /use default/i }));
     await waitFor(() => expect(clearDataFolder).toHaveBeenCalledWith("merge"));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("asks to merge when the folder gained data after inspection", async () => {
+    setDataFolder.mockRejectedValueOnce("the chosen folder already has Pansuthong data");
+    const dialog = await openPickDialog();
+    inspectDataFolder.mockResolvedValue({ has_data: true, is_current: false });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove from old" }));
+
+    const again = await screen.findByRole("dialog", { name: /already has pansuthong data/i });
+    expect(screen.queryByText("the chosen folder already has Pansuthong data")).toBeNull();
+    fireEvent.click(within(again).getByRole("button", { name: "Merge" }));
+    await waitFor(() => expect(setDataFolder).toHaveBeenLastCalledWith("D:\\NewSync", "merge"));
   });
 
   it("shows the inspection error and no dialog", async () => {

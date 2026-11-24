@@ -2567,9 +2567,11 @@ pub(crate) fn inspect_folder(
     Ok(DataFolderInspection { has_data, is_current })
 }
 
-/// Inspect `folder`, or the default app-data dir when `None`. Read-only.
+/// Inspect `folder`, or the default app-data dir when `None`. Read-only. Async and
+/// off the main thread: decoding every replica in a cloud folder may force
+/// online-only files to download.
 #[tauri::command]
-pub fn inspect_data_folder(
+pub async fn inspect_data_folder(
     folder: Option<String>,
     state: State<'_, AppState>,
     config: State<'_, ConfigState>,
@@ -2585,7 +2587,11 @@ pub fn inspect_data_folder(
         }
         None => default_data_dir(&app)?,
     };
-    inspect_folder(&dir, &config.device_id(), &state.path())
+    let device_id = config.device_id();
+    let current = state.path();
+    tauri::async_runtime::spawn_blocking(move || inspect_folder(&dir, &device_id, &current))
+        .await
+        .map_err(|e| AppError::Invalid(format!("inspect data folder: {e}")))?
 }
 
 #[tauri::command]
