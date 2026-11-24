@@ -385,7 +385,7 @@ fn auto_launcher(app: &AppHandle) -> Result<auto_launch::AutoLaunch, String> {
     let name = app_name(app);
     #[cfg(target_os = "linux")]
     let exe = match app.env().appimage {
-        Some(appimage) => appimage,
+        Some(appimage) => std::path::PathBuf::from(appimage),
         None => std::env::current_exe().map_err(|e| e.to_string())?,
     };
     #[cfg(not(target_os = "linux"))]
