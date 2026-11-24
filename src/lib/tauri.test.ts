@@ -152,6 +152,20 @@ describe("api IPC wrappers — command names & arg keys", () => {
     await api.clearDataFolder("copy");
     expect(invokeMock).toHaveBeenCalledWith("clear_data_folder", { transferMode: "copy" });
   });
+
+  it("clearDataFolder passes merge / adopt through", async () => {
+    await api.clearDataFolder("merge");
+    expect(invokeMock).toHaveBeenCalledWith("clear_data_folder", { transferMode: "merge" });
+    await api.clearDataFolder("adopt");
+    expect(invokeMock).toHaveBeenCalledWith("clear_data_folder", { transferMode: "adopt" });
+  });
+
+  it("inspectDataFolder → inspect_data_folder with the folder (null = default)", async () => {
+    await api.inspectDataFolder("/home/me/sync");
+    expect(invokeMock).toHaveBeenCalledWith("inspect_data_folder", { folder: "/home/me/sync" });
+    await api.inspectDataFolder(null);
+    expect(invokeMock).toHaveBeenCalledWith("inspect_data_folder", { folder: null });
+  });
 });
 
 describe("pickAndSetDataFolder", () => {

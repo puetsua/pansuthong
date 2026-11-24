@@ -215,8 +215,17 @@ export type DataLocation = {
   effective_path: string;
 };
 
-/** How to handle this device's owned payload when changing the data folder. */
-export type TransferMode = "copy" | "move";
+/**
+ * What to do when changing the data folder: `copy` / `move` seed a folder without
+ * Pansuthong data; `merge` / `adopt` apply when it already has some.
+ */
+export type TransferMode = "copy" | "move" | "merge" | "adopt";
+
+/** What a candidate data folder holds, from `inspect_data_folder`. */
+export type DataFolderInspection = {
+  has_data: boolean;
+  is_current: boolean;
+};
 
 export type TaskDiff =
   | { kind: "differs";     id: string; mine: Task;   theirs: Task }
@@ -337,6 +346,9 @@ export const api = {
     const dir = await open({ directory: true, multiple: false, title: "Choose a sync folder" });
     return typeof dir === "string" ? dir : null;
   },
+  /** Inspect `folder`, or the default location when null. Read-only. */
+  inspectDataFolder: (folder: string | null) =>
+    invoke<DataFolderInspection>("inspect_data_folder", { folder }),
   setDataFolder: (folder: string, transferMode: TransferMode) =>
     invoke<DataLocation>("set_data_folder", { folder, transferMode }),
   clearDataFolder: (transferMode: TransferMode) =>

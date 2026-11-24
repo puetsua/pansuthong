@@ -246,6 +246,53 @@ pub fn copy_own_history(from_data_path: &Path, to_data_path: &Path) -> Result<()
     Ok(())
 }
 
+/// Union this device's history sidecar from `from` into the one at `to` when
+/// merging into a folder that already has data. The target may hold an older copy
+/// of the same sidecar (from an earlier stint in that folder), so only lines it
+/// lacks are appended — exact-line match; `read_history` sorts by timestamp, so
+/// append order does not matter. Target lines are never removed. No-op when both
+/// paths share a parent.
+pub fn merge_own_history(from_data_path: &Path, to_data_path: &Path) -> Result<()> {
+    let from_parent = from_data_path.parent().unwrap_or_else(|| Path::new("."));
+    let to_parent = to_data_path.parent().unwrap_or_else(|| Path::new("."));
+    if from_parent == to_parent {
+        return Ok(());
+    }
+    migrate_legacy_history_jsonl(from_data_path)?;
+    let from_own = history_path(from_data_path);
+    if !from_own.exists() {
+        return Ok(());
+    }
+    let to_own = history_path(to_data_path);
+    let mut bytes = if to_own.exists() {
+        fs::read(&to_own)?
+    } else {
+        Vec::new()
+    };
+    let mut seen: std::collections::HashSet<String> = String::from_utf8_lossy(&bytes)
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect();
+    let source = fs::read_to_string(&from_own)?;
+    let missing: Vec<&str> = source
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && seen.insert((*l).to_string()))
+        .collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    if !bytes.is_empty() && !bytes.ends_with(b"\n") {
+        bytes.push(b'\n');
+    }
+    for line in missing {
+        bytes.extend_from_slice(line.as_bytes());
+        bytes.push(b'\n');
+    }
+    crate::store::atomic_write(&to_own, &bytes)
+}
+
 pub fn entries_for_change(
     before: &Document,
     after: &Document,
@@ -894,6 +941,48 @@ mod tests {
         copy_own_history(&from, &to).unwrap();
         // Still a single sidecar; no duplicate/rename side effects.
         assert!(dir.path().join("history_dev.jsonl").exists());
+    }
+
+    #[test]
+    fn merge_own_history_appends_only_missing_lines() {
+        let old = tempdir().unwrap();
+        let new = tempdir().unwrap();
+        let from = old.path().join("tasks_dev.db");
+        let to = new.path().join("tasks_dev.db");
+        let x = te(1_000, "task.created", "task", "k_x", "X".into(), "Created task");
+        let y = te(2_000, "task.created", "task", "k_y", "Y".into(), "Created task");
+        let z = te(3_000, "task.created", "task", "k_z", "Z".into(), "Created task");
+        // Target holds an older copy of this device's sidecar (X) plus a line the
+        // old folder never saw (Z).
+        append_history(&from, &[x.clone(), y]).unwrap();
+        append_history(&to, &[x, z]).unwrap();
+
+        merge_own_history(&from, &to).unwrap();
+        merge_own_history(&from, &to).unwrap(); // idempotent
+
+        let mut ids: Vec<_> = read_all_history(&to)
+            .unwrap()
+            .into_iter()
+            .map(|e| e.entity_id)
+            .collect();
+        ids.sort();
+        assert_eq!(ids, ["k_x", "k_y", "k_z"], "union, no duplicates, nothing lost");
+        assert_eq!(read_all_history(&from).unwrap().len(), 2, "source untouched");
+    }
+
+    #[test]
+    fn merge_own_history_creates_missing_target_sidecar() {
+        let old = tempdir().unwrap();
+        let new = tempdir().unwrap();
+        let from = old.path().join("tasks_dev.db");
+        let to = new.path().join("tasks_dev.db");
+        append_history(
+            &from,
+            &[te(1_000, "task.created", "task", "k_1", "One".into(), "Created task")],
+        )
+        .unwrap();
+        merge_own_history(&from, &to).unwrap();
+        assert_eq!(read_all_history(&to).unwrap().len(), 1);
     }
 
     #[test]

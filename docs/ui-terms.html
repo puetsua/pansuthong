@@ -804,7 +804,8 @@
           <h3>Choose folder… / Use default location</h3>
           <p>
             <strong>Choose folder…</strong> — pick a directory (often cloud-synced).
-            May prompt <strong>Change data folder?</strong> with Copy / Move / Cancel.<br />
+            Asks <strong>Keep both / Remove from old</strong> for a folder without data, or
+            <strong>Merge / Use folder’s data</strong> when it already has Pansuthong data.<br />
             <strong>Use default location</strong> — clear custom folder and return to app default.
           </p>
         </div>
@@ -822,16 +823,29 @@
 
       <article class="term">
         <div class="term-head">
-          <span class="term-en">Change data folder?</span>
-          <span class="where">Desktop transfer dialog</span>
+          <span class="term-en">Switch to the new folder?</span>
+          <span class="where">Desktop transfer dialog — folder without data</span>
         </div>
         <p class="meaning">
-          After picking a new desktop folder (or resetting):
-          <strong>Copy</strong> keeps this device’s files in the old folder and places a copy in the new one;
-          <strong>Move</strong> transfers then removes only this device’s files from the old folder.
+          After picking a desktop folder (or resetting) that has no Pansuthong data:
+          <strong>Keep both</strong> copies this device’s files there and leaves the old ones;
+          <strong>Remove from old</strong> copies them, then removes only this device’s files from the old folder.
           Files from other devices in the folder are never touched.
         </p>
-        <p class="key">settings.transferTitle · transferCopy · transferMove · transferCancel</p>
+        <p class="key">settings.transfer.empty.* · transfer.copy · transfer.move · transfer.cancel · transfer.peersNote</p>
+      </article>
+
+      <article class="term">
+        <div class="term-head">
+          <span class="term-en">This folder already has Pansuthong data</span>
+          <span class="where">Desktop transfer dialog — folder with data</span>
+        </div>
+        <p class="meaning">
+          <strong>Merge</strong> combines the current tasks with the folder’s (newest edit wins, as in sync);
+          <strong>Use folder’s data</strong> switches to the folder’s data as is. Nothing in the old folder is deleted.
+          Picking the folder already in use does nothing.
+        </p>
+        <p class="key">settings.transfer.existing.* · transfer.merge · transfer.adopt · transfer.cancel</p>
       </article>
 
       <article class="term">
