@@ -61,9 +61,11 @@ pub fn setup(app: &AppHandle, launch_at_login: bool) {
         .store(autostarted && state.tray_available(), Ordering::SeqCst);
 
     // Rewrite the entry so it follows the current executable (an AppImage that
-    // moved, or a reinstall to a new folder).
+    // moved, or a reinstall to a new folder). Only while the OS still has it
+    // enabled: a user who turned it off in Task Manager / their desktop's
+    // startup settings keeps it off.
     if launch_at_login {
-        if let Err(e) = set_launch_at_login(app, true) {
+        if let Err(e) = refresh_launch_at_login(app) {
             eprintln!("warning: refreshing the launch-at-login entry failed: {e}");
         }
     }
@@ -231,12 +233,23 @@ fn auto_launcher(app: &AppHandle) -> Result<auto_launch::AutoLaunch, String> {
 pub fn set_launch_at_login(app: &AppHandle, enabled: bool) -> Result<(), String> {
     let launcher = auto_launcher(app)?;
     if enabled {
-        launcher.enable().map_err(|e| e.to_string())
-    } else if launcher.is_enabled().map_err(|e| e.to_string())? {
-        launcher.disable().map_err(|e| e.to_string())
-    } else {
-        Ok(())
+        return launcher.enable().map_err(|e| e.to_string());
     }
+    // Delete unconditionally: `is_enabled` reports false when Task Manager
+    // disabled the entry, which would otherwise leave the value behind.
+    match launcher.disable() {
+        Ok(()) => Ok(()),
+        Err(auto_launch::Error::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+fn refresh_launch_at_login(app: &AppHandle) -> Result<(), String> {
+    let launcher = auto_launcher(app)?;
+    if launcher.is_enabled().map_err(|e| e.to_string())? {
+        launcher.enable().map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[derive(serde::Serialize)]

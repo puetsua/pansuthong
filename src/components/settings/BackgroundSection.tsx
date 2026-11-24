@@ -3,15 +3,27 @@ import { useTranslation } from "react-i18next";
 import type { Settings } from "../../lib/tauri";
 import { api } from "../../lib/tauri";
 import { isAndroid } from "../../lib/platform";
-import type { ApplySettings } from "./types";
+import { errorMessage } from "../../lib/errors";
 
-type Props = { settings: Settings; applySettings: ApplySettings };
+// Saves directly (not via the page-level applySettings) so a failed OS write for
+// launch at login is reported next to the control, not at the top of Settings.
+type Props = { settings: Settings };
 
 /** Desktop (#252): what closing the window does, and launch at login. */
-export function BackgroundSection({ settings, applySettings }: Props) {
+export function BackgroundSection({ settings }: Props) {
   const { t } = useTranslation();
   const [android, setAndroid] = useState<boolean | null>(null);
   const [trayAvailable, setTrayAvailable] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async (patch: Partial<Settings>) => {
+    setErr(null);
+    try {
+      await api.updateSettings(patch);
+    } catch (e) {
+      setErr(errorMessage(e));
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -35,6 +47,7 @@ export function BackgroundSection({ settings, applySettings }: Props) {
     <section className="settings-section">
       <h2>{t("settings.background.title")}</h2>
       <p className="view-sub">{t("settings.background.sub")}</p>
+      {err && <p className="composer-error" role="alert">{t("settings.saveError", { error: err })}</p>}
 
       {/* A div, not a label: a label would forward clicks to its first button. */}
       <div className="te-field">
@@ -47,7 +60,7 @@ export function BackgroundSection({ settings, applySettings }: Props) {
               className={`theme-option ${closeToTray === on ? "active" : ""}`}
               aria-pressed={closeToTray === on}
               disabled={!trayAvailable}
-              onClick={() => { void applySettings({ close_to_tray: on }); }}
+              onClick={() => { void save({ close_to_tray: on }); }}
             >
               {label}
             </button>
@@ -62,7 +75,7 @@ export function BackgroundSection({ settings, applySettings }: Props) {
           type="button"
           className={`theme-option ${launchAtLogin ? "active" : ""}`}
           aria-pressed={launchAtLogin}
-          onClick={() => { void applySettings({ launch_at_login: !launchAtLogin }); }}
+          onClick={() => { void save({ launch_at_login: !launchAtLogin }); }}
         >
           {launchAtLogin ? t("settings.background.on") : t("settings.background.off")}
         </button>

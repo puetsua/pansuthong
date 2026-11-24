@@ -220,6 +220,14 @@ describe("SettingsView background (#252)", () => {
     expect(quit.getAttribute("aria-pressed")).toBe("true");
   });
 
+  it("shows a failed launch-at-login save next to the control", async () => {
+    vi.mocked(api.updateSettings).mockRejectedValueOnce("launch at login: access denied");
+    render(<SettingsView doc={doc} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Launch at login/i }));
+    const section = screen.getByRole("heading", { name: /^Background$/ }).closest("section")!;
+    await within(section).findByText(/access denied/);
+  });
+
   it("is hidden on Android", async () => {
     vi.mocked(isAndroid).mockResolvedValue(true);
     render(<SettingsView doc={doc} />);

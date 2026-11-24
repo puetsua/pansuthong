@@ -56,7 +56,7 @@ export function SettingsView({ doc }: Props) {
       <ReminderSection settings={doc.settings} applySettings={applySettings} />
       <AttachmentCapSection settings={doc.settings} applySettings={applySettings} />
       <NewTagWeightSection settings={doc.settings} applySettings={applySettings} />
-      <BackgroundSection settings={doc.settings} applySettings={applySettings} />
+      <BackgroundSection settings={doc.settings} />
       <McpSection settings={doc.settings} applySettings={applySettings} />
       <DataFolderSection settings={doc.settings} />
     </section>
