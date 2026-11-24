@@ -5,7 +5,7 @@ import { defaultTagColor } from "../lib/settings";
  * Resolve parsed #tag names to tag IDs, creating any that don't exist yet.
  * Tag matching is case-insensitive; a newly created tag keeps the case the
  * user typed. New tags use `color` (the active theme background); pass
- * `api.addTag` so this stays unit-testable without the Tauri bridge.
+ * `api.addTag` so this stays independent of the Tauri bridge.
  */
 export async function resolveTagIds(
   tagNames: string[],

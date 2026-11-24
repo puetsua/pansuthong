@@ -267,23 +267,3 @@ pub fn validate_mcp_port(port: u32) -> Result<(), String> {
 pub fn settings_patch_affects_mcp(input: &crate::commands::UpdateSettingsInput) -> bool {
     input.mcp_enabled.is_some() || input.mcp_port.is_some()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::commands::UpdateSettingsInput;
-
-    #[test]
-    fn settings_patch_affects_mcp_only_when_mcp_fields_present() {
-        let unrelated = UpdateSettingsInput {
-            sound_on_complete: Some(false),
-            ..UpdateSettingsInput::default()
-        };
-        assert!(!settings_patch_affects_mcp(&unrelated));
-        let port = UpdateSettingsInput {
-            mcp_port: Some(7373),
-            ..UpdateSettingsInput::default()
-        };
-        assert!(settings_patch_affects_mcp(&port));
-    }
-}

@@ -18,7 +18,7 @@ export function DesktopTitlebar() {
         const next = await getCurrentWindow().isMaximized();
         if (active) setMaximized(next);
       } catch {
-        // Outside Tauri (tests / browser preview) — leave restored.
+        // Outside Tauri (browser preview) — leave restored.
       }
     };
 

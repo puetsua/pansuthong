@@ -7,9 +7,8 @@
 - `npm run tauri build` - desktop build
 - `npm run tauri android build` - Android build
 - `npm run build` - TypeScript + Vite build
-- `npm test` / `npm test -- <name>` - Vitest
 - `npm run lint` - ESLint
-- `cargo test --manifest-path src-tauri/Cargo.toml -j 1`
+- `cargo test --manifest-path src-tauri/Cargo.toml -j 1` - e2e tests only (`src-tauri/tests/`, `src-tauri/src/mcp/*_test.rs`)
 - `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings`
 
 Use `npm run tauri <subcommand>`, not a global `tauri`.

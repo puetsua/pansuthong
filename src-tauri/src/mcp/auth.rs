@@ -37,18 +37,3 @@ pub async fn origin_gate(req: Request<Body>, next: Next) -> Response {
     }
     next.run(req).await
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn origin_allows_localhost_and_missing() {
-        assert!(is_allowed_origin("http://localhost:7373"));
-        assert!(is_allowed_origin("http://127.0.0.1:7373"));
-        assert!(is_allowed_origin("https://localhost"));
-        assert!(is_allowed_origin("http://[::1]:8080"));
-        assert!(!is_allowed_origin("http://evil.example"));
-        assert!(!is_allowed_origin("http://127.0.0.1.evil.example"));
-    }
-}

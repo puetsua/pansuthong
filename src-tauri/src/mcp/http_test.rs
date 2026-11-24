@@ -10,7 +10,7 @@ use crate::task_query::{ListTasksQuery, list_tasks as query_list_tasks};
 use serde_json::json;
 use std::sync::Arc;
 
-// Minimal stand-in: exercise the same task ops the MCP tools use (see task_query tests).
+// Minimal stand-in: exercise the same task ops the MCP tools use.
 #[test]
 fn mcp_tools_create_and_list_via_shared_ops() {
     let dir = tempfile::tempdir().unwrap();

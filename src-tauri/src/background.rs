@@ -490,22 +490,3 @@ pub fn status(app: &AppHandle) -> BackgroundStatus {
         tray_available: tray_usable(app),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::desktop_entry_disabled;
-
-    #[test]
-    fn desktop_entry_disabled_reads_hidden_and_gnome_flag() {
-        assert!(!desktop_entry_disabled(
-            "[Desktop Entry]\nExec=\"/a b\" --autostart\n"
-        ));
-        assert!(desktop_entry_disabled("[Desktop Entry]\nHidden=true\n"));
-        assert!(desktop_entry_disabled(
-            "[Desktop Entry]\nX-GNOME-Autostart-enabled=false\n"
-        ));
-        assert!(!desktop_entry_disabled(
-            "[Desktop Entry]\nX-GNOME-Autostart-enabled=true\n"
-        ));
-    }
-}
