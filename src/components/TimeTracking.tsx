@@ -14,7 +14,7 @@ type Props = {
   task: Task;
   // The estimate lives in the editor's form so it saves with the task, but it's
   // edited here next to the tracked total (a single source of truth, so the bar
-  // recolors live as you type). Omitted in tests that don't exercise it — then it
+  // recolors live as you type). When omitted, it
   // falls back to the saved task's estimate and is effectively read-only.
   estimateInput?: string;
   onEstimateChange?: (value: string) => void;

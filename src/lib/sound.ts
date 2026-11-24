@@ -24,11 +24,6 @@ export function setCompletionSoundEnabled(on: boolean): void {
   enabled = on;
 }
 
-/** Clear cached Linux detection (vitest only). */
-export function resetSoundPlatformCache(): void {
-  nativeLinux = null;
-}
-
 async function useNativeLinuxPlayback(): Promise<boolean> {
   if (nativeLinux === null) {
     try {
@@ -41,7 +36,7 @@ async function useNativeLinuxPlayback(): Promise<boolean> {
 }
 
 function playViaWebAudio(): void {
-  if (typeof Audio === "undefined") return; // non-browser env (e.g. tests): no-op
+  if (typeof Audio === "undefined") return; // non-browser env: no-op
   try {
     if (!audio) audio = new Audio(bellUrl);
     audio.currentTime = 0; // restart so back-to-back completions each chime

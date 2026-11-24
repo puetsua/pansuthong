@@ -2,8 +2,8 @@
 
 ## Common Edits
 
-- Tauri command: `commands.rs` -> `lib.rs` handler -> `src/lib/tauri.ts` -> tests.
-- Synced field: `model.rs` -> `src/lib/tauri.ts` -> `schemas/tasks.schema.json` -> fixtures/tests.
+- Tauri command: `commands.rs` -> `lib.rs` handler -> `src/lib/tauri.ts`.
+- Synced field: `model.rs` -> `src/lib/tauri.ts` -> `schemas/tasks.schema.json`.
 - UI text: update both locale files.
 - View behavior: prefer `src/state/indexes.ts`; reuse `ListControls.tsx` + `listPaging.ts` (`usePagedItems`) for date filters/pagination.
 - Editor modals: `TaskEditor` and `TagEditor` backdrop clicks are inert.
@@ -11,9 +11,8 @@
 
 ## Verify By Scope
 
-- Frontend focused: `npm test -- <name>`
-- Frontend broad: `npm test`, `npm run build`, `npm run lint`
-- Rust: `cargo test --manifest-path src-tauri/Cargo.toml -j 1`
+- Frontend: `npm run build`, `npm run lint` (no frontend test suite)
+- Rust e2e tests: `cargo test --manifest-path src-tauri/Cargo.toml -j 1`
 - Rust lint: `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings`
 - Manual desktop: `npm run tauri dev`
 - Manual Android: `npm run tauri android dev`

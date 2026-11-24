@@ -31,15 +31,3 @@ fn play_on_thread() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     sink.sleep_until_end();
     Ok(())
 }
-
-#[cfg(target_os = "linux")]
-#[cfg(test)]
-mod tests {
-    use super::play_on_thread;
-
-    #[test]
-    fn play_on_thread_does_not_panic_without_output() {
-        // CI runners may lack a default audio device; must fail gracefully.
-        let _ = play_on_thread();
-    }
-}

@@ -10,7 +10,7 @@
 - `Task.completed_at` is the source of truth for done and archived state.
 - Templates live in `template_tasks`, not `tasks`.
 - Views are computed from tasks/tags/templates, mainly in `src/state/indexes.ts`.
-- Keep model changes backward-compatible with serde defaults, aliases, optional TS keys, schema updates, and tests.
+- Keep model changes backward-compatible with serde defaults, aliases, optional TS keys, and schema updates; cover data-format changes with an e2e test in `src-tauri/tests/`.
 
 ## Three consistency models in the data folder
 

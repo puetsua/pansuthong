@@ -13,7 +13,7 @@ export type AppLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 const DAYJS_LOCALE: Record<AppLanguage, string> = { en: "en", "zh-TW": "zh-tw" };
 
 // Initialise synchronously with the catalogs bundled in — no async backend — so the
-// very first render (and the test environment) always has English strings ready.
+// very first render always has English strings ready.
 // OS-locale detection and switching are deferred to applyLanguage(), called from the
 // app once settings load, keeping this module free of any Tauri calls.
 void i18n.use(initReactI18next).init({

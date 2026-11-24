@@ -36,15 +36,3 @@ export function usePreferInDomTaskEditorDatePicker(): boolean {
   const linux = useLinuxDesktop();
   return linux !== false;
 }
-
-/** @internal test helper */
-export function resetLinuxDesktopCacheForTests(): void {
-  cached = null;
-  pending = null;
-}
-
-/** @internal test helper — avoid async OS probe flapping in unit tests */
-export function primeLinuxDesktopCacheForTests(value: boolean): void {
-  cached = value;
-  pending = null;
-}
