@@ -39,10 +39,11 @@ export function BackgroundSection({ settings }: Props) {
       if (!active) return;
       setAndroid(a);
       if (a) return;
-      refresh();
+      // Listen first, then read, so a change in between isn't missed.
       void api.onTrayStatusChanged(refresh)
         .then(un => { if (active) unlisten = un; else un(); })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(refresh);
     });
     return () => {
       active = false;

@@ -24,13 +24,17 @@ const MENU_QUIT: &str = "tray-quit";
 const TICK_INTERVAL: Duration = Duration::from_secs(30);
 /// Event the Settings page listens for to refresh the tray state.
 pub const TRAY_STATUS_CHANGED_EVENT: &str = "tray-status-changed";
-/// An autostarted window stays hidden this long waiting for a Linux tray host
-/// to appear before it is shown, so the app is never stranded without a tray.
-#[cfg(target_os = "linux")]
-const HOST_WAIT_SECS: u32 = 20;
-/// How often the Linux main loop re-checks the XEmbed tray and the wait above.
+/// How often the Linux main loop re-checks the XEmbed tray and the wait below.
 #[cfg(target_os = "linux")]
 const HOST_CHECK_SECS: u32 = 3;
+/// An autostarted window stays hidden this long (a multiple of
+/// `HOST_CHECK_SECS`) while no Linux tray host is present, then is shown, so
+/// the app is never stranded without a tray.
+#[cfg(target_os = "linux")]
+const HOST_WAIT_SECS: u32 = 21;
+/// After this long, the XEmbed selection is polled only every fourth check.
+#[cfg(target_os = "linux")]
+const HOST_FAST_CHECK_FOR_SECS: u32 = 60;
 
 #[derive(Default)]
 pub struct BackgroundState {
@@ -44,9 +48,7 @@ pub struct BackgroundState {
     /// Linux: an XEmbed tray owns `_NET_SYSTEM_TRAY_S<screen>` (GTK on X11).
     #[cfg(target_os = "linux")]
     xembed_host: AtomicBool,
-    /// Linux: a tray host was seen at least once this session.
-    #[cfg(target_os = "linux")]
-    seen_host: AtomicBool,
+
     /// Started by the login entry with the tray icon built: keep the window
     /// hidden until the user opens it from the tray or launches the app again.
     /// On Linux the window is shown anyway if no tray host appears in time.
@@ -212,26 +214,36 @@ fn watch_linux_tray_host(app: &AppHandle) {
     } else {
         None
     };
+    if let Some(probe) = xembed.as_mut() {
+        set_linux_host(app, |s| &s.xembed_host, probe.tray_owned());
+    }
     let app = app.clone();
-    let mut waited = 0;
+    let mut elapsed = 0;
+    // Seconds the autostarted window has been waiting with no tray host.
+    let mut hostless = 0;
     glib::timeout_add_seconds_local(HOST_CHECK_SECS, move || {
+        elapsed += HOST_CHECK_SECS;
+        let fast = elapsed <= HOST_FAST_CHECK_FOR_SECS;
         if let Some(probe) = xembed.as_mut() {
-            set_linux_host(&app, |s| &s.xembed_host, probe.tray_owned());
+            if fast || (elapsed / HOST_CHECK_SECS) % 4 == 0 {
+                set_linux_host(&app, |s| &s.xembed_host, probe.tray_owned());
+            }
         }
-        waited += HOST_CHECK_SECS;
         let Some(state) = app.try_state::<BackgroundState>() else {
             return glib::ControlFlow::Break;
         };
-        // Autostart with no tray host ever seen: stop waiting and show the window.
-        if waited >= HOST_WAIT_SECS
-            && !state.seen_host.load(Ordering::SeqCst)
-            && state.start_hidden.load(Ordering::SeqCst)
-            && state.first_frame_seen()
-        {
-            eprintln!("warning: no tray host appeared; showing the autostarted window");
-            show_main_window(&app);
+        let waiting = state.start_hidden.load(Ordering::SeqCst);
+        if waiting && state.first_frame_seen() && !state.tray_host.load(Ordering::SeqCst) {
+            hostless += HOST_CHECK_SECS;
+            if hostless >= HOST_WAIT_SECS {
+                eprintln!("warning: no tray host; showing the autostarted window");
+                show_main_window(&app);
+            }
+        } else {
+            hostless = 0;
         }
-        if xembed.is_none() && waited >= HOST_WAIT_SECS {
+        // Keep running while an autostart may still need rescuing, or to poll XEmbed.
+        if xembed.is_none() && !waiting {
             return glib::ControlFlow::Break;
         }
         glib::ControlFlow::Continue
@@ -246,9 +258,6 @@ fn set_linux_host(app: &AppHandle, flag: fn(&BackgroundState) -> &AtomicBool, va
     };
     flag(&state).store(value, Ordering::SeqCst);
     let present = state.sni_host.load(Ordering::SeqCst) || state.xembed_host.load(Ordering::SeqCst);
-    if present {
-        state.seen_host.store(true, Ordering::SeqCst);
-    }
     if state.tray_host.swap(present, Ordering::SeqCst) != present {
         let _ = app.emit(TRAY_STATUS_CHANGED_EVENT, ());
     }
@@ -291,6 +300,16 @@ impl XembedProbe {
     fn tray_owned(&mut self) -> bool {
         // SAFETY: `display` is live (see `open`) and used only on the main thread.
         unsafe { (self.xlib.XGetSelectionOwner)(self.display, self.atom) != 0 }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for XembedProbe {
+    fn drop(&mut self) {
+        // SAFETY: `display` came from `XOpenDisplay` and is closed exactly once.
+        unsafe {
+            (self.xlib.XCloseDisplay)(self.display);
+        }
     }
 }
 
