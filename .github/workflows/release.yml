@@ -76,8 +76,13 @@ jobs:
           workspaces: src-tauri
 
       # makensis (for NSIS packaging) and mingw-w64 (Windows cross-compiler).
-      - name: Install NSIS and mingw-w64
-        run: sudo apt-get install -y nsis mingw-w64
+      # The tauri CLI probes the *host* for an appindicator library whenever the
+      # `tray-icon` feature is on, even when cross-building for Windows, and
+      # panics if none is found — so the Linux runner needs it here too.
+      - name: Install NSIS, mingw-w64 and appindicator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nsis mingw-w64 libayatana-appindicator3-dev
 
       - run: npm ci
 
