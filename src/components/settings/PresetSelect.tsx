@@ -67,9 +67,12 @@ export function PresetSelect({
           onChange={e => setDraft(e.currentTarget.value)}
           onBlur={() => {
             commit();
-            // An unchanged commit doesn't re-run the sync effect; a preset still
-            // belongs back in the dropdown.
-            if (presets.includes(clamp(draft))) setCustom(false);
+            // An unchanged commit doesn't re-run the sync effect, so return an
+            // already-saved preset to the dropdown here. A changed value waits
+            // for the saved prop (the effect), so a failed save never shows a
+            // preset that isn't stored.
+            const n = clamp(draft);
+            if (n === value && presets.includes(n)) setCustom(false);
           }}
           onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
         />
