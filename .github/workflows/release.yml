@@ -76,8 +76,14 @@ jobs:
           workspaces: src-tauri
 
       # makensis (for NSIS packaging) and mingw-w64 (Windows cross-compiler).
+      # libayatana-appindicator3-dev is a Linux-host probe, not a Windows link
+      # input. tauri-cli (cfg(target_os = "linux")) looks up
+      # ayatana-appindicator3-0.1 via pkg-config whenever tray-icon is enabled,
+      # including a Windows --target, and panics if the .pc file is missing.
       - name: Install NSIS and mingw-w64
-        run: sudo apt-get install -y nsis mingw-w64
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nsis mingw-w64 libayatana-appindicator3-dev
 
       - run: npm ci
 
