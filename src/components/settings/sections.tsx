@@ -95,7 +95,7 @@ export function DateTimeSection({ settings, applySettings }: SectionProps) {
   };
   return (
     <SettingsSection title={t("settings.dateTimeFormat")}>
-      <SettingRow title={t("settings.dateFormat")} description={t("settings.dateFormatSub")}>
+      <SettingRow title={t("settings.dateFormat")}>
         <select
           className="select-input"
           aria-label={t("settings.dateFormat")}
@@ -109,7 +109,7 @@ export function DateTimeSection({ settings, applySettings }: SectionProps) {
           ))}
         </select>
       </SettingRow>
-      <SettingRow title={t("settings.timeFormat")} description={t("settings.timeFormatSub")}>
+      <SettingRow title={t("settings.timeFormat")}>
         <select
           className="select-input"
           aria-label={t("settings.timeFormat")}

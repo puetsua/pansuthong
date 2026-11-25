@@ -750,14 +750,14 @@
 
       <article class="term">
         <div class="term-head">
-          <span class="term-en">Device ID:</span>
+          <span class="term-en">Device ID</span>
           <span class="where">Settings → Data file</span>
         </div>
         <p class="meaning">
           Stable id for this install. Names on-disk replicas like <code>tasks_&lt;device&gt;.db</code>
           and <code>attachments_&lt;device&gt;/</code> so peers can merge without clobbering each other.
         </p>
-        <p class="key">settings.deviceId</p>
+        <p class="key">settings.deviceIdTitle</p>
       </article>
 
       <article class="term">
@@ -883,9 +883,10 @@
           <span class="where">Settings</span>
         </div>
         <p class="meaning">
-          Appearance: auto/light/dark mode plus named color presets (Default, Slate, …).
+          Appearance: auto/light/dark mode plus named color presets (Default, Slate, …),
+          picked from the gallery on the Appearance tab.
         </p>
-        <p class="key">settings.theme · themePickerTitle · themePreset*</p>
+        <p class="key">settings.theme · themeMode · themePreset*</p>
       </article>
 
       <article class="term">
@@ -920,7 +921,7 @@
           work should still count as the same day. Also affects how completions and time
           entries are attributed to a day.
         </p>
-        <p class="key">settings.dayStart · dayStartsAt · midnight</p>
+        <p class="key">settings.dayStart · midnight</p>
       </article>
 
       <article class="term">
@@ -1102,7 +1103,7 @@
           Priority weight on a tag. A task’s sort priority is the <strong>highest weight</strong>
           among its tags. Shown as “priority weight” in the Tags list tooltip.
         </p>
-        <p class="key">tagEditor.weight · tags.weightTitle · settings.weight</p>
+        <p class="key">tagEditor.weight · tags.weightTitle · settings.newTagWeight</p>
         <p class="related">Sort order → priority</p>
       </article>
 

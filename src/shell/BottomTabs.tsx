@@ -45,7 +45,8 @@ export function BottomTabs({ indexes }: Props) {
           <div className="mobile-menu-backdrop" onClick={() => setMoreOpen(false)} />
           <nav className="mobile-menu" role="menu" aria-label={tr("nav.more")}>
             {MORE_ITEMS.map(item => (
-              <Link key={item.to} to={item.to} role="menuitem" className="mobile-menu-item">
+              <Link key={item.to} to={item.to} role="menuitem" className="mobile-menu-item"
+                    onClick={() => setMoreOpen(false)}>
                 {tr(item.labelKey)}
               </Link>
             ))}

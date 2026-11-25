@@ -72,11 +72,14 @@ export function SettingsView({ doc, onClose }: Props) {
 
   useEffect(() => {
     if (!drawerOpen) return;
+    document.getElementById(tabId(active))?.focus();
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape") { e.stopPropagation(); setDrawerOpen(false); }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
+    // Focus moves in only when the drawer opens, not on every tab change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawerOpen]);
 
   const select = (g: GroupId) => {
@@ -200,6 +203,8 @@ export function SettingsView({ doc, onClose }: Props) {
  *  button, or a click outside the panel closes it. */
 export function SettingsModal({ doc, onClose }: { doc: Document; onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -207,17 +212,37 @@ export function SettingsModal({ doc, onClose }: { doc: Document; onClose: () => 
     return () => { previous?.focus?.(); };
   }, []);
 
-  // Only Escape pressed inside the panel itself: nested dialogs (theme picker,
-  // data-folder prompt) handle their own Escape first.
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "Escape" || e.defaultPrevented) return;
-    if (!panelRef.current?.contains(e.target as Node)) return;
-    e.preventDefault();
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      const panel = panelRef.current;
+      if (!panel || e.defaultPrevented) return;
+      // Keys in nested dialogs (theme editor, confirm prompts) are theirs. Focus
+      // can also drop to <body>, e.g. after deleting the theme whose Edit
+      // button opened the editor.
+      const target = e.target as Node;
+      if (!panel.contains(target) && target !== document.body) return;
+      // A dialog stacked over Settings (portaled) owns the keyboard.
+      if (document.querySelector(".modal-backdrop")) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        // Blur first so a typed-but-uncommitted number field saves on blur.
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        closeRef.current();
+      } else if (e.key === "Tab") {
+        trapTab(e, panel);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const close = () => {
+    (document.activeElement as HTMLElement | null)?.blur?.();
     onClose();
   };
 
   return createPortal(
-    <div className="settings-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="settings-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) close(); }}>
       <div
         ref={panelRef}
         className="settings-modal"
@@ -225,11 +250,23 @@ export function SettingsModal({ doc, onClose }: { doc: Document; onClose: () => 
         aria-modal="true"
         aria-labelledby="settings-title"
         tabIndex={-1}
-        onKeyDown={onKeyDown}
       >
-        <SettingsView doc={doc} onClose={onClose} />
+        <SettingsView doc={doc} onClose={close} />
       </div>
     </div>,
     document.body,
   );
+}
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** Keep Tab / Shift+Tab inside `root` (skipping hidden tab panels). */
+function trapTab(e: globalThis.KeyboardEvent, root: HTMLElement) {
+  const items = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(el => el.offsetParent !== null);
+  if (items.length === 0) return;
+  const first = items[0], last = items[items.length - 1];
+  const active = document.activeElement;
+  if (e.shiftKey && (active === first || !root.contains(active))) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && (active === last || !root.contains(active))) { e.preventDefault(); first.focus(); }
 }

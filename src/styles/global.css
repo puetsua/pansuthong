@@ -1128,7 +1128,7 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 }
 .settings-card > .setting-row:first-child { border-top: 0; }
 .setting-row-text { flex: 1 1 15rem; min-width: 0; }
-.setting-row-text h3 {
+.setting-row-text h4 {
   margin: 0;
   font-size: 0.9rem;
   font-weight: 600;

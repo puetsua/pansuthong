@@ -25,7 +25,7 @@ export function SettingRow({ title, description, children, footer }: Props) {
   return (
     <div className="setting-row">
       <div className="setting-row-text">
-        <h3>{title}</h3>
+        <h4>{title}</h4>
         {description && <p className="setting-row-desc">{description}</p>}
       </div>
       {children && <div className="setting-row-control">{children}</div>}

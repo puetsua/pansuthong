@@ -9,15 +9,28 @@ export function ConfirmDialog({ message, confirmLabel, cancelLabel, onConfirm, o
   onCancel: () => void;
 }) {
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     confirmRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onCancel(); } };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.stopPropagation(); onCancel(); return; }
+      // Keep Tab on the two buttons so focus can't reach the dialog underneath.
+      if (e.key === "Tab") {
+        const buttons = [...(boxRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
+        if (buttons.length === 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        const next = e.shiftKey ? (i <= 0 ? buttons.length - 1 : i - 1) : (i + 1) % buttons.length;
+        buttons[next].focus();
+      }
+    };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [onCancel]);
   return (
     <div className="te-confirm" role="dialog" aria-modal="true" aria-label={message} onClick={onCancel}>
-      <div className="te-confirm-box" onClick={e => e.stopPropagation()}>
+      <div className="te-confirm-box" ref={boxRef} onClick={e => e.stopPropagation()}>
         <p>{message}</p>
         <div className="te-confirm-actions">
           <button type="button" onClick={onCancel}>{cancelLabel}</button>
