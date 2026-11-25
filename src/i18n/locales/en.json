@@ -661,8 +661,6 @@
       "statusError": "Server error: {{message}}",
       "portInvalid": "Port must be an integer from {{min}} to {{max}}."
     },
-    "dataFolder": "Folder: ",
-    "syncedFolder": "Synced folder: ",
     "dataFile": "Data file",
     "syncedFolderTitle": "Synced folder",
     "deviceIdTitle": "Device ID",

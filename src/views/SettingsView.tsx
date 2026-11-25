@@ -258,8 +258,18 @@ export function SettingsModal({ doc, onClose }: { doc: Document; onClose: () => 
     onClose();
   };
 
+  // Close on a full press on the backdrop (down and up there), and ignore the
+  // first moments after opening so a double-click on the opener doesn't open
+  // and instantly close the panel.
+  const openedAt = useRef(Date.now());
+  const pressOnBackdrop = useRef(false);
+
   return createPortal(
-    <div className="settings-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) close(); }}>
+    <div
+      className="settings-backdrop"
+      onMouseDown={e => { pressOnBackdrop.current = e.target === e.currentTarget && Date.now() - openedAt.current > 400; }}
+      onClick={e => { if (pressOnBackdrop.current && e.target === e.currentTarget) close(); pressOnBackdrop.current = false; }}
+    >
       <div
         ref={panelRef}
         className="settings-modal"

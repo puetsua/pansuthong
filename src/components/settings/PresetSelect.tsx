@@ -43,13 +43,15 @@ export function PresetSelect({
         value={custom ? CUSTOM : String(value)}
         onChange={e => {
           const v = e.currentTarget.value;
-          if (v === CUSTOM) {
-            setCustom(true);
-            requestAnimationFrame(() => inputRef.current?.focus());
-            return;
-          }
-          setCustom(false);
-          onChange(Number(v));
+          // No focus jump into the field: arrow keys on a closed select fire
+          // change per option, and the next arrow would edit the number.
+          if (v === CUSTOM) { setCustom(true); return; }
+          const n = Number(v);
+          // Already stored: just leave custom mode. Otherwise the sync effect
+          // leaves it once the saved value arrives, so a failed save keeps the
+          // stored custom value on screen instead of a blank select.
+          if (n === value) setCustom(false);
+          else onChange(n);
         }}
       >
         {presets.map(n => <option key={n} value={n}>{presetLabel(n)}</option>)}

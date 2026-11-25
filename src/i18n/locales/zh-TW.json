@@ -655,8 +655,6 @@
       "statusError": "伺服器錯誤：{{message}}",
       "portInvalid": "連接埠必須為 {{min}} 到 {{max}} 的整數。"
     },
-    "dataFolder": "資料夾：",
-    "syncedFolder": "已同步資料夾：",
     "dataFile": "資料檔案",
     "syncedFolderTitle": "已同步資料夾",
     "deviceIdTitle": "裝置 ID",

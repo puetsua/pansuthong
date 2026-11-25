@@ -189,7 +189,7 @@ export function DataFolderSection({ settings }: { settings: Settings }) {
             </>}
             footer={<>
               <p className="setting-row-path">
-                {t("settings.syncedFolder")}<code>{sync.folder_label ?? t("settings.linked")}</code>
+                <code>{sync.folder_label ?? t("settings.linked")}</code>
                 {!sync.permission_ok && t("settings.accessLost")}
               </p>
               {sync.last_error && <p className="settings-warn">{t("settings.syncError", { error: sync.last_error })}</p>}
@@ -206,7 +206,7 @@ export function DataFolderSection({ settings }: { settings: Settings }) {
             description={android ? t("settings.pickFolderHintAndroid") : t("settings.desktopHint")}
             footer={<>
               <p className="setting-row-path">
-                {t("settings.dataFolder")}<code>{loc?.folder_path ?? "…"}</code>
+                <code>{loc?.folder_path ?? "…"}</code>
               </p>
               {err && <p className="settings-warn" role="alert">{err}</p>}
             </>}

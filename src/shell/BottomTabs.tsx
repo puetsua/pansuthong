@@ -5,6 +5,7 @@ import type { ComponentType, SVGProps } from "react";
 import { Indexes, openCount } from "../state/indexes";
 import { InboxIcon, TodayIcon, CalendarIcon, MoreIcon } from "../components/NavIcons";
 import { AppVersionRow } from "./AppVersionRow";
+import { settingsBackground, type SettingsRouteState } from "../lib/settingsRoute";
 
 type Props = { indexes: Indexes };
 type IconComponent = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>;
@@ -63,6 +64,11 @@ export function BottomTabs({ indexes }: Props) {
           <nav ref={menuRef} className="mobile-menu" role="menu" aria-label={tr("nav.more")}>
             {MORE_ITEMS.map(item => (
               <Link key={item.to} to={item.to} role="menuitem" className="mobile-menu-item"
+                    // Settings remembers the page behind it, in case the window
+                    // widens into the desktop panel.
+                    state={item.to === "/settings"
+                      ? { backgroundLocation: settingsBackground(loc) ?? loc } satisfies SettingsRouteState
+                      : undefined}
                     onClick={() => setMoreOpen(false)}>
                 {tr(item.labelKey)}
               </Link>
