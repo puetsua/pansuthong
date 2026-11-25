@@ -15,8 +15,10 @@ import {
 } from "../../lib/settings";
 import { clampWeight, WEIGHT_MAX, WEIGHT_MIN } from "../../lib/tags";
 import type { ApplySettings } from "./types";
+import { SettingRow, SettingsSection } from "./SettingRow";
 import { ToggleSwitch } from "./ToggleSwitch";
 import { useClampedDraft } from "./useClampedDraft";
+import { PresetSelect } from "./PresetSelect";
 
 type SectionProps = { settings: Settings; applySettings: ApplySettings };
 
@@ -31,23 +33,18 @@ export function LanguageSection({ settings, applySettings }: SectionProps) {
   const { t } = useTranslation();
   const language = settings.language ?? "auto";
   return (
-    <section className="settings-section">
-      <h2>{t("settings.language")}</h2>
-      <p className="view-sub">{t("settings.languageSub")}</p>
-      <label className="te-field">
-        <span>{t("settings.language")}</span>
-        <select
-          className="select-input"
-          aria-label={t("settings.language")}
-          value={language}
-          onChange={e => { void applySettings({ language: e.currentTarget.value as "auto" | "en" | "zh-TW" }); }}
-        >
-          <option value="auto">{t("settings.langAuto")}</option>
-          <option value="en">{t("settings.langEn")}</option>
-          <option value="zh-TW">{t("settings.langZhTW")}</option>
-        </select>
-      </label>
-    </section>
+    <SettingRow title={t("settings.displayLanguage")} description={t("settings.languageSub")}>
+      <select
+        className="select-input"
+        aria-label={t("settings.language")}
+        value={language}
+        onChange={e => { void applySettings({ language: e.currentTarget.value as "auto" | "en" | "zh-TW" }); }}
+      >
+        <option value="auto">{t("settings.langAuto")}</option>
+        <option value="en">{t("settings.langEn")}</option>
+        <option value="zh-TW">{t("settings.langZhTW")}</option>
+      </select>
+    </SettingRow>
   );
 }
 
@@ -97,11 +94,8 @@ export function DateTimeSection({ settings, applySettings }: SectionProps) {
     arabic_day_period: t("settings.timeFormatArabicDayPeriod"),
   };
   return (
-    <section className="settings-section">
-      <h2>{t("settings.dateTimeFormat")}</h2>
-      <p className="view-sub">{t("settings.dateTimeFormatSub")}</p>
-      <label className="te-field">
-        <span>{t("settings.dateFormat")}</span>
+    <SettingsSection title={t("settings.dateTimeFormat")}>
+      <SettingRow title={t("settings.dateFormat")}>
         <select
           className="select-input"
           aria-label={t("settings.dateFormat")}
@@ -114,9 +108,8 @@ export function DateTimeSection({ settings, applySettings }: SectionProps) {
             </option>
           ))}
         </select>
-      </label>
-      <label className="te-field">
-        <span>{t("settings.timeFormat")}</span>
+      </SettingRow>
+      <SettingRow title={t("settings.timeFormat")}>
         <select
           className="select-input"
           aria-label={t("settings.timeFormat")}
@@ -129,8 +122,8 @@ export function DateTimeSection({ settings, applySettings }: SectionProps) {
             </option>
           ))}
         </select>
-      </label>
-    </section>
+      </SettingRow>
+    </SettingsSection>
   );
 }
 
@@ -141,61 +134,37 @@ export function SortSection({ settings, applySettings }: SectionProps) {
     priority: t("settings.sortPriority"), date: t("settings.sortDate"),
   };
   return (
-    <section className="settings-section">
-      <h2>{t("settings.sortOrder")}</h2>
-      <p className="view-sub">
-        {t("settings.sortSub")}
-      </p>
-      <div className="theme-options">
-        {(["priority", "date"] as const).map(s => (
-          <button
-            key={s}
-            className={`theme-option ${sortOrder === s ? "active" : ""}`}
-            aria-pressed={sortOrder === s}
-            onClick={() => { void applySettings({ sort_order: s }); }}
-          >
-            {sortLabel[s]}
-          </button>
-        ))}
-      </div>
-    </section>
+    <SettingRow title={t("settings.sortOrder")} description={t("settings.sortSub")}>
+      {(["priority", "date"] as const).map(s => (
+        <button
+          key={s}
+          className={`theme-option ${sortOrder === s ? "active" : ""}`}
+          aria-pressed={sortOrder === s}
+          onClick={() => { void applySettings({ sort_order: s }); }}
+        >
+          {sortLabel[s]}
+        </button>
+      ))}
+    </SettingRow>
   );
 }
 
 export function UpcomingSection({ settings, applySettings }: SectionProps) {
   const { t } = useTranslation();
-  const days = upcomingDays(settings);
-  const { draft, setDraft, commit } = useClampedDraft(
-    days, clampUpcomingDays, n => { void applySettings({ upcoming_days: n }); },
-  );
   return (
-    <section className="settings-section">
-      <h2>{t("settings.upcomingRange")}</h2>
-      <p className="view-sub">{t("settings.upcomingSub")}</p>
-      <div className="theme-options">
-        {[7, 14, 30].map(n => (
-          <button
-            key={n}
-            className={`theme-option ${days === n ? "active" : ""}`}
-            aria-pressed={days === n}
-            onClick={() => { void applySettings({ upcoming_days: n }); }}
-          >
-            {t("settings.daysPreset", { count: n })}
-          </button>
-        ))}
-        <input
-          type="number"
-          className="weight-input"
-          aria-label={t("settings.customUpcomingAria")}
-          min={UPCOMING_DAYS_MIN}
-          max={UPCOMING_DAYS_MAX}
-          value={draft}
-          onChange={e => setDraft(e.currentTarget.value)}
-          onBlur={commit}
-          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
-        />
-      </div>
-    </section>
+    <SettingRow title={t("settings.upcomingRange")} description={t("settings.upcomingSub")}>
+      <PresetSelect
+        value={upcomingDays(settings)}
+        presets={[7, 14, 30]}
+        presetLabel={n => t("settings.daysPreset", { count: n })}
+        ariaLabel={t("settings.upcomingRange")}
+        customAriaLabel={t("settings.customUpcomingAria")}
+        min={UPCOMING_DAYS_MIN}
+        max={UPCOMING_DAYS_MAX}
+        clamp={clampUpcomingDays}
+        onChange={n => { void applySettings({ upcoming_days: n }); }}
+      />
+    </SettingRow>
   );
 }
 
@@ -203,87 +172,61 @@ export function DayStartSection({ settings, applySettings }: SectionProps) {
   const { t } = useTranslation();
   const startHour = dayStartHour(settings);
   return (
-    <section className="settings-section">
-      <h2>{t("settings.dayStart")}</h2>
-      <p className="view-sub">
-        {t("settings.dayStartSub")}
-      </p>
-      <label className="te-field">
-        <span>{t("settings.dayStartsAt")}</span>
-        <select
-          className="select-input"
-          aria-label={t("settings.dayStartHourAria")}
-          value={startHour}
-          onChange={e => { void applySettings({ day_start_hour: Number(e.currentTarget.value) }); }}
-        >
-          {Array.from({ length: DAY_START_HOUR_MAX - DAY_START_HOUR_MIN + 1 }, (_, i) => i + DAY_START_HOUR_MIN).map(h => (
-            <option key={h} value={h}>
-              {hourLabel(h)}{h === 0 ? t("settings.midnight") : ""}
-            </option>
-          ))}
-        </select>
-      </label>
-    </section>
+    <SettingRow title={t("settings.dayStart")} description={t("settings.dayStartSub")}>
+      <select
+        className="select-input"
+        aria-label={t("settings.dayStartHourAria")}
+        value={startHour}
+        onChange={e => { void applySettings({ day_start_hour: Number(e.currentTarget.value) }); }}
+      >
+        {Array.from({ length: DAY_START_HOUR_MAX - DAY_START_HOUR_MIN + 1 }, (_, i) => i + DAY_START_HOUR_MIN).map(h => (
+          <option key={h} value={h}>
+            {hourLabel(h)}{h === 0 ? t("settings.midnight") : ""}
+          </option>
+        ))}
+      </select>
+    </SettingRow>
   );
 }
 
 export function HeatmapSection({ settings, applySettings }: SectionProps) {
   const { t } = useTranslation();
-  const heatDays = dashboardHeatmapDays(settings);
-  const { draft, setDraft, commit } = useClampedDraft(
-    heatDays, clampDashboardHeatmapDays, n => { void applySettings({ recurrence_heatmap_days: n }); },
-  );
   return (
-    <section className="settings-section">
-      <h2>{t("settings.dashboardHeatmapRange")}</h2>
-      <p className="view-sub">{t("settings.dashboardHeatmapSub")}</p>
-      <div className="theme-options">
-        {[30, 60, 90, 180].map(n => (
-          <button
-            key={n}
-            className={`theme-option ${heatDays === n ? "active" : ""}`}
-            aria-pressed={heatDays === n}
-            onClick={() => { void applySettings({ recurrence_heatmap_days: n }); }}
-          >
-            {t("settings.daysPreset", { count: n })}
-          </button>
-        ))}
-        <input
-          type="number"
-          className="weight-input"
-          aria-label={t("settings.customHeatmapAria")}
-          min={DASHBOARD_HEATMAP_DAYS_MIN}
-          max={DASHBOARD_HEATMAP_DAYS_MAX}
-          value={draft}
-          onChange={e => setDraft(e.currentTarget.value)}
-          onBlur={commit}
-          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
-        />
-      </div>
-    </section>
+    <SettingRow title={t("settings.dashboardHeatmapRange")} description={t("settings.dashboardHeatmapSub")}>
+      <PresetSelect
+        value={dashboardHeatmapDays(settings)}
+        presets={[30, 60, 90, 180]}
+        presetLabel={n => t("settings.daysPreset", { count: n })}
+        ariaLabel={t("settings.dashboardHeatmapRange")}
+        customAriaLabel={t("settings.customHeatmapAria")}
+        min={DASHBOARD_HEATMAP_DAYS_MIN}
+        max={DASHBOARD_HEATMAP_DAYS_MAX}
+        clamp={clampDashboardHeatmapDays}
+        onChange={n => { void applySettings({ recurrence_heatmap_days: n }); }}
+      />
+    </SettingRow>
   );
 }
 
 export function WeekStartSection({ settings, applySettings }: SectionProps) {
   const { t } = useTranslation();
   const weekStart = firstDayOfWeek(settings);
+  // Full weekday names in the UI language; 2024-01-07 is a Sunday.
+  const weekdayName = (d: number) =>
+    new Intl.DateTimeFormat(currentLocale(), { weekday: "long" }).format(new Date(2024, 0, 7 + d));
   return (
-    <section className="settings-section">
-      <h2>{t("settings.firstDayOfWeek")}</h2>
-      <p className="view-sub">{t("settings.firstDayOfWeekSub")}</p>
-      <div className="theme-options">
-        {([[0, t("taskEditor.weekdaySun")], [1, t("taskEditor.weekdayMon")], [6, t("taskEditor.weekdaySat")]] as const).map(([d, label]) => (
-          <button
-            key={d}
-            className={`theme-option ${weekStart === d ? "active" : ""}`}
-            aria-pressed={weekStart === d}
-            onClick={() => { void applySettings({ first_day_of_week: d }); }}
-          >
-            {label}
-          </button>
+    <SettingRow title={t("settings.firstDayOfWeek")}>
+      <select
+        className="select-input"
+        aria-label={t("settings.firstDayOfWeek")}
+        value={weekStart}
+        onChange={e => { void applySettings({ first_day_of_week: Number(e.currentTarget.value) as 0 | 1 | 6 }); }}
+      >
+        {([0, 1, 6] as const).map(d => (
+          <option key={d} value={d}>{weekdayName(d)}</option>
         ))}
-      </div>
-    </section>
+      </select>
+    </SettingRow>
   );
 }
 
@@ -291,15 +234,13 @@ export function SoundSection({ settings, applySettings }: SectionProps) {
   const { t } = useTranslation();
   const soundOn = soundOnComplete(settings);
   return (
-    <section className="settings-section">
-      <h2>{t("settings.sound")}</h2>
-      <p className="view-sub">{t("settings.soundSub")}</p>
+    <SettingRow title={t("settings.sound")} description={t("settings.soundSub")}>
       <ToggleSwitch
         label={t("settings.soundEnable")}
         checked={soundOn}
         onChange={on => { void applySettings({ sound_on_complete: on }); }}
       />
-    </section>
+    </SettingRow>
   );
 }
 
@@ -310,63 +251,45 @@ export function ReminderSection({ settings, applySettings }: SectionProps) {
     reminderMinutes, clampReminderInterval, n => { void applySettings({ reminder_interval_minutes: n }); },
   );
   return (
-    <section className="settings-section">
-      <h2>{t("settings.reminderInterval")}</h2>
-      <p className="view-sub">{t("settings.reminderIntervalSub")}</p>
-      <div className="theme-options">
-        <input
-          type="number"
-          className="weight-input"
-          aria-label={t("settings.customReminderAria")}
-          min={REMINDER_INTERVAL_MIN}
-          max={REMINDER_INTERVAL_MAX}
-          value={draft}
-          onChange={e => setDraft(e.currentTarget.value)}
-          onBlur={commit}
-          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
-        />
-      </div>
-    </section>
+    <SettingRow title={t("settings.reminderInterval")} description={t("settings.reminderIntervalSub")}>
+      <input
+        type="number"
+        className="weight-input"
+        aria-label={t("settings.customReminderAria")}
+        min={REMINDER_INTERVAL_MIN}
+        max={REMINDER_INTERVAL_MAX}
+        value={draft}
+        onChange={e => setDraft(e.currentTarget.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+      />
+    </SettingRow>
   );
 }
 
 export function AttachmentCapSection({ settings, applySettings }: SectionProps) {
   const { t } = useTranslation();
   const maxAttachMb = maxAttachmentMb(settings);
-  const { draft, setDraft, commit } = useClampedDraft(
-    maxAttachMb, clampMaxAttachmentMb, n => { void applySettings({ max_attachment_mb: n }); },
-  );
   return (
-    <section className="settings-section">
-      <h2>{t("settings.maxAttachment")}</h2>
-      <p className="view-sub">{t("settings.maxAttachmentSub")}</p>
-      <div className="theme-options">
-        {[100, 512, 1024, 4096].map(n => (
-          <button
-            key={n}
-            className={`theme-option ${maxAttachMb === n ? "active" : ""}`}
-            aria-pressed={maxAttachMb === n}
-            onClick={() => { void applySettings({ max_attachment_mb: n }); }}
-          >
-            {t("settings.megabytesPreset", { count: n })}
-          </button>
-        ))}
-        <input
-          type="number"
-          className="weight-input"
-          aria-label={t("settings.customMaxAttachmentAria")}
-          min={MAX_ATTACHMENT_MB_MIN}
-          max={MAX_ATTACHMENT_MB_MAX}
-          value={draft}
-          onChange={e => setDraft(e.currentTarget.value)}
-          onBlur={commit}
-          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
-        />
-      </div>
-      {maxAttachMb > MAX_ATTACHMENT_MB_WARN && (
-        <p className="view-sub settings-warn" role="status">{t("settings.maxAttachmentWarning")}</p>
+    <SettingRow
+      title={t("settings.maxAttachment")}
+      description={t("settings.maxAttachmentSub")}
+      footer={maxAttachMb > MAX_ATTACHMENT_MB_WARN && (
+        <p className="settings-warn" role="status">{t("settings.maxAttachmentWarning")}</p>
       )}
-    </section>
+    >
+      <PresetSelect
+        value={maxAttachMb}
+        presets={[100, 512, 1024, 4096]}
+        presetLabel={n => t("settings.megabytesPreset", { count: n })}
+        ariaLabel={t("settings.maxAttachment")}
+        customAriaLabel={t("settings.customMaxAttachmentAria")}
+        min={MAX_ATTACHMENT_MB_MIN}
+        max={MAX_ATTACHMENT_MB_MAX}
+        clamp={clampMaxAttachmentMb}
+        onChange={n => { void applySettings({ max_attachment_mb: n }); }}
+      />
+    </SettingRow>
   );
 }
 
@@ -377,22 +300,18 @@ export function NewTagWeightSection({ settings, applySettings }: SectionProps) {
     newTagWeight, raw => clampWeight(String(raw)), n => { void applySettings({ default_tag_priority: n }); },
   );
   return (
-    <section className="settings-section">
-      <h2>{t("settings.newTagWeight")}</h2>
-      <p className="view-sub">{t("settings.newTagWeightSub")}</p>
-      <label className="te-field">
-        <span>{t("settings.weight")}</span>
-        <input
-          type="number"
-          className="weight-input"
-          min={WEIGHT_MIN}
-          max={WEIGHT_MAX}
-          value={draft}
-          onChange={e => setDraft(e.currentTarget.value)}
-          onBlur={commit}
-          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
-        />
-      </label>
-    </section>
+    <SettingRow title={t("settings.newTagWeight")} description={t("settings.newTagWeightSub")}>
+      <input
+        type="number"
+        className="weight-input"
+        aria-label={t("settings.newTagWeight")}
+        min={WEIGHT_MIN}
+        max={WEIGHT_MAX}
+        value={draft}
+        onChange={e => setDraft(e.currentTarget.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+      />
+    </SettingRow>
   );
 }

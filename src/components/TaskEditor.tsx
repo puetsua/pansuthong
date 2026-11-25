@@ -20,6 +20,7 @@ import { TimeTracking } from "./TimeTracking";
 import { defaultPastedName, markdownRefFor } from "./task-editor/attachmentRefs";
 import { AttachmentList, ImageLightbox } from "./task-editor/attachments";
 import { ConfirmDialog, SaveChangesDialog } from "./task-editor/dialogs";
+import { useConfirm } from "./useConfirm";
 import { NotesField, type NotesMode } from "./task-editor/NotesField";
 import { buildMarkdownNotesComponents, markdownNotesElements } from "./task-editor/markdownNotesComponents";
 import { RecurrenceFields } from "./task-editor/RecurrenceFields";
@@ -47,6 +48,7 @@ type Props = {
 
 export function TaskEditor(props: Props) {
   const { t } = useTranslation();
+  const [confirm, confirmDialog] = useConfirm();
   const { allTags, onClose, creating = false, onCompleted } = props;
   const isTemplate = props.kind === "template";
   const taskEntity = props.kind === "template" ? null : props.task;
@@ -271,7 +273,7 @@ export function TaskEditor(props: Props) {
   };
 
   const remove = async () => {
-    if (!window.confirm(t("taskEditor.deleteConfirm", { title: entity.title }))) return;
+    if (!(await confirm({ message: t("taskEditor.deleteConfirm", { title: entity.title }), confirmLabel: t("taskEditor.delete") }))) return;
     setBusy(true);
     try {
       if (isTemplate) await api.deleteTemplate(entity.id);
@@ -633,6 +635,7 @@ export function TaskEditor(props: Props) {
             onConfirm={() => { const id = confirmDelete.id; setConfirmDelete(null); void removeAttachment(id); }}
           />
         )}
+        {confirmDialog}
         {confirmClose && (
           <SaveChangesDialog
             message={t("taskEditor.saveChangesConfirm")}

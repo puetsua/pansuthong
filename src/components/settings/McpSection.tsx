@@ -5,6 +5,7 @@ import { api, type McpStatus } from "../../lib/tauri";
 import { isAndroid } from "../../lib/platform";
 import type { ApplySettings } from "./types";
 import { ToggleSwitch } from "./ToggleSwitch";
+import { SettingRow, SettingsSection } from "./SettingRow";
 
 const MCP_PORT_DEFAULT = 7373;
 const MCP_PORT_MIN = 1024;
@@ -57,17 +58,17 @@ export function McpSection({ settings, applySettings }: Props) {
 
   if (android) return null;
 
-  const statusLabel = (() => {
-    const kind = status?.status ?? (enabled ? "error" : "off");
-    switch (kind) {
+  // Nothing while off; the address (highlighted) while listening. Port in use
+  // is shown under the Port setting instead.
+  const statusLine = (() => {
+    // Nothing until the first status arrives (no false "Server error").
+    switch (status?.status) {
       case "listening":
-        return t("settings.mcp.statusListening", { port });
-      case "port_in_use":
-        return t("settings.mcp.statusPortInUse", { message: status?.message ?? "" });
+        return <p className="settings-status mcp-address" role="status"><code>{`http://127.0.0.1:${port}/mcp`}</code></p>;
       case "error":
-        return t("settings.mcp.statusError", { message: status?.message ?? "" });
+        return <p className="settings-warn" role="status">{t("settings.mcp.statusError", { message: status?.message ?? "" })}</p>;
       default:
-        return t("settings.mcp.statusOff");
+        return null;
     }
   })();
 
@@ -109,41 +110,41 @@ export function McpSection({ settings, applySettings }: Props) {
   };
 
   return (
-    <section className="settings-section">
-      <h2>{t("settings.mcp.title")}</h2>
-      <p className="view-sub">{t("settings.mcp.sub")}</p>
+    <SettingsSection title={t("settings.mcp.title")}>
+      <SettingRow
+        title={t("settings.mcp.enable")}
+        description={t("settings.mcp.sub")}
+        footer={<>
+          {err && <p className="composer-error" role="alert">{err}</p>}
+          {statusLine}
+        </>}
+      >
+        <ToggleSwitch
+          label={t("settings.mcp.enable")}
+          checked={enabled}
+          onChange={on => { void onToggle(on); }}
+        />
+      </SettingRow>
 
-      {err && <p className="composer-error" role="alert">{err}</p>}
-
-      <ToggleSwitch
-        label={t("settings.mcp.enable")}
-        checked={enabled}
-        onChange={on => { void onToggle(on); }}
-      />
-
-      <label className="te-field">
-        <span>{t("settings.mcp.port")}</span>
+      <SettingRow
+        title={t("settings.mcp.port")}
+        footer={portNotice && (
+          <p className="composer-error mcp-port-error" role="alert">{portNotice}</p>
+        )}
+      >
         <input
           type="text"
           inputMode="numeric"
-          className="text-input"
+          className="text-input weight-input"
+          aria-label={t("settings.mcp.port")}
           value={portDraft}
-          disabled={!enabled}
           onChange={e => {
             setPortErr(null);
             setPortDraft(e.currentTarget.value);
           }}
           onBlur={() => { void commitPort(); }}
         />
-        {portNotice && (
-          <p className="composer-error mcp-port-error" role="alert">{portNotice}</p>
-        )}
-      </label>
-
-      {/* Port in use is already shown under the Port field. */}
-      {status?.status !== "port_in_use" && (
-        <p className="settings-status" role="status">{statusLabel}</p>
-      )}
-    </section>
+      </SettingRow>
+    </SettingsSection>
   );
 }

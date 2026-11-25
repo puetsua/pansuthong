@@ -6,6 +6,8 @@ import { currentLocale } from "../../i18n";
 import { isAndroid } from "../../lib/platform";
 import { formatDateTime } from "../../lib/dates";
 import { dateFormat, timeFormat } from "../../lib/settings";
+import { SettingRow, SettingsSection } from "./SettingRow";
+import { holdDialogFocus } from "../../lib/focusTrap";
 
 /**
  * Confirm a data-folder change (WebView2-safe in-app dialog). A folder without
@@ -27,17 +29,12 @@ function DataFolderTransferDialog({
     ? ["merge", "adopt"]
     : ["copy", "move"];
   const variant = hasData ? "existing" : "empty";
+  const boxRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef(onCancel);
+  cancelRef.current = onCancel;
   useEffect(() => {
-    primaryRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onCancel();
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [onCancel]);
+    return holdDialogFocus(boxRef, primaryRef, () => cancelRef.current());
+  }, []);
   return (
     <div
       className="te-confirm"
@@ -46,7 +43,7 @@ function DataFolderTransferDialog({
       aria-labelledby="data-folder-transfer-title"
       onClick={onCancel}
     >
-      <div className="te-confirm-box" onClick={e => e.stopPropagation()}>
+      <div className="te-confirm-box" ref={boxRef} onClick={e => e.stopPropagation()}>
         <h2 id="data-folder-transfer-title" className="te-confirm-title">
           {t(`settings.transfer.${variant}.title`)}
         </h2>
@@ -172,63 +169,61 @@ export function DataFolderSection({ settings }: { settings: Settings }) {
 
   return (
     <>
-      <section className="settings-section settings-section-flow">
-        <h2>{t("settings.dataFile")}</h2>
-        <p className="view-sub">
-          {t("settings.deviceId")}<code>{loc?.device_id ?? "…"}</code>
-        </p>
-        {/* Desktop: "Folder:" is the sync directory. Android: "Folder:" is the
-            local app-data path; "Synced folder:" is the SAF mirror. When SAF is
-            linked, hide the local Folder line so the screen matches desktop's
-            one-folder UX without mislabeling SAF as Folder (see docs/ui-terms.html). */}
-        {!(android && sync?.linked) && (
-          <p className="view-sub">
-            {t("settings.dataFolder")}<code>{loc?.folder_path ?? "…"}</code>
-          </p>
-        )}
-        {android ? (
-          sync?.linked ? (
-            <>
-              <p className="view-sub">
-                {t("settings.syncedFolder")}<code>{sync.folder_label ?? t("settings.linked")}</code>
+      <SettingsSection title={t("settings.dataFile")}>
+        <SettingRow title={t("settings.deviceIdTitle")}>
+          <code className="setting-row-value">{loc?.device_id ?? "…"}</code>
+        </SettingRow>
+
+        {/* Desktop: the folder is the sync directory. Android: the local app-data
+            path, plus the SAF mirror once linked. When SAF is linked, hide the local
+            folder so the screen matches desktop's one-folder UX without mislabeling
+            SAF as the folder (see docs/ui-terms.html). */}
+        {android && sync?.linked ? (
+          <SettingRow
+            title={t("settings.syncedFolderTitle")}
+            description={<>
+              {sync.last_synced_ms
+                ? t("settings.lastSynced", { when: formatDateTime(sync.last_synced_ms, dateFmt, timeFmt, locale) })
+                : t("settings.notSyncedYet")}
+              {sync.conflict_count > 0 && t("settings.conflictCount", { count: sync.conflict_count })}
+            </>}
+            footer={<>
+              <p className="setting-row-path">
+                <code>{sync.folder_label ?? t("settings.linked")}</code>
                 {!sync.permission_ok && t("settings.accessLost")}
               </p>
-              <p className="view-sub">
-                {sync.last_synced_ms
-                  ? t("settings.lastSynced", { when: formatDateTime(sync.last_synced_ms, dateFmt, timeFmt, locale) })
-                  : t("settings.notSyncedYet")}
-                {sync.conflict_count > 0 && t("settings.conflictCount", { count: sync.conflict_count })}
-                {sync.last_error && t("settings.syncError", { error: sync.last_error })}
-              </p>
-              <div className="theme-options">
-                <button className="theme-option" disabled={busy} onClick={syncNowSaf}>{t("settings.syncNow")}</button>
-                <button className="theme-option" disabled={busy} onClick={pickSaf}>{t("settings.changeFolder")}</button>
-                <button className="theme-option" disabled={busy} onClick={unlinkSaf}>{t("settings.unlink")}</button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="view-sub">
-                {t("settings.pickFolderHintAndroid")}
-              </p>
-              <button className="theme-option" disabled={busy} onClick={pickSaf}>{t("settings.pickFolder")}</button>
-            </>
-          )
+              {sync.last_error && <p className="settings-warn">{t("settings.syncError", { error: sync.last_error })}</p>}
+              {err && <p className="settings-warn" role="alert">{err}</p>}
+            </>}
+          >
+            <button className="theme-option" disabled={busy} onClick={syncNowSaf}>{t("settings.syncNow")}</button>
+            <button className="theme-option" disabled={busy} onClick={pickSaf}>{t("settings.changeFolder")}</button>
+            <button className="theme-option" disabled={busy} onClick={unlinkSaf}>{t("settings.unlink")}</button>
+          </SettingRow>
         ) : (
-          <>
-            <p className="view-sub">
-              {t("settings.desktopHint")}
-            </p>
-            <div className="theme-options">
-              <button className="theme-option" disabled={busy} onClick={pick}>{t("settings.chooseFolder")}</button>
-              {loc?.folder && (
-                <button className="theme-option" disabled={busy} onClick={() => { void reset(); }}>{t("settings.useDefault")}</button>
-              )}
-            </div>
-          </>
+          <SettingRow
+            title={t("settings.dataFolderTitle")}
+            description={android ? t("settings.pickFolderHintAndroid") : t("settings.desktopHint")}
+            footer={<>
+              <p className="setting-row-path">
+                <code>{loc?.folder_path ?? "…"}</code>
+              </p>
+              {err && <p className="settings-warn" role="alert">{err}</p>}
+            </>}
+          >
+            {android ? (
+              <button className="theme-option" disabled={busy} onClick={pickSaf}>{t("settings.pickFolder")}</button>
+            ) : (
+              <>
+                <button className="theme-option" disabled={busy} onClick={pick}>{t("settings.chooseFolder")}</button>
+                {loc?.folder && (
+                  <button className="theme-option" disabled={busy} onClick={() => { void reset(); }}>{t("settings.useDefault")}</button>
+                )}
+              </>
+            )}
+          </SettingRow>
         )}
-        {err && <p className="view-sub" style={{ color: "var(--c-danger)" }}>{err}</p>}
-      </section>
+      </SettingsSection>
 
       {transferPrompt && (
         <DataFolderTransferDialog

@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import type { ThemePreset } from "../lib/tauri";
 import { TOKEN_ORDER, TOKEN_LABEL_KEY, ThemeVariant, serializeThemeJson, parseThemeJson } from "../lib/themes";
 import { ThemePreview } from "./ThemePreview";
+import { ConfirmDialog } from "./task-editor/dialogs";
+import { ownsFocus, trapTab } from "../lib/focusTrap";
 
 type Props = {
   /** Working copy to edit (full light + dark token maps). Its id is preserved. */
@@ -50,7 +52,10 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete, initialTab
   closeRef.current = onClose;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const dialog = dialogRef.current;
+      if (!dialog || !ownsFocus(dialog)) return;
       if (e.key === "Escape") { e.preventDefault(); closeRef.current(); }
+      else if (e.key === "Tab") trapTab(e, dialog);
     };
     window.addEventListener("keydown", onKey);
     const opener = restoreFocusRef.current;
@@ -101,8 +106,11 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete, initialTab
   return createPortal(
     <div className="modal-backdrop">
       <div className="task-editor theme-editor" ref={dialogRef} role="dialog" aria-modal="true"
-           aria-label={onDelete ? t("settings.themeEditTitle") : t("settings.themeNewTitle")}
+           aria-labelledby="theme-editor-title"
            onClick={e => e.stopPropagation()}>
+        <h2 id="theme-editor-title" className="theme-editor-title">
+          {onDelete ? t("settings.themeEditTitle") : t("settings.themeNewTitle")}
+        </h2>
         <label className="te-field">
           <span>{t("settings.themeName")}</span>
           <input value={name} autoFocus placeholder={t("settings.themeNamePlaceholder")}
@@ -121,6 +129,8 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete, initialTab
 
         <ThemePreview tokens={tokens} onHover={setHovered} />
 
+        {/* Colors first; import/export are secondary, so they scroll with the colors. */}
+        <div className="theme-editor-scroll">
         <div className="theme-token-rows">
           {TOKEN_ORDER.map(token => {
             const label = t(TOKEN_LABEL_KEY[token]);
@@ -160,6 +170,7 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete, initialTab
             {copied ? t("settings.themeCopied") : t("settings.themeCopyJson")}
           </button>
         </details>
+        </div>
 
         {error && <p className="composer-error">{error}</p>}
 
@@ -176,19 +187,13 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete, initialTab
       </div>
 
       {confirmingDelete && onDelete && (
-        <div className="modal-backdrop theme-confirm-backdrop">
-          <div className="task-editor theme-confirm" role="alertdialog" aria-modal="true"
-               aria-label={t("settings.themeDelete")} onClick={e => e.stopPropagation()}>
-            <p>{t("settings.themeDeleteConfirm", { name: name.trim() || preset.name })}</p>
-            <div className="te-actions">
-              <span className="te-spacer" />
-              <button type="button" onClick={() => setConfirmingDelete(false)}>{t("settings.themeCancel")}</button>
-              <button type="button" className="te-delete" onClick={() => { setConfirmingDelete(false); onDelete(); }}>
-                {t("settings.themeDelete")}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          message={t("settings.themeDeleteConfirm", { name: name.trim() || preset.name })}
+          confirmLabel={t("settings.themeDelete")}
+          cancelLabel={t("settings.themeCancel")}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={() => { setConfirmingDelete(false); onDelete(); }}
+        />
       )}
     </div>,
     document.body,

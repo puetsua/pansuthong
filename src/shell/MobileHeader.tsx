@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Indexes } from "../state/indexes";
-import { AppVersionRow } from "./AppVersionRow";
+import { MenuIcon } from "../components/NavIcons";
+import { openSettingsDrawer } from "../lib/settingsRoute";
 
 type Props = { indexes: Indexes };
 
@@ -20,55 +20,40 @@ const ROUTE_TITLE_KEYS: Record<string, string> = {
   "/settings": "nav.settings",
 };
 
-// Secondary destinations live in the "More" menu so the header stays two
-// buttons wide on a phone; primary views are the bottom tabs. Text-only —
-// glyph icons competed with labels on a dense phone menu.
-const MENU_ITEMS = [
-  { to: "/templates",  labelKey: "nav.templates" },
-  { to: "/dashboard", labelKey: "nav.dashboard" },
-  { to: "/history",    labelKey: "nav.history" },
-  { to: "/tags",       labelKey: "nav.tags" },
-  { to: "/archived",   labelKey: "nav.archived" },
-  { to: "/settings",   labelKey: "nav.settings" },
-] as const;
+// Task lists where jumping to search makes sense.
+const SEARCHABLE = ["/today", "/inbox", "/calendar"];
 
 export function MobileHeader({ indexes }: Props) {
   const { t } = useTranslation();
   const loc = useLocation();
   const title = pickTitle(loc.pathname, indexes, t);
-  const [menuOpen, setMenuOpen] = useState(false);
 
-  // Navigating (via a menu item or anything else) always dismisses the menu.
-  useEffect(() => { setMenuOpen(false); }, [loc.pathname]);
+  const onSettings = loc.pathname === "/settings";
+  const showSearch = SEARCHABLE.some(p => loc.pathname === p) || loc.pathname.startsWith("/tag/");
 
+  // The header names the page (pages hide their own h1 on a phone); the More
+  // menu lives in the bottom tabs. Search only shows on task lists it can
+  // search; Settings has a ☰ that opens its category drawer instead.
   return (
     <header className="mobile-header">
-      <h1 className="mobile-title">{title}</h1>
-      <div className="mobile-header-actions">
-        <Link to="/search" className="mobile-header-icon" aria-label={t("nav.search")}>⌕</Link>
-        <button
-          type="button"
-          className="mobile-header-icon mobile-header-more"
-          aria-label={t("nav.more")}
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen(open => !open)}
-        >⋯</button>
+      <div className="mobile-title-row">
+        {onSettings && (
+          <button
+            type="button"
+            className="mobile-header-icon mobile-header-menu"
+            aria-label={t("settings.groups.navLabel")}
+            aria-haspopup="dialog"
+            onClick={openSettingsDrawer}
+          >
+            <MenuIcon size={22} />
+          </button>
+        )}
+        <h1 className="mobile-title">{title}</h1>
       </div>
-      {menuOpen && (
-        <>
-          <div className="mobile-menu-backdrop" onClick={() => setMenuOpen(false)} />
-          <nav className="mobile-menu" role="menu" aria-label={t("nav.more")}>
-            {MENU_ITEMS.map(item => (
-              <Link key={item.to} to={item.to} role="menuitem" className="mobile-menu-item">
-                {t(item.labelKey)}
-              </Link>
-            ))}
-            {/* Same version/update footer as the desktop sidebar; Android has
-                no sidebar, so this is the only place the running build shows. */}
-            <AppVersionRow className="mobile-menu-version" />
-          </nav>
-        </>
+      {showSearch && (
+        <div className="mobile-header-actions">
+          <Link to="/search" className="mobile-header-icon" aria-label={t("nav.search")}>⌕</Link>
+        </div>
       )}
     </header>
   );

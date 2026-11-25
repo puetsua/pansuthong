@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { api, Document } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
@@ -19,10 +20,33 @@ import {
 } from "../components/settings/sections";
 import { McpSection } from "../components/settings/McpSection";
 import { BackgroundSection } from "../components/settings/BackgroundSection";
+import { SettingsSection } from "../components/settings/SettingRow";
+import { CloseIcon, ListChecksIcon, MonitorIcon, PaletteIcon, SlidersIcon } from "../components/NavIcons";
+import { OPEN_SETTINGS_DRAWER } from "../lib/settingsRoute";
+import { ownsFocus, trapTab } from "../lib/focusTrap";
 
-type Props = { doc: Document };
+const GROUPS = ["general", "appearance", "tasks", "system"] as const;
+type GroupId = (typeof GROUPS)[number];
 
-export function SettingsView({ doc }: Props) {
+const GROUP_ICONS: Record<GroupId, ComponentType<{ size?: number }>> = {
+  general: SlidersIcon,
+  appearance: PaletteIcon,
+  tasks: ListChecksIcon,
+  system: MonitorIcon,
+};
+
+const tabId = (g: GroupId) => `settings-tab-${g}`;
+const panelId = (g: GroupId) => `settings-panel-${g}`;
+
+type Props = {
+  doc: Document;
+  /** Shown as a close button when Settings is opened as a panel over the app. */
+  onClose?: () => void;
+};
+
+/** Settings, one category at a time: category tabs beside (or above, on a
+ *  phone) a card of that category's settings. */
+export function SettingsView({ doc, onClose }: Props) {
   const { t } = useTranslation();
   // Settings writes used to be fire-and-forget; surface a failure so a click that
   // didn't stick is visible rather than silently swallowed (#51).
@@ -36,29 +60,229 @@ export function SettingsView({ doc }: Props) {
     }
   };
 
+  const [active, setActive] = useState<GroupId>("general");
+  // Phone: the categories live in a side drawer opened by the header's ☰.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const sideRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const open = () => setDrawerOpen(true);
+    window.addEventListener(OPEN_SETTINGS_DRAWER, open);
+    return () => window.removeEventListener(OPEN_SETTINGS_DRAWER, open);
+  }, []);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    document.getElementById(tabId(active))?.focus();
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      // A prompt stacked above the drawer (e.g. AFK) owns its keys.
+      if (sideRef.current && !ownsFocus(sideRef.current)) return;
+      if (e.key === "Escape") { e.stopPropagation(); closeDrawer(); }
+      else if (e.key === "Tab" && sideRef.current) { e.stopPropagation(); trapTab(e, sideRef.current); }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+    // Focus moves in only when the drawer opens, not on every tab change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawerOpen]);
+
+  // Leave focus on the category title, not on a tab in the hidden drawer.
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    document.getElementById("settings-group-title")?.focus();
+  };
+
+  const activate = (g: GroupId) => {
+    setActive(g);
+    // A save error belongs to the category it happened in.
+    setSettingsErr(null);
+    // Start each category at its top: the panel body scrolls on desktop, the
+    // whole page (.mobile-main) on a phone.
+    bodyRef.current?.scrollTo?.({ top: 0 });
+    bodyRef.current?.closest(".mobile-main")?.scrollTo?.({ top: 0 });
+  };
+
+  // A click (or Enter/Space) picks the category and, on a phone, closes the drawer.
+  const select = (g: GroupId) => {
+    activate(g);
+    if (drawerOpen) closeDrawer();
+  };
+
+  // Arrow keys move between tabs (roving focus, as in the ARIA tabs pattern).
+  const onTabKey = (e: KeyboardEvent<HTMLButtonElement>) => {
+    const step = e.key === "ArrowDown" || e.key === "ArrowRight" ? 1
+      : e.key === "ArrowUp" || e.key === "ArrowLeft" ? -1 : 0;
+    const edge = e.key === "Home" ? GROUPS[0] : e.key === "End" ? GROUPS[GROUPS.length - 1] : null;
+    if (!step && !edge) return;
+    e.preventDefault();
+    const next = edge ?? GROUPS[(GROUPS.indexOf(active) + step + GROUPS.length) % GROUPS.length];
+    // Arrows only move between categories; the drawer stays open.
+    activate(next);
+    document.getElementById(tabId(next))?.focus();
+  };
+
+  const s = doc.settings;
+  const content: Record<GroupId, ReactNode> = {
+    // Every card is a titled section. Theme, Date & time format, Background,
+    // MCP and Data file render their own.
+    general: <>
+      <SettingsSection title={t("settings.sections.language")}>
+        <LanguageSection settings={s} applySettings={applySettings} />
+      </SettingsSection>
+      <DateTimeSection settings={s} applySettings={applySettings} />
+      <SettingsSection title={t("settings.sections.dayWeek")}>
+        <DayStartSection settings={s} applySettings={applySettings} />
+        <WeekStartSection settings={s} applySettings={applySettings} />
+      </SettingsSection>
+      <SettingsSection title={t("settings.sections.soundReminders")}>
+        <SoundSection settings={s} applySettings={applySettings} />
+        <ReminderSection settings={s} applySettings={applySettings} />
+      </SettingsSection>
+    </>,
+    appearance: <ThemeSettings settings={s} applySettings={applySettings} />,
+    tasks: <>
+      <SettingsSection title={t("settings.sections.views")}>
+        <SortSection settings={s} applySettings={applySettings} />
+        <UpcomingSection settings={s} applySettings={applySettings} />
+        <HeatmapSection settings={s} applySettings={applySettings} />
+      </SettingsSection>
+      <SettingsSection title={t("settings.sections.tagsAttachments")}>
+        <NewTagWeightSection settings={s} applySettings={applySettings} />
+        <AttachmentCapSection settings={s} applySettings={applySettings} />
+      </SettingsSection>
+    </>,
+    system: <>
+      <BackgroundSection settings={s} />
+      <McpSection settings={s} applySettings={applySettings} />
+      <DataFolderSection settings={s} />
+    </>,
+  };
+
   return (
     <section className="settings-view">
-      <header className="view-header">
-        <h1>{t("settings.title")}</h1>
-      </header>
+      {drawerOpen && <div className="settings-drawer-backdrop" onClick={closeDrawer} />}
+      <div ref={sideRef} className={`settings-side${drawerOpen ? " open" : ""}`}>
+        <h1 id="settings-title" className="settings-title">{t("settings.title")}</h1>
+        <div className="settings-nav" role="tablist" aria-label={t("settings.groups.navLabel")} aria-orientation="vertical">
+          {GROUPS.map(g => {
+            const Icon = GROUP_ICONS[g];
+            return (
+              <button
+                key={g}
+                id={tabId(g)}
+                type="button"
+                role="tab"
+                aria-selected={active === g}
+                aria-controls={panelId(g)}
+                tabIndex={active === g ? 0 : -1}
+                className={`settings-nav-item${active === g ? " active" : ""}`}
+                onClick={() => select(g)}
+                onKeyDown={onTabKey}
+              >
+                <Icon size={16} />
+                <span>{t(`settings.groups.${g}`)}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-      {settingsErr && <p className="composer-error" role="alert">{t("settings.saveError", { error: settingsErr })}</p>}
-
-      <ThemeSettings settings={doc.settings} applySettings={applySettings} />
-      <LanguageSection settings={doc.settings} applySettings={applySettings} />
-      <DateTimeSection settings={doc.settings} applySettings={applySettings} />
-      <SortSection settings={doc.settings} applySettings={applySettings} />
-      <UpcomingSection settings={doc.settings} applySettings={applySettings} />
-      <DayStartSection settings={doc.settings} applySettings={applySettings} />
-      <HeatmapSection settings={doc.settings} applySettings={applySettings} />
-      <WeekStartSection settings={doc.settings} applySettings={applySettings} />
-      <SoundSection settings={doc.settings} applySettings={applySettings} />
-      <ReminderSection settings={doc.settings} applySettings={applySettings} />
-      <AttachmentCapSection settings={doc.settings} applySettings={applySettings} />
-      <NewTagWeightSection settings={doc.settings} applySettings={applySettings} />
-      <BackgroundSection settings={doc.settings} />
-      <McpSection settings={doc.settings} applySettings={applySettings} />
-      <DataFolderSection settings={doc.settings} />
+      <div className="settings-main">
+        <header className="settings-main-header">
+          <h2 id="settings-group-title" className="settings-group-title" tabIndex={-1}>{t(`settings.groups.${active}`)}</h2>
+          {onClose && (
+            <button type="button" className="settings-close" aria-label={t("app.close")} onClick={onClose}>
+              <CloseIcon size={18} />
+            </button>
+          )}
+        </header>
+        <div className="settings-body" ref={bodyRef}>
+          {settingsErr && <p className="composer-error" role="alert">{t("settings.saveError", { error: settingsErr })}</p>}
+          {/* Every group stays mounted so drafts and live status survive a tab switch. */}
+          {GROUPS.map(g => (
+            <div
+              key={g}
+              id={panelId(g)}
+              role="tabpanel"
+              aria-labelledby={tabId(g)}
+              className="settings-panel"
+              hidden={active !== g}
+            >
+              {content[g]}
+            </div>
+          ))}
+        </div>
+      </div>
     </section>
+  );
+}
+
+/** Settings as a panel over the current view (desktop). Escape, the close
+ *  button, or a click outside the panel closes it. */
+export function SettingsModal({ doc, onClose }: { doc: Document; onClose: () => void }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+    return () => { previous?.focus?.(); };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      const panel = panelRef.current;
+      if (!panel || e.defaultPrevented) return;
+      // Keys in nested dialogs (theme editor, confirm prompts) are theirs. Focus
+      // can also drop to <body>, e.g. after deleting the theme whose Edit
+      // button opened the editor.
+      const target = e.target as Node;
+      if (!panel.contains(target) && target !== document.body) return;
+      // A dialog stacked over Settings (portaled) owns the keyboard.
+      if (document.querySelector(".modal-backdrop")) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        // Blur first so a typed-but-uncommitted number field saves on blur.
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        closeRef.current();
+      } else if (e.key === "Tab") {
+        trapTab(e, panel);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const close = () => {
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    onClose();
+  };
+
+  // Close on a full press on the backdrop (down and up there), and ignore the
+  // first moments after opening so a double-click on the opener doesn't open
+  // and instantly close the panel.
+  const openedAt = useRef(Date.now());
+  const pressOnBackdrop = useRef(false);
+
+  return createPortal(
+    <div
+      className="settings-backdrop"
+      onMouseDown={e => { pressOnBackdrop.current = e.target === e.currentTarget && Date.now() - openedAt.current > 400; }}
+      onClick={e => { if (pressOnBackdrop.current && e.target === e.currentTarget) close(); pressOnBackdrop.current = false; }}
+    >
+      <div
+        ref={panelRef}
+        className="settings-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        tabIndex={-1}
+      >
+        <SettingsView doc={doc} onClose={close} />
+      </div>
+    </div>,
+    document.body,
   );
 }

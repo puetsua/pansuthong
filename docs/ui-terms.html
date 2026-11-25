@@ -329,11 +329,11 @@
     <aside class="quickfind" aria-label="Quick find">
       <h2>Looking for the three dots?</h2>
       <p>
-        Top-right <strong>⋯</strong> on phone / Android → call it the
+        <strong>⋯ More</strong> bottom tab on phone / Android → call it the
         <a href="#more-menu"><strong>More menu</strong></a>.
       </p>
       <p class="aliases">
-        Also searchable as: three dots · ⋯ · ellipsis · overflow · top right · top-right menu · More button
+        Also searchable as: three dots · ⋯ · ellipsis · overflow · More tab · More button
       </p>
     </aside>
 
@@ -348,31 +348,30 @@
       <article class="term highlight" id="more-menu">
         <div class="term-head">
           <span class="term-en">More menu</span>
-          <span class="where">Mobile · top right</span>
+          <span class="where">Mobile · bottom tabs, last</span>
         </div>
         <p class="meaning">
-          The <strong>⋯</strong> (three dots / ellipsis) button in the <strong>top-right</strong> of the
-          mobile header. Opens a dropdown of secondary destinations:
-          Templates, Dashboard, History, Tags, Archived, Settings.
-          Primary destinations (Today / Inbox / Upcoming) stay on the bottom tabs instead.
+          The <strong>⋯ More</strong> tab at the right end of the mobile bottom tabs. Opens a menu
+          (upward) of secondary destinations: Templates, Dashboard, History, Tags, Archived, Settings.
+          Primary destinations (Today / Inbox / Calendar) are the other bottom tabs.
         </p>
         <p class="aka">
           <strong>Say:</strong> More menu.
           <strong>Aliases OK:</strong> ⋯ menu, three-dots menu, overflow menu.
           Prefer “More menu” in product writing — it matches the in-app accessible name.
         </p>
-        <p class="key">nav.more → “More” · aria-label on button + menu · MobileHeader.tsx</p>
+        <p class="key">nav.more → “More” · label on tab + menu · BottomTabs.tsx</p>
         <p class="related">Bottom tabs (primary); Sidebar (desktop equivalent of both tabs + More)</p>
       </article>
 
       <article class="term" id="search-button">
         <div class="term-head">
           <span class="term-en">Search</span>
-          <span class="where">Mobile header · top right · left of ⋯</span>
+          <span class="where">Mobile header · top right · task lists only</span>
         </div>
         <p class="meaning">
-          Magnifier-style ⌕ control next to the More menu. Opens the Search view
-          (active / non-archived tasks). Also a sidebar link on desktop.
+          Magnifier-style ⌕ control in the mobile header, shown on Today, Inbox, Calendar and tag
+          views. Opens the Search view (active / non-archived tasks). Also a sidebar link on desktop.
         </p>
         <p class="key">nav.search · aria-label on mobile header icon</p>
       </article>
@@ -750,19 +749,19 @@
 
       <article class="term">
         <div class="term-head">
-          <span class="term-en">Device ID:</span>
+          <span class="term-en">Device ID</span>
           <span class="where">Settings → Data file</span>
         </div>
         <p class="meaning">
           Stable id for this install. Names on-disk replicas like <code>tasks_&lt;device&gt;.db</code>
           and <code>attachments_&lt;device&gt;/</code> so peers can merge without clobbering each other.
         </p>
-        <p class="key">settings.deviceId</p>
+        <p class="key">settings.deviceIdTitle</p>
       </article>
 
       <article class="term">
         <div class="term-head">
-          <span class="term-en">Folder:</span>
+          <span class="term-en">Data folder</span>
           <span class="where">Settings → Data file</span>
         </div>
         <p class="meaning">
@@ -771,13 +770,13 @@
           <strong>Android:</strong> local/app path, shown only while SAF is <em>not</em> linked;
           hidden once a Synced folder is linked so users see one folder line.
         </p>
-        <p class="key">settings.dataFolder</p>
-        <p class="related">Synced folder: (Android only); Choose folder… / Pick folder…</p>
+        <p class="key">settings.dataFolderTitle</p>
+        <p class="related">Synced folder (Android only); Choose folder… / Pick folder…</p>
       </article>
 
       <article class="term">
         <div class="term-head">
-          <span class="term-en">Synced folder:</span>
+          <span class="term-en">Synced folder</span>
           <span class="where">Settings → Data file (Android, linked)</span>
         </div>
         <p class="meaning">
@@ -785,7 +784,7 @@
           (e.g. a folder managed by a cloud drive). Push/pull copies this device’s
           <code>.db</code> and attachments into that folder; local app-private DB remains master on Android.
         </p>
-        <p class="key">settings.syncedFolder</p>
+        <p class="key">settings.syncedFolderTitle</p>
         <p class="related">Folder: (local path); (linked); Unlink</p>
       </article>
 
@@ -883,9 +882,10 @@
           <span class="where">Settings</span>
         </div>
         <p class="meaning">
-          Appearance: auto/light/dark mode plus named color presets (Default, Slate, …).
+          Appearance: auto/light/dark mode plus named color presets (Default, Slate, …),
+          picked from the gallery on the Appearance tab.
         </p>
-        <p class="key">settings.theme · themePickerTitle · themePreset*</p>
+        <p class="key">settings.theme · themeMode · themePreset*</p>
       </article>
 
       <article class="term">
@@ -920,7 +920,7 @@
           work should still count as the same day. Also affects how completions and time
           entries are attributed to a day.
         </p>
-        <p class="key">settings.dayStart · dayStartsAt · midnight</p>
+        <p class="key">settings.dayStart · midnight</p>
       </article>
 
       <article class="term">
@@ -1102,7 +1102,7 @@
           Priority weight on a tag. A task’s sort priority is the <strong>highest weight</strong>
           among its tags. Shown as “priority weight” in the Tags list tooltip.
         </p>
-        <p class="key">tagEditor.weight · tags.weightTitle · settings.weight</p>
+        <p class="key">tagEditor.weight · tags.weightTitle · settings.newTagWeight</p>
         <p class="related">Sort order → priority</p>
       </article>
 

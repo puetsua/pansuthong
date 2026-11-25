@@ -5,9 +5,11 @@ import type { TFunction } from "i18next";
 import { api, Decision, Task, TaskDiff, isDone } from "../lib/tauri";
 import { errorMessage } from "../lib/errors";
 import { BulkIntent, bulkAction, nextConflictPath } from "../state/conflictDecisions";
+import { useConfirm } from "../components/useConfirm";
 
 export function ConflictsView() {
   const { t } = useTranslation();
+  const [confirm, confirmDialog] = useConfirm();
   const { filename } = useParams<{ filename: string }>();
   const path = filename ? decodeURIComponent(filename) : "";
   const navigate = useNavigate();
@@ -64,7 +66,7 @@ export function ConflictsView() {
   };
 
   const dismiss = async () => {
-    if (!window.confirm(t("conflicts.dismissConfirm"))) return;
+    if (!(await confirm({ message: t("conflicts.dismissConfirm"), confirmLabel: t("conflicts.discard") }))) return;
     try { await api.dismissConflict(path); await goNext(); }
     catch (err) { setError(errorMessage(err)); }
   };
@@ -116,6 +118,7 @@ export function ConflictsView() {
           {busy ? t("conflicts.applying") : t("conflicts.apply")}
         </button>
       </div>
+      {confirmDialog}
     </section>
   );
 }

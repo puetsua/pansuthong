@@ -265,7 +265,7 @@ button {
   user-select: none;
   background: var(--c-surface-2);
   border-bottom: 1px solid var(--c-border);
-  /* Above portaled overlays (.modal-backdrop 100, AFK 110, theme-confirm 1000)
+  /* Above portaled overlays (.modal-backdrop 100, AFK 110)
      so the strip keeps hit-testing for drag while modals are open (#232/#233).
      Portals append under <body>; position+z-index lets this compete at the root
      stacking context. Keep the desktop `top` inset on overlays as well. */
@@ -937,13 +937,6 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   cursor: pointer;
 }
 
-.settings-section { margin-bottom: var(--space-6); }
-.settings-section h2 {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0 0 var(--space-2);
-  letter-spacing: 0.01em;
-}
 .settings-row {
   display: flex; align-items: center; gap: var(--space-2);
   margin-bottom: var(--space-3);
@@ -1040,64 +1033,144 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 }
 .theme-option.active { background: var(--c-accent); color: white; }
 
-.settings-view .settings-section {
+/* ---- Settings: category tabs beside one card of setting rows ---- */
+.settings-view {
   display: grid;
-  grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr);
-  column-gap: var(--space-4);
-  row-gap: 4px;
-  align-items: start;
-  margin-bottom: var(--space-3);
-  padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--c-border);
+  grid-template-columns: 13rem minmax(0, 1fr);
+  min-height: 100%;
 }
-.settings-view .settings-section:last-child {
-  border-bottom: 0;
-  margin-bottom: 0;
+.settings-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-3);
+  background: var(--c-surface-2);
+  border-right: 1px solid var(--c-border);
 }
-.settings-view .settings-section h2 {
-  margin: 0;
-  line-height: 1.25;
+.settings-title {
+  margin: 0 var(--space-2);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
-.settings-view .settings-section > .view-sub {
-  grid-column: 1;
-  max-width: 22rem;
-  font-size: 0.78rem;
-  line-height: 1.35;
+.settings-nav { display: flex; flex-direction: column; gap: 2px; }
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 6px var(--space-2);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--c-text-muted);
+  font-size: 0.88rem;
+  text-align: left;
 }
-.settings-view .settings-section > :not(h2):not(.view-sub) {
-  grid-column: 2;
+.settings-nav-item svg { flex: none; }
+.settings-nav-item:hover { background: var(--c-surface); color: var(--c-text); }
+.settings-nav-item.active { background: var(--c-accent-bg); color: var(--c-accent); font-weight: 600; }
+.settings-nav-item:focus-visible { outline: 2px solid var(--c-accent); outline-offset: -2px; }
+
+.settings-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.settings-main-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-3);
 }
-.settings-view .settings-section > label.te-field {
-  gap: 3px;
+.settings-group-title { margin: 0; font-size: 1.15rem; font-weight: 600; letter-spacing: -0.01em; }
+.settings-close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--c-text-muted);
 }
-.settings-view .settings-section > label.te-field + label.te-field {
-  margin-top: var(--space-1);
+.settings-close:hover { background: var(--c-surface-2); color: var(--c-text); }
+.settings-close:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--space-5) var(--space-5);
 }
-.settings-view .theme-options {
+.settings-body > .composer-error { margin: 0 0 var(--space-3); }
+.settings-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+}
+.settings-panel[hidden] { display: none; }
+.settings-panel { display: flex; flex-direction: column; gap: var(--space-5); }
+/* A card whose settings all hide on this platform (e.g. Background on Android). */
+.settings-card:empty { display: none; }
+.settings-subsection { display: flex; flex-direction: column; gap: var(--space-2); }
+.settings-subsection-title {
+  margin: 0 var(--space-1);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* One setting per row: name and short description on the left, its control on
+   the right. The control wraps under the text when the panel is narrow. */
+.setting-row {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  column-gap: var(--space-5);
+  row-gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--c-border);
 }
+.settings-card > .setting-row:first-child { border-top: 0; }
+.setting-row-text { flex: 1 1 15rem; min-width: 0; }
+.setting-row-text h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.setting-row-desc {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--c-text-muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.setting-row-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-left: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+.setting-row-footer {
+  flex: 1 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.setting-row-footer:empty { display: none; }
+.setting-row-footer > p { margin: 0; font-size: 0.78rem; line-height: 1.4; }
+.setting-row-path { color: var(--c-text-muted); }
+.setting-row-path code,
+.setting-row-value { word-break: break-all; }
 .settings-view .theme-option {
   min-height: 30px;
   padding: 4px 10px;
   line-height: 1.2;
 }
-/* Spaced like stacked label.te-field rows; div.te-field hosts a button group. */
-.settings-view .settings-section > div.te-field {
-  gap: 3px;
-}
-.settings-view .settings-section > .te-field + .te-field {
-  margin-top: var(--space-1);
-}
-/* On/off switch (ToggleSwitch): label text, then the switch. */
-.settings-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 30px;
-}
-.settings-toggle > span { font-size: 0.85rem; color: var(--c-text); }
 .toggle-switch {
   position: relative;
   flex: none;
@@ -1135,90 +1208,92 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   .toggle-switch, .toggle-switch::after { transition: none; }
 }
-.settings-view .settings-section > .settings-toggle + .te-field,
-.settings-view .settings-section > .te-field + .settings-toggle,
-.settings-view .settings-section > .settings-status + .settings-toggle {
-  margin-top: var(--space-1);
-}
-/* Runtime status/notes sit with the controls (column 2), unlike .view-sub. */
-.settings-view .settings-status {
-  margin: var(--space-1) 0 0;
-  font-size: 0.78rem;
-  color: var(--c-text-muted);
+.settings-view .settings-status { color: var(--c-text-muted); }
+.mcp-address code {
+  color: var(--c-success);
+  font-family: var(--font-mono);
+  user-select: text;
 }
 .settings-view .weight-input,
 .settings-view .select-input {
   min-height: 30px;
   padding: 4px 8px;
 }
-.settings-view .weight-input {
-  width: 5rem;
+.settings-view .weight-input { width: 5rem; }
+.settings-view .select-input { max-width: 100%; min-width: 0; }
+
+/* Desktop: Settings opens as a panel over the current view (below the title
+   bar) and grows and shrinks with the window. */
+.settings-backdrop {
+  position: fixed;
+  inset: var(--desktop-titlebar-height) 0 0 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  padding: clamp(var(--space-3), 4vmin, 48px);
+  background: rgba(0, 0, 0, 0.45);
 }
-.settings-view .select-input {
-  max-width: 100%;
+.settings-modal {
+  display: flex;
+  flex: 1;
+  max-width: 1280px;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
-.settings-view .theme-current {
-  margin-top: 0;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-.settings-view .settings-section > .settings-warn {
-  grid-column: 2;
-  max-width: 34rem;
-}
-.settings-view .settings-section-flow {
-  display: block;
-}
-.settings-view .settings-section-flow > .view-sub {
-  max-width: none;
-  margin-top: var(--space-1);
-}
-.settings-view .settings-section-flow > .theme-options {
-  margin-top: var(--space-2);
-}
+.settings-modal:focus { outline: none; }
+.settings-modal > .settings-view { flex: 1; min-width: 0; height: 100%; }
+
+/* Phone: a page. The categories move into a side drawer opened from a menu
+   button beside the category title. */
 @media (max-width: 720px) {
-  .settings-view .settings-section {
-    display: block;
-    margin-bottom: var(--space-4);
+  .settings-view { display: block; }
+  .settings-side {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 130;
+    width: min(280px, 82vw);
+    padding: calc(env(safe-area-inset-top, 0px) + var(--space-4)) var(--space-3) var(--space-4);
+    background: var(--c-surface);
+    border-right: 1px solid var(--c-border);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+    overflow-y: auto;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0.2s;
   }
-  .settings-view .settings-section h2 {
-    margin-bottom: var(--space-1);
+  /* Visible at once on open (only hiding waits for the slide), so the
+     active tab can take focus immediately. */
+  .settings-side.open { transform: none; visibility: visible; transition: transform 0.2s ease, visibility 0s; }
+  .settings-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 129;
+    background: rgba(0, 0, 0, 0.45);
   }
-  .settings-view .settings-section > .view-sub {
-    max-width: none;
-    margin-bottom: var(--space-2);
-  }
-  .settings-view .settings-section > label.te-field + label.te-field,
-  .settings-view .settings-section > .theme-options + .view-sub,
-  .settings-view .theme-current {
-    margin-top: var(--space-2);
-  }
-  .settings-view .theme-option {
-    min-height: 34px;
-  }
+  .settings-nav-item { padding: var(--space-2); font-size: 0.95rem; }
+  .settings-main-header { padding: 0 0 var(--space-3); }
+  .settings-body { padding: 0; overflow: visible; }
+  .setting-row { padding: var(--space-3); }
+  .setting-row-control { justify-content: flex-start; margin-left: 0; }
+  .settings-view .theme-option { min-height: 34px; }
+}
+@media (max-width: 720px) and (prefers-reduced-motion: reduce) {
+  .settings-side { transition: none; }
 }
 
 /* Theme customization (#15) */
-/* Current-theme summary in Settings */
-.theme-current {
-  display: flex; align-items: center; gap: var(--space-3);
-  margin-top: var(--space-2);
-}
-.theme-current-name { font-weight: 600; }
-
-/* Picker modal */
-.theme-picker {
-  max-width: 560px; width: 92vw;
-  max-height: 86vh; overflow-y: auto;
-}
-.theme-picker-title { font-size: 1.05rem; font-weight: 600; margin: 0 0 var(--space-3); }
-
 /* Preset gallery */
 .theme-gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: var(--space-3);
-  margin-top: var(--space-2);
+  padding: var(--space-4);
 }
 .theme-card {
   border: 1px solid var(--c-border);
@@ -1295,6 +1370,18 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 
 /* Editor modal */
 .theme-editor { max-width: 540px; }
+.theme-editor-title { margin: 0; font-size: 1.05rem; font-weight: 600; }
+/* Color rows scroll together with the secondary import/export panels, so the
+   name, tabs and preview above stay put. */
+.theme-editor-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: var(--space-1);
+}
+.theme-editor-scroll > .theme-collapse { margin-top: 0; }
 .theme-tabs { display: flex; gap: var(--space-1); margin: var(--space-2) 0; }
 .theme-tab {
   background: var(--c-surface-2); color: var(--c-text-muted);
@@ -1304,7 +1391,6 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 .theme-token-rows {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: var(--space-1) var(--space-4);
-  max-height: 46vh; overflow-y: auto;
 }
 .theme-token-row {
   display: flex; align-items: center; gap: var(--space-2);
@@ -1368,9 +1454,6 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   border: 1.5px solid var(--c-border); border-radius: var(--radius-sm);
 }
 
-/* Delete confirmation sits above the editor */
-.theme-confirm-backdrop { z-index: 1000; }
-.theme-confirm { max-width: 360px; }
 code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2px 5px; border-radius: 4px; }
 
 .conflict-banner {
@@ -1518,8 +1601,9 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   justify-content: space-between;
   gap: var(--space-2);
   min-width: 0;
-  position: relative; /* anchors the ⋯ dropdown menu */
+  min-height: calc(max(var(--space-3), env(safe-area-inset-top)) + 40px + var(--space-2));
   padding: max(var(--space-3), env(safe-area-inset-top)) var(--space-4) var(--space-2);
+  box-sizing: border-box;
   background: var(--c-surface);
   border-bottom: 1px solid var(--c-border);
 }
@@ -1533,10 +1617,17 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Fixed-size icon buttons so the bar is the same height with search, ☰ or
+   neither. */
 .mobile-header-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   font-size: 1.4rem;
+  line-height: 1;
   color: var(--c-text-muted);
-  padding: var(--space-2);
   text-decoration: none;
 }
 .mobile-main {
@@ -1570,7 +1661,12 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   letter-spacing: 0.05em;
   position: relative;
 }
+button.bottom-tab { background: none; border: none; font: inherit; font-size: 0.65rem; cursor: pointer; }
 .bottom-tab.active { color: var(--c-accent); font-weight: 600; }
+/* The header names the page on a phone, so each page's own h1 would repeat it.
+   Actions beside the title (e.g. Add tag) stay. */
+.mobile-main .view-header h1 { display: none; }
+.mobile-main .view-title-row:not(:has(> :not(h1))) { display: none; }
 .bottom-tab-icon {
   display: flex;
   line-height: 1;
@@ -2429,6 +2525,16 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   background: var(--c-danger);
   border-color: var(--c-danger);
 }
+/* `.te-actions > button` (0,1,1) would otherwise reset the red to plain text. */
+.te-actions > button.te-delete {
+  color: var(--c-danger);
+  border-color: var(--c-danger);
+}
+.te-actions > button.te-delete:hover:not(:disabled) {
+  color: #fff;
+  background: var(--c-danger);
+  border-color: var(--c-danger);
+}
 .te-save {
   color: #fff;
   background: var(--c-accent);
@@ -2593,22 +2699,28 @@ code { font-family: var(--font-mono); background: var(--c-surface-2); padding: 2
   font-size: 0.85rem;
 }
 
-/* Group the mobile header's actions (Search + More) on the right. */
-.mobile-header-actions { display: flex; align-items: center; gap: var(--space-1); }
-.mobile-header-more {
+/* Title, with Settings' ☰ before it; actions (Search) sit on the right. */
+.mobile-title-row { display: flex; align-items: center; gap: var(--space-1); min-width: 0; min-height: 40px; }
+.mobile-header-menu {
+  margin-left: calc(-1 * var(--space-2));
   background: none;
   border: none;
-  line-height: 1;
+  color: var(--c-text);
+  border-radius: var(--radius-md);
 }
-/* Secondary destinations behind the header's ⋯ button. */
+.mobile-header-menu:active { background: var(--c-surface-2); }
+.mobile-header-actions { display: flex; align-items: center; gap: var(--space-1); }
+/* Secondary destinations behind the bottom tabs' More button. */
 .mobile-menu-backdrop {
   position: fixed;
   inset: 0;
   z-index: 40;
 }
+/* Anchors the More menu, which opens upward from the tab bar. */
+.bottom-tabs-wrap { position: relative; min-width: 0; }
 .mobile-menu {
   position: absolute;
-  top: 100%;
+  bottom: calc(100% + var(--space-1));
   right: var(--space-3);
   z-index: 41;
   min-width: 12rem;
