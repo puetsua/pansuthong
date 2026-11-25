@@ -19,18 +19,24 @@ export function trapTab(e: KeyboardEvent, root: HTMLElement): void {
 }
 
 /**
+ * Whether keys belong to `box`: focus is inside it, on <body>, or on an
+ * ancestor (clicking a prompt's text focuses its host editor/panel). Focus in
+ * a dialog stacked elsewhere (e.g. the AFK prompt) means it isn't ours.
+ */
+export function ownsFocus(box: HTMLElement): boolean {
+  const active = document.activeElement;
+  return !active || box.contains(active) || active.contains(box);
+}
+
+/**
  * Escape cancels and Tab stays inside the box. Capture phase + stopPropagation
  * so the dialog underneath (editor, Settings panel) never sees these keys.
  * Returns the cleanup.
  */
 export function listenDialogKeys(box: { current: HTMLElement | null }, onCancel: () => void): () => void {
   const onKey = (e: KeyboardEvent) => {
-    // A dialog stacked above this one (e.g. the AFK prompt) owns the keys
-    // while focus is in it. Focus on <body> or on an ancestor (clicking the
-    // prompt's text focuses the host editor/panel) still counts as ours.
     const box_ = box.current;
-    const active = document.activeElement;
-    if (!box_ || (active && !box_.contains(active) && !active.contains(box_))) return;
+    if (!box_ || !ownsFocus(box_)) return;
     if (e.key === "Escape") { e.stopPropagation(); onCancel(); }
     else if (e.key === "Tab") { e.stopPropagation(); trapTab(e, box_); }
   };

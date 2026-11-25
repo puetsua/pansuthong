@@ -24,7 +24,7 @@ const newId = () => `custom_${crypto.randomUUID()}`;
 /** Every built-in and custom theme as a card; pick, duplicate, edit or add one. */
 export function ThemeGallery({ settings, applySettings }: Props) {
   const { t } = useTranslation();
-  const presetId = settings.theme_preset ?? DEFAULT_PRESET_ID;
+  const savedId = settings.theme_preset ?? DEFAULT_PRESET_ID;
   const variant = activeVariant(settings.theme, prefersDarkScheme());
   const customs = settings.custom_presets ?? [];
   const [edit, setEdit] = useState<EditState>(null);
@@ -36,6 +36,10 @@ export function ThemeGallery({ settings, applySettings }: Props) {
       light: fullTokens(p.light, "light"), dark: fullTokens(p.dark, "dark"), custom: true,
     })),
   ];
+
+  // An unknown id (e.g. a custom theme deleted on another device) renders as
+  // Default, so mark Default as the active card.
+  const presetId = cards.some(c => c.id === savedId) ? savedId : DEFAULT_PRESET_ID;
 
   const select = (id: string) => applySettings({ theme_preset: id });
 

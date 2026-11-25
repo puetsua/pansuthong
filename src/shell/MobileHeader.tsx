@@ -42,7 +42,7 @@ export function MobileHeader({ indexes }: Props) {
             type="button"
             className="mobile-header-icon mobile-header-menu"
             aria-label={t("settings.groups.navLabel")}
-            aria-haspopup="true"
+            aria-haspopup="dialog"
             onClick={openSettingsDrawer}
           >
             <MenuIcon size={22} />

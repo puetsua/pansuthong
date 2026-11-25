@@ -23,7 +23,7 @@ import { BackgroundSection } from "../components/settings/BackgroundSection";
 import { SettingsSection } from "../components/settings/SettingRow";
 import { CloseIcon, ListChecksIcon, MonitorIcon, PaletteIcon, SlidersIcon } from "../components/NavIcons";
 import { OPEN_SETTINGS_DRAWER } from "../lib/settingsRoute";
-import { trapTab } from "../lib/focusTrap";
+import { ownsFocus, trapTab } from "../lib/focusTrap";
 
 const GROUPS = ["general", "appearance", "tasks", "system"] as const;
 type GroupId = (typeof GROUPS)[number];
@@ -76,6 +76,8 @@ export function SettingsView({ doc, onClose }: Props) {
     if (!drawerOpen) return;
     document.getElementById(tabId(active))?.focus();
     const onKey = (e: globalThis.KeyboardEvent) => {
+      // A prompt stacked above the drawer (e.g. AFK) owns its keys.
+      if (sideRef.current && !ownsFocus(sideRef.current)) return;
       if (e.key === "Escape") { e.stopPropagation(); closeDrawer(); }
       else if (e.key === "Tab" && sideRef.current) { e.stopPropagation(); trapTab(e, sideRef.current); }
     };

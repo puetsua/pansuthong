@@ -14,7 +14,7 @@ import { TagView } from "./views/TagView";
 import { CalendarView } from "./views/CalendarView";
 import { SearchView } from "./views/SearchView";
 import { SettingsModal, SettingsView } from "./views/SettingsView";
-import { settingsBackground } from "./lib/settingsRoute";
+import { closeSettingsPanel, settingsBackground } from "./lib/settingsRoute";
 import type { Document } from "./lib/tauri";
 import type { Indexes } from "./state/indexes";
 import { TagsView } from "./views/TagsView";
@@ -182,10 +182,7 @@ function AppRoutes({ doc, indexes, settingsAsPanel }: { doc: Document; indexes: 
   const navigate = useNavigate();
   const settingsOpen = settingsAsPanel && location.pathname === "/settings";
   const background = settingsBackground(location);
-  const closeSettings = () => {
-    if (background) navigate(-1);
-    else navigate("/today", { replace: true });
-  };
+  const closeSettings = () => closeSettingsPanel(navigate, location);
 
   return (
     <>

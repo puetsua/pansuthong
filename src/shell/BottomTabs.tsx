@@ -5,7 +5,7 @@ import type { ComponentType, SVGProps } from "react";
 import { Indexes, openCount } from "../state/indexes";
 import { InboxIcon, TodayIcon, CalendarIcon, MoreIcon } from "../components/NavIcons";
 import { AppVersionRow } from "./AppVersionRow";
-import { settingsBackground, type SettingsRouteState } from "../lib/settingsRoute";
+import { settingsLinkState } from "../lib/settingsRoute";
 
 type Props = { indexes: Indexes };
 type IconComponent = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>;
@@ -67,7 +67,7 @@ export function BottomTabs({ indexes }: Props) {
                     // Settings remembers the page behind it, in case the window
                     // widens into the desktop panel.
                     state={item.to === "/settings"
-                      ? { backgroundLocation: settingsBackground(loc) ?? loc } satisfies SettingsRouteState
+                      ? settingsLinkState(loc)
                       : undefined}
                     onClick={() => setMoreOpen(false)}>
                 {tr(item.labelKey)}
