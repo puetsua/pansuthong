@@ -23,6 +23,7 @@ import { BackgroundSection } from "../components/settings/BackgroundSection";
 import { SettingsSection } from "../components/settings/SettingRow";
 import { CloseIcon, ListChecksIcon, MonitorIcon, PaletteIcon, SlidersIcon } from "../components/NavIcons";
 import { OPEN_SETTINGS_DRAWER } from "../lib/settingsRoute";
+import { trapTab } from "../lib/focusTrap";
 
 const GROUPS = ["general", "appearance", "tasks", "system"] as const;
 type GroupId = (typeof GROUPS)[number];
@@ -84,7 +85,11 @@ export function SettingsView({ doc, onClose }: Props) {
 
   const select = (g: GroupId) => {
     setActive(g);
-    setDrawerOpen(false);
+    if (drawerOpen) {
+      setDrawerOpen(false);
+      // Don't leave focus on a tab inside the closing (hidden) drawer.
+      document.getElementById("settings-group-title")?.focus();
+    }
     // Start each category at its top: the panel body scrolls on desktop, the
     // whole page (.mobile-main) on a phone.
     bodyRef.current?.scrollTo?.({ top: 0 });
@@ -171,7 +176,7 @@ export function SettingsView({ doc, onClose }: Props) {
 
       <div className="settings-main">
         <header className="settings-main-header">
-          <h2 className="settings-group-title">{t(`settings.groups.${active}`)}</h2>
+          <h2 id="settings-group-title" className="settings-group-title" tabIndex={-1}>{t(`settings.groups.${active}`)}</h2>
           {onClose && (
             <button type="button" className="settings-close" aria-label={t("app.close")} onClick={onClose}>
               <CloseIcon size={18} />
@@ -256,17 +261,4 @@ export function SettingsModal({ doc, onClose }: { doc: Document; onClose: () => 
     </div>,
     document.body,
   );
-}
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-/** Keep Tab / Shift+Tab inside `root` (skipping hidden tab panels). */
-function trapTab(e: globalThis.KeyboardEvent, root: HTMLElement) {
-  const items = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(el => el.offsetParent !== null);
-  if (items.length === 0) return;
-  const first = items[0], last = items[items.length - 1];
-  const active = document.activeElement;
-  if (e.shiftKey && (active === first || !root.contains(active))) { e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && (active === last || !root.contains(active))) { e.preventDefault(); first.focus(); }
 }

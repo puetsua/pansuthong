@@ -5,6 +5,7 @@ import type { ThemePreset } from "../lib/tauri";
 import { TOKEN_ORDER, TOKEN_LABEL_KEY, ThemeVariant, serializeThemeJson, parseThemeJson } from "../lib/themes";
 import { ThemePreview } from "./ThemePreview";
 import { ConfirmDialog } from "./task-editor/dialogs";
+import { trapTab } from "../lib/focusTrap";
 
 type Props = {
   /** Working copy to edit (full light + dark token maps). Its id is preserved. */
@@ -52,6 +53,7 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete, initialTab
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") { e.preventDefault(); closeRef.current(); }
+      else if (e.key === "Tab" && dialogRef.current) trapTab(e, dialogRef.current);
     };
     window.addEventListener("keydown", onKey);
     const opener = restoreFocusRef.current;

@@ -265,7 +265,7 @@ button {
   user-select: none;
   background: var(--c-surface-2);
   border-bottom: 1px solid var(--c-border);
-  /* Above portaled overlays (.modal-backdrop 100, AFK 110, theme-confirm 1000)
+  /* Above portaled overlays (.modal-backdrop 100, AFK 110)
      so the strip keeps hit-testing for drag while modals are open (#232/#233).
      Portals append under <body>; position+z-index lets this compete at the root
      stacking context. Keep the desktop `top` inset on overlays as well. */

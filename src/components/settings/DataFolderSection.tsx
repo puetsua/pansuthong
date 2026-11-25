@@ -7,6 +7,7 @@ import { isAndroid } from "../../lib/platform";
 import { formatDateTime } from "../../lib/dates";
 import { dateFormat, timeFormat } from "../../lib/settings";
 import { SettingRow, SettingsSection } from "./SettingRow";
+import { listenDialogKeys } from "../../lib/focusTrap";
 
 /**
  * Confirm a data-folder change (WebView2-safe in-app dialog). A folder without
@@ -28,17 +29,13 @@ function DataFolderTransferDialog({
     ? ["merge", "adopt"]
     : ["copy", "move"];
   const variant = hasData ? "existing" : "empty";
+  const boxRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef(onCancel);
+  cancelRef.current = onCancel;
   useEffect(() => {
     primaryRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onCancel();
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [onCancel]);
+    return listenDialogKeys(boxRef, () => cancelRef.current());
+  }, []);
   return (
     <div
       className="te-confirm"
@@ -47,7 +44,7 @@ function DataFolderTransferDialog({
       aria-labelledby="data-folder-transfer-title"
       onClick={onCancel}
     >
-      <div className="te-confirm-box" onClick={e => e.stopPropagation()}>
+      <div className="te-confirm-box" ref={boxRef} onClick={e => e.stopPropagation()}>
         <h2 id="data-folder-transfer-title" className="te-confirm-title">
           {t(`settings.transfer.${variant}.title`)}
         </h2>

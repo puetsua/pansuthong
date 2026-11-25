@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { listenDialogKeys } from "../../lib/focusTrap";
 
 /** In-app confirmation modal with a red confirm button. Esc cancels. */
 export function ConfirmDialog({ message, confirmLabel, cancelLabel, onConfirm, onCancel }: {
@@ -10,24 +11,14 @@ export function ConfirmDialog({ message, confirmLabel, cancelLabel, onConfirm, o
 }) {
   const confirmRef = useRef<HTMLButtonElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef(onCancel);
+  cancelRef.current = onCancel;
+  // Mount only: a host re-render (sync, MCP edit) must not pull focus back to
+  // the destructive button.
   useEffect(() => {
     confirmRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.stopPropagation(); onCancel(); return; }
-      // Keep Tab on the two buttons so focus can't reach the dialog underneath.
-      if (e.key === "Tab") {
-        const buttons = [...(boxRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
-        if (buttons.length === 0) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
-        const next = e.shiftKey ? (i <= 0 ? buttons.length - 1 : i - 1) : (i + 1) % buttons.length;
-        buttons[next].focus();
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [onCancel]);
+    return listenDialogKeys(boxRef, () => cancelRef.current());
+  }, []);
   return (
     <div className="te-confirm" role="dialog" aria-modal="true" aria-label={message} onClick={onCancel}>
       <div className="te-confirm-box" ref={boxRef} onClick={e => e.stopPropagation()}>
@@ -54,15 +45,16 @@ export function SaveChangesDialog({ message, saveLabel, discardLabel, cancelLabe
   onCancel: () => void;
 }) {
   const saveRef = useRef<HTMLButtonElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef(onCancel);
+  cancelRef.current = onCancel;
   useEffect(() => {
     saveRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onCancel(); } };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [onCancel]);
+    return listenDialogKeys(boxRef, () => cancelRef.current());
+  }, []);
   return (
     <div className="te-confirm" role="dialog" aria-modal="true" aria-label={message} onClick={onCancel}>
-      <div className="te-confirm-box" onClick={e => e.stopPropagation()}>
+      <div className="te-confirm-box" ref={boxRef} onClick={e => e.stopPropagation()}>
         <p>{message}</p>
         <div className="te-confirm-actions">
           <button type="button" onClick={onDiscard}>{discardLabel}</button>
