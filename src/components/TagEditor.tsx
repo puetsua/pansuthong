@@ -8,6 +8,7 @@ import { tagPillStyle } from "../lib/tagColorDisplay";
 import { useThemeVariant } from "../lib/useThemeVariant";
 import { defaultTagColor, defaultTagPriority } from "../lib/settings";
 import { ColorPicker } from "./ColorPicker";
+import { useConfirm } from "./useConfirm";
 
 type Props = {
   /** The tag to edit; omit (or null) to create a new one. */
@@ -47,9 +48,10 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
     restoreFocusRef.current = document.activeElement as HTMLElement | null;
   }
 
+  const [confirm, confirmDialog] = useConfirm();
   const isDirty = () => JSON.stringify(form) !== JSON.stringify(initialRef.current);
-  const requestClose = () => {
-    if (isDirty() && !window.confirm(t("tagEditor.discardConfirm"))) return;
+  const requestClose = async () => {
+    if (isDirty() && !(await confirm({ message: t("tagEditor.discardConfirm"), confirmLabel: t("taskEditor.discard") }))) return;
     onClose();
   };
   // Keep a stable ref to the latest requestClose so the mount-only key handler
@@ -59,7 +61,7 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); requestCloseRef.current(); return; }
+      if (e.key === "Escape") { e.preventDefault(); void requestCloseRef.current(); return; }
       if (e.key !== "Tab") return;
       const root = dialogRef.current;
       if (!root) return;
@@ -101,7 +103,7 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
 
   const remove = async () => {
     if (!tag) return;
-    if (!window.confirm(t("tagEditor.deleteConfirm", { name: tag.name }))) return;
+    if (!(await confirm({ message: t("tagEditor.deleteConfirm", { name: tag.name }), confirmLabel: t("tagEditor.delete") }))) return;
     setBusy(true);
     try {
       await api.deleteTag(tag.id);
@@ -122,7 +124,7 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
             <h2>{isEdit ? t("tagEditor.editTitle") : t("tagEditor.addTitle")}</h2>
           </div>
           <button type="button" className="te-close" aria-label={t("tagEditor.cancel")}
-                  onClick={requestClose} disabled={busy}>✕</button>
+                  onClick={() => { void requestClose(); }} disabled={busy}>✕</button>
         </div>
         <label className="te-field">
           <span>{t("tagEditor.name")}</span>
@@ -168,11 +170,12 @@ export function TagEditor({ tag, settings, onClose, onDeleted }: Props) {
             <button type="button" className="te-delete" onClick={remove} disabled={busy}>{t("tagEditor.delete")}</button>
           )}
           <span className="te-spacer" />
-          <button type="button" onClick={requestClose} disabled={busy}>{t("tagEditor.cancel")}</button>
+          <button type="button" onClick={() => { void requestClose(); }} disabled={busy}>{t("tagEditor.cancel")}</button>
           <button type="button" className="te-save" onClick={save}
                   disabled={busy || !form.name.trim()}>{t("tagEditor.save")}</button>
         </div>
       </div>
+      {confirmDialog}
     </div>,
     document.body,
   );

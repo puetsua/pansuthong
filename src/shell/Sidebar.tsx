@@ -9,6 +9,7 @@ import { TagEditor } from "../components/TagEditor";
 import { ContextMenu } from "../components/ContextMenu";
 import { AppVersionRow } from "./AppVersionRow";
 import { pinTagToDashboard } from "../lib/dashboard-tags";
+import { settingsBackground, type SettingsRouteState } from "../lib/settingsRoute";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -114,7 +115,11 @@ export function Sidebar({ doc, indexes }: Props) {
             </NavLink>
           </li>
           <li>
-            <NavLink to="/settings" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+            <NavLink
+              to="/settings"
+              state={{ backgroundLocation: settingsBackground(location) ?? location } satisfies SettingsRouteState}
+              className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}
+            >
               {t("nav.settings")}
             </NavLink>
           </li>

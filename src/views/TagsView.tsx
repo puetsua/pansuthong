@@ -7,6 +7,7 @@ import { tagPillStyle } from "../lib/tagColorDisplay";
 import { useThemeVariant } from "../lib/useThemeVariant";
 import { Indexes } from "../state/indexes";
 import { TagEditor } from "../components/TagEditor";
+import { useConfirm } from "../components/useConfirm";
 
 type Props = { doc: Document; indexes: Indexes };
 
@@ -15,6 +16,7 @@ type EditorState = { tag: Tag | null } | null;
 
 export function TagsView({ doc, indexes }: Props) {
   const { t } = useTranslation();
+  const [confirm, confirmDialog] = useConfirm();
   const theme = useThemeVariant(doc.settings);
   const [editor, setEditor] = useState<EditorState>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +26,7 @@ export function TagsView({ doc, indexes }: Props) {
   );
 
   const remove = async (tag: Tag) => {
-    if (!window.confirm(t("tags.deleteConfirm", { name: tag.name }))) return;
+    if (!(await confirm({ message: t("tags.deleteConfirm", { name: tag.name }), confirmLabel: t("common.delete") }))) return;
     try { await api.deleteTag(tag.id); setError(null); }
     catch (err) { setError(errorMessage(err)); }
   };
@@ -80,6 +82,7 @@ export function TagsView({ doc, indexes }: Props) {
       </ul>
 
       {editor && <TagEditor tag={editor.tag} settings={doc.settings} onClose={() => setEditor(null)} />}
+      {confirmDialog}
     </section>
   );
 }
