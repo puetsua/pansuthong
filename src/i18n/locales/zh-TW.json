@@ -645,9 +645,7 @@
       "closeToTray": "縮到系統匣繼續執行",
       "closeQuits": "結束程式",
       "noTray": "找不到系統匣，關閉視窗會直接結束程式。",
-      "launchAtLogin": "登入時啟動（隱藏在系統匣）",
-      "launchAtLoginTitle": "登入時啟動",
-      "launchAtLoginSub": "啟動後隱藏在系統匣。"
+      "launchAtLogin": "登入時啟動（隱藏在系統匣）"
     },
     "mcp": {
       "title": "MCP 伺服器",
@@ -663,7 +661,6 @@
     "dataFile": "資料檔案",
     "syncedFolderTitle": "已同步資料夾",
     "deviceIdTitle": "裝置 ID",
-    "deviceIdSub": "資料夾中這台裝置的資料檔名稱。",
     "dataFolderTitle": "資料夾",
     "linked": "（已連結）",
     "accessLost": " — 存取權限已失去，請重新選擇資料夾",

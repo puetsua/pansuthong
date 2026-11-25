@@ -83,8 +83,7 @@ export function BackgroundSection({ settings }: Props) {
       </SettingRow>
 
       <SettingRow
-        title={t("settings.background.launchAtLoginTitle")}
-        description={t("settings.background.launchAtLoginSub")}
+        title={t("settings.background.launchAtLogin")}
         footer={saveError("login")}
       >
         <ToggleSwitch

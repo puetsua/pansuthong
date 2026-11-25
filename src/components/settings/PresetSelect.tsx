@@ -65,7 +65,12 @@ export function PresetSelect({
           max={max}
           value={draft}
           onChange={e => setDraft(e.currentTarget.value)}
-          onBlur={commit}
+          onBlur={() => {
+            commit();
+            // An unchanged commit doesn't re-run the sync effect; a preset still
+            // belongs back in the dropdown.
+            if (presets.includes(clamp(draft))) setCustom(false);
+          }}
           onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
         />
       )}

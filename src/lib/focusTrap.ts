@@ -26,11 +26,13 @@ export function trapTab(e: KeyboardEvent, root: HTMLElement): void {
 export function listenDialogKeys(box: { current: HTMLElement | null }, onCancel: () => void): () => void {
   const onKey = (e: KeyboardEvent) => {
     // A dialog stacked above this one (e.g. the AFK prompt) owns the keys
-    // while focus is in it.
+    // while focus is in it. Focus on <body> or on an ancestor (clicking the
+    // prompt's text focuses the host editor/panel) still counts as ours.
+    const box_ = box.current;
     const active = document.activeElement;
-    if (!box.current || (active && active !== document.body && !box.current.contains(active))) return;
+    if (!box_ || (active && !box_.contains(active) && !active.contains(box_))) return;
     if (e.key === "Escape") { e.stopPropagation(); onCancel(); }
-    else if (e.key === "Tab") { e.stopPropagation(); trapTab(e, box.current); }
+    else if (e.key === "Tab") { e.stopPropagation(); trapTab(e, box_); }
   };
   window.addEventListener("keydown", onKey, true);
   return () => window.removeEventListener("keydown", onKey, true);

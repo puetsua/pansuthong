@@ -171,7 +171,7 @@ export function DataFolderSection({ settings }: { settings: Settings }) {
   return (
     <>
       <SettingsSection title={t("settings.dataFile")}>
-        <SettingRow title={t("settings.deviceIdTitle")} description={t("settings.deviceIdSub")}>
+        <SettingRow title={t("settings.deviceIdTitle")}>
           <code className="setting-row-value">{loc?.device_id ?? "…"}</code>
         </SettingRow>
 

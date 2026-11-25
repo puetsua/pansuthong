@@ -76,7 +76,7 @@ export function SettingsView({ doc, onClose }: Props) {
     if (!drawerOpen) return;
     document.getElementById(tabId(active))?.focus();
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") { e.stopPropagation(); setDrawerOpen(false); }
+      if (e.key === "Escape") { e.stopPropagation(); closeDrawer(); }
       else if (e.key === "Tab" && sideRef.current) { e.stopPropagation(); trapTab(e, sideRef.current); }
     };
     window.addEventListener("keydown", onKey, true);
@@ -84,6 +84,12 @@ export function SettingsView({ doc, onClose }: Props) {
     // Focus moves in only when the drawer opens, not on every tab change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawerOpen]);
+
+  // Leave focus on the category title, not on a tab in the hidden drawer.
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    document.getElementById("settings-group-title")?.focus();
+  };
 
   const activate = (g: GroupId) => {
     setActive(g);
@@ -96,11 +102,7 @@ export function SettingsView({ doc, onClose }: Props) {
   // A click (or Enter/Space) picks the category and, on a phone, closes the drawer.
   const select = (g: GroupId) => {
     activate(g);
-    if (drawerOpen) {
-      setDrawerOpen(false);
-      // Don't leave focus on a tab inside the closing (hidden) drawer.
-      document.getElementById("settings-group-title")?.focus();
-    }
+    if (drawerOpen) closeDrawer();
   };
 
   // Arrow keys move between tabs (roving focus, as in the ARIA tabs pattern).
@@ -155,7 +157,7 @@ export function SettingsView({ doc, onClose }: Props) {
 
   return (
     <section className="settings-view">
-      {drawerOpen && <div className="settings-drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
+      {drawerOpen && <div className="settings-drawer-backdrop" onClick={closeDrawer} />}
       <div ref={sideRef} className={`settings-side${drawerOpen ? " open" : ""}`}>
         <h1 id="settings-title" className="settings-title">{t("settings.title")}</h1>
         <div className="settings-nav" role="tablist" aria-label={t("settings.groups.navLabel")} aria-orientation="vertical">

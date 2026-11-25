@@ -651,9 +651,7 @@
       "closeToTray": "Keep running in tray",
       "closeQuits": "Quit",
       "noTray": "No system tray found, so closing the window quits.",
-      "launchAtLogin": "Launch at login (hidden in tray)",
-      "launchAtLoginTitle": "Launch at login",
-      "launchAtLoginSub": "Starts hidden in the tray."
+      "launchAtLogin": "Launch at login (hidden in tray)"
     },
     "mcp": {
       "title": "MCP server",
@@ -669,7 +667,6 @@
     "dataFile": "Data file",
     "syncedFolderTitle": "Synced folder",
     "deviceIdTitle": "Device ID",
-    "deviceIdSub": "Names this device's data file in the folder.",
     "dataFolderTitle": "Data folder",
     "linked": "(linked)",
     "accessLost": " — access lost, re-pick the folder",
