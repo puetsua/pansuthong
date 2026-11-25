@@ -64,6 +64,7 @@ export function SettingsView({ doc, onClose }: Props) {
   // Phone: the categories live in a side drawer opened by the header's ☰.
   const [drawerOpen, setDrawerOpen] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const sideRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const open = () => setDrawerOpen(true);
@@ -76,6 +77,7 @@ export function SettingsView({ doc, onClose }: Props) {
     document.getElementById(tabId(active))?.focus();
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape") { e.stopPropagation(); setDrawerOpen(false); }
+      else if (e.key === "Tab" && sideRef.current) { e.stopPropagation(); trapTab(e, sideRef.current); }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -83,17 +85,22 @@ export function SettingsView({ doc, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawerOpen]);
 
-  const select = (g: GroupId) => {
+  const activate = (g: GroupId) => {
     setActive(g);
+    // Start each category at its top: the panel body scrolls on desktop, the
+    // whole page (.mobile-main) on a phone.
+    bodyRef.current?.scrollTo?.({ top: 0 });
+    bodyRef.current?.closest(".mobile-main")?.scrollTo?.({ top: 0 });
+  };
+
+  // A click (or Enter/Space) picks the category and, on a phone, closes the drawer.
+  const select = (g: GroupId) => {
+    activate(g);
     if (drawerOpen) {
       setDrawerOpen(false);
       // Don't leave focus on a tab inside the closing (hidden) drawer.
       document.getElementById("settings-group-title")?.focus();
     }
-    // Start each category at its top: the panel body scrolls on desktop, the
-    // whole page (.mobile-main) on a phone.
-    bodyRef.current?.scrollTo?.({ top: 0 });
-    bodyRef.current?.closest(".mobile-main")?.scrollTo?.({ top: 0 });
   };
 
   // Arrow keys move between tabs (roving focus, as in the ARIA tabs pattern).
@@ -104,7 +111,8 @@ export function SettingsView({ doc, onClose }: Props) {
     if (!step && !edge) return;
     e.preventDefault();
     const next = edge ?? GROUPS[(GROUPS.indexOf(active) + step + GROUPS.length) % GROUPS.length];
-    select(next);
+    // Arrows only move between categories; the drawer stays open.
+    activate(next);
     document.getElementById(tabId(next))?.focus();
   };
 
@@ -146,9 +154,9 @@ export function SettingsView({ doc, onClose }: Props) {
   };
 
   return (
-    <section className={`settings-view${onClose ? " settings-view-panel" : ""}`}>
+    <section className="settings-view">
       {drawerOpen && <div className="settings-drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
-      <div className={`settings-side${drawerOpen ? " open" : ""}`}>
+      <div ref={sideRef} className={`settings-side${drawerOpen ? " open" : ""}`}>
         <h1 id="settings-title" className="settings-title">{t("settings.title")}</h1>
         <div className="settings-nav" role="tablist" aria-label={t("settings.groups.navLabel")} aria-orientation="vertical">
           {GROUPS.map(g => {

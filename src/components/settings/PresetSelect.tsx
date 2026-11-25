@@ -27,8 +27,13 @@ export function PresetSelect({
   const inputRef = useRef<HTMLInputElement>(null);
   const { draft, setDraft, commit } = useClampedDraft(value, clamp, onChange);
 
-  // A value set elsewhere that isn't a preset must show as custom.
-  useEffect(() => { if (!isPreset) setCustom(true); }, [isPreset]);
+  // Follow the committed value: a non-preset shows as custom; a preset (typed
+  // into the custom field, or set elsewhere) shows as that preset once the
+  // field isn't being edited.
+  useEffect(() => {
+    if (!isPreset) setCustom(true);
+    else if (document.activeElement !== inputRef.current) setCustom(false);
+  }, [isPreset, value]);
 
   return (
     <>

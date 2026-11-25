@@ -61,8 +61,8 @@ export function McpSection({ settings, applySettings }: Props) {
   // Nothing while off; the address (highlighted) while listening. Port in use
   // is shown under the Port setting instead.
   const statusLine = (() => {
-    const kind = status?.status ?? (enabled ? "error" : "off");
-    switch (kind) {
+    // Nothing until the first status arrives (no false "Server error").
+    switch (status?.status) {
       case "listening":
         return <p className="settings-status mcp-address" role="status"><code>{`http://127.0.0.1:${port}/mcp`}</code></p>;
       case "error":
@@ -128,7 +128,6 @@ export function McpSection({ settings, applySettings }: Props) {
 
       <SettingRow
         title={t("settings.mcp.port")}
-        description={t("settings.mcp.portSub")}
         footer={portNotice && (
           <p className="composer-error mcp-port-error" role="alert">{portNotice}</p>
         )}

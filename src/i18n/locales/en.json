@@ -660,7 +660,6 @@
       "sub": "Let AI agents manage your tasks over MCP. Local only, never on the network.",
       "enable": "Enable MCP server",
       "port": "Port",
-      "portSub": "Used while the MCP server is on.",
       "statusPortInUse": "Port in use — choose another port. {{message}}",
       "statusError": "Server error: {{message}}",
       "portInvalid": "Port must be an integer from {{min}} to {{max}}."

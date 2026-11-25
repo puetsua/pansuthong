@@ -654,7 +654,6 @@
       "sub": "讓 AI 代理透過 MCP 管理任務。只在本機執行，不對外開放。",
       "enable": "啟用 MCP 伺服器",
       "port": "連接埠",
-      "portSub": "MCP 伺服器開啟時使用。",
       "statusPortInUse": "連接埠已被佔用 — 請換一個。{{message}}",
       "statusError": "伺服器錯誤：{{message}}",
       "portInvalid": "連接埠必須為 {{min}} 到 {{max}} 的整數。"
