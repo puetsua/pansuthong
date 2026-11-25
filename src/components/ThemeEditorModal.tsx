@@ -52,8 +52,10 @@ export function ThemeEditorModal({ preset, onSave, onClose, onDelete, initialTab
   closeRef.current = onClose;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const dialog = dialogRef.current;
+      if (!dialog || !ownsFocus(dialog)) return;
       if (e.key === "Escape") { e.preventDefault(); closeRef.current(); }
-      else if (e.key === "Tab" && dialogRef.current && ownsFocus(dialogRef.current)) trapTab(e, dialogRef.current);
+      else if (e.key === "Tab") trapTab(e, dialog);
     };
     window.addEventListener("keydown", onKey);
     const opener = restoreFocusRef.current;

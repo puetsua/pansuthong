@@ -37,7 +37,7 @@ export function ThemeGallery({ settings, applySettings }: Props) {
     })),
   ];
 
-  // An unknown id (e.g. a custom theme deleted on another device) renders as
+  // An unknown id (e.g. from a stale or hand-edited settings file) renders as
   // Default, so mark Default as the active card.
   const presetId = cards.some(c => c.id === savedId) ? savedId : DEFAULT_PRESET_ID;
 

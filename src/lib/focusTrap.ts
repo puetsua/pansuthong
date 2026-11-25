@@ -19,13 +19,15 @@ export function trapTab(e: KeyboardEvent, root: HTMLElement): void {
 }
 
 /**
- * Whether keys belong to `box`: focus is inside it, on <body>, or on an
- * ancestor (clicking a prompt's text focuses its host editor/panel). Focus in
- * a dialog stacked elsewhere (e.g. the AFK prompt) means it isn't ours.
+ * Whether keys belong to `box`: only focus inside a dialog stacked above it
+ * (portaled later, e.g. the AFK prompt) makes them someone else's. Focus that
+ * strayed behind it (the page, the Settings panel) is still ours to pull back.
  */
 export function ownsFocus(box: HTMLElement): boolean {
   const active = document.activeElement;
-  return !active || box.contains(active) || active.contains(box);
+  if (!active || box.contains(active) || active.contains(box)) return true;
+  const host = active.closest('[role="dialog"]');
+  return !host || !(box.compareDocumentPosition(host) & Node.DOCUMENT_POSITION_FOLLOWING);
 }
 
 /**
