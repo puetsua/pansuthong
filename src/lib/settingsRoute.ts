@@ -13,8 +13,7 @@ export function settingsBackground(location: Location): Location | undefined {
 /** `state` for a link to /settings from `location`. */
 export function settingsLinkState(location: Location): SettingsRouteState {
   // Already on /settings: the link replaces this entry, so keep where it came from.
-  const current = location.state as SettingsRouteState | null;
-  if (current?.backgroundLocation) return current;
+  if (location.pathname === "/settings") return (location.state as SettingsRouteState | null) ?? {};
   const idx = (window.history.state as { idx?: number } | null)?.idx;
   return { backgroundLocation: location, fromIdx: idx };
 }
