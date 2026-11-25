@@ -582,7 +582,6 @@
     "dashboardHeatmapRange": "Dashboard heatmap range",
     "dashboardHeatmapSub": "How many days back the Dashboard heatmap reaches.",
     "firstDayOfWeek": "First day of the week",
-    "firstDayOfWeekSub": "Which weekday the week starts on.",
     "customHeatmapAria": "Custom Dashboard heatmap days",
     "dayStart": "Day start",
     "dayStartSub": "When Today rolls over. Set it past midnight if you work late.",

@@ -7,7 +7,7 @@ import { isAndroid } from "../../lib/platform";
 import { formatDateTime } from "../../lib/dates";
 import { dateFormat, timeFormat } from "../../lib/settings";
 import { SettingRow, SettingsSection } from "./SettingRow";
-import { listenDialogKeys } from "../../lib/focusTrap";
+import { holdDialogFocus } from "../../lib/focusTrap";
 
 /**
  * Confirm a data-folder change (WebView2-safe in-app dialog). A folder without
@@ -33,8 +33,7 @@ function DataFolderTransferDialog({
   const cancelRef = useRef(onCancel);
   cancelRef.current = onCancel;
   useEffect(() => {
-    primaryRef.current?.focus();
-    return listenDialogKeys(boxRef, () => cancelRef.current());
+    return holdDialogFocus(boxRef, primaryRef, () => cancelRef.current());
   }, []);
   return (
     <div

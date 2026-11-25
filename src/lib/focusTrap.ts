@@ -37,3 +37,22 @@ export function listenDialogKeys(box: { current: HTMLElement | null }, onCancel:
   window.addEventListener("keydown", onKey, true);
   return () => window.removeEventListener("keydown", onKey, true);
 }
+
+/**
+ * Mount-time setup for a small in-app prompt: focus its default button, own
+ * Escape/Tab (see listenDialogKeys), and on close put focus back where it was
+ * (as the native window.confirm did). Returns the cleanup.
+ */
+export function holdDialogFocus(
+  box: { current: HTMLElement | null },
+  initial: { current: HTMLElement | null },
+  onCancel: () => void,
+): () => void {
+  const previous = document.activeElement as HTMLElement | null;
+  initial.current?.focus();
+  const stop = listenDialogKeys(box, onCancel);
+  return () => {
+    stop();
+    previous?.focus?.();
+  };
+}

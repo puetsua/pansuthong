@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { listenDialogKeys } from "../../lib/focusTrap";
+import { holdDialogFocus } from "../../lib/focusTrap";
 
 /** In-app confirmation modal with a red confirm button. Esc cancels. */
 export function ConfirmDialog({ message, confirmLabel, cancelLabel, onConfirm, onCancel }: {
@@ -16,8 +16,7 @@ export function ConfirmDialog({ message, confirmLabel, cancelLabel, onConfirm, o
   // Mount only: a host re-render (sync, MCP edit) must not pull focus back to
   // the destructive button.
   useEffect(() => {
-    confirmRef.current?.focus();
-    return listenDialogKeys(boxRef, () => cancelRef.current());
+    return holdDialogFocus(boxRef, confirmRef, () => cancelRef.current());
   }, []);
   return (
     <div className="te-confirm" role="dialog" aria-modal="true" aria-label={message} onClick={onCancel}>
@@ -49,8 +48,7 @@ export function SaveChangesDialog({ message, saveLabel, discardLabel, cancelLabe
   const cancelRef = useRef(onCancel);
   cancelRef.current = onCancel;
   useEffect(() => {
-    saveRef.current?.focus();
-    return listenDialogKeys(boxRef, () => cancelRef.current());
+    return holdDialogFocus(boxRef, saveRef, () => cancelRef.current());
   }, []);
   return (
     <div className="te-confirm" role="dialog" aria-modal="true" aria-label={message} onClick={onCancel}>

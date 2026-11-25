@@ -215,7 +215,7 @@ export function WeekStartSection({ settings, applySettings }: SectionProps) {
   const weekdayName = (d: number) =>
     new Intl.DateTimeFormat(currentLocale(), { weekday: "long" }).format(new Date(2024, 0, 7 + d));
   return (
-    <SettingRow title={t("settings.firstDayOfWeek")} description={t("settings.firstDayOfWeekSub")}>
+    <SettingRow title={t("settings.firstDayOfWeek")}>
       <select
         className="select-input"
         aria-label={t("settings.firstDayOfWeek")}

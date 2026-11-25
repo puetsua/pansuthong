@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { ComponentType, SVGProps } from "react";
@@ -35,15 +35,32 @@ export function BottomTabs({ indexes }: Props) {
   const [moreOpen, setMoreOpen] = useState(false);
   const onMorePage = MORE_ITEMS.some(i => loc.pathname === i.to);
 
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLElement>(null);
+
   // Navigating (via a menu item or anything else) always dismisses the menu.
   useEffect(() => { setMoreOpen(false); }, [loc.pathname]);
+
+  // Keyboard: focus the first item on open; Escape closes and returns to More.
+  useEffect(() => {
+    if (!moreOpen) return;
+    menuRef.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setMoreOpen(false);
+      moreButtonRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [moreOpen]);
 
   return (
     <div className="bottom-tabs-wrap">
       {moreOpen && (
         <>
           <div className="mobile-menu-backdrop" onClick={() => setMoreOpen(false)} />
-          <nav className="mobile-menu" role="menu" aria-label={tr("nav.more")}>
+          <nav ref={menuRef} className="mobile-menu" role="menu" aria-label={tr("nav.more")}>
             {MORE_ITEMS.map(item => (
               <Link key={item.to} to={item.to} role="menuitem" className="mobile-menu-item"
                     onClick={() => setMoreOpen(false)}>
@@ -76,6 +93,7 @@ export function BottomTabs({ indexes }: Props) {
           </NavLink>
         ))}
         <button
+          ref={moreButtonRef}
           type="button"
           className={`bottom-tab${moreOpen || onMorePage ? " active" : ""}`}
           aria-haspopup="menu"

@@ -93,6 +93,8 @@ export function SettingsView({ doc, onClose }: Props) {
 
   const activate = (g: GroupId) => {
     setActive(g);
+    // A save error belongs to the category it happened in.
+    setSettingsErr(null);
     // Start each category at its top: the panel body scrolls on desktop, the
     // whole page (.mobile-main) on a phone.
     bodyRef.current?.scrollTo?.({ top: 0 });
